@@ -32,6 +32,9 @@
     <!-- Modbus通信 -->
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
     
+    <!-- 密码哈希 -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    
     <!-- SQLite -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     
@@ -63,6 +66,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Acme.Product.Core\Acme.Product.Core.csproj" />
     <ProjectReference Include="..\Acme.Product.Application\Acme.Product.Application.csproj" />
+    <ProjectReference Include="..\Acme.PlcComm\Acme.PlcComm.csproj" />
   </ItemGroup>
 
 </Project>

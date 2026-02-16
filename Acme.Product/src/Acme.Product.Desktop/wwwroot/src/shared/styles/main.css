@@ -1299,6 +1299,20 @@ body::before {
     gap: 20px;
 }
 
+.status-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--gold-accent);
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.status-user .metric-icon {
+    color: var(--gold-accent);
+    opacity: 0.8;
+}
+
 #project-name {
     color: var(--gold-accent);
 }

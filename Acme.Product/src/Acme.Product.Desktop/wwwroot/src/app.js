@@ -68,6 +68,15 @@ window.addEventListener('unhandledrejection', function(event) {
 
 console.log('[App] Starting module imports...');
 
+// ============================================
+// 认证检查 - 未登录则跳转
+// ============================================
+import { initAuth, logout, validateTokenAsync } from './features/auth/auth.js';
+if (!initAuth()) {
+    // initAuth 会处理跳转，这里直接返回
+    throw new Error('未登录，正在跳转...');
+}
+
 import webMessageBridge from './core/messaging/webMessageBridge.js';
 import httpClient from './core/messaging/httpClient.js';
 import { createSignal } from './core/state/store.js';
@@ -119,6 +128,22 @@ const AUTO_SAVE_DELAY = 5 * 60 * 1000; // 5分钟
  */
 function initializeApp() {
     console.log('[App] 初始化应用...');
+    
+    // 后台验证 Token 有效性
+    validateTokenAsync().then(isValid => {
+        if (isValid) {
+            // Update user info in status bar
+            const userNameEl = document.getElementById('user-display-name');
+            if (userNameEl && window.currentUser) {
+                userNameEl.textContent = window.currentUser.displayName || window.currentUser.username || '--';
+            }
+        } else {
+            console.warn('[App] Token 无效或已过期，正在跳转到登录页...');
+            showToast('登录已过期，请重新登录', 'warning');
+            // 延迟跳转，让用户看清提示
+            setTimeout(() => logout(), 1500);
+        }
+    });
     
     // 显示加载骨架屏
     showLoadingScreen();
@@ -247,6 +272,28 @@ function switchView(view) {
             initializeInspectionPanel();
             // 初始化检测图像查看器
             initializeInspectionImageViewer();
+            
+            // 【关键修复】视图从 hidden 变为 visible 后，canvas 容器尺寸才变非0
+            // 需要手动触发 resize 以消费 _pendingResetView，让已加载的图像正确渲染
+            requestAnimationFrame(() => {
+                if (window.inspectionImageViewer?.imageCanvas) {
+                    window.inspectionImageViewer.imageCanvas.resize();
+                }
+                
+                // 如果有已保存的检测结果但图像还没显示，重新加载
+                if (window._lastInspectionResult?.outputImage && window.inspectionImageViewer) {
+                    if (!window.inspectionImageViewer.imageCanvas?.image) {
+                        console.log('[App] 切换到检测视图，加载已保存的检测结果图像');
+                        const imageData = `data:image/png;base64,${window._lastInspectionResult.outputImage}`;
+                        window.inspectionImageViewer.loadImage(imageData);
+                    }
+                    
+                    // 更新检测面板
+                    if (inspectionPanel) {
+                        inspectionPanel.handleInspectionResult(window._lastInspectionResult);
+                    }
+                }
+            });
             break;
         case 'results':
             resultsViewContainer?.classList.remove('hidden');
@@ -322,61 +369,15 @@ function initializeInspectionImageViewer() {
         const inspectionImageViewer = new ImageViewerComponent('inspection-image-area');
         window.inspectionImageViewer = inspectionImageViewer;
         
-        // 将检测图像查看器与检测控制器关联
-        inspectionController.onInspectionCompleted = (result) => {
-            console.log('[App] 检测完成:', result);
-
-            // 显示处理后的图像
-            if (result.outputImage && window.inspectionImageViewer) {
-                const imageData = `data:image/png;base64,${result.outputImage}`;
-                window.inspectionImageViewer.loadImage(imageData);
-            }
-
-            // 更新检测面板
-            if (inspectionPanel) {
-                inspectionPanel.handleInspectionResult(result);
-            }
-
-            // 添加结果到数显面板
-            if (resultPanel) {
-                resultPanel.addResult({
-                    status: result.status,
-                    defects: result.defects || [],
-                    processingTime: result.processingTimeMs,
-                    timestamp: new Date().toISOString(),
-                    confidenceScore: result.confidenceScore,
-                    imageData: result.outputImage
-                });
-            }
-
-            // 更新右侧结果面板（简化显示）
-            updateResultsPanel(result);
-
-            // 更新检测结果面板
-            updateInspectionResultsPanel(result);
-
-            // 显示结果提示
-            let status = 'info';
-            let message = '';
-
-            if (result.status === 'OK') {
-                status = 'success';
-                message = '检测通过 (OK)';
-            } else if (result.status === 'Error') {
-                status = 'error';
-                message = `检测错误: ${result.errorMessage || '未知错误'}`;
-            } else {
-                status = 'warning';
-                message = `检测到 ${result.defects?.length || 0} 个缺陷`;
-            }
-            showToast(message, status);
-        };
+        // 【关键修复】移除重复的回调设置，避免覆盖 initializeInspectionController 中设置的回调
+        // 检测完成逻辑统一在 initializeInspectionController 中处理
         
         console.log('[App] 检测图像查看器初始化完成');
     } catch (error) {
         console.error('[App] 检测图像查看器初始化失败:', error);
     }
 }
+
 
 /**
  * 更新检测视图结果面板
@@ -466,7 +467,14 @@ function initializeOperatorLibraryPanel() {
     // 设置选中回调
     operatorLibraryPanel.onOperatorSelected = (operatorData) => {
         console.log('[App] 选中算子:', operatorData.type);
-        setSelectedOperator(operatorData);
+        // 【修复】创建浅拷贝确保 Signal 能检测到变化（Signal 使用 !== 严格相等）
+        // 同时补全 title 字段，确保 PropertyPanel 能正确显示标题
+        const operatorCopy = {
+            ...operatorData,
+            title: operatorData.title || operatorData.displayName || operatorData.type,
+            parameters: operatorData.parameters ? operatorData.parameters.map(p => ({...p})) : []
+        };
+        setSelectedOperator(operatorCopy);
     };
     
     console.log('[App] 算子库面板初始化完成');
@@ -503,11 +511,14 @@ function initializeImageViewer() {
  * 初始化检测控制器
  */
 function initializeInspectionController() {
-    // 设置检测完成回调
-    inspectionController.onInspectionCompleted = (result) => {
+    // 设置检测完成回调（调用方法注册回调，而非覆盖方法）
+    inspectionController.onInspectionCompleted((result) => {
         console.log('[App] 检测完成:', result);
 
-        // 如果在检测视图，更新检测面板和图像查看器
+        // 【关键修复】保存最新的检测结果，以便切换视图时显示
+        window._lastInspectionResult = result;
+
+        // 如果在检测视图，立即更新检测面板和图像查看器
         if (getCurrentView() === 'inspection') {
             // 显示处理后的图像
             if (result.outputImage && window.inspectionImageViewer) {
@@ -522,6 +533,9 @@ function initializeInspectionController() {
 
             // 更新结果面板
             updateInspectionResultsPanel(result);
+        } else {
+            // 【关键修复】如果不在检测视图，显示提示引导用户切换
+            console.log('[App] 检测完成但不在检测视图，已保存结果');
         }
 
         // 添加结果到数显面板
@@ -554,10 +568,10 @@ function initializeInspectionController() {
             message = `检测到 ${result.defects?.length || 0} 个缺陷`;
         }
         showToast(message, status);
-    };
+    });
     
     // 设置检测错误回调
-    inspectionController.onInspectionError = (error) => {
+    inspectionController.onInspectionError((error) => {
         console.error('[App] 检测错误:', error);
         showToast('检测失败: ' + error.message, 'error');
         
@@ -566,7 +580,7 @@ function initializeInspectionController() {
             inspectionPanel.updateStatus('error', '检测错误');
             inspectionPanel.setButtonsState(false);
         }
-    };
+    });
     
     console.log('[App] 检测控制器初始化完成');
 }
@@ -1009,7 +1023,8 @@ function initializeWebMessage() {
 /**
  * 处理新建工程
  */
-function handleNewProject() {
+function handleNewProject(options = {}) {
+    const { preserveCanvas = false } = options;
     const nameInput = createLabeledInput({ label: '工程名称', required: true, placeholder: 'Project_' + Date.now() });
     const descInput = createLabeledInput({ label: '描述', placeholder: '工程描述...' });
     
@@ -1036,7 +1051,7 @@ function handleNewProject() {
                 return; 
             }
             
-            createProject(name, desc)
+            createProject(name, desc, preserveCanvas)
                 .then(() => {
                     closeModal(modalOverlay);
                     // 切换到流程视图
@@ -1050,7 +1065,7 @@ function handleNewProject() {
     });
     
     modalOverlay = createModal({
-        title: '新建工程',
+        title: preserveCanvas ? '保存为新工程' : '新建工程',
         content,
         footer: [btnCancel, btnCreate],
         width: '400px'
@@ -1091,7 +1106,7 @@ function initializeToolbar() {
             try {
                 const project = getCurrentProject();
                 if (project) {
-                    // 【修复】使用 projectManager.saveProject 正确保存工程
+                    // 使用 projectManager.saveProject 正确保存工程
                     // 先同步当前工程数据到 projectManager
                     projectManager.currentProject = project;
                     
@@ -1101,9 +1116,12 @@ function initializeToolbar() {
                         console.log('[App] 流程数据已序列化:', project.flow);
                     }
                     
-                    // 调用 projectManager 的保存方法（会分别调用 /projects/{id} 和 /projects/{id}/flow）
+                    // 调用 projectManager 的保存方法
                     await projectManager.saveProject(project);
                     showToast('工程已保存', 'success');
+                } else if (window.flowCanvas && window.flowCanvas.nodes.size > 0) {
+                    // 没有打开工程但画布上有算子，弹出新建工程对话框（保留画布内容）
+                    handleNewProject({ preserveCanvas: true });
                 } else {
                     showToast('请先创建或打开工程', 'warning');
                 }
@@ -1188,6 +1206,15 @@ function initializeToolbar() {
             settingsModal.open();
         });
     }
+
+    // 登出按钮
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            console.log('[App] 用户登出');
+            logout();
+        });
+    }
 }
 
 /**
@@ -1229,7 +1256,7 @@ async function loadProject(projectId) {
 /**
  * 创建新工程
  */
-async function createProject(name, description = '') {
+async function createProject(name, description = '', preserveCanvas = false) {
     try {
         const project = await httpClient.post('/projects', {
             name,
@@ -1244,9 +1271,19 @@ async function createProject(name, description = '') {
             projectNameEl.textContent = project.name;
         }
         
-        // 清空画布
-        if (window.flowCanvas) {
-            window.flowCanvas.clear();
+        if (preserveCanvas) {
+            // 保留画布内容，直接将当前流程保存到新工程
+            if (window.flowCanvas) {
+                project.flow = window.flowCanvas.serialize();
+                projectManager.currentProject = project;
+                await projectManager.saveProject(project);
+                console.log('[App] 画布内容已保存到新工程:', project.name);
+            }
+        } else {
+            // 新建空工程，清空画布
+            if (window.flowCanvas) {
+                window.flowCanvas.clear();
+            }
         }
         
         // 设置检测控制器的工程
@@ -1260,7 +1297,6 @@ async function createProject(name, description = '') {
         // 处理连接错误，提供更友好的提示
         let errorMsg = error.message;
         if (errorMsg.includes('无法连接到后端服务')) {
-            // 使用 dialog 显示详细错误，而不是 toast
             Dialog.alert(
                 '连接失败',
                 errorMsg.replace(/\n/g, '<br>'),
@@ -1461,33 +1497,48 @@ async function importProjectFromJson(file) {
         const confirmed = confirm(`确定要导入工程 "${importData.project.name || '未命名'}" 吗？\n当前未保存的更改将会丢失。`);
         if (!confirmed) return;
         
-        // 创建新工程或更新当前工程
-        const newProject = {
-            id: crypto.randomUUID(),
-            name: importData.project.name + ' (导入)',
-            description: importData.project.description || '',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            flow: importData.project.flow
-        };
-        
-        // 加载到画布
-        if (window.flowCanvas) {
-            window.flowCanvas.deserialize(newProject.flow);
-        }
+        // 通过后端 API 创建新工程（由后端生成 ID）
+        const importName = (importData.project.name || '未命名') + ' (导入)';
+        const importDesc = importData.project.description || '';
+        const project = await httpClient.post('/projects', {
+            name: importName,
+            description: importDesc
+        });
         
         // 设置当前工程
-        setCurrentProject(newProject);
+        setCurrentProject(project);
+        projectManager.currentProject = project;
         
-        // 保存到后端
-        await projectManager.saveProject(newProject);
+        // 更新状态栏
+        const projectNameEl = document.getElementById('project-name');
+        if (projectNameEl) {
+            projectNameEl.textContent = project.name;
+        }
+        
+        // 加载流程到画布
+        if (window.flowCanvas && importData.project.flow) {
+            window.flowCanvas.deserialize(importData.project.flow);
+            // 将流程数据保存到后端
+            project.flow = importData.project.flow;
+            await projectManager.saveProject(project);
+        }
+        
+        // 设置检测控制器的工程
+        inspectionController.setProject(project.id);
+        
+        // 切换到流程视图
+        switchView('flow');
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.view === 'flow') btn.classList.add('active');
+        });
         
         showToast('工程导入成功', 'success');
-        console.log('[Import] 工程已导入:', newProject.name);
+        console.log('[Import] 工程已导入:', project.name);
         
         // 刷新工程列表
         if (projectView) {
-            projectView.refreshProjectList();
+            projectView.refresh();
         }
     } catch (err) {
         console.error('[Import] 导入失败:', err);

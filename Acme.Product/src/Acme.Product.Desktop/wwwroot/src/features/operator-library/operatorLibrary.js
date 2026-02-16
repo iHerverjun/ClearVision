@@ -384,7 +384,7 @@ export class OperatorLibraryPanel {
             'GeometricTolerance': 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z', // 公差/直方图
             'GeometricFitting': 'M12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6m0-2c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8z', // 拟合
             'ColorDetection': 'M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z', // 颜色/调色板
-            'CodeReading': 'M3 5h4v4H3V5zm0 10h4v4H3v-4zm6 0h4v4H9v-4zm6 0h4v4h-4v-4zm0-10h4v4h-4V5zm-6 4h4v6H9V9zm6 0h4v6h-4V9zM3 3h18v18H3V3z', // 二维码 (新增猜测)
+            'CodeRecognition': 'M3 5h4v4H3V5zm0 10h4v4H3v-4zm6 0h4v4H9v-4zm6 0h4v4h-4v-4zm0-10h4v4h-4V5zm-6 4h4v6H9V9zm6 0h4v6h-4V9zM3 3h18v18H3V3z', // 二维码
             'OCR': 'M4 6h16v12H4z m2 2v8h12V8H6z m2 2h2v4H8V10z m4 0h2v4h-2V10z', // 文本识别 (新增猜测)
             
             // AI
@@ -576,7 +576,7 @@ export class OperatorLibraryPanel {
         preview.innerHTML = `
             <div class="operator-detail">
                 <div class="detail-header">
-                    <span class="detail-icon">${operator.icon || this.getOperatorIcon(operator.type)}</span>
+                    <span class="detail-icon">${operator.icon || this.getSvgIcon(this.getOperatorIconPath(operator.type, operator.category))}</span>
                     <h4>${operator.displayName || operator.name}</h4>
                 </div>
                 <div class="detail-meta">

@@ -331,12 +331,12 @@ public sealed class WebView2Host : IAsyncDisposable
         // 使用与 Program.cs 相同的逻辑查找 wwwroot
         var wwwrootPath = GetWwwRootPath();
 
-        var indexPath = Path.Combine(wwwrootPath, "launcher.html");
+        var indexPath = Path.Combine(wwwrootPath, "index.html");
 
         if (File.Exists(indexPath))
         {
             // 使用虚拟主机名加载，支持ES6模块
-            _webView.Source = new Uri("http://app.local/launcher.html");
+            _webView.Source = new Uri("http://app.local/index.html");
         }
         else
         {

@@ -23,6 +23,7 @@
                     "src/shared/styles/project-view.css",
                     "src/shared/styles/global-enhancements.css",
                     "src/shared/styles/operator-library.css",
+                    "src/features/settings/userManagement.css",
                 ];
 
                 cssFiles.forEach(function (file) {
@@ -149,11 +150,28 @@
                             />
                         </svg>
                     </button>
-                    <button
-                        id="btn-settings"
-                        class="btn btn-icon"
-                        data-tooltip="设置"
+                <button
+                    id="btn-logout"
+                    class="btn btn-icon"
+                    data-tooltip="登出"
+                    title="登出"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        fill="currentColor"
                     >
+                        <path
+                            d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
+                        />
+                    </svg>
+                </button>
+                <button
+                    id="btn-settings"
+                    class="btn btn-icon"
+                    data-tooltip="设置"
+                >
                         <svg
                             viewBox="0 0 24 24"
                             width="20"
@@ -671,6 +689,13 @@
                         id="connection-status"
                         title="连接状态"
                     ></div>
+                    <div class="status-user" id="status-user" title="当前用户">
+                        <svg class="metric-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        </svg>
+                        <span class="user-display-name" id="user-display-name">--</span>
+                    </div>
+                    <div class="status-divider"></div>
                     <span class="status-text" id="status-text">就绪</span>
                     <div class="status-divider"></div>
                     <div class="status-metric" id="memory-usage">

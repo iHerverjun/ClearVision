@@ -27,6 +27,9 @@ class ImageCanvas {
         this.overlays = [];
         this.selectedOverlay = null;
 
+        // 【关键修复】记录是否有待处理的重置视图（当画布尺寸为0时）
+        this._pendingResetView = false;
+
         // 事件处理器引用（用于销毁时移除）
         this._resizeHandler = this.resize.bind(this);
         this._mouseDownHandler = this.handleMouseDown.bind(this);
@@ -91,9 +94,24 @@ class ImageCanvas {
      */
     resize() {
         const container = this.canvas.parentElement;
-        this.canvas.width = container.clientWidth;
-        this.canvas.height = container.clientHeight;
-        this.render();
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight;
+        
+        // 【关键修复】如果尺寸从0变为非0且有待处理的重置视图，执行重置
+        const wasZero = this.canvas.width === 0 || this.canvas.height === 0;
+        const isNowNonZero = newWidth > 0 && newHeight > 0;
+        
+        this.canvas.width = newWidth;
+        this.canvas.height = newHeight;
+        
+        // 如果之前因为尺寸为0而延迟了resetView，现在重新尝试
+        if (wasZero && isNowNonZero && this._pendingResetView && this.image) {
+            console.log('[ImageCanvas] 画布尺寸变为非0，执行延迟的重置视图');
+            this._pendingResetView = false;
+            this.resetView();
+        } else {
+            this.render();
+        }
     }
 
     /**
@@ -176,8 +194,12 @@ class ImageCanvas {
         // 【关键修复】如果画布尺寸为0（容器隐藏时），不计算缩放，等到可见时再处理
         if (canvasWidth === 0 || canvasHeight === 0) {
             console.warn('[ImageCanvas] 画布尺寸为0, 延迟重置视图');
+            this._pendingResetView = true; // 标记有待处理的重置
             return;
         }
+        
+        // 成功重置视图，清除待处理标志
+        this._pendingResetView = false;
         
         // 计算适应画布的缩放比例
         const scaleX = canvasWidth / imageWidth;

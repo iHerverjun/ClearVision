@@ -43,6 +43,13 @@ public class AdaptiveThresholdOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
+        // 确保输入为灰度图（AdaptiveThreshold 要求单通道 CV_8UC1）
+        using var gray = new Mat();
+        if (src.Channels() > 1)
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        else
+            src.CopyTo(gray);
+
         var adaptiveType = adaptiveMethod.ToLower() switch
         {
             "mean" => AdaptiveThresholdTypes.MeanC,
@@ -57,8 +64,13 @@ public class AdaptiveThresholdOperator : OperatorBase
             _ => ThresholdTypes.Binary
         };
 
+        using var binary = new Mat();
+        Cv2.AdaptiveThreshold(gray, binary, maxValue, adaptiveType, threshType, blockSize, c);
+
+        // 【关键修复】将单通道二值图像转换为3通道BGR格式，确保浏览器兼容性
+        // 单通道PNG在某些浏览器/Canvas中显示为白色或黑色
         using var dst = new Mat();
-        Cv2.AdaptiveThreshold(src, dst, maxValue, adaptiveType, threshType, blockSize, c);
+        Cv2.CvtColor(binary, dst, ColorConversionCodes.GRAY2BGR);
 
         // P0: 使用ImageWrapper实现零拷贝输出
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst, new Dictionary<string, object>

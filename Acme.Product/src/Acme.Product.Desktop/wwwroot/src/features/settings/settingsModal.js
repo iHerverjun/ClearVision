@@ -1,5 +1,5 @@
 import httpClient from '../../core/messaging/httpClient.js';
-import { createModal, closeModal, showToast } from '../../shared/components/uiComponents.js';
+import { createModal, closeModal, showToast, createButton } from '../../shared/components/uiComponents.js';
 
 /**
  * 设置模态框管理器
@@ -9,6 +9,8 @@ class SettingsModal {
         this.config = null;
         this.modalOverlay = null;
         this.activeTab = 'general';
+        this.users = [];
+        this.isAdmin = false;
     }
     
     /**
@@ -23,6 +25,11 @@ class SettingsModal {
             closeModal(this.modalOverlay);
             this.modalOverlay = null;
         }
+
+        // 检查当前用户角色
+        const currentUser = window.currentUser || JSON.parse(localStorage.getItem('cv_current_user') || '{}');
+        this.isAdmin = currentUser.role === 'Admin';
+        console.log('[SettingsModal] Current user:', currentUser.username, 'Role:', currentUser.role, 'IsAdmin:', this.isAdmin);
         
         // 加载配置
         try {
@@ -36,6 +43,11 @@ class SettingsModal {
             // 使用默认配置继续
             console.log('[SettingsModal] Using default config');
             this.config = this.getDefaultConfig();
+        }
+
+        // 如果是管理员，加载用户列表
+        if (this.isAdmin) {
+            await this.loadUsers();
         }
         
         // 创建模态框内容
@@ -54,7 +66,7 @@ class SettingsModal {
                 title: '⚙️ 系统设置',
                 content: content,
                 footer: footer,
-                width: '600px'
+                width: '1200px'
             });
             console.log('[SettingsModal] Modal created, overlay:', this.modalOverlay);
             
@@ -120,6 +132,21 @@ class SettingsModal {
     }
     
     /**
+     * 加载用户列表
+     */
+    async loadUsers() {
+        try {
+            console.log('[SettingsModal] Loading users...');
+            this.users = await httpClient.get('/users');
+            console.log('[SettingsModal] Users loaded:', this.users.length);
+        } catch (error) {
+            console.error('[SettingsModal] Failed to load users:', error);
+            showToast('加载用户列表失败: ' + error.message, 'error');
+            this.users = [];
+        }
+    }
+
+    /**
      * 获取默认配置
      */
     getDefaultConfig() {
@@ -157,18 +184,23 @@ class SettingsModal {
         container.className = 'settings-container';
         
         // 标签页导航
+        const userManagementTab = this.isAdmin ? '<button class="settings-tab" data-tab="users">用户管理</button>' : '';
+        const userManagementSection = this.isAdmin ? this.renderUserManagementTab() : '';
+        
         container.innerHTML = `
             <div class="settings-tabs">
                 <button class="settings-tab active" data-tab="general">常规</button>
                 <button class="settings-tab" data-tab="communication">通讯</button>
                 <button class="settings-tab" data-tab="storage">存储</button>
                 <button class="settings-tab" data-tab="runtime">运行</button>
+                ${userManagementTab}
             </div>
             <div class="settings-content">
                 ${this.renderGeneralTab()}
                 ${this.renderCommunicationTab()}
                 ${this.renderStorageTab()}
                 ${this.renderRuntimeTab()}
+                ${userManagementSection}
             </div>
         `;
         
@@ -198,13 +230,6 @@ class SettingsModal {
                             <option value="dark" ${general.theme === 'dark' ? 'selected' : ''}>暗色模式</option>
                             <option value="light" ${general.theme === 'light' ? 'selected' : ''}>亮色模式</option>
                         </select>
-                    </div>
-                    <div class="settings-row">
-                        <div>
-                            <div class="settings-label">皮肤风格</div>
-                            <div class="settings-hint">切换整套 UI 皮肤 (需重新加载)</div>
-                        </div>
-                        <button id="btn-open-launcher" class="cv-btn cv-btn-secondary" style="width: auto; padding: 4px 12px;">切换皮肤</button>
                     </div>
                 </div>
             </div>
@@ -254,14 +279,18 @@ class SettingsModal {
                 <div class="settings-group">
                     <div class="settings-group-title">图片存储</div>
                     <div class="settings-row">
-                        <div class="settings-label">保存路径</div>
+                        <div>
+                            <div class="settings-label">保存路径</div>
+                        </div>
                         <input type="text" class="settings-input" 
                                id="cfg-imageSavePath" 
                                value="${storage.imageSavePath || ''}"
                                style="width: 300px;">
                     </div>
                     <div class="settings-row">
-                        <div class="settings-label">保存策略</div>
+                        <div>
+                            <div class="settings-label">保存策略</div>
+                        </div>
                         <select class="settings-select" id="cfg-savePolicy">
                             <option value="All" ${storage.savePolicy === 'All' ? 'selected' : ''}>保存全部</option>
                             <option value="NgOnly" ${storage.savePolicy === 'NgOnly' ? 'selected' : ''}>仅保存 NG</option>
@@ -269,13 +298,17 @@ class SettingsModal {
                         </select>
                     </div>
                     <div class="settings-row">
-                        <div class="settings-label">保留天数</div>
+                        <div>
+                            <div class="settings-label">保留天数</div>
+                        </div>
                         <input type="number" class="settings-input" 
                                id="cfg-retentionDays" 
                                value="${storage.retentionDays || 30}">
                     </div>
                     <div class="settings-row">
-                        <div class="settings-label">最小剩余空间 (GB)</div>
+                        <div>
+                            <div class="settings-label">最小剩余空间 (GB)</div>
+                        </div>
                         <input type="number" class="settings-input" 
                                id="cfg-minFreeSpaceGb" 
                                value="${storage.minFreeSpaceGb || 5}">
@@ -314,7 +347,64 @@ class SettingsModal {
             </div>
         `;
     }
-    
+
+    renderUserManagementTab() {
+        const roleNames = {
+            'Admin': '管理员',
+            'Engineer': '工程师',
+            'Operator': '操作员'
+        };
+
+        const userRows = this.users.map(user => `
+            <tr class="user-row" data-user-id="${user.id}">
+                <td class="user-cell">${user.username}</td>
+                <td class="user-cell">${user.displayName}</td>
+                <td class="user-cell">
+                    <span class="user-role ${user.role.toLowerCase()}">${roleNames[user.role] || user.role}</span>
+                </td>
+                <td class="user-cell">
+                    <span class="user-status ${user.isActive ? 'active' : 'inactive'}">${user.isActive ? '启用' : '禁用'}</span>
+                </td>
+                <td class="user-cell">
+                    <button class="user-btn edit-btn" data-action="edit" data-user-id="${user.id}">编辑</button>
+                    <button class="user-btn reset-btn" data-action="reset" data-user-id="${user.id}">重置密码</button>
+                    <button class="user-btn delete-btn" data-action="delete" data-user-id="${user.id}">删除</button>
+                </td>
+            </tr>
+        `).join('');
+
+        return `
+            <div class="settings-section" data-section="users">
+                <div class="settings-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div class="settings-group-title" style="margin-bottom: 0; flex: 1; margin-right: 12px;">
+                            用户管理
+                        </div>
+                        <button class="cv-btn cv-btn-primary" id="btn-add-user" style="font-size: 13px; padding: 6px 12px;">
+                            + 添加用户
+                        </button>
+                    </div>
+                    <div class="user-table-container">
+                        <table class="user-table">
+                            <thead>
+                                <tr>
+                                    <th class="user-header">用户名</th>
+                                    <th class="user-header">显示名称</th>
+                                    <th class="user-header">角色</th>
+                                    <th class="user-header">状态</th>
+                                    <th class="user-header">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${userRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     createFooter() {
         const footer = document.createElement('div');
         footer.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end;';
@@ -369,14 +459,276 @@ class SettingsModal {
             });
         });
 
-        // 绑定切换皮肤按钮
-        const launcherBtn = this.modalOverlay.querySelector('#btn-open-launcher');
-        if (launcherBtn) {
-            launcherBtn.addEventListener('click', () => {
-                if (confirm('切换皮肤需要重新加载页面，确定继续吗？')) {
-                    window.location.href = 'launcher.html';
+        // 绑定用户管理事件（仅管理员）
+        if (this.isAdmin) {
+            this.bindUserManagementEvents();
+        }
+    }
+
+    /**
+     * 绑定用户管理事件
+     */
+    bindUserManagementEvents() {
+        // 添加用户按钮
+        const addBtn = this.modalOverlay.querySelector('#btn-add-user');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => this.showAddUserDialog());
+        }
+
+        // 用户操作按钮（编辑、重置密码、删除）
+        const actionBtns = this.modalOverlay.querySelectorAll('.user-btn');
+        actionBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const action = e.target.dataset.action;
+                const userId = e.target.dataset.userId;
+                const user = this.users.find(u => u.id === userId);
+                
+                if (!user) return;
+
+                switch (action) {
+                    case 'edit':
+                        this.showEditUserDialog(user);
+                        break;
+                    case 'reset':
+                        this.showResetPasswordDialog(user);
+                        break;
+                    case 'delete':
+                        this.showDeleteUserDialog(user);
+                        break;
                 }
             });
+        });
+    }
+
+    /**
+     * 显示添加用户对话框
+     */
+    showAddUserDialog() {
+        const content = `
+            <div class="user-form">
+                <div class="form-row">
+                    <label>用户名</label>
+                    <input type="text" id="new-username" class="settings-input" placeholder="请输入用户名">
+                </div>
+                <div class="form-row">
+                    <label>密码</label>
+                    <input type="password" id="new-password" class="settings-input" placeholder="请输入密码">
+                </div>
+                <div class="form-row">
+                    <label>显示名称</label>
+                    <input type="text" id="new-displayName" class="settings-input" placeholder="请输入显示名称">
+                </div>
+                <div class="form-row">
+                    <label>角色</label>
+                    <select id="new-role" class="settings-select">
+                        <option value="0">管理员</option>
+                        <option value="1">工程师</option>
+                        <option value="2" selected>操作员</option>
+                    </select>
+                </div>
+            </div>
+        `;
+
+        // 创建按钮
+        const cancelBtn = createButton({
+            text: '取消',
+            type: 'secondary',
+            onClick: () => closeModal(overlay)
+        });
+
+        const saveBtn = createButton({
+            text: '保存',
+            type: 'primary',
+            onClick: async () => {
+                const username = overlay.querySelector('#new-username').value.trim();
+                const password = overlay.querySelector('#new-password').value;
+                const displayName = overlay.querySelector('#new-displayName').value.trim();
+                const role = parseInt(overlay.querySelector('#new-role').value);
+
+                if (!username || !password) {
+                    showToast('用户名和密码不能为空', 'error');
+                    return;
+                }
+
+                try {
+                    await httpClient.post('/users', {
+                        username,
+                        password,
+                        displayName: displayName || username,
+                        role
+                    });
+                    showToast('用户创建成功', 'success');
+                    closeModal(overlay);
+                    // 刷新用户列表
+                    await this.loadUsers();
+                    this.refreshUserTable();
+                } catch (error) {
+                    showToast('创建失败: ' + error.message, 'error');
+                }
+            }
+        });
+
+        const overlay = createModal({
+            title: '添加用户',
+            content: content,
+            width: '400px',
+            footer: [cancelBtn, saveBtn]
+        });
+    }
+
+    /**
+     * 显示编辑用户对话框
+     */
+    showEditUserDialog(user) {
+        const content = `
+            <div class="user-form">
+                <div class="form-row">
+                    <label>用户名</label>
+                    <input type="text" class="settings-input" value="${user.username}" disabled>
+                </div>
+                <div class="form-row">
+                    <label>显示名称</label>
+                    <input type="text" id="edit-displayName" class="settings-input" value="${user.displayName}">
+                </div>
+                <div class="form-row">
+                    <label>角色</label>
+                    <select id="edit-role" class="settings-select">
+                        <option value="0" ${user.role === 'Admin' ? 'selected' : ''}>管理员</option>
+                        <option value="1" ${user.role === 'Engineer' ? 'selected' : ''}>工程师</option>
+                        <option value="2" ${user.role === 'Operator' ? 'selected' : ''}>操作员</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>状态</label>
+                    <select id="edit-active" class="settings-select">
+                        <option value="true" ${user.isActive ? 'selected' : ''}>启用</option>
+                        <option value="false" ${!user.isActive ? 'selected' : ''}>禁用</option>
+                    </select>
+                </div>
+            </div>
+        `;
+
+        // 创建按钮
+        const cancelBtn = createButton({
+            text: '取消',
+            type: 'secondary',
+            onClick: () => closeModal(overlay)
+        });
+
+        const saveBtn = createButton({
+            text: '保存',
+            type: 'primary',
+            onClick: async () => {
+                const displayName = overlay.querySelector('#edit-displayName').value.trim();
+                const role = parseInt(overlay.querySelector('#edit-role').value);
+                const isActive = overlay.querySelector('#edit-active').value === 'true';
+
+                try {
+                    await httpClient.put('/users/' + user.id, {
+                        displayName: displayName || user.username,
+                        role,
+                        isActive
+                    });
+                    showToast('用户更新成功', 'success');
+                    closeModal(overlay);
+                    await this.loadUsers();
+                    this.refreshUserTable();
+                } catch (error) {
+                    showToast('更新失败: ' + error.message, 'error');
+                }
+            }
+        });
+
+        const overlay = createModal({
+            title: '编辑用户 - ' + user.username,
+            content: content,
+            width: '400px',
+            footer: [cancelBtn, saveBtn]
+        });
+    }
+
+    /**
+     * 显示重置密码对话框
+     */
+    showResetPasswordDialog(user) {
+        const content = `
+            <div class="user-form">
+                <p>正在重置用户 <strong>${user.username}</strong> 的密码</p>
+                <div class="form-row">
+                    <label>新密码</label>
+                    <input type="password" id="reset-password" class="settings-input" placeholder="请输入新密码">
+                </div>
+            </div>
+        `;
+
+        const dialog = createModal({
+            title: '重置密码',
+            content: content,
+            width: '400px'
+        });
+
+        const footer = dialog.querySelector('.cv-modal-footer');
+        if (footer) {
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'cv-btn cv-btn-primary';
+            saveBtn.textContent = '确认重置';
+            saveBtn.onclick = async () => {
+                const newPassword = dialog.querySelector('#reset-password').value;
+
+                if (!newPassword || newPassword.length < 6) {
+                    showToast('密码长度至少为6位', 'error');
+                    return;
+                }
+
+                try {
+                    await httpClient.post('/users/' + user.id + '/reset-password', {
+                        newPassword
+                    });
+                    showToast('密码重置成功', 'success');
+                    closeModal(dialog);
+                } catch (error) {
+                    showToast('重置失败: ' + error.message, 'error');
+                }
+            };
+            footer.appendChild(saveBtn);
+        }
+    }
+
+    /**
+     * 显示删除用户对话框
+     */
+    showDeleteUserDialog(user) {
+        const currentUser = window.currentUser || JSON.parse(localStorage.getItem('cv_current_user') || '{}');
+        
+        if (user.id === currentUser.id) {
+            showToast('不能删除当前登录的用户', 'error');
+            return;
+        }
+
+        if (confirm(`确定要删除用户 "${user.username}" 吗？此操作不可恢复。`)) {
+            httpClient.delete('/users/' + user.id)
+                .then(() => {
+                    showToast('用户删除成功', 'success');
+                    this.loadUsers().then(() => this.refreshUserTable());
+                })
+                .catch(error => {
+                    showToast('删除失败: ' + error.message, 'error');
+                });
+        }
+    }
+
+    /**
+     * 刷新用户表格
+     */
+    refreshUserTable() {
+        const userSection = this.modalOverlay.querySelector('[data-section="users"]');
+        if (userSection) {
+            const newContent = this.renderUserManagementTab();
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newContent;
+            const newSection = tempDiv.firstElementChild;
+            userSection.innerHTML = newSection.innerHTML;
+            this.bindUserManagementEvents();
         }
     }
     

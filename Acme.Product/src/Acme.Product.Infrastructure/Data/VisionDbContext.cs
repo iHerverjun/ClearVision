@@ -33,6 +33,11 @@ public class VisionDbContext : DbContext
     /// </summary>
     public DbSet<Defect> Defects { get; set; } = null!;
 
+    /// <summary>
+    /// 用户表
+    /// </summary>
+    public DbSet<User> Users { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -167,6 +172,20 @@ public class VisionDbContext : DbContext
             entity.Property(e => e.Height).IsRequired();
             entity.Property(e => e.ConfidenceScore).IsRequired();
             entity.HasIndex(e => e.InspectionResultId);
+        });
+
+        // 配置 User 实体
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.PasswordHash).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.DisplayName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Role).IsRequired();
+            entity.Property(e => e.IsActive).IsRequired();
+            entity.Property(e => e.LastLoginAt);
+            entity.HasIndex(e => e.Username).IsUnique();
+            entity.HasIndex(e => e.IsActive);
         });
     }
 }

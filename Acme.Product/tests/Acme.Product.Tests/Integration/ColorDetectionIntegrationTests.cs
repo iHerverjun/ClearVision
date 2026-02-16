@@ -3,7 +3,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using Moq;
+using NSubstitute;
 using OpenCvSharp;
 
 namespace Acme.Product.Tests.Integration;

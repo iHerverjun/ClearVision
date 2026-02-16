@@ -90,6 +90,11 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, DatabaseWriteOperator>();
         services.AddSingleton<IOperatorExecutor, ConditionalBranchOperator>();
 
+        // PLC 通信算子
+        services.AddSingleton<IOperatorExecutor, SiemensS7CommunicationOperator>();
+        services.AddSingleton<IOperatorExecutor, MitsubishiMcCommunicationOperator>();
+        services.AddSingleton<IOperatorExecutor, OmronFinsCommunicationOperator>();
+
         // 孤立算子修复（原复用枚举，现分配独立枚举值 38-40）
         services.AddSingleton<IOperatorExecutor, ColorConversionOperator>();
         services.AddSingleton<IOperatorExecutor, AdaptiveThresholdOperator>();
@@ -126,6 +131,12 @@ public static class DependencyInjection
 
         // 配置服务
         services.AddSingleton<IConfigurationService, JsonConfigurationService>();
+
+        // 用户系统 - User System
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<UserManagementService>();
 
         return services;
     }

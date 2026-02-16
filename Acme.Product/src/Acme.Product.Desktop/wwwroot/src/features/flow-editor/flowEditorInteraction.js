@@ -45,8 +45,8 @@ export class FlowEditorInteraction {
         // 重写鼠标按下事件
         this.canvas.handleMouseDown = (e) => {
             const rect = this.canvas.canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left - this.canvas.offset.x) / this.canvas.scale;
-            const y = (e.clientY - rect.top - this.canvas.offset.y) / this.canvas.scale;
+            const x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
+            const y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
 
             // 检测点击的端口
             const clickedPort = this.getPortAt(x, y);
@@ -129,6 +129,10 @@ export class FlowEditorInteraction {
 
             // 删除
             if (e.key === 'Delete' || e.key === 'Backspace') {
+                // 如果焦点在输入框中，不拦截
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
                 e.preventDefault();
                 this.deleteSelectedNodes();
             }
@@ -205,8 +209,8 @@ export class FlowEditorInteraction {
             if (operator) {
                 try {
                     const rect = this.canvas.canvas.getBoundingClientRect();
-                    const x = (e.clientX - rect.left - this.canvas.offset.x) / this.canvas.scale;
-                    const y = (e.clientY - rect.top - this.canvas.offset.y) / this.canvas.scale;
+                    const x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
+                    const y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
 
                     // 修复：优先使用 displayName，兼容 name 或 type
                     const operatorTitle = operator.displayName || operator.name || operator.type;
@@ -341,8 +345,8 @@ export class FlowEditorInteraction {
         
         const rect = this.canvas.canvas.getBoundingClientRect();
         this.connectionEnd = {
-            x: (e.clientX - rect.left - this.canvas.offset.x) / this.canvas.scale,
-            y: (e.clientY - rect.top - this.canvas.offset.y) / this.canvas.scale
+            x: (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x,
+            y: (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y
         };
     }
 
@@ -352,8 +356,8 @@ export class FlowEditorInteraction {
     updateConnectionPreview(e) {
         const rect = this.canvas.canvas.getBoundingClientRect();
         this.connectionEnd = {
-            x: (e.clientX - rect.left - this.canvas.offset.x) / this.canvas.scale,
-            y: (e.clientY - rect.top - this.canvas.offset.y) / this.canvas.scale
+            x: (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x,
+            y: (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y
         };
         this.canvas.render();
 
@@ -386,8 +390,8 @@ export class FlowEditorInteraction {
         console.log('[DEBUG endConnection] connectionStart:', JSON.stringify(this.connectionStart));
         
         const rect = this.canvas.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left - this.canvas.offset.x) / this.canvas.scale;
-        const y = (e.clientY - rect.top - this.canvas.offset.y) / this.canvas.scale;
+        const x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
+        const y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
 
         console.log(`[DEBUG endConnection] Mouse position: x=${x}, y=${y}`);
 
@@ -499,8 +503,8 @@ export class FlowEditorInteraction {
             const canvasRect = this.canvas.canvas.getBoundingClientRect();
 
             // 计算选择框在画布坐标系中的范围
-            const left = (boxRect.left - canvasRect.left - this.canvas.offset.x) / this.canvas.scale;
-            const top = (boxRect.top - canvasRect.top - this.canvas.offset.y) / this.canvas.scale;
+            const left = (boxRect.left - canvasRect.left) / this.canvas.scale + this.canvas.offset.x;
+            const top = (boxRect.top - canvasRect.top) / this.canvas.scale + this.canvas.offset.y;
             const right = left + boxRect.width / this.canvas.scale;
             const bottom = top + boxRect.height / this.canvas.scale;
 

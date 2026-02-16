@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Acme.Product.Core.Enums;
 
 /// <summary>
@@ -203,7 +205,22 @@ public enum OperatorType
     /// <summary>
     /// 串口通信 - RS-232/485 PLC 通信
     /// </summary>
-    SerialCommunication = 46
+    SerialCommunication = 46,
+
+    /// <summary>
+    /// 西门子S7通信 - S7-200/300/400/1200/1500
+    /// </summary>
+    SiemensS7Communication = 50,
+
+    /// <summary>
+    /// 三菱MC通信 - FX5U/Q/iQ-R系列
+    /// </summary>
+    MitsubishiMcCommunication = 51,
+
+    /// <summary>
+    /// 欧姆龙FINS通信 - CP/CJ/NJ/NX系列
+    /// </summary>
+    OmronFinsCommunication = 52
 }
 
 /// <summary>
@@ -240,6 +257,7 @@ public enum OperatorExecutionStatus
 /// <summary>
 /// 检测结果状态
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum InspectionStatus
 {
     /// <summary>

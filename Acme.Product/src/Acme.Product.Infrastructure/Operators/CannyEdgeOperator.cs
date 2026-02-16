@@ -39,19 +39,26 @@ public class CannyEdgeOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
+        // 确保输入为灰度图（Canny 标准流程要求单通道）
+        using var gray = new Mat();
+        if (src.Channels() > 1)
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        else
+            src.CopyTo(gray);
+
         using var processedSrc = new Mat();
-        
+
         // 可选的高斯模糊预处理（Canny算法标准建议）
         if (enableGaussianBlur)
         {
             // 确保核大小为奇数
             if (gaussianKernelSize % 2 == 0)
                 gaussianKernelSize++;
-            Cv2.GaussianBlur(src, processedSrc, new Size(gaussianKernelSize, gaussianKernelSize), 1.0);
+            Cv2.GaussianBlur(gray, processedSrc, new Size(gaussianKernelSize, gaussianKernelSize), 1.0);
         }
         else
         {
-            src.CopyTo(processedSrc);
+            gray.CopyTo(processedSrc);
         }
 
         using var dst = new Mat();

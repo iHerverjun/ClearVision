@@ -205,8 +205,10 @@ class InspectionController {
             window.imageViewer.loadImage(imageData);
         }
 
-        // 触发事件
-        this._onCompletedCallback?.(result);
+        // 触发所有已注册的完成回调
+        if (this._onCompletedCallbacks) {
+            this._onCompletedCallbacks.forEach(cb => cb(result));
+        }
     }
 
     /**
@@ -220,8 +222,10 @@ class InspectionController {
             status: 'error'
         });
 
-        // 触发事件
-        this._onErrorCallback?.(error);
+        // 触发所有已注册的错误回调
+        if (this._onErrorCallbacks) {
+            this._onErrorCallbacks.forEach(cb => cb(error));
+        }
     }
 
     /**
@@ -293,14 +297,20 @@ class InspectionController {
      * 设置检测完成回调
      */
     onInspectionCompleted(callback) {
-        this._onCompletedCallback = callback;
+        if (!this._onCompletedCallbacks) {
+            this._onCompletedCallbacks = [];
+        }
+        this._onCompletedCallbacks.push(callback);
     }
 
     /**
      * 设置检测错误回调
      */
     onInspectionError(callback) {
-        this._onErrorCallback = callback;
+        if (!this._onErrorCallbacks) {
+            this._onErrorCallbacks = [];
+        }
+        this._onErrorCallbacks.push(callback);
     }
 
     /**

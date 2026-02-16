@@ -387,14 +387,14 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "ModelPath", DisplayName = "模型路径", DataType = "file", DefaultValue = "" },
                 new() { Name = "Confidence", DisplayName = "置信度阈值", DataType = "double", DefaultValue = 0.5, MinValue = 0.0, MaxValue = 1.0 },
-                new() 
-                { 
-                    Name = "ModelVersion", 
-                    DisplayName = "YOLO版本", 
-                    DataType = "enum", 
+                new()
+                {
+                    Name = "ModelVersion",
+                    DisplayName = "YOLO版本",
+                    DataType = "enum",
                     DefaultValue = "Auto",
-                    Options = new List<ParameterOption> 
-                    { 
+                    Options = new List<ParameterOption>
+                    {
                         new() { Label = "自动检测", Value = "Auto" },
                         new() { Label = "YOLOv5", Value = "YOLOv5" },
                         new() { Label = "YOLOv6", Value = "YOLOv6" },
@@ -1367,6 +1367,160 @@ public class OperatorFactory : IOperatorFactory
                     }
                 },
                 new() { Name = "TimeoutMs", DisplayName = "超时(毫秒)", DataType = "int", DefaultValue = 3000, MinValue = 100, MaxValue = 30000 }
+            }
+        };
+
+        // ==================== PLC 通信算子 ====================
+
+        // 1. 西门子S7通信 (SiemensS7Communication = 50)
+        _metadata[OperatorType.SiemensS7Communication] = new OperatorMetadata
+        {
+            Type = OperatorType.SiemensS7Communication,
+            DisplayName = "西门子S7通信",
+            Description = "西门子S7系列PLC读写通信（S7-200/300/400/1200/1500）",
+            Category = "通信",
+            IconName = "s7",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Response", DisplayName = "响应", DataType = PortDataType.String },
+                new() { Name = "Status", DisplayName = "状态", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "IpAddress", DisplayName = "IP地址", DataType = "string", DefaultValue = "192.168.0.1" },
+                new() { Name = "Port", DisplayName = "端口", DataType = "int", DefaultValue = 102, MinValue = 1, MaxValue = 65535 },
+                new() { Name = "CpuType", DisplayName = "CPU类型", DataType = "enum", DefaultValue = "S71200",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "S7-200", Value = "S7200" },
+                        new() { Label = "S7-200 Smart", Value = "S7200Smart" },
+                        new() { Label = "S7-300", Value = "S7300" },
+                        new() { Label = "S7-400", Value = "S7400" },
+                        new() { Label = "S7-1200", Value = "S71200" },
+                        new() { Label = "S7-1500", Value = "S71500" }
+                    }
+                },
+                new() { Name = "Rack", DisplayName = "机架号", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 15 },
+                new() { Name = "Slot", DisplayName = "插槽号", DataType = "int", DefaultValue = 1, MinValue = 0, MaxValue = 15 },
+                new() { Name = "Address", DisplayName = "PLC地址", DataType = "string", DefaultValue = "DB1.DBW100" },
+                new() { Name = "DataType", DisplayName = "数据类型", DataType = "enum", DefaultValue = "Word",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "位 (Bool)", Value = "Bit" },
+                        new() { Label = "字节 (Byte)", Value = "Byte" },
+                        new() { Label = "字 (Word/UInt16)", Value = "Word" },
+                        new() { Label = "短整型 (Int16)", Value = "Int16" },
+                        new() { Label = "双字 (DWord/UInt32)", Value = "DWord" },
+                        new() { Label = "整型 (Int32)", Value = "Int32" },
+                        new() { Label = "浮点 (Float)", Value = "Float" },
+                        new() { Label = "双精度 (Double)", Value = "Double" },
+                        new() { Label = "字符串 (String)", Value = "String" }
+                    }
+                },
+                new() { Name = "Operation", DisplayName = "操作", DataType = "enum", DefaultValue = "Read",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "读取", Value = "Read" },
+                        new() { Label = "写入", Value = "Write" }
+                    }
+                },
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
+            }
+        };
+
+        // 2. 三菱MC通信 (MitsubishiMcCommunication = 51)
+        _metadata[OperatorType.MitsubishiMcCommunication] = new OperatorMetadata
+        {
+            Type = OperatorType.MitsubishiMcCommunication,
+            DisplayName = "三菱MC通信",
+            Description = "三菱MC协议PLC读写通信（FX5U/Q/iQ-R/iQ-F）",
+            Category = "通信",
+            IconName = "mc",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Response", DisplayName = "响应", DataType = PortDataType.String },
+                new() { Name = "Status", DisplayName = "状态", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "IpAddress", DisplayName = "IP地址", DataType = "string", DefaultValue = "192.168.3.1" },
+                new() { Name = "Port", DisplayName = "端口", DataType = "int", DefaultValue = 5002, MinValue = 1, MaxValue = 65535 },
+                new() { Name = "Address", DisplayName = "PLC地址", DataType = "string", DefaultValue = "D100" },
+                new() { Name = "Length", DisplayName = "读取长度", DataType = "int", DefaultValue = 1, MinValue = 1, MaxValue = 960 },
+                new() { Name = "DataType", DisplayName = "数据类型", DataType = "enum", DefaultValue = "Word",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "位 (Bool)", Value = "Bit" },
+                        new() { Label = "字 (Word/UInt16)", Value = "Word" },
+                        new() { Label = "短整型 (Int16)", Value = "Int16" },
+                        new() { Label = "双字 (DWord/UInt32)", Value = "DWord" },
+                        new() { Label = "整型 (Int32)", Value = "Int32" },
+                        new() { Label = "浮点 (Float)", Value = "Float" },
+                        new() { Label = "双精度 (Double)", Value = "Double" }
+                    }
+                },
+                new() { Name = "Operation", DisplayName = "操作", DataType = "enum", DefaultValue = "Read",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "读取", Value = "Read" },
+                        new() { Label = "写入", Value = "Write" }
+                    }
+                },
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
+            }
+        };
+
+        // 3. 欧姆龙FINS通信 (OmronFinsCommunication = 52)
+        _metadata[OperatorType.OmronFinsCommunication] = new OperatorMetadata
+        {
+            Type = OperatorType.OmronFinsCommunication,
+            DisplayName = "欧姆龙FINS通信",
+            Description = "欧姆龙FINS/TCP协议PLC读写通信（CP1H/CJ2M/NJ/NX）",
+            Category = "通信",
+            IconName = "fins",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Response", DisplayName = "响应", DataType = PortDataType.String },
+                new() { Name = "Status", DisplayName = "状态", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "IpAddress", DisplayName = "IP地址", DataType = "string", DefaultValue = "192.168.250.1" },
+                new() { Name = "Port", DisplayName = "端口", DataType = "int", DefaultValue = 9600, MinValue = 1, MaxValue = 65535 },
+                new() { Name = "Address", DisplayName = "PLC地址", DataType = "string", DefaultValue = "DM100" },
+                new() { Name = "Length", DisplayName = "读取长度", DataType = "int", DefaultValue = 1, MinValue = 1, MaxValue = 999 },
+                new() { Name = "DataType", DisplayName = "数据类型", DataType = "enum", DefaultValue = "Word",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "位 (Bool)", Value = "Bit" },
+                        new() { Label = "字 (Word/UInt16)", Value = "Word" },
+                        new() { Label = "短整型 (Int16)", Value = "Int16" },
+                        new() { Label = "双字 (DWord/UInt32)", Value = "DWord" },
+                        new() { Label = "整型 (Int32)", Value = "Int32" },
+                        new() { Label = "浮点 (Float)", Value = "Float" },
+                        new() { Label = "双精度 (Double)", Value = "Double" }
+                    }
+                },
+                new() { Name = "Operation", DisplayName = "操作", DataType = "enum", DefaultValue = "Read",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "读取", Value = "Read" },
+                        new() { Label = "写入", Value = "Write" }
+                    }
+                },
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
             }
         };
     }

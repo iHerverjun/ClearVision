@@ -1,0 +1,227 @@
+/**
+ * 用户管理样式
+ */
+
+/* 用户表格容器 */
+.user-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: 16px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--ink-secondary);
+}
+
+/* 用户表格 */
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-base);
+}
+
+.user-table thead {
+    background: rgba(255, 255, 255, 0.05); /* Keep semi-transparent for glass effect */
+    position: sticky;
+    top: 0;
+}
+
+.user-header {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--ink-gray);
+    border-bottom: 1px solid var(--glass-border);
+    white-space: nowrap;
+}
+
+.user-row {
+    border-bottom: 1px solid var(--glass-border);
+    transition: background var(--duration-fast) var(--ease-ink);
+}
+
+.user-row:hover {
+    background: var(--ink-tertiary);
+}
+
+.user-row:last-child {
+    border-bottom: none;
+}
+
+.user-cell {
+    padding: 12px 16px;
+    color: var(--paper-dim);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* 角色标签 */
+.user-role {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.user-role.admin {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--error-cinnabar);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.user-role.engineer {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--info-azure);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.user-role.operator {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-jade);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* 状态标签 */
+.user-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.user-status.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-jade);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.user-status.inactive {
+    background: rgba(107, 114, 128, 0.15);
+    color: var(--ink-gray);
+    border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* 操作按钮 */
+.user-btn {
+    padding: 6px 12px;
+    margin-right: 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-ink);
+    background: var(--glass-card);
+    color: var(--paper-dim);
+    border: 1px solid var(--glass-border);
+}
+
+.user-btn:hover {
+    background: var(--ink-tertiary);
+    color: var(--paper-white);
+}
+
+.user-btn.edit-btn {
+    color: var(--info-azure);
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.user-btn.edit-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+}
+
+.user-btn.reset-btn {
+    color: var(--warning-amber);
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.user-btn.reset-btn:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.user-btn.delete-btn {
+    color: var(--error-cinnabar);
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.user-btn.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.user-btn:last-child {
+    margin-right: 0;
+}
+
+/* 用户表单 */
+.user-form {
+    padding: 16px 0;
+}
+
+.user-form .form-row {
+    margin-bottom: 16px;
+}
+
+.user-form .form-row:last-child {
+    margin-bottom: 0;
+}
+
+.user-form label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--paper-dim);
+    font-size: var(--font-size-base);
+}
+
+.user-form .settings-input,
+.user-form .settings-select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--ink-tertiary);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--paper-white);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+}
+
+.user-form .settings-input:focus,
+.user-form .settings-select:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+    background: var(--ink-secondary);
+    box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+}
+
+.user-form .settings-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--ink-deep);
+}
+
+/* 空状态 */
+.user-empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--ink-gray);
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+    .user-table-container {
+        max-height: 300px;
+    }
+    
+    .user-cell {
+        padding: 8px 12px;
+        font-size: var(--font-size-sm);
+    }
+    
+    .user-btn {
+        padding: 4px 8px;
+        font-size: var(--font-size-xs);
+        margin-right: 4px;
+    }
+}

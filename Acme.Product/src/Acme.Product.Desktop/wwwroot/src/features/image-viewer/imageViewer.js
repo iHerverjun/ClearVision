@@ -16,10 +16,15 @@ import { showToast } from '../../shared/components/uiComponents.js';
 export class ImageViewerComponent {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
+        this.containerId = containerId;
         this.canvas = null;
         this.imageCanvas = null;
         this.currentImage = null;
         this.defects = [];
+        
+        // 生成唯一 ID，避免多个实例冲突
+        this.canvasId = `viewer-canvas-${containerId}`;
+        this.placeholderId = `viewer-placeholder-${containerId}`;
         
         // 事件回调
         this.onRegionSelected = null;
@@ -34,7 +39,7 @@ export class ImageViewerComponent {
      */
     initialize() {
         this.renderUI();
-        this.imageCanvas = new ImageCanvas('viewer-canvas');
+        this.imageCanvas = new ImageCanvas(this.canvasId);
         this.bindToolbarEvents();
         this.bindCanvasEvents();
     }
@@ -73,8 +78,8 @@ export class ImageViewerComponent {
                 
                 <!-- 画布区域 -->
                 <div class="viewer-canvas-container">
-                    <canvas id="viewer-canvas"></canvas>
-                    <div class="viewer-placeholder" id="viewer-placeholder">
+                    <canvas id="${this.canvasId}"></canvas>
+                    <div class="viewer-placeholder" id="${this.placeholderId}">
                         <div class="placeholder-content">
                             <span class="placeholder-icon">📷</span>
                             <p>点击"打开图像"或拖拽图像到此处</p>
@@ -91,7 +96,7 @@ export class ImageViewerComponent {
             </div>
         `;
         
-        this.canvas = document.getElementById('viewer-canvas');
+        this.canvas = document.getElementById(this.canvasId);
     }
 
     /**
@@ -495,7 +500,7 @@ export class ImageViewerComponent {
      * 隐藏占位符
      */
     hidePlaceholder() {
-        const placeholder = this.container.querySelector('#viewer-placeholder');
+        const placeholder = this.container.querySelector(`#${this.placeholderId}`);
         if (placeholder) {
             placeholder.style.display = 'none';
         }
@@ -505,7 +510,7 @@ export class ImageViewerComponent {
      * 显示占位符
      */
     showPlaceholder() {
-        const placeholder = this.container.querySelector('#viewer-placeholder');
+        const placeholder = this.container.querySelector(`#${this.placeholderId}`);
         if (placeholder) {
             placeholder.style.display = 'flex';
         }

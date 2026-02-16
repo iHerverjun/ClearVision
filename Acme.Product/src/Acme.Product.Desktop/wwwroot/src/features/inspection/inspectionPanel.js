@@ -222,14 +222,14 @@ class InspectionPanel {
      * 设置状态订阅
      */
     setupSubscriptions() {
-        // 订阅检测状态变化
-        inspectionController.onInspectionCompleted = (result) => {
+        // 订阅检测状态变化（调用方法注册回调，而非覆盖方法）
+        inspectionController.onInspectionCompleted((result) => {
             this.handleInspectionResult(result);
-        };
+        });
         
-        inspectionController.onInspectionError = (error) => {
+        inspectionController.onInspectionError((error) => {
             this.updateStatus('error', '检测错误');
-        };
+        });
     }
     
     /**

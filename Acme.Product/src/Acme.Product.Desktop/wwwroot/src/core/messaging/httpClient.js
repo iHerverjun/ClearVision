@@ -6,10 +6,27 @@
 class HttpClient {
     constructor(baseUrl = null) {
         this._baseUrl = baseUrl;
-        this.defaultHeaders = {
+        this._defaultHeaders = {
             'Content-Type': 'application/json'
         };
         this._discoveredPort = null;
+    }
+
+    /**
+     * 获取请求头（自动附加认证 Token）
+     * 每次请求时动态读取 localStorage 中的 Token
+     */
+    get defaultHeaders() {
+        const headers = { ...this._defaultHeaders };
+        const token = localStorage.getItem('cv_auth_token');
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+    }
+
+    set defaultHeaders(value) {
+        this._defaultHeaders = value;
     }
 
     /**

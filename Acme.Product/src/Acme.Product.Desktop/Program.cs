@@ -13,6 +13,8 @@ using Serilog;
 using System.Diagnostics;
 using System.Reflection;
 using Acme.Product.Desktop.Endpoints;
+using Acme.Product.Desktop.Middleware;
+using Acme.Product.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Acme.Product.Desktop;
@@ -120,6 +122,48 @@ static class Program
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.Data.VisionDbContext>();
                 dbContext.Database.EnsureCreated();
+
+                // 补丁：EnsureCreated() 不会为已存在的数据库添加新表
+                // 检查 Users 表是否存在，不存在则手动创建
+                try
+                {
+                    var conn = dbContext.Database.GetDbConnection();
+                    conn.Open();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Users'";
+                    var result = cmd.ExecuteScalar();
+                    if (result == null)
+                    {
+                        Debug.WriteLine("[UserSystem] Users 表不存在，正在创建...");
+                        using var createCmd = conn.CreateCommand();
+                        createCmd.CommandText = @"
+                            CREATE TABLE IF NOT EXISTS Users (
+                                Id TEXT NOT NULL PRIMARY KEY,
+                                Username TEXT NOT NULL,
+                                PasswordHash TEXT NOT NULL,
+                                DisplayName TEXT NOT NULL,
+                                Role INTEGER NOT NULL,
+                                IsActive INTEGER NOT NULL DEFAULT 1,
+                                LastLoginAt TEXT,
+                                CreatedAt TEXT NOT NULL,
+                                ModifiedAt TEXT,
+                                IsDeleted INTEGER NOT NULL DEFAULT 0
+                            );
+                            CREATE UNIQUE INDEX IF NOT EXISTS IX_Users_Username ON Users (Username);
+                            CREATE INDEX IF NOT EXISTS IX_Users_IsActive ON Users (IsActive);
+                        ";
+                        createCmd.ExecuteNonQuery();
+                        Debug.WriteLine("[UserSystem] Users 表创建成功");
+                    }
+                    conn.Close();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[UserSystem] 检查/创建 Users 表失败: {ex.Message}");
+                }
+
+                // 初始化默认管理员账户
+                InitializeDefaultAdminAsync(scope.ServiceProvider).Wait();
             }
 
             // 配置静态文件
@@ -140,6 +184,9 @@ static class Program
 
             // 配置 CORS
             app.UseCors();
+
+            // 认证中间件 - 必须在静态文件之后，路由之前
+            app.UseMiddleware<AuthMiddleware>();
 
             // 健康检查
             app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Port = _webPort }));
@@ -176,6 +223,10 @@ static class Program
                 var guide = demoService.GetDemoGuide();
                 return Results.Ok(guide);
             });
+
+            // 注册认证和用户管理端点
+            app.MapAuthEndpoints();
+            app.MapUserEndpoints();
 
             // 注册核心业务端点 (Projects, Inspection, Operators, Images)
             app.MapVisionApiEndpoints();
@@ -381,4 +432,47 @@ static class Program
     /// 获取 Web 服务器端口
     /// </summary>
     public static int GetWebPort() => _webPort;
+
+    /// <summary>
+    /// 初始化默认管理员账户
+    /// </summary>
+    static async Task InitializeDefaultAdminAsync(IServiceProvider serviceProvider)
+    {
+        try
+        {
+            var userRepository = serviceProvider.GetRequiredService<Acme.Product.Core.Interfaces.IUserRepository>();
+            var passwordHasher = serviceProvider.GetRequiredService<Acme.Product.Application.Services.IPasswordHasher>();
+
+            // 检查是否已存在 admin 用户
+            var existingAdmin = await userRepository.GetByUsernameAsync("admin");
+            if (existingAdmin == null)
+            {
+                // 创建默认管理员账户
+                var passwordHash = passwordHasher.HashPassword("admin123");
+                var adminUser = Acme.Product.Core.Entities.User.Create(
+                    "admin",
+                    passwordHash,
+                    "系统管理员",
+                    Acme.Product.Core.Enums.UserRole.Admin
+                );
+
+                await userRepository.AddAsync(adminUser);
+                Debug.WriteLine("[UserSystem] 默认管理员账户已创建: admin / admin123");
+            }
+            else
+            {
+                Debug.WriteLine("[UserSystem] 管理员账户已存在，跳过初始化");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[UserSystem] 初始化默认管理员失败: {ex}");
+            // 在开发阶段弹出提示以便排查
+            System.Windows.Forms.MessageBox.Show(
+                $"初始化默认管理员失败:\n{ex.Message}",
+                "UserSystem 初始化警告",
+                System.Windows.Forms.MessageBoxButtons.OK,
+                System.Windows.Forms.MessageBoxIcon.Warning);
+        }
+    }
 }

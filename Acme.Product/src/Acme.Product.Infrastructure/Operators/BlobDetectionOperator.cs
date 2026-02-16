@@ -39,23 +39,24 @@ public class BlobDetectionOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
+        // SimpleBlobDetector 内部会自动处理灰度转换，支持彩色和灰度输入
         var detector = new SimpleBlobDetector.Params();
         detector.FilterByArea = true;
         detector.MinArea = minArea;
         detector.MaxArea = maxArea;
-        
+
         if (minCircularity > 0)
         {
             detector.FilterByCircularity = true;
             detector.MinCircularity = (float)minCircularity;
         }
-        
+
         if (minConvexity > 0)
         {
             detector.FilterByConvexity = true;
             detector.MinConvexity = (float)minConvexity;
         }
-        
+
         if (minInertiaRatio > 0)
         {
             detector.FilterByInertia = true;
@@ -65,8 +66,12 @@ public class BlobDetectionOperator : OperatorBase
         using var blobDetector = SimpleBlobDetector.Create(detector);
         var keypoints = blobDetector.Detect(src);
 
+        // 准备彩色结果图（用于绘制彩色标注）
         using var colorSrc = new Mat();
-        Cv2.CvtColor(src, colorSrc, ColorConversionCodes.GRAY2BGR);
+        if (src.Channels() == 1)
+            Cv2.CvtColor(src, colorSrc, ColorConversionCodes.GRAY2BGR);
+        else
+            src.CopyTo(colorSrc);
 
         foreach (var kp in keypoints)
         {
