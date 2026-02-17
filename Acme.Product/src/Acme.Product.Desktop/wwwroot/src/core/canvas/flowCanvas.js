@@ -1250,7 +1250,7 @@ class FlowCanvas {
 
     /**
      * 绘制端口高亮效果
-     * @param {{nodeId: string, portIndex: number, isOutput: boolean}} port
+     * @param {{nodeId: string, portIndex: number, isOutput: boolean, hasConnection: boolean}} port
      */
     drawPortHighlight(port) {
         const pos = this.getPortPosition(port.nodeId, port.portIndex, port.isOutput);
@@ -1270,6 +1270,18 @@ class FlowCanvas {
             ? 'rgba(24, 144, 255, 0.2)'
             : 'rgba(82, 196, 26, 0.2)';
         this.ctx.fill();
+
+        // 【新增】如果端口已连接，绘制断开指示
+        if (port.hasConnection) {
+            // 绘制红色虚线圆环表示可断开
+            this.ctx.beginPath();
+            this.ctx.arc(pos.x, pos.y, 14 * this.scale, 0, Math.PI * 2);
+            this.ctx.strokeStyle = 'rgba(231, 76, 60, 0.6)'; // 红色半透明
+            this.ctx.lineWidth = 2 * this.scale;
+            this.ctx.setLineDash([4 * this.scale, 2 * this.scale]);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+        }
     }
 
     /**
@@ -1403,8 +1415,20 @@ class FlowCanvas {
         // 检测端口悬停（改变光标）
         const port = this.getPortAt(x, y);
         if (port) {
-            this.canvas.style.cursor = 'pointer';
-            this.hoveredPort = port;
+            // 【新增】检测端口是否有连接
+            const hasConnection = this.getConnectionAtPort(port.nodeId, port.portIndex, port.isOutput) !== null;
+            
+            if (hasConnection && !this.isConnecting) {
+                // 已连接且不在连线模式下，显示可断开提示
+                this.canvas.style.cursor = 'pointer';
+                this.hoveredPort = { ...port, hasConnection: true };
+            } else if (this.isConnecting) {
+                this.canvas.style.cursor = 'crosshair';
+                this.hoveredPort = port;
+            } else {
+                this.canvas.style.cursor = 'pointer';
+                this.hoveredPort = port;
+            }
         } else {
             this.canvas.style.cursor = 'default';
             this.hoveredPort = null;
