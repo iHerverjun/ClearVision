@@ -179,11 +179,13 @@ export class TreeView {
     toggleNode(node) {
         if (this.expandedNodes.has(node.id)) {
             this.expandedNodes.delete(node.id);
+            node.expanded = false; // 【修复】同步更新 node.expanded 属性
             if (this.options.onCollapse) {
                 this.options.onCollapse(node);
             }
         } else {
             this.expandedNodes.add(node.id);
+            node.expanded = true; // 【修复】同步更新 node.expanded 属性
             if (this.options.onExpand) {
                 this.options.onExpand(node);
             }
