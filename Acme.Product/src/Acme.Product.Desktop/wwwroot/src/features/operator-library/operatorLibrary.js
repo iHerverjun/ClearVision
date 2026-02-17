@@ -181,22 +181,13 @@ export class OperatorLibraryPanel {
                             e.preventDefault();
                             e.stopPropagation();
                             console.log('[OperatorLibrary] Toggle clicked, node.id:', node.id);
-                            console.log('[OperatorLibrary] Before toggle, expandedNodes:', Array.from(this.treeView.expandedNodes));
                             
-                            // 【修复】通过 id 查找正确的节点对象
+                            // 通过 id 查找正确的节点对象
                             const actualNode = this.treeView.findNode(node.id);
-                            console.log('[OperatorLibrary] Found node:', actualNode);
                             
                             if (actualNode) {
-                                // 【关键修复】切换展开状态时，同时更新 node.expanded 属性
-                                // 因为 TreeView 的 isExpanded 检查是：expandedNodes.has(node.id) || node.expanded
-                                // 如果 node.expanded 始终为 true，节点就会始终显示为展开
-                                const isCurrentlyExpanded = this.treeView.expandedNodes.has(node.id) || actualNode.expanded;
-                                actualNode.expanded = !isCurrentlyExpanded;
-                                
                                 this.treeView.toggleNode(actualNode);
                                 console.log('[OperatorLibrary] After toggle, expandedNodes:', Array.from(this.treeView.expandedNodes));
-                                console.log('[OperatorLibrary] Node expanded property:', actualNode.expanded);
                             }
                             return false;
                         };
@@ -645,7 +636,15 @@ export class OperatorLibraryPanel {
         
         this.treeView.setData(treeData);
 
-        // 【新增】加载保存的展开状态
+        // 【关键修复】初始化 expandedNodes，确保所有设置了 expanded: true 的节点 ID 都在 Set 中
+        // 这样第一次点击就能正确切换状态
+        treeData.forEach(node => {
+            if (node.expanded) {
+                this.treeView.expandedNodes.add(node.id);
+            }
+        });
+        
+        // 【新增】加载保存的展开状态（覆盖默认值）
         this.loadExpandedState();
         
         // 【调试】打印展开状态
