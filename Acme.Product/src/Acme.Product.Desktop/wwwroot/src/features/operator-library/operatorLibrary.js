@@ -181,11 +181,15 @@ export class OperatorLibraryPanel {
                             e.preventDefault();
                             e.stopPropagation();
                             console.log('[OperatorLibrary] Toggle clicked, node.id:', node.id);
+                            console.log('[OperatorLibrary] Before toggle, expandedNodes:', Array.from(this.treeView.expandedNodes));
+                            
                             // 【修复】通过 id 查找正确的节点对象
                             const actualNode = this.treeView.findNode(node.id);
                             console.log('[OperatorLibrary] Found node:', actualNode);
+                            
                             if (actualNode) {
                                 this.treeView.toggleNode(actualNode);
+                                console.log('[OperatorLibrary] After toggle, expandedNodes:', Array.from(this.treeView.expandedNodes));
                             }
                             return false;
                         };
@@ -636,6 +640,9 @@ export class OperatorLibraryPanel {
 
         // 【新增】加载保存的展开状态
         this.loadExpandedState();
+        
+        // 【调试】打印展开状态
+        console.log('[OperatorLibrary] After setData, expandedNodes:', Array.from(this.treeView.expandedNodes));
     }
 
     /**
@@ -670,9 +677,14 @@ export class OperatorLibraryPanel {
     loadExpandedState() {
         try {
             const saved = localStorage.getItem(this.storageKey);
+            console.log('[OperatorLibrary] Loading expanded state from localStorage:', saved);
             if (saved) {
                 const expandedIds = JSON.parse(saved);
+                console.log('[OperatorLibrary] Parsed expandedIds:', expandedIds);
                 expandedIds.forEach(id => this.treeView.expandedNodes.add(id));
+                console.log('[OperatorLibrary] After loading, expandedNodes:', Array.from(this.treeView.expandedNodes));
+                // 加载状态后重新渲染
+                this.treeView.render();
             }
         } catch (e) {
             console.warn('[OperatorLibrary] Failed to load expanded state:', e);
