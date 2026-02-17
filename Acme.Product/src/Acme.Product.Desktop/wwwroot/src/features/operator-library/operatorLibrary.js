@@ -178,8 +178,14 @@ export class OperatorLibraryPanel {
                         const wrapper = element.querySelector('.category-content-wrapper');
                         
                         const toggleHandler = (e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            this.treeView.toggleNode(node);
+                            // 【修复】通过 id 查找正确的节点对象
+                            const actualNode = this.treeView.findNode(node.id);
+                            if (actualNode) {
+                                this.treeView.toggleNode(actualNode);
+                            }
+                            return false;
                         };
                         
                         toggle.addEventListener('click', toggleHandler);
