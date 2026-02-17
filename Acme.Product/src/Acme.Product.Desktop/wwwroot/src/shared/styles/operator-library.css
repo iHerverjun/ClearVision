@@ -223,6 +223,113 @@
     border-bottom: 1px solid rgba(212, 175, 55, 0.2);
 }
 
+/* ==========================================================================
+   分类节点展开/收起按钮样式
+   ========================================================================== */
+
+/* 展开/收起按钮基础样式 */
+.cv-treeview-node .cv-treeview-toggle {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--gold-accent);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.cv-treeview-node .cv-treeview-toggle:hover {
+    background: rgba(212, 175, 55, 0.15);
+    transform: scale(1.1);
+}
+
+/* 展开/收起箭头旋转动画 */
+.cv-treeview-node .cv-treeview-toggle svg {
+    transition: transform 0.2s ease;
+}
+
+.cv-treeview-node .cv-treeview-toggle.expanded svg {
+    transform: rotate(0deg);
+}
+
+.cv-treeview-node .cv-treeview-toggle.collapsed svg {
+    transform: rotate(-90deg);
+}
+
+/* 占位符 */
+.cv-treeview-node .cv-treeview-toggle-placeholder {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* 分类内容包装器 */
+.category-content-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    transition: background 0.15s ease;
+}
+
+.category-content-wrapper:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 分类图标 */
+.category-icon {
+    color: var(--gold-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.category-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+/* 分类标签 */
+.category-label {
+    font-weight: 600;
+    color: var(--paper-white);
+    font-size: var(--font-size-sm);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 算子数量徽章 */
+.category-count {
+    padding: 2px 8px;
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    color: var(--gold-accent);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+/* 分类节点特殊样式 */
+.cv-treeview-item > .cv-treeview-node {
+    padding: 6px 8px;
+}
+
+/* 树形列表过渡动画 */
+.cv-treeview-list {
+    animation: fadeIn 0.2s ease;
+}
+
 /* 空状态 */
 .operator-library-wrapper .empty-state {
     padding: 40px 20px;

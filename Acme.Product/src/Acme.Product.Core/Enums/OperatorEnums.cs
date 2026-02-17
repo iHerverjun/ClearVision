@@ -299,7 +299,34 @@ public enum OperatorType
     /// <summary>
     /// 循环计数器 - 获取当前循环次数
     /// </summary>
-    CycleCounter = 84
+    CycleCounter = 84,
+
+    // ==================== 清霜V3迁移算子 ====================
+    
+    /// <summary>
+    /// AKAZE特征匹配 - 基于AKAZE特征的鲁棒模板匹配
+    /// </summary>
+    AkazeFeatureMatch = 90,
+
+    /// <summary>
+    /// ORB特征匹配 - 基于ORB特征的快速模板匹配
+    /// </summary>
+    OrbFeatureMatch = 91,
+
+    /// <summary>
+    /// 梯度形状匹配 - 基于梯度方向的形状匹配
+    /// </summary>
+    GradientShapeMatch = 92,
+
+    /// <summary>
+    /// 金字塔形状匹配 - 多尺度金字塔形状匹配
+    /// </summary>
+    PyramidShapeMatch = 93,
+
+    /// <summary>
+    /// 双模态投票 - 结合深度学习和传统算法结果进行投票决策
+    /// </summary>
+    DualModalVoting = 94
 }
 
 /// <summary>

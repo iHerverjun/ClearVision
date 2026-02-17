@@ -184,11 +184,11 @@ class InspectionPanel {
      */
     setupSubscriptions() {
         // 订阅检测状态变化（调用方法注册回调，而非覆盖方法）
-        inspectionController.onInspectionCompleted((result) => {
+        this.unsubscribeCompleted = inspectionController.onInspectionCompleted((result) => {
             this.handleInspectionResult(result);
         });
         
-        inspectionController.onInspectionError((error) => {
+        this.unsubscribeError = inspectionController.onInspectionError((error) => {
             this.updateStatus('error', '检测错误');
         });
     }
@@ -297,6 +297,9 @@ class InspectionPanel {
                 history: newHistory
             });
         }
+        
+        // 【修复】立即更新计数器显示，解决延迟问题
+        this.updateCounters();
         
         // 更新按钮状态
         this.setButtonsState(false);
@@ -442,6 +445,27 @@ class InspectionPanel {
     refresh() {
         this.updateCounters();
         this.renderRecentResults();
+    }
+
+    /**
+     * 销毁组件，清理资源
+     */
+    dispose() {
+        console.log('[InspectionPanel] 正在销毁...');
+        
+        // 取消订阅
+        if (this.unsubscribeCompleted) {
+            this.unsubscribeCompleted();
+            this.unsubscribeCompleted = null;
+        }
+        
+        if (this.unsubscribeError) {
+            this.unsubscribeError();
+            this.unsubscribeError = null;
+        }
+        
+        // 清理DOM事件（通过innerHTML置空自动处理大部分，但为了保险可以手动移除）
+        // 这里主要依赖 innerHTML 清空或 DOM 移除
     }
 }
 

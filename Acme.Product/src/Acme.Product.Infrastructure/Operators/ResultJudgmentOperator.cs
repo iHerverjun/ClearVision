@@ -37,14 +37,23 @@ public class ResultJudgmentOperator : OperatorBase
         var ngOutputValue = GetStringParam(@operator, "NgOutputValue", "0");
 
         // 从输入中获取实际值
-        if (inputs == null || !inputs.TryGetValue(fieldName, out var actualValueObj) || actualValueObj == null)
+        object? actualValueObj = null;
+        if (inputs != null && inputs.TryGetValue(fieldName, out var val) && val != null)
         {
-            // 尝试从"Value"键获取（通用输入）
-            if (inputs == null || !inputs.TryGetValue("Value", out actualValueObj) || actualValueObj == null)
-            {
-                return Task.FromResult(CreateNgOutput($"未找到判定字段: {fieldName}", ngOutputValue));
-            }
+            actualValueObj = val;
+            Logger.LogInformation("[ResultJudgment] 从字段 '{FieldName}' 获取到值: {Value} (类型: {Type})", fieldName, actualValueObj, actualValueObj.GetType().Name);
         }
+        else if (inputs != null && inputs.TryGetValue("Value", out var fallbackVal) && fallbackVal != null)
+        {
+            actualValueObj = fallbackVal;
+            Logger.LogInformation("[ResultJudgment] 字段 '{FieldName}' 未找到，从 'Value' 获取到值: {Value} (类型: {Type})", fieldName, actualValueObj, actualValueObj.GetType().Name);
+        }
+        else
+        {
+            return Task.FromResult(CreateNgOutput($"未找到判定字段: {fieldName}", ngOutputValue));
+        }
+
+        Logger.LogInformation("[ResultJudgment] 判定参数: 条件={Condition}, 期望值={ExpectValue}", condition, expectValue);
 
         // 检查置信度（如果输入中有Confidence字段）
         if (inputs.TryGetValue("Confidence", out var confidenceObj) && confidenceObj is double confidence)

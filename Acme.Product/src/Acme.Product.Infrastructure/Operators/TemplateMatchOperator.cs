@@ -78,7 +78,7 @@ public class TemplateMatchOperator : OperatorBase
         // 绘制结果
         using var resultImg = src.Clone();
         bool found = normalizedScore >= threshold;
-        
+
         if (found)
         {
             Cv2.Rectangle(resultImg, matchLoc, new Point(matchLoc.X + template.Width, matchLoc.Y + template.Height),
@@ -92,6 +92,7 @@ public class TemplateMatchOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImg, new Dictionary<string, object>
         {
             { "Found", found },
+            { "IsMatch", found },
             { "Score", normalizedScore },
             { "X", matchLoc.X },
             { "Y", matchLoc.Y },

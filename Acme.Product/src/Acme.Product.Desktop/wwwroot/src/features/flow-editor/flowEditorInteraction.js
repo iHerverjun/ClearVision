@@ -129,8 +129,11 @@ export class FlowEditorInteraction {
 
             // 删除
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                // 如果焦点在输入框中，不拦截
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                // 如果焦点在输入框、文本区域或可编辑元素中，不拦截
+                if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'TEXTAREA' || 
+                    e.target.tagName === 'SELECT' || 
+                    e.target.isContentEditable) {
                     return;
                 }
                 e.preventDefault();
@@ -285,8 +288,8 @@ export class FlowEditorInteraction {
             // 传递参数 - 使用深拷贝确保每个节点有独立的参数副本
             parameters: data?.parameters?.map(p => ({...p})) || [],
             // 传递端口配置 (如果有) 或使用默认值
-            inputs: data?.inputPorts?.map(p => ({name: p.name, type: p.dataType})) || [{ name: 'input', type: 'any' }],
-            outputs: data?.outputPorts?.map(p => ({name: p.name, type: p.dataType})) || [{ name: 'output', type: 'any' }]
+            inputs: data?.inputPorts?.map(p => ({name: p.name, type: p.dataType})) || [{ name: 'input', type: 'Any' }],
+            outputs: data?.outputPorts?.map(p => ({name: p.name, type: p.dataType})) || [{ name: 'output', type: 'Any' }]
         };
 
         const node = this.canvas.addNode(type, x, y, nodeConfig);

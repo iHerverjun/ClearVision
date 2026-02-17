@@ -1,3 +1,4 @@
+using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -8,15 +9,19 @@ using OpenCvSharp;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
-/// 图像采集算子
+/// 图像采集算子 - 支持相机和文件采集
 /// </summary>
 public class ImageAcquisitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;
+    private readonly ICameraManager _cameraManager;
 
-    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger) : base(logger) { }
+    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger, ICameraManager cameraManager) : base(logger) 
+    { 
+        _cameraManager = cameraManager;
+    }
 
-    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+    protected override async Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
@@ -60,13 +65,47 @@ public class ImageAcquisitionOperator : OperatorBase
                 channels = wrapper.Channels;
             }
             
-            return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
+            return OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
                 { "Image", rawData },
                 { "Width", width },
                 { "Height", height },
                 { "Channels", channels }
-            }));
+            });
+        }
+
+        // 如果是相机模式
+        if (sourceType?.ToLower() == "camera")
+        {
+            var cameraId = GetStringParam(@operator, "cameraId", "");
+            if (string.IsNullOrEmpty(cameraId))
+            {
+                return OperatorExecutionOutput.Failure("未指定相机ID");
+            }
+
+            try
+            {
+                var camera = await _cameraManager.GetOrCreateCameraAsync(cameraId);
+                var imageBytes = await camera.AcquireSingleFrameAsync();
+                
+                // 解码图像以获取尺寸信息
+                using var mat = Cv2.ImDecode(imageBytes, ImreadModes.Color);
+                if (mat.Empty())
+                {
+                    return OperatorExecutionOutput.Failure("相机返回的图像数据无效");
+                }
+
+                return OperatorExecutionOutput.Success(CreateImageOutput(mat, new Dictionary<string, object>
+                {
+                    { "Channels", mat.Channels() },
+                    { "Source", "camera" },
+                    { "CameraId", cameraId }
+                }));
+            }
+            catch (Exception ex)
+            {
+                return OperatorExecutionOutput.Failure($"相机采集失败: {ex.Message}");
+            }
         }
 
         // 如果是文件模式
@@ -74,27 +113,27 @@ public class ImageAcquisitionOperator : OperatorBase
         {
             if (string.IsNullOrEmpty(filePath))
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("未指定文件路径"));
+                return OperatorExecutionOutput.Failure("未指定文件路径");
             }
 
             if (!File.Exists(filePath))
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure($"图像文件不存在: {filePath}"));
+                return OperatorExecutionOutput.Failure($"图像文件不存在: {filePath}");
             }
 
             using var mat = Cv2.ImRead(filePath, ImreadModes.Color);
             if (mat.Empty())
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("无法加载图像文件，格式可能不受支持"));
+                return OperatorExecutionOutput.Failure("无法加载图像文件，格式可能不受支持");
             }
 
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(mat, new Dictionary<string, object>
+            return OperatorExecutionOutput.Success(CreateImageOutput(mat, new Dictionary<string, object>
             {
                 { "Channels", mat.Channels() }
-            })));
+            }));
         }
 
-        return Task.FromResult(OperatorExecutionOutput.Failure("未提供图像数据或有效的采集设置"));
+        return OperatorExecutionOutput.Failure("未提供图像数据或有效的采集设置");
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)

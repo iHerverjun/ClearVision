@@ -123,9 +123,10 @@ public class DeepLearningOperator : OperatorBase
 
         // 2.1 加载自定义标签
         _currentLabels = LoadLabels(labelFile, modelPath);
+        Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", _currentLabels.Length, targetClassesStr);
         if (_currentLabels.Length > 0 && _currentLabels != CocoClassNames)
         {
-            Logger.LogInformation("[DeepLearning] 使用自定义标签，共 {Count} 个类别", _currentLabels.Length);
+            Logger.LogInformation("[DeepLearning] 使用自定义标签");
         }
 
         // 3. 验证模型路径
@@ -200,6 +201,9 @@ public class DeepLearningOperator : OperatorBase
             { "DefectCount", detections.Count },
             { "Defects", defects }
         };
+
+        Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);
+
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(outputImage, additionalData)));
     }
 
@@ -317,7 +321,7 @@ public class DeepLearningOperator : OperatorBase
         // YOLO 模型期望 RGB 顺序，OpenCV 使用 BGR 顺序
         var tensorSize = 1 * 3 * inputSize * inputSize;
         var tensorData = ArrayPool<float>.Shared.Rent(tensorSize);
-        
+
         try
         {
             var matData = floatMat.GetGenericIndexer<Vec3f>();
@@ -784,7 +788,7 @@ public class DeepLearningOperator : OperatorBase
     private string[] LoadLabels(string labelFile, string modelPath)
     {
         string[] labels = Array.Empty<string>();
-        
+
         // 1. 尝试加载用户指定的标签文件
         if (!string.IsNullOrEmpty(labelFile) && File.Exists(labelFile))
         {
@@ -794,7 +798,7 @@ public class DeepLearningOperator : OperatorBase
             Logger.LogInformation("[DeepLearning] 加载自定义标签文件: {File}, 共 {Count} 个标签", labelFile, labels.Length);
             return labels;
         }
-        
+
         // 2. 自动查找模型目录下的 labels.txt
         if (!string.IsNullOrEmpty(modelPath))
         {
@@ -812,7 +816,7 @@ public class DeepLearningOperator : OperatorBase
                 }
             }
         }
-        
+
         // 3. 回退到 COCO 80 类默认标签
         return CocoClassNames;
     }

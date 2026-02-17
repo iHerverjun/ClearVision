@@ -57,6 +57,8 @@ public class InspectionService : IInspectionService
 
         var result = new InspectionResult(projectId);
 
+
+
         try
         {
             // 执行检测流程
@@ -67,23 +69,18 @@ public class InspectionService : IInspectionService
             _logger.LogDebug("[InspectionService] 流程执行完成: IsSuccess={IsSuccess}, OutputData keys=[{Keys}]",
                 flowResult.IsSuccess, string.Join(", ", flowResult.OutputData?.Keys ?? Enumerable.Empty<string>()));
 
-            // 算子执行失败 → Error；执行成功但有缺陷 → NG；无缺陷 → OK
+            // 算子执行失败 → Error；执行成功 → 根据算子输出判定
             InspectionStatus status;
             if (!flowResult.IsSuccess)
             {
                 status = InspectionStatus.Error;
                 _logger.LogWarning("[InspectionService] 流程执行失败: {ErrorMessage}", flowResult.ErrorMessage);
             }
-            else if (flowResult.OutputData?.TryGetValue("DefectCount", out var dc) == true
-                     && dc is int defectCount && defectCount > 0)
-            {
-                status = InspectionStatus.NG;
-                _logger.LogInformation("[InspectionService] 检测到 {DefectCount} 个缺陷 → NG", defectCount);
-            }
             else
             {
-                status = InspectionStatus.OK;
-                _logger.LogInformation("[InspectionService] 未检测到缺陷 → OK");
+                // 【修复】优先使用算子判定结果 (JudgmentResult)
+                status = DetermineStatusFromFlowOutput(flowResult.OutputData);
+                _logger.LogInformation("[InspectionService] 判定结果: {Status}", status);
             }
 
             result.SetResult(status, flowResult.ExecutionTimeMs, null, flowResult.ErrorMessage);
@@ -105,7 +102,7 @@ public class InspectionService : IInspectionService
             if (flowResult.OutputData?.TryGetValue("Defects", out var defectsObj) == true
                 && defectsObj is System.Collections.IList defectsList)
             {
-                _logger.LogDebug("[InspectionService] 提取到 {DefectCount} 个缺陷数据", defectsList.Count);
+                _logger.LogDebug("[InspectionService] 提取到 {DefectCount} 个检测目标数据", defectsList.Count);
                 foreach (var item in defectsList)
                 {
                     if (item is Dictionary<string, object> defectDict)
@@ -127,7 +124,7 @@ public class InspectionService : IInspectionService
                         result.AddDefect(defect);
                     }
                 }
-                _logger.LogInformation("[InspectionService] 已添加 {DefectCount} 个缺陷到结果", result.Defects.Count);
+                _logger.LogInformation("[InspectionService] 已添加 {DefectCount} 个检测目标到结果", result.Defects.Count);
             }
 
             await _resultRepository.AddAsync(result);
@@ -201,7 +198,7 @@ public class InspectionService : IInspectionService
 
         // 创建取消令牌源
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        
+
         lock (_realtimeLock)
         {
             _realtimeCtsMap[projectId] = cts;
@@ -299,7 +296,7 @@ public class InspectionService : IInspectionService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[InspectionService] 第 {CycleCount} 轮检测执行异常", cycleCount);
-                
+
                 // 增加间隔以避免错误风暴
                 currentIntervalMs = Math.Min(currentIntervalMs * 2, maxIntervalMs);
             }
@@ -328,7 +325,7 @@ public class InspectionService : IInspectionService
     {
         // 准备初始输入数据
         var inputData = new Dictionary<string, object>();
-        
+
         // 如果指定了相机ID，预加载图像（兼容旧模式）
         // 【新模式】如果流程中包含图像采集算子，它会覆盖这个初始图像
         if (!string.IsNullOrEmpty(cameraId))
@@ -432,11 +429,11 @@ public class InspectionService : IInspectionService
             return InspectionStatus.OK;
 
         // 1. 优先使用结果判定算子的输出
-        if (outputData.TryGetValue("JudgmentResult", out var judgmentResult) 
+        if (outputData.TryGetValue("JudgmentResult", out var judgmentResult)
             && judgmentResult is string judgment)
         {
-            return judgment.Equals("OK", StringComparison.OrdinalIgnoreCase) 
-                ? InspectionStatus.OK 
+            return judgment.Equals("OK", StringComparison.OrdinalIgnoreCase)
+                ? InspectionStatus.OK
                 : InspectionStatus.NG;
         }
 

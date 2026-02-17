@@ -153,6 +153,12 @@ public interface ICameraManager
     Task<IEnumerable<CameraInfo>> EnumerateCamerasAsync();
 
     /// <summary>
+    /// 获取或创建相机
+    /// </summary>
+    /// <param name="cameraId">相机ID</param>
+    Task<ICamera> GetOrCreateCameraAsync(string cameraId);
+
+    /// <summary>
     /// 打开相机
     /// </summary>
     /// <param name="cameraId">相机ID</param>
@@ -168,4 +174,9 @@ public interface ICameraManager
     /// 获取已打开的相机
     /// </summary>
     ICamera? GetCamera(string cameraId);
+
+    /// <summary>
+    /// 断开所有相机
+    /// </summary>
+    Task DisconnectAllAsync();
 }

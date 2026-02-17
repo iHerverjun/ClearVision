@@ -45,6 +45,34 @@ public interface IFlowExecutionService
     /// </summary>
     /// <param name="flowId">流程ID</param>
     Task CancelExecutionAsync(Guid flowId);
+
+    /// <summary>
+    /// 调试执行流程 - 支持断点和单步执行
+    /// </summary>
+    /// <param name="flow">算子流程</param>
+    /// <param name="options">调试选项</param>
+    /// <param name="inputData">输入数据</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>调试执行结果</returns>
+    Task<FlowDebugExecutionResult> ExecuteFlowDebugAsync(
+        OperatorFlow flow,
+        DebugOptions options,
+        Dictionary<string, object>? inputData = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取调试中间结果
+    /// </summary>
+    /// <param name="debugSessionId">调试会话ID</param>
+    /// <param name="operatorId">算子ID</param>
+    /// <returns>中间结果数据</returns>
+    Dictionary<string, object>? GetDebugIntermediateResult(Guid debugSessionId, Guid operatorId);
+
+    /// <summary>
+    /// 清除调试缓存
+    /// </summary>
+    /// <param name="debugSessionId">调试会话ID</param>
+    Task ClearDebugCacheAsync(Guid debugSessionId);
 }
 
 /// <summary>

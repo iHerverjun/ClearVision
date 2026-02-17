@@ -17,6 +17,14 @@ public class ProjectService
     private readonly IProjectFlowStorage _flowStorage;
     private readonly IOperatorFactory _operatorFactory;
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
     public ProjectService(IProjectRepository projectRepository, IProjectFlowStorage flowStorage, IOperatorFactory operatorFactory)
     {
         _projectRepository = projectRepository;
@@ -59,7 +67,7 @@ public class ProjectService
         {
             try
             {
-                var flowDto = JsonSerializer.Deserialize<OperatorFlowDto>(flowJson);
+                var flowDto = JsonSerializer.Deserialize<OperatorFlowDto>(flowJson, _jsonOptions);
                 if (flowDto != null)
                 {
                     dto.Flow = flowDto;
@@ -130,7 +138,7 @@ public class ProjectService
         // 如果有流程数据，更新到文件
         if (request.Flow != null)
         {
-            var json = JsonSerializer.Serialize(request.Flow);
+            var json = JsonSerializer.Serialize(request.Flow, _jsonOptions);
             await _flowStorage.SaveFlowJsonAsync(id, json);
         }
 
@@ -157,7 +165,7 @@ public class ProjectService
         };
 
         // 3. 序列化并保存到文件
-        var json = JsonSerializer.Serialize(flowDto);
+        var json = JsonSerializer.Serialize(flowDto, _jsonOptions);
         await _flowStorage.SaveFlowJsonAsync(id, json);
 
         // 4. 更新工程修改时间 (可选，但推荐)

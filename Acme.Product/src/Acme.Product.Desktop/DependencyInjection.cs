@@ -129,6 +129,15 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, ColorDetectionOperator>();
         services.AddSingleton<IOperatorExecutor, SerialCommunicationOperator>();
 
+        // ==================== 清霜V3迁移：特征匹配算子 ====================
+        services.AddSingleton<IOperatorExecutor, AkazeFeatureMatchOperator>();
+        services.AddSingleton<IOperatorExecutor, OrbFeatureMatchOperator>();
+        services.AddSingleton<IOperatorExecutor, GradientShapeMatchOperator>();
+        services.AddSingleton<IOperatorExecutor, PyramidShapeMatchOperator>();
+
+        // ==================== 清霜V3迁移：Phase 2 智能检测机制 ====================
+        services.AddSingleton<IOperatorExecutor, DualModalVotingOperator>();
+
         // 应用服务 - Sprint 4新增
         services.AddScoped<IOperatorService, OperatorService>();
         services.AddScoped<IImageAcquisitionService, ImageAcquisitionService>();
@@ -158,62 +167,5 @@ public static class DependencyInjection
         services.AddScoped<UserManagementService>();
 
         return services;
-    }
-}
-
-/// <summary>
-/// 相机管理器实现
-/// </summary>
-public class CameraManager : ICameraManager
-{
-    private readonly Dictionary<string, ICamera> _cameras = new();
-
-    public Task<IEnumerable<CameraInfo>> EnumerateCamerasAsync()
-    {
-        // 返回模拟相机和文件相机
-        var cameras = new List<CameraInfo>
-        {
-            new() { CameraId = "mock_001", Name = "模拟相机 1", IsConnected = false },
-            new() { CameraId = "file_001", Name = "文件相机", IsConnected = false }
-        };
-
-        return Task.FromResult<IEnumerable<CameraInfo>>(cameras);
-    }
-
-    public Task<ICamera> OpenCameraAsync(string cameraId)
-    {
-        ICamera camera;
-
-        if (cameraId.StartsWith("mock_"))
-        {
-            camera = new MockCamera(cameraId, $"模拟相机 {cameraId}");
-        }
-        else if (cameraId.StartsWith("file_"))
-        {
-            camera = new FileCamera(cameraId, "文件相机", "sample.jpg");
-        }
-        else
-        {
-            throw new ArgumentException($"未知的相机ID: {cameraId}");
-        }
-
-        _cameras[cameraId] = camera;
-        return Task.FromResult(camera);
-    }
-
-    public Task CloseCameraAsync(string cameraId)
-    {
-        if (_cameras.TryGetValue(cameraId, out var camera))
-        {
-            camera.Dispose();
-            _cameras.Remove(cameraId);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public ICamera? GetCamera(string cameraId)
-    {
-        return _cameras.TryGetValue(cameraId, out var camera) ? camera : null;
     }
 }

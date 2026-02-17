@@ -345,6 +345,13 @@ function initializeInspectionPanel() {
     
     try {
         console.log('[App] 创建新的 InspectionPanel 实例');
+        
+        // 【防抖修复】确保销毁旧实例，防止重复绑定和内存泄漏
+        if (window.inspectionPanel && typeof window.inspectionPanel.dispose === 'function') {
+            console.warn('[App] 发现残留的 InspectionPanel 实例，正在销毁...');
+            window.inspectionPanel.dispose();
+        }
+        
         inspectionPanel = new InspectionPanel('inspection-control-panel');
         window.inspectionPanel = inspectionPanel;
         console.log('[App] 检测控制面板初始化完成');
@@ -513,7 +520,7 @@ function initializeInspectionController() {
             message = `检测错误: ${result.errorMessage || '未知错误'}`;
         } else {
             status = 'warning';
-            message = `检测到 ${result.defects?.length || 0} 个缺陷`;
+            message = `检测到 ${result.defects?.length || 0} 个目标`;
         }
         showToast(message, status);
     });
@@ -1047,6 +1054,12 @@ function initializeToolbar() {
         saveBtn.addEventListener('click', async () => {
             console.log('[App] 保存工程');
             try {
+                // 【修复】保存前强制提交当前属性面板的更改
+                if (window.propertyPanel && window.propertyPanel.currentOperator) {
+                    console.log('[App] 强制刷新当前属性面板更改');
+                    window.propertyPanel.applyChanges();
+                }
+
                 const project = getCurrentProject();
                 if (project) {
                     // 使用 projectManager.saveProject 正确保存工程
@@ -1389,16 +1402,21 @@ function findOperatorDefinition(type) {
  */
 function mergeParameters(defParams, nodeParams) {
     if (!defParams || defParams.length === 0) return nodeParams || [];
-    if (!nodeParams || nodeParams.length === 0) {
-        return defParams.map(p => ({...p}));
-    }
-    // 以定义为基础，用节点中保存的值覆盖 defaultValue
+    
     return defParams.map(defP => {
-        const nodeP = nodeParams.find(np => np.name === defP.name);
-        if (nodeP) {
-            return { ...defP, defaultValue: nodeP.defaultValue ?? nodeP.value ?? defP.defaultValue };
-        }
-        return { ...defP };
+        // [修复] 不区分大小写匹配，解决前端 (camelCase) 与后端 (PascalCase) 的差异
+        const nodeP = (nodeParams || []).find(np => 
+            (np.name && defP.name && np.name.toLowerCase() === defP.name.toLowerCase()) ||
+            (np.Name && defP.name && np.Name.toLowerCase() === defP.name.toLowerCase())
+        );
+        
+        const mergedParam = { 
+            ...defP,
+            // 优先使用节点保存的值 (Value 或 value)
+            value: nodeP !== undefined ? (nodeP.value ?? nodeP.Value ?? nodeP.defaultValue ?? nodeP.DefaultValue) : defP.defaultValue
+        };
+        
+        return mergedParam;
     });
 }
 

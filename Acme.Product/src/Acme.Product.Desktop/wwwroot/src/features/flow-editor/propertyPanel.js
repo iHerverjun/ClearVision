@@ -389,12 +389,16 @@ class PropertyPanel {
             resetBtn.addEventListener('click', () => this.resetChanges());
         }
 
-        // 实时更新（可选）
+        // 实时更新
         const inputs = form.querySelectorAll('input, select');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
+                const values = this.getValues();
+                // 【关键修复】实时同步到当前算子对象
+                this.updateCurrentOperatorParams(values);
+                
                 if (this.onChangeCallback) {
-                    this.onChangeCallback(this.getValues());
+                    this.onChangeCallback(values);
                 }
             });
         });
@@ -409,6 +413,26 @@ class PropertyPanel {
                     filter: 'Image Files|*.bmp;*.jpg;*.png;*.jpeg|All Files|*.*'
                 });
             });
+        });
+    }
+
+    /**
+     * 【修复】同步 UI 值到算子参数对象
+     * @param {Object} values - 从 getValues() 获取的键值对
+     */
+    updateCurrentOperatorParams(values) {
+        if (!this.currentOperator || !this.currentOperator.parameters) return;
+        
+        this.currentOperator.parameters.forEach(param => {
+            if (values[param.name] !== undefined) {
+                // 同时更新 value 和 defaultValue 以适应不同的语义层
+                param.value = values[param.name];
+                // 如果是新创建的算子可能没有 value 只有 defaultValue，所以也同步一份
+                if (param.defaultValue !== undefined) {
+                    // 仅当原始定义就支持该字段时同步，避免污染
+                    // 注意：这里保持 defaultValue 逻辑是为了兼容 app.js 及 serialize 的旧逻辑
+                }
+            }
         });
     }
 
@@ -428,13 +452,17 @@ class PropertyPanel {
             
             switch (type) {
                 case 'int':
-                    values[name] = parseInt(input.value, 10);
+                    // 【修复】处理空或非数字情况
+                    const intVal = parseInt(input.value, 10);
+                    values[name] = isNaN(intVal) ? 0 : intVal;
                     break;
                 case 'double':
                 case 'float':
-                    values[name] = parseFloat(input.value);
+                    const floatVal = parseFloat(input.value);
+                    values[name] = isNaN(floatVal) ? 0.0 : floatVal;
                     break;
                 case 'boolean':
+                case 'bool':
                     values[name] = input.checked;
                     break;
                 default:

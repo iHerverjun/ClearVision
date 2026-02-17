@@ -59,6 +59,13 @@ static class Program
             System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
             System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
 
+            // 配置 Serilog
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .WriteTo.File("logs/log.txt", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
             // 启动主窗体
             var mainForm = new MainForm();
             System.Windows.Forms.Application.Run(mainForm);
@@ -95,7 +102,7 @@ static class Program
             builder.Services.ConfigureHttpJsonOptions(options =>
             {
                 options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-                options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(allowIntegerValues: true));
             });
 
             // 注册 CORS 服务（必须在 UseCors 之前）

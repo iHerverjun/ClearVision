@@ -258,7 +258,8 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "标记图像", DataType = PortDataType.Image },
-                new() { Name = "Blobs", DisplayName = "Blob数据", DataType = PortDataType.Contour }
+                new() { Name = "Blobs", DisplayName = "Blob数据", DataType = PortDataType.Contour },
+                new() { Name = "BlobCount", DisplayName = "Blob数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -284,7 +285,10 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point }
+                new() { Name = "X", DisplayName = "匹配X", DataType = PortDataType.Float },
+                new() { Name = "Y", DisplayName = "匹配Y", DataType = PortDataType.Float },
+                new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float },
+                new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -335,7 +339,9 @@ public class OperatorFactory : IOperatorFactory
             },
             OutputPorts = new List<PortDefinition>
             {
-                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image }
+                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
+                new() { Name = "Contours", DisplayName = "轮廓数据", DataType = PortDataType.Contour },
+                new() { Name = "ContourCount", DisplayName = "轮廓数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -362,7 +368,9 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "Text", DisplayName = "识别内容", DataType = PortDataType.String }
+                new() { Name = "Text", DisplayName = "识别内容", DataType = PortDataType.String },
+                new() { Name = "CodeCount", DisplayName = "识别数量", DataType = PortDataType.Integer },
+                new() { Name = "CodeType", DisplayName = "条码类型", DataType = PortDataType.String }
             }
         };
 
@@ -381,7 +389,8 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "Defects", DisplayName = "缺陷列表", DataType = PortDataType.Contour }
+                new() { Name = "Defects", DisplayName = "缺陷列表", DataType = PortDataType.Contour },
+                new() { Name = "DefectCount", DisplayName = "缺陷数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -635,7 +644,8 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
                 new() { Name = "Radius", DisplayName = "半径", DataType = PortDataType.Float },
-                new() { Name = "Center", DisplayName = "圆心", DataType = PortDataType.Point }
+                new() { Name = "Center", DisplayName = "圆心", DataType = PortDataType.Point },
+                new() { Name = "CircleCount", DisplayName = "圆数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -669,7 +679,8 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
                 new() { Name = "Angle", DisplayName = "角度", DataType = PortDataType.Float },
-                new() { Name = "Length", DisplayName = "长度", DataType = PortDataType.Float }
+                new() { Name = "Length", DisplayName = "长度", DataType = PortDataType.Float },
+                new() { Name = "LineCount", DisplayName = "直线数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -700,7 +711,8 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
                 new() { Name = "Area", DisplayName = "面积", DataType = PortDataType.Float },
-                new() { Name = "Perimeter", DisplayName = "周长", DataType = PortDataType.Float }
+                new() { Name = "Perimeter", DisplayName = "周长", DataType = PortDataType.Float },
+                new() { Name = "ContourCount", DisplayName = "轮廓数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -2013,6 +2025,173 @@ public class OperatorFactory : IOperatorFactory
                 },
                 new() { Name = "MaxCycles", DisplayName = "最大循环次数", DataType = "int", DefaultValue = 0,
                     Description = "0表示无限制" }
+            }
+        };
+
+        // ==================== 清霜V3迁移：特征匹配算子 ====================
+
+        // 1. AKAZE特征匹配 (AkazeFeatureMatch = 90)
+        _metadata[OperatorType.AkazeFeatureMatch] = new OperatorMetadata
+        {
+            Type = OperatorType.AkazeFeatureMatch,
+            DisplayName = "AKAZE特征匹配",
+            Description = "基于AKAZE特征的鲁棒模板匹配，对光照/旋转/缩放变化具有强鲁棒性",
+            Category = "匹配定位",
+            IconName = "feature-match",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "搜索图像", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Template", DisplayName = "模板图像", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
+                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point },
+                new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean },
+                new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TemplatePath", DisplayName = "模板路径", DataType = "file", DefaultValue = "" },
+                new() { Name = "Threshold", DisplayName = "检测阈值", DataType = "double", DefaultValue = 0.001, MinValue = 0.0001, MaxValue = 0.1 },
+                new() { Name = "MinMatchCount", DisplayName = "最小匹配数", DataType = "int", DefaultValue = 10, MinValue = 3, MaxValue = 100 },
+                new() { Name = "EnableSymmetryTest", DisplayName = "对称测试", DataType = "bool", DefaultValue = true },
+                new() { Name = "MaxFeatures", DisplayName = "最大特征点", DataType = "int", DefaultValue = 500, MinValue = 100, MaxValue = 2000 }
+            }
+        };
+
+        // 2. ORB特征匹配 (OrbFeatureMatch = 91)
+        _metadata[OperatorType.OrbFeatureMatch] = new OperatorMetadata
+        {
+            Type = OperatorType.OrbFeatureMatch,
+            DisplayName = "ORB特征匹配",
+            Description = "基于ORB特征的快速模板匹配，适合实时应用",
+            Category = "匹配定位",
+            IconName = "orb-match",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "搜索图像", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Template", DisplayName = "模板图像", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
+                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point },
+                new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean },
+                new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TemplatePath", DisplayName = "模板路径", DataType = "file", DefaultValue = "" },
+                new() { Name = "MaxFeatures", DisplayName = "最大特征点", DataType = "int", DefaultValue = 500, MinValue = 100, MaxValue = 2000 },
+                new() { Name = "ScaleFactor", DisplayName = "尺度因子", DataType = "double", DefaultValue = 1.2, MinValue = 1.0, MaxValue = 2.0 },
+                new() { Name = "NLevels", DisplayName = "金字塔层数", DataType = "int", DefaultValue = 8, MinValue = 1, MaxValue = 12 },
+                new() { Name = "EdgeThreshold", DisplayName = "边缘阈值", DataType = "int", DefaultValue = 31, MinValue = 3, MaxValue = 100 }
+            }
+        };
+
+        // 3. 梯度形状匹配 (GradientShapeMatch = 92)
+        _metadata[OperatorType.GradientShapeMatch] = new OperatorMetadata
+        {
+            Type = OperatorType.GradientShapeMatch,
+            DisplayName = "梯度形状匹配",
+            Description = "基于梯度方向的形状匹配，支持旋转不变性",
+            Category = "匹配定位",
+            IconName = "shape-match",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "搜索图像", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Template", DisplayName = "模板图像", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
+                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point },
+                new() { Name = "Angle", DisplayName = "旋转角度", DataType = PortDataType.Float },
+                new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean },
+                new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TemplatePath", DisplayName = "模板路径", DataType = "file", DefaultValue = "" },
+                new() { Name = "MinScore", DisplayName = "最小分数(%)", DataType = "double", DefaultValue = 80.0, MinValue = 0.0, MaxValue = 100.0 },
+                new() { Name = "AngleRange", DisplayName = "角度范围(±)", DataType = "int", DefaultValue = 180, MinValue = 0, MaxValue = 180 },
+                new() { Name = "AngleStep", DisplayName = "角度步长", DataType = "int", DefaultValue = 1, MinValue = 1, MaxValue = 10 },
+                new() { Name = "MagnitudeThreshold", DisplayName = "梯度阈值", DataType = "int", DefaultValue = 30, MinValue = 0, MaxValue = 255 }
+            }
+        };
+
+        // 4. 金字塔形状匹配 (PyramidShapeMatch = 93)
+        _metadata[OperatorType.PyramidShapeMatch] = new OperatorMetadata
+        {
+            Type = OperatorType.PyramidShapeMatch,
+            DisplayName = "金字塔形状匹配",
+            Description = "多尺度金字塔形状匹配，速度快，适合大尺寸图像",
+            Category = "匹配定位",
+            IconName = "pyramid-match",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "搜索图像", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Template", DisplayName = "模板图像", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
+                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point },
+                new() { Name = "Angle", DisplayName = "旋转角度", DataType = PortDataType.Float },
+                new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean },
+                new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TemplatePath", DisplayName = "模板路径", DataType = "file", DefaultValue = "" },
+                new() { Name = "MinScore", DisplayName = "最小分数(%)", DataType = "double", DefaultValue = 80.0, MinValue = 0.0, MaxValue = 100.0 },
+                new() { Name = "AngleRange", DisplayName = "角度范围(±)", DataType = "int", DefaultValue = 180, MinValue = 0, MaxValue = 180 },
+                new() { Name = "PyramidLevels", DisplayName = "金字塔层数", DataType = "int", DefaultValue = 3, MinValue = 1, MaxValue = 5 },
+                new() { Name = "MagnitudeThreshold", DisplayName = "梯度阈值", DataType = "int", DefaultValue = 30, MinValue = 0, MaxValue = 255 }
+            }
+        };
+
+        // 5. 双模态投票 (DualModalVoting = 94)
+        _metadata[OperatorType.DualModalVoting] = new OperatorMetadata
+        {
+            Type = OperatorType.DualModalVoting,
+            DisplayName = "双模态投票",
+            Description = "结合深度学习和传统算法结果进行投票决策",
+            Category = "AI检测",
+            IconName = "voting",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "DLResult", DisplayName = "深度学习结果", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "TraditionalResult", DisplayName = "传统算法结果", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "DLIsOk", DisplayName = "DL判定结果", DataType = PortDataType.Boolean, IsRequired = false },
+                new() { Name = "DLConfidence", DisplayName = "DL置信度", DataType = PortDataType.Float, IsRequired = false },
+                new() { Name = "TraditionalIsOk", DisplayName = "传统算法判定结果", DataType = PortDataType.Boolean, IsRequired = false },
+                new() { Name = "TraditionalConfidence", DisplayName = "传统算法置信度", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "JudgmentResult", DisplayName = "判定结果", DataType = PortDataType.String },
+                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String },
+                new() { Name = "JudgmentValueInt", DisplayName = "判定值(整数)", DataType = PortDataType.Integer },
+                new() { Name = "Confidence", DisplayName = "综合置信度", DataType = PortDataType.Float },
+                new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "VotingStrategy", DisplayName = "投票策略", DataType = "enum", DefaultValue = "WeightedAverage", Options = new List<ParameterOption>
+                {
+                    new() { Label = "加权平均", Value = "WeightedAverage" },
+                    new() { Label = "一致同意", Value = "Unanimous" },
+                    new() { Label = "多数表决", Value = "Majority" },
+                    new() { Label = "优先深度学习", Value = "PrioritizeDeepLearning" },
+                    new() { Label = "优先传统算法", Value = "PrioritizeTraditional" }
+                } },
+                new() { Name = "DLWeight", DisplayName = "DL权重", DataType = "double", DefaultValue = 0.6, MinValue = 0.0, MaxValue = 1.0 },
+                new() { Name = "TraditionalWeight", DisplayName = "传统算法权重", DataType = "double", DefaultValue = 0.4, MinValue = 0.0, MaxValue = 1.0 },
+                new() { Name = "ConfidenceThreshold", DisplayName = "置信度阈值", DataType = "double", DefaultValue = 0.5, MinValue = 0.0, MaxValue = 1.0 },
+                new() { Name = "OkOutputValue", DisplayName = "OK输出值", DataType = "string", DefaultValue = "1" },
+                new() { Name = "NgOutputValue", DisplayName = "NG输出值", DataType = "string", DefaultValue = "0" }
             }
         };
     }

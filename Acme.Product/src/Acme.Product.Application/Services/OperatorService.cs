@@ -264,17 +264,19 @@ public class OperatorService : IOperatorService
                 {
                     new() { Name = "ModelPath", DisplayName = "模型路径", DataType = "file", DefaultValue = "", IsRequired = true },
                     new() { Name = "Confidence", DisplayName = "置信度阈值", DataType = "double", DefaultValue = 0.5, MinValue = 0.0, MaxValue = 1.0, IsRequired = true },
-                    new() { Name = "ModelVersion", DisplayName = "YOLO版本", DataType = "enum", DefaultValue = "Auto", IsRequired = true, 
-                        Options = new List<ParameterOptionDto> 
-                        { 
+                    new() { Name = "ModelVersion", DisplayName = "YOLO版本", DataType = "enum", DefaultValue = "Auto", IsRequired = true,
+                        Options = new List<ParameterOptionDto>
+                        {
                             new() { Label = "自动检测", Value = "Auto" },
                             new() { Label = "YOLOv5", Value = "YOLOv5" },
                             new() { Label = "YOLOv6", Value = "YOLOv6" },
                             new() { Label = "YOLOv8", Value = "YOLOv8" },
                             new() { Label = "YOLOv11", Value = "YOLOv11" }
-                        } 
+                        }
                     },
-                    new() { Name = "InputSize", DisplayName = "输入尺寸", DataType = "int", DefaultValue = 640, MinValue = 320, MaxValue = 1280, IsRequired = true }
+                    new() { Name = "InputSize", DisplayName = "输入尺寸", DataType = "int", DefaultValue = 640, MinValue = 320, MaxValue = 1280, IsRequired = true },
+                    new() { Name = "TargetClasses", DisplayName = "目标类别", DataType = "string", DefaultValue = "", Description = "检测目标类别（逗号分隔，如 person,car），为空则检测所有类别" },
+                    new() { Name = "LabelFile", DisplayName = "标签文件路径", DataType = "file", DefaultValue = "", Description = "自定义标签文件路径（每行一个标签）" }
                 }
             },
             new()
@@ -295,6 +297,40 @@ public class OperatorService : IOperatorService
                 {
                     new() { Name = "format", DisplayName = "输出格式", DataType = "enum", DefaultValue = "json", IsRequired = true },
                     new() { Name = "saveImage", DisplayName = "保存图像", DataType = "bool", DefaultValue = true, IsRequired = true }
+                }
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Type = "ResultJudgment",
+                DisplayName = "结果判定",
+                Category = "流程控制",
+                Icon = "⚖️",
+                Description = "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
+                Inputs = new List<PortDefinitionDto>
+                {
+                    new() { Name = "Value", DisplayName = "输入值", DataType = PortDataType.Any, IsRequired = true },
+                    new() { Name = "Confidence", DisplayName = "置信度", DataType = PortDataType.Float, IsRequired = false }
+                },
+                Outputs = new List<PortDefinitionDto>
+                {
+                    new() { Name = "JudgmentResult", DisplayName = "判定结果", DataType = PortDataType.String, IsRequired = true },
+                    new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean, IsRequired = true },
+                    new() { Name = "Details", DisplayName = "详细信息", DataType = PortDataType.String, IsRequired = true }
+                },
+                Parameters = new List<ParameterDefinitionDto>
+                {
+                    new() { Name = "FieldName", DisplayName = "判定字段", DataType = "string", DefaultValue = "Value", IsRequired = true },
+                    new() { Name = "Condition", DisplayName = "判定条件", DataType = "enum", DefaultValue = "Equal", IsRequired = true,
+                        Options = new List<ParameterOptionDto>
+                        {
+                            new() { Label = "等于", Value = "Equal" },
+                            new() { Label = "大于", Value = "GreaterThan" },
+                            new() { Label = "小于", Value = "LessThan" },
+                            new() { Label = "范围内", Value = "Range" }
+                        }
+                    },
+                    new() { Name = "ExpectValue", DisplayName = "期望值", DataType = "string", DefaultValue = "1", IsRequired = true }
                 }
             }
         };

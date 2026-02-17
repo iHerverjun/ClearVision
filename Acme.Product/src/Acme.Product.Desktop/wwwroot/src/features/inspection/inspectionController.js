@@ -351,6 +351,13 @@ class InspectionController {
             this._onCompletedCallbacks = [];
         }
         this._onCompletedCallbacks.push(callback);
+        
+        // 返回取消订阅函数
+        return () => {
+            if (this._onCompletedCallbacks) {
+                this._onCompletedCallbacks = this._onCompletedCallbacks.filter(cb => cb !== callback);
+            }
+        };
     }
 
     /**
@@ -361,6 +368,13 @@ class InspectionController {
             this._onErrorCallbacks = [];
         }
         this._onErrorCallbacks.push(callback);
+        
+        // 返回取消订阅函数
+        return () => {
+            if (this._onErrorCallbacks) {
+                this._onErrorCallbacks = this._onErrorCallbacks.filter(cb => cb !== callback);
+            }
+        };
     }
 
     /**

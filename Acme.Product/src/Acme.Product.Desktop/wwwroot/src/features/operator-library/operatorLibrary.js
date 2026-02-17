@@ -130,12 +130,61 @@ export class OperatorLibraryPanel {
                     
                     console.log('[OperatorLibrary] 算子元素设置完成, draggable:', element.draggable, 'classList:', element.className);
                 } else {
-                    // 修复：对于分类节点，也需要自定义渲染以支持 SVG 图标 (innerHTML)
-                    // 使用 customIcon 避免 TreeView 默认渲染将 SVG 转义
-                    element.innerHTML = `
-                        <span class="tree-node-icon">${node.customIcon || node.icon}</span>
-                        <span class="tree-node-label">${node.label}</span>
+                    // 【新增】分类节点 - 自定义渲染包含展开/收起按钮
+                    const hasChildren = node.children && node.children.length > 0;
+                    const isExpanded = this.treeView.expandedNodes.has(node.id) || node.expanded;
+                    const icon = node.customIcon || node.icon || '📁';
+                    const label = node.label;
+                    const count = node.children ? node.children.length : 0;
+                    
+                    // 构建完整内容
+                    let html = '';
+                    
+                    // 展开/收起按钮
+                    if (hasChildren) {
+                        const arrowIcon = isExpanded 
+                            ? '<svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>'
+                            : '<svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>';
+                        
+                        html += `
+                            <span class="cv-treeview-toggle ${isExpanded ? 'expanded' : 'collapsed'}"
+                                  data-node-id="${node.id}">
+                                ${arrowIcon}
+                            </span>
+                        `;
+                    } else {
+                        html += '<span class="cv-treeview-toggle-placeholder"></span>';
+                    }
+                    
+                    // 分类内容包装器
+                    html += `
+                        <div class="category-content-wrapper">
+                            <span class="tree-node-icon category-icon">${icon}</span>
+                            <span class="tree-node-label category-label">${label}</span>
+                            ${!isExpanded && count > 0 ? `<span class="category-count">${count}</span>` : ''}
+                        </div>
                     `;
+                    
+                    element.innerHTML = html;
+                    
+                    // 绑定展开/收起事件
+                    if (hasChildren) {
+                        const toggle = element.querySelector('.cv-treeview-toggle');
+                        const wrapper = element.querySelector('.category-content-wrapper');
+                        
+                        const toggleHandler = (e) => {
+                            e.stopPropagation();
+                            this.treeView.toggleNode(node);
+                        };
+                        
+                        toggle.addEventListener('click', toggleHandler);
+                        
+                        // 点击分类内容也可以展开/收起
+                        if (wrapper) {
+                            wrapper.style.cursor = 'pointer';
+                            wrapper.addEventListener('click', toggleHandler);
+                        }
+                    }
                 }
                 // 不返回 element，因为已经在原对象上修改
                 // treeView.js 会检查返回值，如果不返回则使用原 element
@@ -338,6 +387,29 @@ export class OperatorLibraryPanel {
                 parameters: [
                     { name: 'format', displayName: '输出格式', type: 'enum', dataType: 'enum', defaultValue: 'json', options: [{label: 'JSON', value: 'json'}, {label: 'CSV', value: 'csv'}, {label: 'Text', value: 'text'}] },
                     { name: 'saveToFile', displayName: '保存到文件', type: 'bool', dataType: 'bool', defaultValue: true }
+                ]
+            },
+            { 
+                type: 'ResultJudgment', 
+                displayName: '结果判定', 
+                category: '流程控制', 
+                icon: '⚖️', 
+                description: '通用判定逻辑（数量/范围/阈值），输出OK/NG结果',
+                inputPorts: [
+                    { name: 'Value', displayName: '输入值', dataType: 'Any', isRequired: true },
+                    { name: 'Confidence', displayName: '置信度', dataType: 'Float', isRequired: false }
+                ],
+                outputPorts: [
+                    { name: 'JudgmentResult', displayName: '判定结果', dataType: 'String' },
+                    { name: 'IsOk', displayName: '是否OK', dataType: 'Boolean' },
+                    { name: 'Details', displayName: '详细信息', dataType: 'String' }
+                ],
+                parameters: [
+                    { name: 'FieldName', displayName: '判定字段', type: 'string', dataType: 'string', defaultValue: 'Value' },
+                    { name: 'Condition', displayName: '判定条件', type: 'enum', dataType: 'enum', defaultValue: 'Equal', options: [
+                        {label: '等于', value: 'Equal'}, {label: '大于', value: 'GreaterThan'}, {label: '小于', value: 'LessThan'}, {label: '范围内', value: 'Range'}
+                    ]},
+                    { name: 'ExpectValue', displayName: '期望值', type: 'string', dataType: 'string', defaultValue: '1' }
                 ]
             }
         ];
