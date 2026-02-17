@@ -1287,13 +1287,43 @@ class FlowCanvas {
         const port = this.getPortAt(x, y);
         if (port) {
             if (port.isOutput) {
-                // 从输出端口开始连线
-                this.startConnection(port.nodeId, port.portIndex);
+                // 【新增】检查输出端口是否已有连接
+                const existingConns = this.getConnectionsAtPort(port.nodeId, port.portIndex, true);
+                
+                if (existingConns.length > 0) {
+                    // 断开该端口的所有连接
+                    existingConns.forEach(conn => {
+                        this.removeConnection(conn.id);
+                    });
+                    if (window.showToast) {
+                        const msg = existingConns.length === 1 
+                            ? '连接已断开' 
+                            : `已断开 ${existingConns.length} 个连接`;
+                        window.showToast(msg, 'info');
+                    }
+                    console.log('[FlowCanvas] 已断开连接:', existingConns.map(c => c.id));
+                } else {
+                    // 没有连接，从输出端口开始连线
+                    this.startConnection(port.nodeId, port.portIndex);
+                }
                 return;
             } else if (this.isConnecting) {
                 // 从输入端口完成连线
                 this.finishConnection(port.nodeId, port.portIndex);
                 return;
+            } else {
+                // 【新增】点击输入端口时检查是否已有连接
+                const existingConn = this.getConnectionAtPort(port.nodeId, port.portIndex, false);
+                
+                if (existingConn) {
+                    // 断开该输入端口的连接
+                    this.removeConnection(existingConn.id);
+                    if (window.showToast) {
+                        window.showToast('连接已断开', 'info');
+                    }
+                    console.log('[FlowCanvas] 已断开连接:', existingConn.id);
+                    return;
+                }
             }
         }
 
