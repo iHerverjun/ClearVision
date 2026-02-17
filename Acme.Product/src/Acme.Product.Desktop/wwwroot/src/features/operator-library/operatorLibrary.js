@@ -20,11 +20,14 @@ export class OperatorLibraryPanel {
         this.operators = [];
         this.filteredOperators = [];
         this.categories = new Map();
-        
+
         // 事件回调
         this.onOperatorDragStart = null;
         this.onOperatorSelected = null;
-        
+
+        // 【新增】展开状态持久化
+        this.storageKey = 'operator-library-expanded-categories';
+
         this.initialize();
     }
 
@@ -100,6 +103,8 @@ export class OperatorLibraryPanel {
                     }
                 }
             },
+            onExpand: () => this.saveExpandedState(),
+            onCollapse: () => this.saveExpandedState(),
             renderNode: (node, element) => {
                 // 自定义渲染算子节点
                 if (node.type === 'operator') {
@@ -616,6 +621,9 @@ export class OperatorLibraryPanel {
         }));
         
         this.treeView.setData(treeData);
+
+        // 【新增】加载保存的展开状态
+        this.loadExpandedState();
     }
 
     /**
@@ -630,6 +638,33 @@ export class OperatorLibraryPanel {
             acc[category].push(op);
             return acc;
         }, {});
+    }
+
+    /**
+     * 【新增】保存展开状态到 localStorage
+     */
+    saveExpandedState() {
+        try {
+            const expandedIds = Array.from(this.treeView.expandedNodes);
+            localStorage.setItem(this.storageKey, JSON.stringify(expandedIds));
+        } catch (e) {
+            console.warn('[OperatorLibrary] Failed to save expanded state:', e);
+        }
+    }
+
+    /**
+     * 【新增】从 localStorage 加载展开状态
+     */
+    loadExpandedState() {
+        try {
+            const saved = localStorage.getItem(this.storageKey);
+            if (saved) {
+                const expandedIds = JSON.parse(saved);
+                expandedIds.forEach(id => this.treeView.expandedNodes.add(id));
+            }
+        } catch (e) {
+            console.warn('[OperatorLibrary] Failed to load expanded state:', e);
+        }
     }
 
     /**
