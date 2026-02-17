@@ -221,7 +221,7 @@
                             class="inspection-control-panel"
                             id="inspection-control-panel"
                         >
-                            <!-- 由 inspectionPanel.js 动态填充 -->
+                            <!-- 由 inspectionPanel.js 动态填充: 运行控制 -> 检测统计 -> 检测进度 -->
                         </aside>
 
                         <!-- 图像查看器区域 - 中间 -->
@@ -238,39 +238,31 @@
                             id="inspection-results-panel"
                         >
                             <div class="panel">
-                                <h3 class="panel-title">实时结果</h3>
+                                <!-- 耗时统计 (移至右侧顶部) -->
+                                <h3 class="panel-title">耗时统计</h3>
+                                <div class="timing-stats" id="timing-stats-panel">
+                                    <div class="timing-item">
+                                        <span class="timing-label">平均</span>
+                                        <span class="timing-value" id="timing-avg">-- ms</span>
+                                    </div>
+                                    <div class="timing-item">
+                                        <span class="timing-label">最小</span>
+                                        <span class="timing-value" id="timing-min">-- ms</span>
+                                    </div>
+                                    <div class="timing-item">
+                                        <span class="timing-label">最大</span>
+                                        <span class="timing-value" id="timing-max">-- ms</span>
+                                    </div>
+                                </div>
+
+                                <!-- 最近结果 (移至右侧底部) -->
+                                <h3 class="panel-title" style="margin-top: 24px;">最近结果</h3>
                                 <div
-                                    class="inspection-results-content"
-                                    id="inspection-results-content"
+                                    class="recent-results-grid"
+                                    id="recent-results-grid"
                                 >
-                                    <div class="result-summary-large">
-                                        <div class="result-summary-item ok">
-                                            <span class="result-summary-label"
-                                                >OK</span
-                                            >
-                                            <span
-                                                class="result-summary-value"
-                                                id="inspection-ok-count"
-                                                >0</span
-                                            >
-                                        </div>
-                                        <div class="result-summary-item ng">
-                                            <span class="result-summary-label"
-                                                >NG</span
-                                            >
-                                            <span
-                                                class="result-summary-value"
-                                                id="inspection-ng-count"
-                                                >0</span
-                                            >
-                                        </div>
-                                    </div>
-                                    <div
-                                        class="results-panel-detail"
-                                        id="inspection-results-detail"
-                                    >
-                                        <p class="empty-text">等待检测...</p>
-                                    </div>
+                                    <!-- 由 inspectionPanel.js 动态填充 -->
+                                    <p class="empty-text">无检测记录</p>
                                 </div>
                             </div>
                         </aside>

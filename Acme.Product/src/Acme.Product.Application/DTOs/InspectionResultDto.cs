@@ -134,3 +134,41 @@ public class ExecuteInspectionRequest
     /// </summary>
     public OperatorFlowDto? FlowData { get; set; }
 }
+
+/// <summary>
+/// 启动实时检测请求
+/// 【第二优先级】支持相机驱动和流程驱动两种模式
+/// </summary>
+public class StartRealtimeInspectionRequest
+{
+    /// <summary>
+    /// 工程ID
+    /// </summary>
+    public Guid ProjectId { get; set; }
+
+    /// <summary>
+    /// 相机ID（可选）
+    /// </summary>
+    public string? CameraId { get; set; }
+
+    /// <summary>
+    /// 运行模式：camera（相机驱动）/ flow（流程驱动）
+    /// </summary>
+    public string? RunMode { get; set; }
+
+    /// <summary>
+    /// 流程数据（流程驱动模式下需要）
+    /// </summary>
+    public OperatorFlowDto? FlowData { get; set; }
+}
+
+/// <summary>
+/// 停止实时检测请求
+/// </summary>
+public class StopRealtimeInspectionRequest
+{
+    /// <summary>
+    /// 工程ID
+    /// </summary>
+    public Guid ProjectId { get; set; }
+}

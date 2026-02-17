@@ -32,7 +32,16 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         var address = GetStringParam(@operator, "Address", "DB1.DBW100");
         var dataType = GetStringParam(@operator, "DataType", "Word");
         var operation = GetStringParam(@operator, "Operation", "Read");
-        var writeValue = GetStringParam(@operator, "WriteValue", "");
+        
+        // 【第二优先级】轮询等待模式参数
+        var pollingMode = GetStringParam(@operator, "PollingMode", "None"); // None / WaitForValue
+        var pollingCondition = GetStringParam(@operator, "PollingCondition", "Equal"); // Equal / NotEqual / GreaterThan / LessThan
+        var pollingValue = GetStringParam(@operator, "PollingValue", "1");
+        var pollingTimeout = GetIntParam(@operator, "PollingTimeout", 30000, 100, 300000); // 100ms - 5min
+        var pollingInterval = GetIntParam(@operator, "PollingInterval", 50, 10, 5000); // 10ms - 5s
+        
+        // 【增强】支持从上游输入动态获取写入值
+        var writeValue = ResolveWriteValue(@operator, inputs);
 
         // 解析CPU类型
         var cpuType = cpuTypeStr.ToUpper() switch
@@ -61,6 +70,12 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
 
             if (operation.Equals("Read", StringComparison.OrdinalIgnoreCase))
             {
+                // 【第二优先级】支持轮询等待模式
+                if (pollingMode.Equals("WaitForValue", StringComparison.OrdinalIgnoreCase))
+                {
+                    return await ExecuteReadWithPollingAsync(client, address, dataType, 
+                        pollingCondition, pollingValue, pollingTimeout, pollingInterval, cancellationToken);
+                }
                 return await ExecuteReadAsync(client, address, dataType, cancellationToken);
             }
             else
@@ -105,11 +120,99 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         return CreateSuccessOutput(writeValue, dataType);
     }
 
+    /// <summary>
+    /// 执行带轮询等待的读取操作
+    /// </summary>
+    private async Task<OperatorExecutionOutput> ExecuteReadWithPollingAsync(
+        IPlcClient client, string address, string dataType,
+        string pollingCondition, string pollingValue, int timeoutMs, int intervalMs, CancellationToken ct)
+    {
+        var startTime = DateTime.UtcNow;
+        int readCount = 0;
+
+        Logger.LogInformation("[SiemensS7] 开始轮询等待: Address={Address}, Condition={Condition}, TargetValue={Target}, Timeout={Timeout}ms",
+            address, pollingCondition, pollingValue, timeoutMs);
+
+        while (true)
+        {
+            // 检查是否超时
+            var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            if (elapsed > timeoutMs)
+            {
+                Logger.LogWarning("[SiemensS7] 轮询等待超时: Address={Address}, 已等待{Elapsed}ms", address, (int)elapsed);
+                return CreateFailureOutput($"轮询等待超时: 等待{pollingCondition} {pollingValue}超过{timeoutMs}ms");
+            }
+
+            // 检查取消令牌
+            ct.ThrowIfCancellationRequested();
+
+            // 读取当前值
+            var length = GetDataLength(dataType);
+            var result = await client.ReadAsync(address, length, ct);
+
+            if (!result.IsSuccess)
+            {
+                Logger.LogWarning("[SiemensS7] 轮询读取失败: {Message}", result.Message);
+                await Task.Delay(Math.Min(intervalMs, 1000), ct); // 读取失败时延长等待
+                continue;
+            }
+
+            var currentValue = ConvertBytesToValue(result.Content!, dataType);
+            readCount++;
+
+            // 检查是否满足条件
+            if (EvaluatePollingCondition(currentValue, pollingCondition, pollingValue))
+            {
+                var totalElapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                Logger.LogInformation("[SiemensS7] 轮询等待完成: Address={Address}, Value={Value}, 读取{Count}次, 耗时{Elapsed}ms",
+                    address, currentValue, readCount, (int)totalElapsed);
+
+                // 返回成功的输出，附加轮询信息
+                var output = CreateSuccessOutput(currentValue, dataType);
+                output.OutputData["PollingReadCount"] = readCount;
+                output.OutputData["PollingElapsedMs"] = (int)totalElapsed;
+                output.OutputData["PollingMatched"] = true;
+                return output;
+            }
+
+            // 等待下次轮询
+            await Task.Delay(intervalMs, ct);
+        }
+    }
+
+    /// <summary>
+    /// 评估轮询条件
+    /// </summary>
+    private bool EvaluatePollingCondition(object currentValue, string condition, string targetValue)
+    {
+        var currentStr = currentValue?.ToString() ?? "";
+
+        // 尝试数值比较
+        bool currentIsNumeric = double.TryParse(currentStr, out var currentNum);
+        bool targetIsNumeric = double.TryParse(targetValue, out var targetNum);
+
+        return condition.ToLower() switch
+        {
+            "equal" => currentIsNumeric && targetIsNumeric
+                ? Math.Abs(currentNum - targetNum) < 0.0001
+                : currentStr.Equals(targetValue, StringComparison.OrdinalIgnoreCase),
+            "notequal" => currentIsNumeric && targetIsNumeric
+                ? Math.Abs(currentNum - targetNum) >= 0.0001
+                : !currentStr.Equals(targetValue, StringComparison.OrdinalIgnoreCase),
+            "greaterthan" => currentIsNumeric && targetIsNumeric && currentNum > targetNum,
+            "lessthan" => currentIsNumeric && targetIsNumeric && currentNum < targetNum,
+            "greaterorequal" => currentIsNumeric && targetIsNumeric && currentNum >= targetNum,
+            "lessorequal" => currentIsNumeric && targetIsNumeric && currentNum <= targetNum,
+            _ => false
+        };
+    }
+
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var ipAddress = GetStringParam(@operator, "IpAddress", "");
         var port = GetIntParam(@operator, "Port", 102);
         var address = GetStringParam(@operator, "Address", "");
+        var pollingMode = GetStringParam(@operator, "PollingMode", "None");
 
         if (string.IsNullOrWhiteSpace(ipAddress))
             return ValidationResult.Invalid("IP地址不能为空");
@@ -120,6 +223,44 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         if (string.IsNullOrWhiteSpace(address))
             return ValidationResult.Invalid("PLC地址不能为空");
 
+        // 【第二优先级】验证轮询模式参数
+        var validPollingModes = new[] { "None", "WaitForValue" };
+        if (!validPollingModes.Contains(pollingMode, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid($"轮询模式必须是以下之一: {string.Join(", ", validPollingModes)}");
+        }
+
         return ValidationResult.Valid();
+    }
+
+    /// <summary>
+    /// 解析写入值：优先从上游输入获取，否则使用参数面板静态值
+    /// </summary>
+    private string ResolveWriteValue(Operator @operator, Dictionary<string, object>? inputs)
+    {
+        // 获取参数面板中的静态值（作为fallback）
+        var staticValue = GetStringParam(@operator, "WriteValue", "");
+
+        if (inputs == null || inputs.Count == 0)
+            return staticValue;
+
+        // 按优先级顺序尝试从inputs获取动态值
+        // 优先级：JudgmentValue > Value > Data > 静态值
+        var priorityKeys = new[] { "JudgmentValue", "Value", "Data" };
+
+        foreach (var key in priorityKeys)
+        {
+            if (inputs.TryGetValue(key, out var value) && value != null)
+            {
+                var stringValue = value.ToString() ?? "";
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    Logger.LogDebug("[SiemensS7] 从上游获取动态值: Key={Key}, Value={Value}", key, stringValue);
+                    return stringValue;
+                }
+            }
+        }
+
+        return staticValue;
     }
 }

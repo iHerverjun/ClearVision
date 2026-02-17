@@ -2,10 +2,12 @@
  * 检测控制面板组件
  * 提供检测视图的完整控制界面，包括运行控制、状态显示、统计信息等功能
  */
+console.log('[InspectionPanel] 模块已加载');
 
 import inspectionController, { getInspectionState } from './inspectionController.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
+import { getCurrentProject } from '../project/projectManager.js';
 
 // 检测统计状态
 const [getStats, setStats, subscribeStats] = createSignal({
@@ -39,15 +41,13 @@ class InspectionPanel {
         this.panelId = containerId;
         this.selectedCamera = null;
         this.isContinuous = false;
+        this.selectedRunMode = 'camera';
         
         // 初始化UI
         this.initialize();
         
-        // 订阅状态变化
+        // 设置订阅
         this.setupSubscriptions();
-        
-        // 加载相机列表
-        this.loadCameras();
         
         console.log('[InspectionPanel] 检测控制面板初始化完成');
     }
@@ -61,6 +61,19 @@ class InspectionPanel {
                 <!-- 运行控制条 -->
                 <div class="inspection-section run-controls">
                     <h4 class="section-title">运行控制</h4>
+                    
+                    <!-- 【第二优先级】运行模式选择 -->
+                    <div class="run-mode-section" style="margin-bottom: 12px;">
+                        <label class="form-label" style="display: block; margin-bottom: 6px; font-size: 12px; color: #888;">运行模式</label>
+                        <select id="run-mode" class="form-select" style="width: 100%; padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #2a2a2a; color: #e0e0e0; font-size: 13px;">
+                            <option value="camera">相机驱动 (Camera)</option>
+                            <option value="flow">流程驱动 (PLC触发)</option>
+                        </select>
+                        <small style="display: block; margin-top: 4px; font-size: 11px; color: #666;">
+                            <span id="run-mode-desc">相机驱动：由相机采集触发检测</span>
+                        </small>
+                    </div>
+                    
                     <div class="control-buttons">
                         <button class="btn-inspection btn-run-single" id="btn-run-single" title="单次运行">
                             <svg class="icon" viewBox="0 0 24 24" width="20" height="20">
@@ -82,32 +95,8 @@ class InspectionPanel {
                         </button>
                     </div>
                 </div>
-                
-                <!-- 状态仪表盘 -->
-                <div class="inspection-section status-dashboard">
-                    <h4 class="section-title">当前状态</h4>
-                    <div class="status-indicator" id="status-indicator">
-                        <div class="status-led" id="status-led"></div>
-                        <span class="status-text" id="status-text">就绪</span>
-                    </div>
-                </div>
-                
-                <!-- 进度条 -->
-                <div class="inspection-section progress-section">
-                    <h4 class="section-title">检测进度</h4>
-                    <div class="progress-container">
-                        <div class="progress-bar" id="progress-bar">
-                            <div class="progress-fill" id="progress-fill"></div>
-                            <div class="progress-shimmer"></div>
-                        </div>
-                        <div class="progress-info">
-                            <span class="progress-percent" id="progress-percent">0%</span>
-                            <span class="current-operator" id="current-operator">等待中...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 实时计数器 -->
+
+                <!-- 实时计数器 (上移至此) -->
                 <div class="inspection-section counters-section">
                     <h4 class="section-title">检测统计</h4>
                     <div class="counters-grid">
@@ -129,48 +118,6 @@ class InspectionPanel {
                         </div>
                     </div>
                 </div>
-                
-                <!-- 相机选择器 -->
-                <div class="inspection-section camera-section">
-                    <h4 class="section-title">相机选择</h4>
-                    <div class="camera-selector">
-                        <select class="camera-dropdown" id="camera-dropdown">
-                            <option value="">选择相机...</option>
-                        </select>
-                        <button class="btn-refresh-cameras" id="btn-refresh-cameras" title="刷新相机列表">
-                            <svg class="icon" viewBox="0 0 24 24" width="16" height="16">
-                                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 耗时统计 -->
-                <div class="inspection-section timing-section">
-                    <h4 class="section-title">耗时统计</h4>
-                    <div class="timing-stats">
-                        <div class="timing-item">
-                            <span class="timing-label">平均</span>
-                            <span class="timing-value" id="timing-avg">-- ms</span>
-                        </div>
-                        <div class="timing-item">
-                            <span class="timing-label">最小</span>
-                            <span class="timing-value" id="timing-min">-- ms</span>
-                        </div>
-                        <div class="timing-item">
-                            <span class="timing-label">最大</span>
-                            <span class="timing-value" id="timing-max">-- ms</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 最近结果缩略图 -->
-                <div class="inspection-section recent-results">
-                    <h4 class="section-title">最近结果</h4>
-                    <div class="recent-results-grid" id="recent-results-grid">
-                        <!-- 动态生成 -->
-                    </div>
-                </div>
             </div>
         `;
         
@@ -182,37 +129,51 @@ class InspectionPanel {
      * 绑定事件处理
      */
     bindEvents() {
+        console.warn('[InspectionPanel] !!! 正在进行事件绑定 !!!');
+        console.log('[InspectionPanel] 正在绑定事件，容器:', this.container);
         // 单次运行按钮
         const runSingleBtn = this.container.querySelector('#btn-run-single');
+        console.log('[InspectionPanel] btn-run-single 查找结果:', runSingleBtn);
         if (runSingleBtn) {
-            runSingleBtn.addEventListener('click', () => this.handleRunSingle());
+            runSingleBtn.addEventListener('click', (e) => {
+                console.warn('[InspectionPanel] btn-run-single 点击触发!');
+                this.handleRunSingle();
+            });
         }
         
         // 连续运行按钮
         const runContinuousBtn = this.container.querySelector('#btn-run-continuous');
+        console.log('[InspectionPanel] btn-run-continuous 查找结果:', runContinuousBtn);
         if (runContinuousBtn) {
-            runContinuousBtn.addEventListener('click', () => this.handleRunContinuous());
+            runContinuousBtn.addEventListener('click', () => {
+                console.log('[InspectionPanel] btn-run-continuous 点击');
+                this.handleRunContinuous();
+            });
         }
         
         // 停止按钮
         const stopBtn = this.container.querySelector('#btn-stop');
+        console.log('[InspectionPanel] btn-stop 查找结果:', stopBtn);
         if (stopBtn) {
-            stopBtn.addEventListener('click', () => this.handleStop());
+            stopBtn.addEventListener('click', () => {
+                console.log('[InspectionPanel] btn-stop 点击');
+                this.handleStop();
+            });
         }
         
-        // 刷新相机按钮
-        const refreshCamerasBtn = this.container.querySelector('#btn-refresh-cameras');
-        if (refreshCamerasBtn) {
-            refreshCamerasBtn.addEventListener('click', () => this.loadCameras());
-        }
-        
-        // 相机选择器
-        const cameraDropdown = this.container.querySelector('#camera-dropdown');
-        if (cameraDropdown) {
-            cameraDropdown.addEventListener('change', (e) => {
-                this.selectedCamera = e.target.value || null;
-                if (this.selectedCamera) {
-                    inspectionController.setCamera(this.selectedCamera);
+        // 【第二优先级】运行模式选择
+        const runModeSelect = this.container.querySelector('#run-mode');
+        if (runModeSelect) {
+            runModeSelect.addEventListener('change', (e) => {
+                this.selectedRunMode = e.target.value;
+                console.log('[InspectionPanel] 运行模式切换为:', this.selectedRunMode);
+                
+                // 更新描述文本
+                const descEl = this.container.querySelector('#run-mode-desc');
+                if (descEl) {
+                    descEl.textContent = this.selectedRunMode === 'flow' 
+                        ? '流程驱动：流程内PLC读取算子等待触发信号'
+                        : '相机驱动：由相机采集触发检测';
                 }
             });
         }
@@ -232,54 +193,7 @@ class InspectionPanel {
         });
     }
     
-    /**
-     * 加载相机列表
-     */
-    async loadCameras() {
-        try {
-            const dropdown = this.container.querySelector('#camera-dropdown');
-            if (dropdown) {
-                dropdown.disabled = true;
-                dropdown.innerHTML = '<option value="">加载中...</option>';
-            }
-            
-            // 从后端获取相机列表
-            const cameras = await httpClient.get('/cameras');
-            setCameraList(cameras || []);
-            
-            // 更新下拉框
-            if (dropdown) {
-                dropdown.innerHTML = '<option value="">选择相机...</option>';
-                (cameras || []).forEach(camera => {
-                    const option = document.createElement('option');
-                    option.value = camera.id;
-                    option.textContent = camera.name || camera.id;
-                    dropdown.appendChild(option);
-                });
-                dropdown.disabled = false;
-            }
-        } catch (error) {
-            console.error('[InspectionPanel] 加载相机列表失败:', error);
-            // 使用模拟数据
-            const mockCameras = [
-                { id: 'camera-1', name: '相机 1' },
-                { id: 'camera-2', name: '相机 2' }
-            ];
-            setCameraList(mockCameras);
-            
-            const dropdown = this.container.querySelector('#camera-dropdown');
-            if (dropdown) {
-                dropdown.innerHTML = '<option value="">选择相机...</option>';
-                mockCameras.forEach(camera => {
-                    const option = document.createElement('option');
-                    option.value = camera.id;
-                    option.textContent = camera.name;
-                    dropdown.appendChild(option);
-                });
-                dropdown.disabled = false;
-            }
-        }
-    }
+
     
     /**
      * 处理单次运行
@@ -289,7 +203,7 @@ class InspectionPanel {
             this.updateStatus('running', '运行中...');
             this.setButtonsState(true);
             
-            const project = window.currentProject;
+            const project = getCurrentProject();
             if (project) {
                 inspectionController.setProject(project.id);
             }
@@ -307,21 +221,26 @@ class InspectionPanel {
      */
     async handleRunContinuous() {
         try {
-            if (!this.selectedCamera) {
-                alert('请先选择相机');
-                return;
-            }
-            
             this.isContinuous = true;
             this.updateStatus('running', '连续运行中...');
             this.setButtonsState(true);
             
-            const project = window.currentProject;
+            const project = getCurrentProject();
             if (project) {
                 inspectionController.setProject(project.id);
             }
             
-            await inspectionController.startRealtime();
+            // 根据运行模式选择启动方式
+            const runMode = this.selectedRunMode || 'camera';
+            console.log('[InspectionPanel] 启动连续检测，模式:', runMode);
+            
+            if (runMode === 'flow') {
+                // 流程驱动模式：不强制要求相机，由流程内部控制
+                await inspectionController.startRealtimeFlowMode();
+            } else {
+                // 相机驱动模式：原有逻辑
+                await inspectionController.startRealtime();
+            }
         } catch (error) {
             console.error('[InspectionPanel] 连续运行失败:', error);
             this.updateStatus('error', '启动失败');
@@ -341,7 +260,7 @@ class InspectionPanel {
             }
             this.updateStatus('idle', '已停止');
             this.setButtonsState(false);
-            this.updateProgress(0, null);
+
         } catch (error) {
             console.error('[InspectionPanel] 停止失败:', error);
         }
@@ -390,41 +309,15 @@ class InspectionPanel {
      * 更新状态显示
      */
     updateStatus(status, text) {
-        const led = this.container.querySelector('#status-led');
-        const statusText = this.container.querySelector('#status-text');
-        
-        if (led) {
-            led.className = 'status-led';
-            if (status) {
-                led.classList.add(`status-${status}`);
-            }
-        }
-        
-        if (statusText) {
-            statusText.textContent = text || '就绪';
+        console.log(`[InspectionPanel] 更新状态: ${status} - ${text}`);
+        const statusTextEl = document.getElementById('status-text');
+        if (statusTextEl) {
+            statusTextEl.textContent = text;
+            statusTextEl.className = `status-text status-${status}`;
         }
     }
     
-    /**
-     * 更新进度条
-     */
-    updateProgress(percent, operatorName) {
-        const fill = this.container.querySelector('#progress-fill');
-        const percentText = this.container.querySelector('#progress-percent');
-        const operatorText = this.container.querySelector('#current-operator');
-        
-        if (fill) {
-            fill.style.width = `${percent}%`;
-        }
-        
-        if (percentText) {
-            percentText.textContent = `${Math.round(percent)}%`;
-        }
-        
-        if (operatorText) {
-            operatorText.textContent = operatorName || '等待中...';
-        }
-    }
+
     
     /**
      * 更新计数器显示
@@ -443,10 +336,10 @@ class InspectionPanel {
         if (totalEl) totalEl.textContent = stats.total;
         if (yieldEl) yieldEl.textContent = `${stats.yield}%`;
         
-        // 更新耗时
-        const avgEl = this.container.querySelector('#timing-avg');
-        const minEl = this.container.querySelector('#timing-min');
-        const maxEl = this.container.querySelector('#timing-max');
+        // 更新耗时（移至右侧面板，使用 document.getElementById 全局查找）
+        const avgEl = document.getElementById('timing-avg');
+        const minEl = document.getElementById('timing-min');
+        const maxEl = document.getElementById('timing-max');
         
         if (avgEl) avgEl.textContent = timing.avg > 0 ? `${timing.avg} ms` : '-- ms';
         if (minEl) minEl.textContent = timing.min !== Infinity ? `${timing.min} ms` : '-- ms';
@@ -499,7 +392,8 @@ class InspectionPanel {
      * 渲染最近结果
      */
     renderRecentResults() {
-        const grid = this.container.querySelector('#recent-results-grid');
+        // 最近结果移至右侧面板，使用 document.getElementById 全局查找
+        const grid = document.getElementById('recent-results-grid');
         if (!grid) return;
         
         const recent = getRecentResults();
@@ -538,7 +432,7 @@ class InspectionPanel {
         setRecentResults([]);
         this.updateCounters();
         this.renderRecentResults();
-        this.updateProgress(0, null);
+
         this.updateStatus('idle', '就绪');
     }
     

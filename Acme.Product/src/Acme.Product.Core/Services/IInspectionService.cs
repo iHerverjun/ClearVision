@@ -35,12 +35,23 @@ public interface IInspectionService
     Task<InspectionResult> ExecuteSingleAsync(Guid projectId, string cameraId);
 
     /// <summary>
-    /// 开始实时检测
+    /// 开始实时检测（相机驱动模式 - 兼容旧模式）
     /// </summary>
     /// <param name="projectId">工程ID</param>
-    /// <param name="cameraId">相机ID</param>
+    /// <param name="cameraId">相机ID（可选，为空则使用流程内图像采集算子）</param>
     /// <param name="cancellationToken">取消令牌</param>
-    Task StartRealtimeInspectionAsync(Guid projectId, string cameraId, CancellationToken cancellationToken);
+    Task StartRealtimeInspectionAsync(Guid projectId, string? cameraId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 开始实时检测（流程驱动模式）
+    /// 流程将循环执行，直到调用 StopRealtimeInspectionAsync
+    /// 适用于PLC触发等工业场景
+    /// </summary>
+    /// <param name="projectId">工程ID</param>
+    /// <param name="flow">流程数据</param>
+    /// <param name="cameraId">相机ID（可选）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    Task StartRealtimeInspectionFlowAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken);
 
     /// <summary>
     /// 停止实时检测

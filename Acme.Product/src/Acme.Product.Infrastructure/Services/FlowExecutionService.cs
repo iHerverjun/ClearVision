@@ -18,11 +18,16 @@ public class FlowExecutionService : IFlowExecutionService
     private readonly Dictionary<OperatorType, IOperatorExecutor> _executors;
     private readonly ILogger<FlowExecutionService> _logger;
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _executionCancellations = new();
+    private readonly IVariableContext _variableContext;
 
-    public FlowExecutionService(IEnumerable<IOperatorExecutor> executors, ILogger<FlowExecutionService> logger)
+    public FlowExecutionService(
+        IEnumerable<IOperatorExecutor> executors, 
+        ILogger<FlowExecutionService> logger,
+        IVariableContext variableContext)
     {
         _executors = executors.ToDictionary(e => e.OperatorType);
         _logger = logger;
+        _variableContext = variableContext;
     }
 
     public async Task<FlowExecutionResult> ExecuteFlowAsync(
@@ -31,6 +36,10 @@ public class FlowExecutionService : IFlowExecutionService
         bool enableParallel = false,
         CancellationToken cancellationToken = default)
     {
+        // 【第三优先级】递增循环计数器
+        _variableContext.IncrementCycleCount();
+        _logger.LogDebug("[FlowExecution] 循环计数: {CycleCount}", _variableContext.CycleCount);
+
         var result = new FlowExecutionResult();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 

@@ -1428,7 +1428,34 @@ public class OperatorFactory : IOperatorFactory
                         new() { Label = "写入", Value = "Write" }
                     }
                 },
-                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" },
+                // 【第二优先级】轮询等待模式参数
+                new() { Name = "PollingMode", DisplayName = "轮询模式", DataType = "enum", DefaultValue = "None",
+                    Description = "读取时是否启用轮询等待",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "不等待", Value = "None" },
+                        new() { Label = "等待指定值", Value = "WaitForValue" }
+                    }
+                },
+                new() { Name = "PollingCondition", DisplayName = "等待条件", DataType = "enum", DefaultValue = "Equal",
+                    Description = "等待的条件类型",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "等于", Value = "Equal" },
+                        new() { Label = "不等于", Value = "NotEqual" },
+                        new() { Label = "大于", Value = "GreaterThan" },
+                        new() { Label = "小于", Value = "LessThan" },
+                        new() { Label = "大于等于", Value = "GreaterOrEqual" },
+                        new() { Label = "小于等于", Value = "LessOrEqual" }
+                    }
+                },
+                new() { Name = "PollingValue", DisplayName = "等待值", DataType = "string", DefaultValue = "1",
+                    Description = "等待的目标值（如触发信号值）" },
+                new() { Name = "PollingTimeout", DisplayName = "等待超时(ms)", DataType = "int", DefaultValue = 30000, MinValue = 100, MaxValue = 300000,
+                    Description = "最长等待时间（毫秒）" },
+                new() { Name = "PollingInterval", DisplayName = "轮询间隔(ms)", DataType = "int", DefaultValue = 50, MinValue = 10, MaxValue = 5000,
+                    Description = "每次读取间隔（毫秒）" }
             }
         };
 
@@ -1474,7 +1501,34 @@ public class OperatorFactory : IOperatorFactory
                         new() { Label = "写入", Value = "Write" }
                     }
                 },
-                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" },
+                // 【第二优先级】轮询等待模式参数
+                new() { Name = "PollingMode", DisplayName = "轮询模式", DataType = "enum", DefaultValue = "None",
+                    Description = "读取时是否启用轮询等待",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "不等待", Value = "None" },
+                        new() { Label = "等待指定值", Value = "WaitForValue" }
+                    }
+                },
+                new() { Name = "PollingCondition", DisplayName = "等待条件", DataType = "enum", DefaultValue = "Equal",
+                    Description = "等待的条件类型",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "等于", Value = "Equal" },
+                        new() { Label = "不等于", Value = "NotEqual" },
+                        new() { Label = "大于", Value = "GreaterThan" },
+                        new() { Label = "小于", Value = "LessThan" },
+                        new() { Label = "大于等于", Value = "GreaterOrEqual" },
+                        new() { Label = "小于等于", Value = "LessOrEqual" }
+                    }
+                },
+                new() { Name = "PollingValue", DisplayName = "等待值", DataType = "string", DefaultValue = "1",
+                    Description = "等待的目标值（如触发信号值）" },
+                new() { Name = "PollingTimeout", DisplayName = "等待超时(ms)", DataType = "int", DefaultValue = 30000, MinValue = 100, MaxValue = 300000,
+                    Description = "最长等待时间（毫秒）" },
+                new() { Name = "PollingInterval", DisplayName = "轮询间隔(ms)", DataType = "int", DefaultValue = 50, MinValue = 10, MaxValue = 5000,
+                    Description = "每次读取间隔（毫秒）" }
             }
         };
 
@@ -1520,7 +1574,445 @@ public class OperatorFactory : IOperatorFactory
                         new() { Label = "写入", Value = "Write" }
                     }
                 },
-                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" }
+                new() { Name = "WriteValue", DisplayName = "写入值", DataType = "string", DefaultValue = "" },
+                // 【第二优先级】轮询等待模式参数
+                new() { Name = "PollingMode", DisplayName = "轮询模式", DataType = "enum", DefaultValue = "None",
+                    Description = "读取时是否启用轮询等待",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "不等待", Value = "None" },
+                        new() { Label = "等待指定值", Value = "WaitForValue" }
+                    }
+                },
+                new() { Name = "PollingCondition", DisplayName = "等待条件", DataType = "enum", DefaultValue = "Equal",
+                    Description = "等待的条件类型",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "等于", Value = "Equal" },
+                        new() { Label = "不等于", Value = "NotEqual" },
+                        new() { Label = "大于", Value = "GreaterThan" },
+                        new() { Label = "小于", Value = "LessThan" },
+                        new() { Label = "大于等于", Value = "GreaterOrEqual" },
+                        new() { Label = "小于等于", Value = "LessOrEqual" }
+                    }
+                },
+                new() { Name = "PollingValue", DisplayName = "等待值", DataType = "string", DefaultValue = "1",
+                    Description = "等待的目标值（如触发信号值）" },
+                new() { Name = "PollingTimeout", DisplayName = "等待超时(ms)", DataType = "int", DefaultValue = 30000, MinValue = 100, MaxValue = 300000,
+                    Description = "最长等待时间（毫秒）" },
+                new() { Name = "PollingInterval", DisplayName = "轮询间隔(ms)", DataType = "int", DefaultValue = 50, MinValue = 10, MaxValue = 5000,
+                    Description = "每次读取间隔（毫秒）" }
+            }
+        };
+
+        // ==================== 【第一优先级】结果判定算子 ====================
+        // ResultJudgment = 60
+        _metadata[OperatorType.ResultJudgment] = new OperatorMetadata
+        {
+            Type = OperatorType.ResultJudgment,
+            DisplayName = "结果判定",
+            Description = "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
+            Category = "流程控制",
+            IconName = "judgment",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "输入值", DataType = PortDataType.Any, IsRequired = true },
+                new() { Name = "Confidence", DisplayName = "置信度", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "JudgmentResult", DisplayName = "判定结果", DataType = PortDataType.String },
+                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String },
+                new() { Name = "JudgmentValueInt", DisplayName = "判定值(整数)", DataType = PortDataType.Integer },
+                new() { Name = "ActualValue", DisplayName = "实际值", DataType = PortDataType.Any },
+                new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean },
+                new() { Name = "Details", DisplayName = "详细信息", DataType = PortDataType.String }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FieldName", DisplayName = "判定字段", DataType = "string", DefaultValue = "Value",
+                    Description = "要从上游输入中读取的字段名，如 DefectCount, Distance" },
+                new() { Name = "Condition", DisplayName = "判定条件", DataType = "enum", DefaultValue = "Equal",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "等于 (Equal)", Value = "Equal" },
+                        new() { Label = "大于 (GreaterThan)", Value = "GreaterThan" },
+                        new() { Label = "小于 (LessThan)", Value = "LessThan" },
+                        new() { Label = "大于等于 (GreaterOrEqual)", Value = "GreaterOrEqual" },
+                        new() { Label = "小于等于 (LessOrEqual)", Value = "LessOrEqual" },
+                        new() { Label = "范围内 (Range)", Value = "Range" },
+                        new() { Label = "包含 (Contains)", Value = "Contains" },
+                        new() { Label = "开头是 (StartsWith)", Value = "StartsWith" },
+                        new() { Label = "结尾是 (EndsWith)", Value = "EndsWith" }
+                    }
+                },
+                new() { Name = "ExpectValue", DisplayName = "期望值", DataType = "string", DefaultValue = "4",
+                    Description = "判定目标值，如 4（螺钉数）、0（缺陷数）、9.5（尺寸下限）" },
+                new() { Name = "ExpectValueMin", DisplayName = "范围最小值", DataType = "string", DefaultValue = "",
+                    Description = "用于Range条件，设置范围下限" },
+                new() { Name = "ExpectValueMax", DisplayName = "范围最大值", DataType = "string", DefaultValue = "",
+                    Description = "用于Range条件，设置范围上限" },
+                new() { Name = "MinConfidence", DisplayName = "最小置信度", DataType = "double", DefaultValue = 0.0, MinValue = 0.0, MaxValue = 1.0,
+                    Description = "置信度低于此值时判定为NG（0表示不检查置信度）" },
+                new() { Name = "OkOutputValue", DisplayName = "OK输出值", DataType = "string", DefaultValue = "1",
+                    Description = "判定为OK时输出的值（用于PLC写入）" },
+                new() { Name = "NgOutputValue", DisplayName = "NG输出值", DataType = "string", DefaultValue = "0",
+                    Description = "判定为NG时输出的值（用于PLC写入）" }
+            }
+        };
+
+        // ==================== 【第三优先级】新增算子 ====================
+
+        // 1. CLAHE自适应直方图均衡化 (ClaheEnhancement = 71)
+        _metadata[OperatorType.ClaheEnhancement] = new OperatorMetadata
+        {
+            Type = OperatorType.ClaheEnhancement,
+            DisplayName = "CLAHE增强",
+            Description = "自适应直方图均衡化，用于局部对比度增强",
+            Category = "预处理",
+            IconName = "clahe",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "增强图像", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "ClipLimit", DisplayName = "裁剪限制", DataType = "double", DefaultValue = 2.0, MinValue = 0, MaxValue = 40,
+                    Description = "对比度限制阈值，防止过度放大噪声" },
+                new() { Name = "TileWidth", DisplayName = "网格宽度", DataType = "int", DefaultValue = 8, MinValue = 2, MaxValue = 64 },
+                new() { Name = "TileHeight", DisplayName = "网格高度", DataType = "int", DefaultValue = 8, MinValue = 2, MaxValue = 64 },
+                new() { Name = "ColorSpace", DisplayName = "颜色空间", DataType = "enum", DefaultValue = "Lab",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "Lab - L通道", Value = "Lab" },
+                        new() { Label = "HSV - V通道", Value = "HSV" },
+                        new() { Label = "灰度", Value = "Gray" },
+                        new() { Label = "所有通道", Value = "All" }
+                    }
+                }
+            }
+        };
+
+        // 2. 形态学操作 (MorphologicalOperation = 72)
+        _metadata[OperatorType.MorphologicalOperation] = new OperatorMetadata
+        {
+            Type = OperatorType.MorphologicalOperation,
+            DisplayName = "形态学操作",
+            Description = "腐蚀/膨胀/开运算/闭运算/梯度/顶帽/黑帽",
+            Category = "预处理",
+            IconName = "morphology",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "处理后图像", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Operation", DisplayName = "操作类型", DataType = "enum", DefaultValue = "Close",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "腐蚀", Value = "Erode" },
+                        new() { Label = "膨胀", Value = "Dilate" },
+                        new() { Label = "开运算", Value = "Open" },
+                        new() { Label = "闭运算", Value = "Close" },
+                        new() { Label = "梯度", Value = "Gradient" },
+                        new() { Label = "顶帽", Value = "TopHat" },
+                        new() { Label = "黑帽", Value = "BlackHat" }
+                    }
+                },
+                new() { Name = "KernelShape", DisplayName = "核形状", DataType = "enum", DefaultValue = "Rect",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "矩形", Value = "Rect" },
+                        new() { Label = "十字形", Value = "Cross" },
+                        new() { Label = "椭圆形", Value = "Ellipse" }
+                    }
+                },
+                new() { Name = "KernelWidth", DisplayName = "核宽度", DataType = "int", DefaultValue = 3, MinValue = 1, MaxValue = 51 },
+                new() { Name = "KernelHeight", DisplayName = "核高度", DataType = "int", DefaultValue = 3, MinValue = 1, MaxValue = 51 },
+                new() { Name = "Iterations", DisplayName = "迭代次数", DataType = "int", DefaultValue = 1, MinValue = 1, MaxValue = 10 }
+            }
+        };
+
+        // 3. 拉普拉斯锐化 (LaplacianSharpen = 74)
+        _metadata[OperatorType.LaplacianSharpen] = new OperatorMetadata
+        {
+            Type = OperatorType.LaplacianSharpen,
+            DisplayName = "拉普拉斯锐化",
+            Description = "基于拉普拉斯算子的边缘增强",
+            Category = "预处理",
+            IconName = "sharpen",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "锐化图像", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "KernelSize", DisplayName = "核大小", DataType = "int", DefaultValue = 3, MinValue = 1, MaxValue = 7,
+                    Description = "必须是奇数" },
+                new() { Name = "Scale", DisplayName = "缩放因子", DataType = "double", DefaultValue = 1.0, MinValue = 0.1, MaxValue = 10.0 },
+                new() { Name = "SharpenStrength", DisplayName = "锐化强度", DataType = "double", DefaultValue = 1.0, MinValue = 0, MaxValue = 5.0 }
+            }
+        };
+
+        // 4. 图像加法 (ImageAdd = 76)
+        _metadata[OperatorType.ImageAdd] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageAdd,
+            DisplayName = "图像加法",
+            Description = "两幅图像叠加/合并",
+            Category = "预处理",
+            IconName = "add",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image1", DisplayName = "图像1", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Image2", DisplayName = "图像2", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "合成图像", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Scale1", DisplayName = "图像1权重", DataType = "double", DefaultValue = 1.0, MinValue = 0, MaxValue = 10.0 },
+                new() { Name = "Scale2", DisplayName = "图像2权重", DataType = "double", DefaultValue = 1.0, MinValue = 0, MaxValue = 10.0 },
+                new() { Name = "Offset", DisplayName = "亮度偏移", DataType = "double", DefaultValue = 0, MinValue = -255, MaxValue = 255 }
+            }
+        };
+
+        // 5. 图像减法 (ImageSubtract = 77)
+        _metadata[OperatorType.ImageSubtract] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageSubtract,
+            DisplayName = "图像减法",
+            Description = "差异检测",
+            Category = "预处理",
+            IconName = "subtract",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image1", DisplayName = "图像1", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Image2", DisplayName = "图像2", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "差异图像", DataType = PortDataType.Image },
+                new() { Name = "MinDifference", DisplayName = "最小差异", DataType = PortDataType.Float },
+                new() { Name = "MaxDifference", DisplayName = "最大差异", DataType = PortDataType.Float },
+                new() { Name = "MeanDifference", DisplayName = "平均差异", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "AbsoluteDiff", DisplayName = "绝对差异", DataType = "bool", DefaultValue = true,
+                    Description = "使用绝对差异或简单相减" }
+            }
+        };
+
+        // 6. 图像融合 (ImageBlend = 78)
+        _metadata[OperatorType.ImageBlend] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageBlend,
+            DisplayName = "图像融合",
+            Description = "加权混合/透明叠加",
+            Category = "预处理",
+            IconName = "blend",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Background", DisplayName = "背景", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Foreground", DisplayName = "前景", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "融合图像", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Alpha", DisplayName = "背景权重", DataType = "double", DefaultValue = 0.5, MinValue = 0, MaxValue = 1.0 },
+                new() { Name = "Beta", DisplayName = "前景权重", DataType = "double", DefaultValue = 0.5, MinValue = 0, MaxValue = 1.0 },
+                new() { Name = "Gamma", DisplayName = "亮度偏移", DataType = "double", DefaultValue = 0, MinValue = -255, MaxValue = 255 }
+            }
+        };
+
+        // ==================== 【第三优先级】变量和流程控制算子 ====================
+
+        // 1. 变量读取 (VariableRead = 80)
+        _metadata[OperatorType.VariableRead] = new OperatorMetadata
+        {
+            Type = OperatorType.VariableRead,
+            DisplayName = "变量读取",
+            Description = "从全局变量表读取值",
+            Category = "变量",
+            IconName = "variable-read",
+            InputPorts = new List<PortDefinition>(),
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "值", DataType = PortDataType.Any },
+                new() { Name = "Exists", DisplayName = "是否存在", DataType = PortDataType.Boolean },
+                new() { Name = "CycleCount", DisplayName = "循环计数", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "VariableName", DisplayName = "变量名", DataType = "string", DefaultValue = "",
+                    Description = "要读取的变量名称" },
+                new() { Name = "DefaultValue", DisplayName = "默认值", DataType = "string", DefaultValue = "0",
+                    Description = "变量不存在时的默认值" },
+                new() { Name = "DataType", DisplayName = "数据类型", DataType = "enum", DefaultValue = "String",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "字符串", Value = "String" },
+                        new() { Label = "整数", Value = "Int" },
+                        new() { Label = "浮点数", Value = "Double" },
+                        new() { Label = "布尔值", Value = "Bool" }
+                    }
+                }
+            }
+        };
+
+        // 2. 变量写入 (VariableWrite = 81)
+        _metadata[OperatorType.VariableWrite] = new OperatorMetadata
+        {
+            Type = OperatorType.VariableWrite,
+            DisplayName = "变量写入",
+            Description = "写入值到全局变量表",
+            Category = "变量",
+            IconName = "variable-write",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "值", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "VariableName", DisplayName = "变量名", DataType = PortDataType.String },
+                new() { Name = "Value", DisplayName = "写入的值", DataType = PortDataType.Any },
+                new() { Name = "CycleCount", DisplayName = "循环计数", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "VariableName", DisplayName = "变量名", DataType = "string", DefaultValue = "",
+                    Description = "要写入的变量名称" },
+                new() { Name = "DataType", DisplayName = "数据类型", DataType = "enum", DefaultValue = "String",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "字符串", Value = "String" },
+                        new() { Label = "整数", Value = "Int" },
+                        new() { Label = "浮点数", Value = "Double" },
+                        new() { Label = "布尔值", Value = "Bool" }
+                    }
+                },
+                new() { Name = "UseInputValue", DisplayName = "使用输入值", DataType = "bool", DefaultValue = true,
+                    Description = "优先使用上游输入的值，否则使用下方静态值" },
+                new() { Name = "StaticValue", DisplayName = "静态值", DataType = "string", DefaultValue = "0",
+                    Description = "当没有上游输入时使用的值" }
+            }
+        };
+
+        // 3. 变量递增 (VariableIncrement = 82)
+        _metadata[OperatorType.VariableIncrement] = new OperatorMetadata
+        {
+            Type = OperatorType.VariableIncrement,
+            DisplayName = "变量递增",
+            Description = "计数器自增/自减，支持重置条件",
+            Category = "变量",
+            IconName = "counter",
+            InputPorts = new List<PortDefinition>(),
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "VariableName", DisplayName = "变量名", DataType = PortDataType.String },
+                new() { Name = "PreviousValue", DisplayName = "前值", DataType = PortDataType.Integer },
+                new() { Name = "NewValue", DisplayName = "新值", DataType = PortDataType.Integer },
+                new() { Name = "Delta", DisplayName = "增量", DataType = PortDataType.Integer },
+                new() { Name = "WasReset", DisplayName = "是否已重置", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "VariableName", DisplayName = "变量名", DataType = "string", DefaultValue = "counter",
+                    Description = "计数器变量名称" },
+                new() { Name = "Delta", DisplayName = "增量", DataType = "int", DefaultValue = 1,
+                    Description = "每次递增的值（可为负数实现递减）" },
+                new() { Name = "ResetCondition", DisplayName = "重置条件", DataType = "enum", DefaultValue = "None",
+                    Description = "满足条件时重置计数器",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "不重置", Value = "None" },
+                        new() { Label = "大于阈值", Value = "GreaterThan" },
+                        new() { Label = "小于阈值", Value = "LessThan" },
+                        new() { Label = "等于阈值", Value = "Equal" }
+                    }
+                },
+                new() { Name = "ResetThreshold", DisplayName = "重置阈值", DataType = "int", DefaultValue = 100 },
+                new() { Name = "ResetValue", DisplayName = "重置后值", DataType = "int", DefaultValue = 0,
+                    Description = "重置后的起始值" }
+            }
+        };
+
+        // 4. 异常捕获 (TryCatch = 83)
+        _metadata[OperatorType.TryCatch] = new OperatorMetadata
+        {
+            Type = OperatorType.TryCatch,
+            DisplayName = "异常捕获",
+            Description = "Try-Catch 流程控制",
+            Category = "流程控制",
+            IconName = "trycatch",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Input", DisplayName = "输入", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Try", DisplayName = "Try分支", DataType = PortDataType.Any },
+                new() { Name = "Catch", DisplayName = "Catch分支", DataType = PortDataType.Any },
+                new() { Name = "Error", DisplayName = "错误信息", DataType = PortDataType.String },
+                new() { Name = "HasError", DisplayName = "是否有错", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "EnableCatch", DisplayName = "启用Catch", DataType = "bool", DefaultValue = true,
+                    Description = "是否启用异常捕获" },
+                new() { Name = "CatchOutputError", DisplayName = "输出错误信息", DataType = "bool", DefaultValue = true },
+                new() { Name = "CatchOutputStackTrace", DisplayName = "输出堆栈", DataType = "bool", DefaultValue = false }
+            }
+        };
+
+        // 5. 循环计数器 (CycleCounter = 84)
+        _metadata[OperatorType.CycleCounter] = new OperatorMetadata
+        {
+            Type = OperatorType.CycleCounter,
+            DisplayName = "循环计数器",
+            Description = "获取当前循环次数和统计信息",
+            Category = "变量",
+            IconName = "cycle",
+            InputPorts = new List<PortDefinition>(),
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "CycleCount", DisplayName = "当前次数", DataType = PortDataType.Integer },
+                new() { Name = "MaxCycles", DisplayName = "最大次数", DataType = PortDataType.Integer },
+                new() { Name = "IsLimitReached", DisplayName = "是否达到限制", DataType = PortDataType.Boolean },
+                new() { Name = "RemainingCycles", DisplayName = "剩余次数", DataType = PortDataType.Integer },
+                new() { Name = "Progress", DisplayName = "进度(%)", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Action", DisplayName = "操作", DataType = "enum", DefaultValue = "Read",
+                    Description = "读取/重置/递增",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "读取", Value = "Read" },
+                        new() { Label = "重置", Value = "Reset" },
+                        new() { Label = "递增", Value = "Increment" }
+                    }
+                },
+                new() { Name = "MaxCycles", DisplayName = "最大循环次数", DataType = "int", DefaultValue = 0,
+                    Description = "0表示无限制" }
             }
         };
     }

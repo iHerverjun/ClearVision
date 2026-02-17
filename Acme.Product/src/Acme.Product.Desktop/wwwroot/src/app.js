@@ -10,6 +10,7 @@ import { Dialog } from './shared/components/dialog.js';
 // ============================================
 // 存储错误日志（限制最大条目数防止内存泄漏）
 window._errorLogs = [];
+
 const MAX_ERROR_LOGS = 100;  // 【修复】限制错误日志最大数量
 
 function addErrorLog(logEntry) {
@@ -89,7 +90,11 @@ import { InspectionPanel } from './features/inspection/inspectionPanel.js';
 import { showToast, createModal, closeModal, createInput, createLabeledInput, createButton } from './shared/components/uiComponents.js';
 import { PropertyPanel } from './features/flow-editor/propertyPanel.js';
 import { ProjectView } from './features/project/projectView.js';
-import projectManager from './features/project/projectManager.js';
+import projectManager, { 
+    getCurrentProject, 
+    setCurrentProject,
+    subscribeProject 
+} from './features/project/projectManager.js';
 import { ResultPanel } from './features/results/resultPanel.js';
 import settingsModal from './features/settings/settingsModal.js';
 
@@ -97,7 +102,6 @@ import settingsModal from './features/settings/settingsModal.js';
 const [getCurrentView, setCurrentView, subscribeView] = createSignal('flow');
 const [getSelectedOperator, setSelectedOperator, subscribeSelectedOperator] = createSignal(null);
 const [getOperatorLibrary, setOperatorLibrary, subscribeOperatorLibrary] = createSignal([]);
-const [getCurrentProject, setCurrentProject, subscribeCurrentProject] = createSignal(null);
 
 // 【修复】订阅管理器，防止内存泄漏
 const subscriptions = [];
@@ -127,6 +131,9 @@ const AUTO_SAVE_DELAY = 5 * 60 * 1000; // 5分钟
  * 初始化应用
  */
 function initializeApp() {
+    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    console.error('[App] 初始化应用正在执行...');
+    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     console.log('[App] 初始化应用...');
     
     // 后台验证 Token 有效性
@@ -236,6 +243,7 @@ function initializeNavigation() {
  * 切换视图
  */
 function switchView(view) {
+    console.log(`[App] 切换视图到: ${view}`);
     const flowEditor = document.getElementById('flow-editor');
     const imageViewerContainer = document.getElementById('image-viewer');
     const inspectionViewContainer = document.getElementById('inspection-view');
@@ -330,11 +338,13 @@ function initializeInspectionPanel() {
     
     // 如果面板已初始化，刷新显示
     if (inspectionPanel) {
+        console.log('[App] 检测控制面板已存在，刷新显示');
         inspectionPanel.refresh();
         return;
     }
     
     try {
+        console.log('[App] 创建新的 InspectionPanel 实例');
         inspectionPanel = new InspectionPanel('inspection-control-panel');
         window.inspectionPanel = inspectionPanel;
         console.log('[App] 检测控制面板初始化完成');
@@ -383,68 +393,9 @@ function initializeInspectionImageViewer() {
  * 更新检测视图结果面板
  */
 function updateInspectionResultsPanel(result) {
-    const okCountEl = document.getElementById('inspection-ok-count');
-    const ngCountEl = document.getElementById('inspection-ng-count');
-    const detailEl = document.getElementById('inspection-results-detail');
-    
-    if (okCountEl && ngCountEl) {
-        // 获取当前计数
-        let okCount = parseInt(okCountEl.textContent) || 0;
-        let ngCount = parseInt(ngCountEl.textContent) || 0;
-        
-        // 更新计数
-        if (result.status === 'OK') {
-            okCount++;
-        } else if (result.status !== 'Error') {
-            ngCount++;
-        }
-        
-        okCountEl.textContent = okCount;
-        ngCountEl.textContent = ngCount;
-        
-        // 添加动画效果
-        okCountEl.classList.add('changing');
-        ngCountEl.classList.add('changing');
-        setTimeout(() => {
-            okCountEl.classList.remove('changing');
-            ngCountEl.classList.remove('changing');
-        }, 300);
-    }
-    
-    if (detailEl) {
-        // 显示检测结果详情
-        let html = `
-            <div class="result-detail-item">
-                <span class="detail-label">检测状态</span>
-                <span class="detail-value ${result.status === 'OK' ? 'text-ok' : 'text-ng'}">${result.status}</span>
-            </div>
-        `;
-        
-        if (result.processingTimeMs) {
-            html += `
-                <div class="result-detail-item">
-                    <span class="detail-label">处理时间</span>
-                    <span class="detail-value">${result.processingTimeMs} ms</span>
-                </div>
-            `;
-        }
-        
-        if (result.defects && result.defects.length > 0) {
-            html += `<div class="defects-list"><h4>缺陷详情</h4>`;
-            result.defects.forEach(defect => {
-                const confidence = defect.confidenceScore || defect.confidence || 0;
-                html += `
-                    <div class="defect-detail-item">
-                        <span class="defect-type">${defect.type || defect.description || '未知缺陷'}</span>
-                        <span class="defect-confidence">${(confidence * 100).toFixed(1)}%</span>
-                    </div>
-                `;
-            });
-            html += `</div>`;
-        }
-        
-        detailEl.innerHTML = html;
-    }
+    // 旧的实时结果面板已移除（inspection-ok-count, inspection-ng-count, inspection-results-detail）
+    // 现在由 inspectionPanel.js 的 updateCounters() 和 renderRecentResults() 处理
+    // 保留空函数以兼容 initializeInspectionController 中的调用
 }
 
 /**
@@ -526,10 +477,7 @@ function initializeInspectionController() {
                 window.inspectionImageViewer.loadImage(imageData);
             }
 
-            // 更新检测面板
-            if (inspectionPanel) {
-                inspectionPanel.handleInspectionResult(result);
-            }
+
 
             // 更新结果面板
             updateInspectionResultsPanel(result);
@@ -638,13 +586,8 @@ function initializeProjectView() {
     // 监听工程打开事件
     window.addEventListener('projectOpened', (event) => {
         const project = event.detail;
-        setCurrentProject(project);
-
-        // 更新状态栏
-        const projectNameEl = document.getElementById('project-name');
-        if (projectNameEl) {
-            projectNameEl.textContent = project.name;
-        }
+        // 状态已由 projectManager.openProject() 设置，无需再次 setCurrentProject
+        // projectManager 内部也已更新状态栏
 
         // 加载流程到画布
         if (project.flow && window.flowCanvas) {
@@ -1107,8 +1050,7 @@ function initializeToolbar() {
                 const project = getCurrentProject();
                 if (project) {
                     // 使用 projectManager.saveProject 正确保存工程
-                    // 先同步当前工程数据到 projectManager
-                    projectManager.currentProject = project;
+                    // PM 的状态已是最新的，无需手动赋值
                     
                     // 将流程数据序列化
                     if (window.flowCanvas) {
@@ -1222,14 +1164,8 @@ function initializeToolbar() {
  */
 async function loadProject(projectId) {
     try {
-        const project = await httpClient.get(`/projects/${projectId}`);
-        setCurrentProject(project);
-        
-        // 更新状态栏
-        const projectNameEl = document.getElementById('project-name');
-        if (projectNameEl) {
-            projectNameEl.textContent = project.name;
-        }
+        // 委托给 projectManager（内部会设置信号 + 更新状态栏）
+        const project = await projectManager.openProject(projectId);
         
         // 加载流程到画布
         if (project.flow && window.flowCanvas) {
@@ -1258,24 +1194,13 @@ async function loadProject(projectId) {
  */
 async function createProject(name, description = '', preserveCanvas = false) {
     try {
-        const project = await httpClient.post('/projects', {
-            name,
-            description
-        });
-        
-        setCurrentProject(project);
-        
-        // 更新状态栏
-        const projectNameEl = document.getElementById('project-name');
-        if (projectNameEl) {
-            projectNameEl.textContent = project.name;
-        }
+        // 委托给 projectManager（内部会设置信号 + 更新状态栏）
+        const project = await projectManager.createProject(name, description);
         
         if (preserveCanvas) {
             // 保留画布内容，直接将当前流程保存到新工程
             if (window.flowCanvas) {
                 project.flow = window.flowCanvas.serialize();
-                projectManager.currentProject = project;
                 await projectManager.saveProject(project);
                 console.log('[App] 画布内容已保存到新工程:', project.name);
             }
@@ -1497,23 +1422,10 @@ async function importProjectFromJson(file) {
         const confirmed = confirm(`确定要导入工程 "${importData.project.name || '未命名'}" 吗？\n当前未保存的更改将会丢失。`);
         if (!confirmed) return;
         
-        // 通过后端 API 创建新工程（由后端生成 ID）
+        // 通过 projectManager 创建新工程（由后端生成 ID）
         const importName = (importData.project.name || '未命名') + ' (导入)';
         const importDesc = importData.project.description || '';
-        const project = await httpClient.post('/projects', {
-            name: importName,
-            description: importDesc
-        });
-        
-        // 设置当前工程
-        setCurrentProject(project);
-        projectManager.currentProject = project;
-        
-        // 更新状态栏
-        const projectNameEl = document.getElementById('project-name');
-        if (projectNameEl) {
-            projectNameEl.textContent = project.name;
-        }
+        const project = await projectManager.createProject(importName, importDesc);
         
         // 加载流程到画布
         if (window.flowCanvas && importData.project.flow) {
@@ -1750,8 +1662,6 @@ export {
     setCurrentView, 
     getSelectedOperator, 
     setSelectedOperator,
-    getCurrentProject,
-    setCurrentProject,
     loadProject,
     createProject,
     imageViewer,

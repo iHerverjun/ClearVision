@@ -52,13 +52,7 @@ export class ImageViewerComponent {
             <div class="image-viewer-wrapper">
                 <!-- 工具栏 -->
                 <div class="viewer-toolbar">
-                    <div class="toolbar-group">
-                        <button id="btn-open-image" class="cv-btn cv-btn-primary" title="打开图像">
-                            <span>📂</span> 打开
-                        </button>
-                        <input type="file" id="file-input" accept="image/*" style="display: none;">
-                    </div>
-                    <div class="toolbar-divider"></div>
+
                     <div class="toolbar-group">
                         <button id="btn-zoom-in" class="cv-btn cv-btn-icon" title="放大">🔍+</button>
                         <button id="btn-zoom-out" class="cv-btn cv-btn-icon" title="缩小">🔍-</button>
@@ -82,8 +76,7 @@ export class ImageViewerComponent {
                     <div class="viewer-placeholder" id="${this.placeholderId}">
                         <div class="placeholder-content">
                             <span class="placeholder-icon">📷</span>
-                            <p>点击"打开图像"或拖拽图像到此处</p>
-                            <p class="placeholder-hint">支持 JPG, PNG, BMP, TIFF 格式</p>
+                            <p>等待检测图像</p>
                         </div>
                     </div>
                 </div>
@@ -103,18 +96,6 @@ export class ImageViewerComponent {
      * 绑定工具栏事件
      */
     bindToolbarEvents() {
-        // 打开文件
-        const openBtn = this.container.querySelector('#btn-open-image');
-        const fileInput = this.container.querySelector('#file-input');
-        
-        openBtn.addEventListener('click', () => fileInput.click());
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0]) {
-                this.loadFromFile(e.target.files[0]);
-            }
-        });
-
         // 缩放控制
         this.container.querySelector('#btn-zoom-in').addEventListener('click', () => {
             this.zoomIn();
@@ -139,27 +120,6 @@ export class ImageViewerComponent {
         
         this.container.querySelector('#btn-toggle-annotations').addEventListener('click', () => {
             this.toggleAnnotations();
-        });
-
-        // 拖拽支持
-        const canvasContainer = this.container.querySelector('.viewer-canvas-container');
-        canvasContainer.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-            canvasContainer.classList.add('drag-over');
-        });
-        
-        canvasContainer.addEventListener('dragleave', () => {
-            canvasContainer.classList.remove('drag-over');
-        });
-        
-        canvasContainer.addEventListener('drop', (e) => {
-            e.preventDefault();
-            canvasContainer.classList.remove('drag-over');
-            
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                this.loadFromFile(e.dataTransfer.files[0]);
-            }
         });
     }
 

@@ -147,15 +147,65 @@ class InspectionController {
             // 创建 AbortController 用于取消
             this.abortController = new AbortController();
 
+            // 【第二优先级】携带流程数据和运行模式
+            const flowData = window.flowCanvas?.serialize?.() || null;
+            
             await httpClient.post('/inspection/realtime/start', {
                 projectId: this.projectId,
-                cameraId: this.cameraId
+                cameraId: this.cameraId,
+                runMode: 'camera',
+                flowData: flowData
             });
 
-            console.log('[InspectionController] 实时检测已启动');
+            console.log('[InspectionController] 实时检测已启动 (相机驱动模式)');
 
         } catch (error) {
             console.error('[InspectionController] 启动实时检测失败:', error);
+            this.stopRealtime();
+            throw error;
+        }
+    }
+
+    /**
+     * 开始实时检测（流程驱动模式）
+     * 【第二优先级】支持PLC触发等流程驱动场景
+     */
+    async startRealtimeFlowMode() {
+        if (!this.projectId) {
+            throw new Error('未选择工程');
+        }
+
+        // 流程驱动模式下，相机是可选的（由流程内图像采集算子控制）
+        // 不强制检查 cameraId
+
+        // 更新状态
+        setInspectionState({
+            ...getInspectionState(),
+            isRealtime: true,
+            status: 'running'
+        });
+
+        try {
+            // 创建 AbortController 用于取消
+            this.abortController = new AbortController();
+
+            // 获取当前流程数据
+            const flowData = window.flowCanvas?.serialize?.() || null;
+            if (!flowData) {
+                throw new Error('无法获取流程数据，请确保流程编辑器已打开');
+            }
+
+            await httpClient.post('/inspection/realtime/start', {
+                projectId: this.projectId,
+                cameraId: this.cameraId || null, // 相机可选
+                runMode: 'flow', // 【第二优先级】流程驱动模式
+                flowData: flowData
+            });
+
+            console.log('[InspectionController] 实时检测已启动 (流程驱动模式)');
+
+        } catch (error) {
+            console.error('[InspectionController] 启动流程驱动检测失败:', error);
             this.stopRealtime();
             throw error;
         }
@@ -166,7 +216,7 @@ class InspectionController {
      */
     async stopRealtime() {
         try {
-            await httpClient.post('/inspection/realtime/stop');
+            await httpClient.post('/inspection/realtime/stop', { projectId: this.projectId });
             
             if (this.abortController) {
                 this.abortController.abort();

@@ -176,7 +176,18 @@ public class InspectionService : IInspectionService
     private readonly Dictionary<Guid, Task> _realtimeTasks = new();
     private readonly object _realtimeLock = new();
 
-    public async Task StartRealtimeInspectionAsync(Guid projectId, string cameraId, CancellationToken cancellationToken)
+    public async Task StartRealtimeInspectionAsync(Guid projectId, string? cameraId, CancellationToken cancellationToken)
+    {
+        // 加载工程
+        var project = await _projectRepository.GetWithFlowAsync(projectId);
+        if (project == null)
+            throw new ProjectNotFoundException(projectId);
+
+        // 调用流程驱动模式
+        await StartRealtimeInspectionFlowAsync(projectId, project.Flow, cameraId, cancellationToken);
+    }
+
+    public async Task StartRealtimeInspectionFlowAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
     {
         // 检查是否已有正在运行的实时检测
         lock (_realtimeLock)
@@ -188,11 +199,6 @@ public class InspectionService : IInspectionService
             }
         }
 
-        // 加载工程
-        var project = await _projectRepository.GetWithFlowAsync(projectId);
-        if (project == null)
-            throw new ProjectNotFoundException(projectId);
-
         // 创建取消令牌源
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         
@@ -201,14 +207,16 @@ public class InspectionService : IInspectionService
             _realtimeCtsMap[projectId] = cts;
         }
 
-        _logger.LogInformation("[InspectionService] 启动实时检测: ProjectId={ProjectId}, CameraId={CameraId}", projectId, cameraId);
+        _logger.LogInformation(
+            "[InspectionService] 启动流程驱动实时检测: ProjectId={ProjectId}, CameraId={CameraId}, Operators={OperatorCount}",
+            projectId, cameraId ?? "(流程内)", flow.Operators?.Count ?? 0);
 
         // 启动后台检测任务
         var task = Task.Run(async () =>
         {
             try
             {
-                await RunRealtimeInspectionLoopAsync(projectId, project.Flow, cameraId, cts.Token);
+                await RunRealtimeInspectionLoopAsync(projectId, flow, cameraId, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -251,55 +259,52 @@ public class InspectionService : IInspectionService
     }
 
     /// <summary>
-    /// 实时检测循环
+    /// 实时检测循环 - 【改造】从固定间隔轮询改为循环执行完整流程
+    /// 流程中的第一个算子（如PLC读取）负责等待触发信号
     /// </summary>
-    private async Task RunRealtimeInspectionLoopAsync(Guid projectId, OperatorFlow flow, string cameraId, CancellationToken cancellationToken)
+    private async Task RunRealtimeInspectionLoopAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
     {
         // 配置参数
         const int minIntervalMs = 100; // 最小检测间隔 100ms
         const int maxIntervalMs = 5000; // 最大检测间隔 5s
         int currentIntervalMs = 500; // 默认500ms
 
+        int cycleCount = 0;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             var startTime = DateTime.UtcNow;
+            cycleCount++;
 
             try
             {
-                // 从相机采集图像
-                var imageDto = await _imageAcquisitionService.AcquireFromCameraAsync(cameraId);
-                
-                if (!string.IsNullOrEmpty(imageDto.DataBase64))
-                {
-                    var imageData = Convert.FromBase64String(imageDto.DataBase64);
-                    
-                    // 执行检测（不等待结果，异步执行）
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await ExecuteSingleAsync(projectId, imageData, flow);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "[InspectionService] 实时检测执行失败");
-                        }
-                    }, cancellationToken);
-                }
-                else
-                {
-                    _logger.LogWarning("[InspectionService] 相机 {CameraId} 采集图像为空", cameraId);
-                }
+                _logger.LogDebug("[InspectionService] 开始第 {CycleCount} 轮检测", cycleCount);
+
+                // 【核心改造】循环执行整条流程，而不是只采集图像
+                // 流程内部：
+                //  ① PLC读取 → 等待触发信号（如果有PLC触发算子）
+                //  ② 图像采集 → 从相机/文件获取图像
+                //  ③ 检测链 → 深度学习/测量/匹配
+                //  ④ 结果判定 → OK/NG判定
+                //  ⑤ PLC写入 → 回写判定结果
+                await ExecuteFlowCycleAsync(projectId, flow, cameraId, cancellationToken);
+
+                // 重置间隔（执行成功）
+                currentIntervalMs = 500;
+            }
+            catch (OperationCanceledException)
+            {
+                throw; // 正常取消，退出循环
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[InspectionService] 实时检测循环异常");
+                _logger.LogError(ex, "[InspectionService] 第 {CycleCount} 轮检测执行异常", cycleCount);
                 
                 // 增加间隔以避免错误风暴
                 currentIntervalMs = Math.Min(currentIntervalMs * 2, maxIntervalMs);
             }
 
-            // 计算下一次执行时间
+            // 计算下一次执行时间（流程驱动模式下，如果流程内有PLC等待，这个间隔会被PLC阻塞时间覆盖）
             var elapsedMs = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
             var delayMs = Math.Max(currentIntervalMs - elapsedMs, minIntervalMs);
 
@@ -312,6 +317,143 @@ public class InspectionService : IInspectionService
                 break;
             }
         }
+
+        _logger.LogInformation("[InspectionService] 实时检测循环结束，共执行 {CycleCount} 轮", cycleCount);
+    }
+
+    /// <summary>
+    /// 执行单轮检测流程（完整流程执行）
+    /// </summary>
+    private async Task ExecuteFlowCycleAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
+    {
+        // 准备初始输入数据
+        var inputData = new Dictionary<string, object>();
+        
+        // 如果指定了相机ID，预加载图像（兼容旧模式）
+        // 【新模式】如果流程中包含图像采集算子，它会覆盖这个初始图像
+        if (!string.IsNullOrEmpty(cameraId))
+        {
+            try
+            {
+                var imageDto = await _imageAcquisitionService.AcquireFromCameraAsync(cameraId);
+                if (!string.IsNullOrEmpty(imageDto.DataBase64))
+                {
+                    var imageData = Convert.FromBase64String(imageDto.DataBase64);
+                    inputData["Image"] = imageData;
+                    _logger.LogDebug("[InspectionService] 预加载相机图像: {Size} bytes", imageData.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[InspectionService] 预加载相机图像失败，流程将依赖图像采集算子");
+            }
+        }
+
+        // 执行完整流程
+        var flowResult = await _flowExecutionService.ExecuteFlowAsync(flow, inputData, cancellationToken: cancellationToken);
+
+        // 处理流程结果
+        await ProcessFlowResultAsync(projectId, flowResult, cancellationToken);
+    }
+
+    /// <summary>
+    /// 处理流程执行结果
+    /// </summary>
+    private async Task ProcessFlowResultAsync(Guid projectId, FlowExecutionResult flowResult, CancellationToken cancellationToken)
+    {
+        var result = new InspectionResult(projectId);
+
+        try
+        {
+            // 判定状态
+            InspectionStatus status;
+            if (!flowResult.IsSuccess)
+            {
+                status = InspectionStatus.Error;
+                _logger.LogWarning("[InspectionService] 流程执行失败: {ErrorMessage}", flowResult.ErrorMessage);
+            }
+            else
+            {
+                // 【增强】支持从结果判定算子的输出获取判定结果
+                status = DetermineStatusFromFlowOutput(flowResult.OutputData);
+            }
+
+            result.SetResult(status, flowResult.ExecutionTimeMs, null, flowResult.ErrorMessage);
+
+            // 提取输出图像
+            if (flowResult.OutputData?.TryGetValue("Image", out var outputImage) == true
+                && outputImage is byte[] imageBytes)
+            {
+                result.SetOutputImage(imageBytes);
+            }
+
+            // 提取缺陷列表
+            if (flowResult.OutputData?.TryGetValue("Defects", out var defectsObj) == true
+                && defectsObj is System.Collections.IList defectsList)
+            {
+                foreach (var item in defectsList)
+                {
+                    if (item is Dictionary<string, object> defectDict)
+                    {
+                        var x = Convert.ToDouble(defectDict.GetValueOrDefault("X", 0.0));
+                        var y = Convert.ToDouble(defectDict.GetValueOrDefault("Y", 0.0));
+                        var width = Convert.ToDouble(defectDict.GetValueOrDefault("Width", 0.0));
+                        var height = Convert.ToDouble(defectDict.GetValueOrDefault("Height", 0.0));
+                        var confidence = Convert.ToDouble(defectDict.GetValueOrDefault("Confidence", 0.0));
+                        var className = defectDict.GetValueOrDefault("ClassName", "unknown")?.ToString() ?? "unknown";
+
+                        var defect = new Defect(result.Id, DefectType.Other, x, y, width, height, confidence, className);
+                        result.AddDefect(defect);
+                    }
+                }
+            }
+
+            await _resultRepository.AddAsync(result);
+
+            _logger.LogInformation(
+                "[InspectionService] 检测完成: Status={Status}, Defects={DefectCount}, Time={TimeMs}ms",
+                status, result.Defects.Count, flowResult.ExecutionTimeMs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[InspectionService] 处理流程结果异常");
+            result.MarkAsError(ex.Message);
+            await _resultRepository.AddAsync(result);
+        }
+    }
+
+    /// <summary>
+    /// 从流程输出数据中判定检测状态
+    /// 【增强】支持多种判定来源
+    /// </summary>
+    private InspectionStatus DetermineStatusFromFlowOutput(Dictionary<string, object>? outputData)
+    {
+        if (outputData == null)
+            return InspectionStatus.OK;
+
+        // 1. 优先使用结果判定算子的输出
+        if (outputData.TryGetValue("JudgmentResult", out var judgmentResult) 
+            && judgmentResult is string judgment)
+        {
+            return judgment.Equals("OK", StringComparison.OrdinalIgnoreCase) 
+                ? InspectionStatus.OK 
+                : InspectionStatus.NG;
+        }
+
+        // 2. 其次使用IsOk字段
+        if (outputData.TryGetValue("IsOk", out var isOk) && isOk is bool isOkBool)
+        {
+            return isOkBool ? InspectionStatus.OK : InspectionStatus.NG;
+        }
+
+        // 3. 兼容旧逻辑：检查DefectCount
+        if (outputData.TryGetValue("DefectCount", out var dc) && dc is int defectCount)
+        {
+            return defectCount > 0 ? InspectionStatus.NG : InspectionStatus.OK;
+        }
+
+        // 默认OK
+        return InspectionStatus.OK;
     }
 
     public async Task<IEnumerable<InspectionResult>> GetInspectionHistoryAsync(

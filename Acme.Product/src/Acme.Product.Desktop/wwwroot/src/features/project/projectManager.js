@@ -311,6 +311,7 @@ export {
     projectManager, 
     getCurrentProject, 
     setCurrentProject,
+    subscribeProject,
     getProjectList,
     getRecentProjects
 };

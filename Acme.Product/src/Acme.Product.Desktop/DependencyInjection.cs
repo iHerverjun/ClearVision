@@ -95,6 +95,25 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, MitsubishiMcCommunicationOperator>();
         services.AddSingleton<IOperatorExecutor, OmronFinsCommunicationOperator>();
 
+        // 【第一优先级】结果判定算子
+        services.AddSingleton<IOperatorExecutor, ResultJudgmentOperator>();
+
+        // 【第三优先级】新增算子 - 预处理
+        services.AddSingleton<IOperatorExecutor, ClaheEnhancementOperator>();
+        services.AddSingleton<IOperatorExecutor, MorphologicalOperationOperator>();
+        services.AddSingleton<IOperatorExecutor, LaplacianSharpenOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageAddOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageSubtractOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageBlendOperator>();
+
+        // 【第三优先级】变量和流程控制
+        services.AddSingleton<IVariableContext, VariableContext>();
+        services.AddSingleton<IOperatorExecutor, VariableReadOperator>();
+        services.AddSingleton<IOperatorExecutor, VariableWriteOperator>();
+        services.AddSingleton<IOperatorExecutor, VariableIncrementOperator>();
+        services.AddSingleton<IOperatorExecutor, CycleCounterOperator>();
+        services.AddSingleton<IOperatorExecutor, TryCatchOperator>();
+
         // 孤立算子修复（原复用枚举，现分配独立枚举值 38-40）
         services.AddSingleton<IOperatorExecutor, ColorConversionOperator>();
         services.AddSingleton<IOperatorExecutor, AdaptiveThresholdOperator>();

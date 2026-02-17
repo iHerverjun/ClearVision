@@ -220,7 +220,86 @@ public enum OperatorType
     /// <summary>
     /// 欧姆龙FINS通信 - CP/CJ/NJ/NX系列
     /// </summary>
-    OmronFinsCommunication = 52
+    OmronFinsCommunication = 52,
+
+    /// <summary>
+    /// 结果判定算子 - 通用判定逻辑（数量/范围/阈值）
+    /// </summary>
+    ResultJudgment = 60,
+
+    // ==================== 【第三优先级】新增算子 ====================
+
+    /// <summary>
+    /// Modbus RTU通信 - 串口Modbus RTU协议
+    /// </summary>
+    ModbusRtuCommunication = 70,
+
+    /// <summary>
+    /// CLAHE自适应直方图均衡化
+    /// </summary>
+    ClaheEnhancement = 71,
+
+    /// <summary>
+    /// 形态学操作 - 腐蚀/膨胀/开运算/闭运算
+    /// </summary>
+    MorphologicalOperation = 72,
+
+    /// <summary>
+    /// 高斯滤波 - 平滑降噪
+    /// </summary>
+    GaussianBlur = 73,
+
+    /// <summary>
+    /// 拉普拉斯锐化 - 边缘增强
+    /// </summary>
+    LaplacianSharpen = 74,
+
+    /// <summary>
+    /// ONNX模型推理 - 通用深度学习模型
+    /// </summary>
+    OnnxInference = 75,
+
+    /// <summary>
+    /// 图像加法 - 图像叠加
+    /// </summary>
+    ImageAdd = 76,
+
+    /// <summary>
+    /// 图像减法 - 差异检测
+    /// </summary>
+    ImageSubtract = 77,
+
+    /// <summary>
+    /// 图像融合 - 加权混合
+    /// </summary>
+    ImageBlend = 78,
+
+    // ==================== 【第三优先级】变量和流程控制算子 ====================
+
+    /// <summary>
+    /// 变量读取 - 从全局变量表读取值
+    /// </summary>
+    VariableRead = 80,
+
+    /// <summary>
+    /// 变量写入 - 写入值到全局变量表
+    /// </summary>
+    VariableWrite = 81,
+
+    /// <summary>
+    /// 变量递增 - 计数器自增
+    /// </summary>
+    VariableIncrement = 82,
+
+    /// <summary>
+    /// 异常捕获 - Try-Catch 流程控制
+    /// </summary>
+    TryCatch = 83,
+
+    /// <summary>
+    /// 循环计数器 - 获取当前循环次数
+    /// </summary>
+    CycleCounter = 84
 }
 
 /// <summary>

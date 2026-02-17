@@ -187,6 +187,85 @@ public static class ApiEndpoints
             var statistics = await service.GetStatisticsAsync(projectId, startTime, endTime);
             return Results.Ok(statistics);
         });
+
+        // 【第二优先级】启动实时检测
+        app.MapPost("/api/inspection/realtime/start", async (
+            StartRealtimeInspectionRequest request,
+            Core.Services.IInspectionService service,
+            ProjectService projectService,
+            CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                // 根据运行模式选择启动方式
+                var runMode = request.RunMode?.ToLower() ?? "camera";
+                
+                if (runMode == "flow" && request.FlowData != null)
+                {
+                    // 流程驱动模式
+                    var flow = request.FlowData.ToEntity();
+                    if (flow == null)
+                    {
+                        return Results.BadRequest(new { Error = "无效的流程数据" });
+                    }
+                    
+                    await service.StartRealtimeInspectionFlowAsync(
+                        request.ProjectId, 
+                        flow, 
+                        request.CameraId, 
+                        cancellationToken);
+                    
+                    return Results.Ok(new { 
+                        Message = "实时检测已启动 (流程驱动模式)", 
+                        ProjectId = request.ProjectId,
+                        RunMode = "flow",
+                        CameraId = request.CameraId 
+                    });
+                }
+                else
+                {
+                    // 相机驱动模式
+                    await service.StartRealtimeInspectionAsync(
+                        request.ProjectId, 
+                        request.CameraId, 
+                        cancellationToken);
+                    
+                    return Results.Ok(new { 
+                        Message = "实时检测已启动 (相机驱动模式)", 
+                        ProjectId = request.ProjectId,
+                        RunMode = "camera",
+                        CameraId = request.CameraId 
+                    });
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { Error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // 【第二优先级】停止实时检测
+        app.MapPost("/api/inspection/realtime/stop", async (
+            StopRealtimeInspectionRequest request,
+            Core.Services.IInspectionService service) =>
+        {
+            try
+            {
+                await service.StopRealtimeInspectionAsync(request.ProjectId);
+                return Results.Ok(new { 
+                    Message = "实时检测已停止", 
+                    ProjectId = request.ProjectId 
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
     }
 
     private static void MapOperatorEndpoints(IEndpointRouteBuilder app)

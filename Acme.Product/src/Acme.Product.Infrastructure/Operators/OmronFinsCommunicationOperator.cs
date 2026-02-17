@@ -29,7 +29,9 @@ public class OmronFinsCommunicationOperator : PlcCommunicationOperatorBase
         var length = GetIntParam(@operator, "Length", 1, 1, 999);
         var dataType = GetStringParam(@operator, "DataType", "Word");
         var operation = GetStringParam(@operator, "Operation", "Read");
-        var writeValue = GetStringParam(@operator, "WriteValue", "");
+        
+        // 【增强】支持从上游输入动态获取写入值
+        var writeValue = ResolveWriteValue(@operator, inputs);
 
         // 构建连接键
         var connectionKey = $"FINS:{ipAddress}:{port}";
@@ -109,5 +111,36 @@ public class OmronFinsCommunicationOperator : PlcCommunicationOperatorBase
             return ValidationResult.Invalid("读取长度必须在 1-999 之间");
 
         return ValidationResult.Valid();
+    }
+
+    /// <summary>
+    /// 解析写入值：优先从上游输入获取，否则使用参数面板静态值
+    /// </summary>
+    private string ResolveWriteValue(Operator @operator, Dictionary<string, object>? inputs)
+    {
+        // 获取参数面板中的静态值（作为fallback）
+        var staticValue = GetStringParam(@operator, "WriteValue", "");
+
+        if (inputs == null || inputs.Count == 0)
+            return staticValue;
+
+        // 按优先级顺序尝试从inputs获取动态值
+        // 优先级：JudgmentValue > Value > Data > 静态值
+        var priorityKeys = new[] { "JudgmentValue", "Value", "Data" };
+
+        foreach (var key in priorityKeys)
+        {
+            if (inputs.TryGetValue(key, out var value) && value != null)
+            {
+                var stringValue = value.ToString() ?? "";
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    Logger.LogDebug("[OmronFINS] 从上游获取动态值: Key={Key}, Value={Value}", key, stringValue);
+                    return stringValue;
+                }
+            }
+        }
+
+        return staticValue;
     }
 }
