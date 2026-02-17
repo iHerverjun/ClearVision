@@ -61,6 +61,10 @@ class FlowCanvas {
         // 【修复】渲染暂停标志
         this._isPaused = false;
 
+        // 【修复】ResizeObserver
+        this._resizeObserver = null;
+
+
         // 选中的连接
         this.selectedConnection = null;
 
@@ -76,7 +80,25 @@ class FlowCanvas {
      */
     initialize() {
         this.resize();
-        window.addEventListener('resize', this._resizeHandler);
+        // 移除 window.resize，改用 ResizeObserver
+        // window.addEventListener('resize', this._resizeHandler);
+        
+        // 【修复】使用 ResizeObserver
+        if (window.ResizeObserver) {
+            this._resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    // 只有当尺寸确实变化且均大于0时才调整
+                    if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                        this.resize();
+                    }
+                }
+            });
+            this._resizeObserver.observe(this.canvas.parentElement);
+        } else {
+            // 降级方案
+            window.addEventListener('resize', this._resizeHandler);
+        }
+
 
         // 绑定事件
         this.canvas.addEventListener('mousedown', this._mouseDownHandler);
@@ -126,7 +148,13 @@ class FlowCanvas {
         }
 
         // 移除窗口事件监听
-        window.removeEventListener('resize', this._resizeHandler);
+        if (!this._resizeObserver) {
+            window.removeEventListener('resize', this._resizeHandler);
+        } else {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
+        }
+
         window.removeEventListener('keydown', this._keyDownHandler);
         
         // 【修复】移除页面可见性监听

@@ -143,6 +143,10 @@ export class TreeView {
         // 事件绑定
         content.onclick = (e) => {
             e.stopPropagation();
+            // 【修复】如果点击的是展开/收起按钮或分类节点，不触发选择
+            if (e.target.closest('.cv-treeview-toggle') || e.target.closest('.category-content-wrapper')) {
+                return;
+            }
             this.selectNode(node, !this.options.multiSelect || !e.ctrlKey);
         };
 

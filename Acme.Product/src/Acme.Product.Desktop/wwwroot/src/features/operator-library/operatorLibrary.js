@@ -180,20 +180,26 @@ export class OperatorLibraryPanel {
                         const toggleHandler = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            console.log('[OperatorLibrary] Toggle clicked, node.id:', node.id);
                             // 【修复】通过 id 查找正确的节点对象
                             const actualNode = this.treeView.findNode(node.id);
+                            console.log('[OperatorLibrary] Found node:', actualNode);
                             if (actualNode) {
                                 this.treeView.toggleNode(actualNode);
                             }
                             return false;
                         };
                         
-                        toggle.addEventListener('click', toggleHandler);
+                        if (toggle) {
+                            toggle.onclick = toggleHandler;
+                            console.log('[OperatorLibrary] Toggle onclick bound for:', node.id);
+                        }
                         
                         // 点击分类内容也可以展开/收起
                         if (wrapper) {
                             wrapper.style.cursor = 'pointer';
-                            wrapper.addEventListener('click', toggleHandler);
+                            wrapper.onclick = toggleHandler;
+                            console.log('[OperatorLibrary] Wrapper onclick bound for:', node.id);
                         }
                     }
                 }

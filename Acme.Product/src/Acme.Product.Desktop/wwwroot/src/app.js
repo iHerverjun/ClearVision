@@ -273,6 +273,12 @@ function switchView(view) {
     switch (view) {
         case 'flow':
             flowEditor?.classList.remove('hidden');
+            // 【关键修复】切换回流程视图时，强制触发 Resize 以确保画布尺寸正确
+            requestAnimationFrame(() => {
+                if (window.flowCanvas) {
+                    window.flowCanvas.resize();
+                }
+            });
             break;
         case 'inspection':
             inspectionViewContainer?.classList.remove('hidden');
