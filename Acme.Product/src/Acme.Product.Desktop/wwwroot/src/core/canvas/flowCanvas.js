@@ -1,9 +1,24 @@
 /**
- * 流程编辑器画布引擎
- * 负责算子节点的渲染、拖拽、连线
+ * 端口类型颜色映射表 (模块级常量，提高兼容性)
  */
+const PORT_TYPE_COLORS = {
+    'Image':     '#52c41a',  // 绿色 - 图像
+    'String':    '#1890ff',  // 蓝色 - 字符串
+    'Integer':   '#fa8c16',  // 橙色 - 整数
+    'Float':     '#fa8c16',  // 橙色 - 浮点
+    'Boolean':   '#f5222d',  // 红色 - 布尔值
+    'Point':     '#eb2f96',  // 粉色 - 坐标
+    'Rectangle': '#eb2f96',  // 粉色 - 矩形
+    'Contour':   '#722ed1',  // 紫色 - 轮廓/区域
+    'Any':       '#bfbfbf',  // 灰色 - 任意
+    // 兼容枚举数字值
+    0: '#52c41a', 
+    1: '#fa8c16', 2: '#fa8c16', 3: '#f5222d',
+    4: '#1890ff', 5: '#eb2f96', 6: '#eb2f96', 7: '#722ed1', 99: '#bfbfbf'
+};
 
 class FlowCanvas {
+
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
@@ -438,28 +453,51 @@ class FlowCanvas {
      */
     drawPorts(node, x, y, w, h) {
         const portRadius = 5 * this.scale;
-        const portY = y + h / 2;
         
-        // 输入端口
+        // 渲染输入端口 - 垂直均分
         node.inputs.forEach((input, index) => {
+            const portY = y + (h * (index + 1)) / (node.inputs.length + 1);
+            const color = PORT_TYPE_COLORS[input.type] || PORT_TYPE_COLORS['Any'];
+            
             this.ctx.beginPath();
             this.ctx.arc(x, portY, portRadius, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#52c41a';
+            this.ctx.fillStyle = color;
             this.ctx.fill();
             this.ctx.strokeStyle = '#ffffff';
             this.ctx.lineWidth = 1;
             this.ctx.stroke();
+
+            // 绘制类型名 (靠近端口的小标签)
+            if (this.scale > 0.8) {
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                this.ctx.font = `${8 * this.scale}px sans-serif`;
+                this.ctx.textAlign = 'left';
+                const typeName = typeof input.type === 'string' ? input.type : 'Any';
+                this.ctx.fillText(input.name || typeName, x + 8 * this.scale, portY + 3 * this.scale);
+            }
         });
         
-        // 输出端口
+        // 渲染输出端口 - 垂直均分
         node.outputs.forEach((output, index) => {
+            const portY = y + (h * (index + 1)) / (node.outputs.length + 1);
+            const color = PORT_TYPE_COLORS[output.type] || PORT_TYPE_COLORS['Any'];
+
             this.ctx.beginPath();
             this.ctx.arc(x + w, portY, portRadius, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#1890ff';
+            this.ctx.fillStyle = color;
             this.ctx.fill();
             this.ctx.strokeStyle = '#ffffff';
             this.ctx.lineWidth = 1;
             this.ctx.stroke();
+
+            // 绘制类型名
+            if (this.scale > 0.8) {
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                this.ctx.font = `${8 * this.scale}px sans-serif`;
+                this.ctx.textAlign = 'right';
+                const typeName = typeof output.type === 'string' ? output.type : 'Any';
+                this.ctx.fillText(output.name || typeName, x + w - 8 * this.scale, portY + 3 * this.scale);
+            }
         });
     }
 
@@ -478,7 +516,9 @@ class FlowCanvas {
         const y = (node.y - this.offset.y) * this.scale;
         const w = node.width * this.scale;
         const h = node.height * this.scale;
-        const portY = y + h / 2;
+
+        const portsCount = isOutput ? node.outputs.length : node.inputs.length;
+        const portY = y + (h * (portIndex + 1)) / (portsCount + 1);
 
         if (isOutput) {
             return { x: x + w, y: portY };
@@ -503,10 +543,10 @@ class FlowCanvas {
             const nodeScreenY = (node.y - this.offset.y) * this.scale;
             const w = node.width * this.scale;
             const h = node.height * this.scale;
-            const portY = nodeScreenY + h / 2;
 
-            // 检测输入端口
+            // 检测输入端口 (垂直分布)
             for (let i = 0; i < node.inputs.length; i++) {
+                const portY = nodeScreenY + (h * (i + 1)) / (node.inputs.length + 1);
                 const dx = screenX - nodeScreenX;
                 const dy = screenY - portY;
                 if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
@@ -514,8 +554,9 @@ class FlowCanvas {
                 }
             }
 
-            // 检测输出端口
+            // 检测输出端口 (垂直分布)
             for (let i = 0; i < node.outputs.length; i++) {
+                const portY = nodeScreenY + (h * (i + 1)) / (node.outputs.length + 1);
                 const dx = screenX - (nodeScreenX + w);
                 const dy = screenY - portY;
                 if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
@@ -525,6 +566,47 @@ class FlowCanvas {
         }
 
         return null;
+    }
+
+    /**
+     * 获取指定端口上的连接
+     * @param {string} nodeId - 节点ID
+     * @param {number} portIndex - 端口索引
+     * @param {boolean} isOutput - 是否是输出端口
+     * @returns {Object|null} 连接对象或null
+     */
+    getConnectionAtPort(nodeId, portIndex, isOutput) {
+        if (isOutput) {
+            // 输出端口可能有多个连接，返回第一个
+            return this.connections.find(conn => 
+                conn.source === nodeId && conn.sourcePort === portIndex
+            ) || null;
+        } else {
+            // 输入端口只能有一个连接
+            return this.connections.find(conn => 
+                conn.target === nodeId && conn.targetPort === portIndex
+            ) || null;
+        }
+    }
+
+    /**
+     * 获取指定端口上的所有连接（用于输出端口）
+     * @param {string} nodeId - 节点ID
+     * @param {number} portIndex - 端口索引
+     * @param {boolean} isOutput - 是否是输出端口
+     * @returns {Array} 连接对象数组
+     */
+    getConnectionsAtPort(nodeId, portIndex, isOutput) {
+        if (isOutput) {
+            return this.connections.filter(conn => 
+                conn.source === nodeId && conn.sourcePort === portIndex
+            );
+        } else {
+            const conn = this.connections.find(conn => 
+                conn.target === nodeId && conn.targetPort === portIndex
+            );
+            return conn ? [conn] : [];
+        }
     }
 
     /**
@@ -547,7 +629,26 @@ class FlowCanvas {
     finishConnection(nodeId, portIndex) {
         if (!this.isConnecting || !this.connectingFrom) return;
 
-        // 验证连接有效性
+        // 检查类型兼容性
+        const sourceNode = this.nodes.get(this.connectingFrom.nodeId);
+        const targetNode = this.nodes.get(nodeId);
+        
+        if (!sourceNode || !targetNode || !sourceNode.outputs[this.connectingFrom.portIndex]) {
+            this.cancelConnection();
+            return;
+        }
+
+        const sourcePort = sourceNode.outputs[this.connectingFrom.portIndex];
+        const targetPort = targetNode.inputs[portIndex];
+
+        if (!this.checkTypeCompatibility(sourcePort.type, targetPort.type)) {
+            console.warn(`[FlowCanvas] 类型不匹配: ${sourcePort.type} -> ${targetPort.type}`);
+            if (window.showToast) window.showToast(`类型不匹配: ${sourcePort.type} -> ${targetPort.type}`, 'warning');
+            this.cancelConnection();
+            return;
+        }
+
+        // 检查连接有效性
         if (this.connectingFrom.nodeId === nodeId) {
             console.warn('[FlowCanvas] 不能连接到自己');
             this.cancelConnection();
@@ -605,6 +706,67 @@ class FlowCanvas {
         this.isConnecting = false;
         this.connectingFrom = null;
         this.canvas.style.cursor = 'default';
+        this.render(); // 刷新以清除高亮
+    }
+
+    /**
+     * 检查类型兼容性
+     */
+    checkTypeCompatibility(sourceType, targetType) {
+        // 枚举转换映射 (兼容数字和字符串)
+        const normalize = (t) => {
+            if (t === 'Any' || t === 99) return 'Any';
+            if (t === 'Image' || t === 0) return 'Image';
+            if (t === 'Integer' || t === 1 || t === 'Float' || t === 2) return 'Number';
+            if (t === 'Boolean' || t === 3) return 'Boolean';
+            if (t === 'String' || t === 4) return 'String';
+            if (t === 'Point' || t === 5 || t === 'Rectangle' || t === 6) return 'Geometry';
+            if (t === 'Contour' || t === 7) return 'Contour';
+            return t;
+        };
+
+        const s = normalize(sourceType);
+        const t = normalize(targetType);
+
+        if (s === 'Any' || t === 'Any') return true;
+        return s === t;
+    }
+
+    /**
+     * 连线时高亮兼容的端口
+     */
+    highlightCompatiblePorts() {
+        if (!this.isConnecting || !this.connectingFrom) return;
+        
+        const sourceNode = this.nodes.get(this.connectingFrom.nodeId);
+        if (!sourceNode) return;
+        
+        const sourcePort = this.connectingFrom.isOutput ? 
+            sourceNode.outputs[this.connectingFrom.portIndex] : 
+            sourceNode.inputs[this.connectingFrom.portIndex];
+        
+        if (!sourcePort) return;
+
+        for (const [nodeId, node] of this.nodes) {
+            if (nodeId === this.connectingFrom.nodeId) continue;
+
+            const targetPorts = this.connectingFrom.isOutput ? node.inputs : node.outputs;
+            targetPorts.forEach((port, index) => {
+                if (this.checkTypeCompatibility(sourcePort.type, port.type)) {
+                    const pos = this.getPortPosition(nodeId, index, !this.connectingFrom.isOutput);
+                    if (pos) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(pos.x, pos.y, 10 * this.scale, 0, Math.PI * 2);
+                        this.ctx.fillStyle = 'rgba(82, 196, 26, 0.2)';
+                        this.ctx.fill();
+                        this.ctx.strokeStyle = '#52c41a';
+                        this.ctx.setLineDash([2, 2]);
+                        this.ctx.stroke();
+                        this.ctx.setLineDash([]);
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -625,10 +787,13 @@ class FlowCanvas {
         const startPos = this.getPortPosition(
             this.connectingFrom.nodeId,
             this.connectingFrom.portIndex,
-            true
+            this.connectingFrom.isOutput
         );
 
         if (!startPos) return;
+
+        // 【新增】连线时高亮兼容端口
+        this.highlightCompatiblePorts();
 
         const endX = (this.mousePosition.x - this.offset.x) * this.scale;
         const endY = (this.mousePosition.y - this.offset.y) * this.scale;
@@ -638,13 +803,11 @@ class FlowCanvas {
         this.ctx.moveTo(startPos.x, startPos.y);
 
         const controlPoint1X = startPos.x + (endX - startPos.x) / 2;
-        const controlPoint1Y = startPos.y;
         const controlPoint2X = startPos.x + (endX - startPos.x) / 2;
-        const controlPoint2Y = endY;
 
         this.ctx.bezierCurveTo(
-            controlPoint1X, controlPoint1Y,
-            controlPoint2X, controlPoint2Y,
+            controlPoint1X, startPos.y,
+            controlPoint2X, endY,
             endX, endY
         );
 
@@ -664,23 +827,22 @@ class FlowCanvas {
         
         if (!sourceNode || !targetNode) return;
         
-        const startX = (sourceNode.x + sourceNode.width - this.offset.x) * this.scale;
-        const startY = (sourceNode.y + sourceNode.height / 2 - this.offset.y) * this.scale;
-        const endX = (targetNode.x - this.offset.x) * this.scale;
-        const endY = (targetNode.y + targetNode.height / 2 - this.offset.y) * this.scale;
+        // 【修正】使用 getPortPosition 以支持垂直分布
+        const start = this.getPortPosition(connection.source, connection.sourcePort, true);
+        const end = this.getPortPosition(connection.target, connection.targetPort, false);
         
-        const controlPoint1X = startX + (endX - startX) / 2;
-        const controlPoint1Y = startY;
-        const controlPoint2X = startX + (endX - startX) / 2;
-        const controlPoint2Y = endY;
+        if (!start || !end) return;
+
+        const controlPoint1X = start.x + (end.x - start.x) / 2;
+        const controlPoint2X = start.x + (end.x - start.x) / 2;
         
         // 绘制贝塞尔曲线基础线
         this.ctx.beginPath();
-        this.ctx.moveTo(startX, startY);
+        this.ctx.moveTo(start.x, start.y);
         this.ctx.bezierCurveTo(
-            controlPoint1X, controlPoint1Y,
-            controlPoint2X, controlPoint2Y,
-            endX, endY
+            controlPoint1X, start.y,
+            controlPoint2X, end.y,
+            end.x, end.y
         );
         
         // 根据连接状态设置样式
@@ -704,8 +866,8 @@ class FlowCanvas {
         
         // 绘制数据流动粒子动画
         if (connection.status === 'active' || connection.status === 'flowing') {
-            this.drawFlowParticles(startX, startY, controlPoint1X, controlPoint1Y, 
-                                   controlPoint2X, controlPoint2Y, endX, endY, connection);
+            this.drawFlowParticles(start.x, start.y, controlPoint1X, start.y, 
+                                   controlPoint2X, end.y, end.x, end.y, connection);
         }
     }
     
@@ -811,6 +973,29 @@ class FlowCanvas {
     }
 
     /**
+     * 规范化端口类型，确保其符合后端枚举名称 (PascalCase)
+     */
+    normalizePortType(type) {
+        if (!type) return 'Any';
+        // 如果后端传过来的是枚举数字，则保持不变，后端 JsonStringEnumConverter 可以解析
+        if (typeof type === 'number') return type;
+        
+        const map = {
+            'any': 'Any',
+            'image': 'Image',
+            'string': 'String',
+            'integer': 'Integer',
+            'float': 'Float',
+            'boolean': 'Boolean',
+            'point': 'Point',
+            'rectangle': 'Rectangle',
+            'contour': 'Contour'
+        };
+        
+        return map[type.toLowerCase()] || type;
+    }
+
+    /**
      * 序列化流程数据 - 适配后端 DTO (camelCase)
      * 后端 Program.cs 配置 JsonNamingPolicy.CamelCase，所以必须使用小驼峰
      */
@@ -844,18 +1029,22 @@ class FlowCanvas {
             inputPorts: (node.inputs || []).map(p => ({
                 id: p.id || p.Id || this.generateUUID(), // 【修复】同时检查大小写
                 name: p.name,
-                dataType: p.type || 0, // PortDataType enum
+                dataType: this.normalizePortType(p.type), // PortDataType enum
                 direction: 0, // Input
                 isRequired: false
             })),
             outputPorts: (node.outputs || []).map(p => ({
                 id: p.id || p.Id || this.generateUUID(), // 【修复】同时检查大小写
                 name: p.name,
-                dataType: p.type || 0,
+                dataType: this.normalizePortType(p.type),
                 direction: 1, // Output
                 isRequired: false
             })),
-            parameters: node.parameters || [],
+            parameters: (node.parameters || []).map(p => ({
+                name: p.name,
+                value: p.value !== undefined ? p.value : p.defaultValue,
+                dataType: p.dataType || p.type
+            })),
             isEnabled: true
         }));
 
@@ -951,15 +1140,21 @@ class FlowCanvas {
      * 反序列化流程数据
      */
     deserialize(data) {
+        if (!data) return;
         this.clear();
 
-        // Handle both lowercase (frontend) and uppercase (backend) keys for lists
-        const operators = data.operators || data.Operators || data.nodes || [];
-        const connections = data.connections || data.Connections || [];
+        // 支持多种嵌套结构 (后端 DTO 可能包装在 project.flow 中)
+        const flowData = data.project?.flow || data.flow || data;
+        
+        // 处理列表属性 (驼峰/帕斯卡/旧版 nodes 键)
+        const operators = flowData.operators || flowData.Operators || flowData.nodes || [];
+        const connections = flowData.connections || flowData.Connections || [];
+
+        console.log('[FlowCanvas] 开始反序列化. 算子数:', operators.length, '连接数:', connections.length);
 
         if (operators) {
             operators.forEach(op => {
-                // Adapt backend DTO (PascalCase) or frontend (camelCase) to frontend node
+                // 适配后端 DTO (PascalCase) 或前端 (camelCase)
                 const id = op.id || op.Id;
                 const type = op.type || op.Type;
                 const title = op.name || op.Name || op.title || type;
@@ -1328,14 +1523,24 @@ class FlowCanvas {
      * 处理键盘事件
      */
     handleKeyDown(e) {
-        // Delete 键删除选中的节点或连接线
+        // 如果焦点在输入框、文本区域或可编辑元素中，不拦截快捷键
+        if (e.target.tagName === 'INPUT' || 
+            e.target.tagName === 'TEXTAREA' || 
+            e.target.tagName === 'SELECT' || 
+            e.target.isContentEditable) {
+            return;
+        }
+
+        // Delete 键或 Backspace 键删除选中的节点或连接线
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (this.selectedNode) {
                 if (confirm('确定要删除选中的节点吗？')) {
                     this.removeNode(this.selectedNode);
                 }
             } else if (this.selectedConnection) {
-                this.removeConnection(this.selectedConnection.id);
+                if (confirm('确定要删除选中的连接线吗？')) {
+                    this.removeConnection(this.selectedConnection.id);
+                }
             }
         }
 
@@ -1489,6 +1694,19 @@ class FlowCanvas {
             this.contextMenu = null;
         }
         document.removeEventListener('click', this._clickOutsideHandler);
+    }
+
+    /**
+     * 清空画布
+     */
+    clear() {
+        this.nodes.clear();
+        this.connections = [];
+        this.selectedNode = null;
+        this.draggedNode = null;
+        this.selectedConnection = null;
+        this.render();
+        console.log('[FlowCanvas] 画布已清空');
     }
 
     /**
