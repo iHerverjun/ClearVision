@@ -188,8 +188,15 @@ export class OperatorLibraryPanel {
                             console.log('[OperatorLibrary] Found node:', actualNode);
                             
                             if (actualNode) {
+                                // 【关键修复】切换展开状态时，同时更新 node.expanded 属性
+                                // 因为 TreeView 的 isExpanded 检查是：expandedNodes.has(node.id) || node.expanded
+                                // 如果 node.expanded 始终为 true，节点就会始终显示为展开
+                                const isCurrentlyExpanded = this.treeView.expandedNodes.has(node.id) || actualNode.expanded;
+                                actualNode.expanded = !isCurrentlyExpanded;
+                                
                                 this.treeView.toggleNode(actualNode);
                                 console.log('[OperatorLibrary] After toggle, expandedNodes:', Array.from(this.treeView.expandedNodes));
+                                console.log('[OperatorLibrary] Node expanded property:', actualNode.expanded);
                             }
                             return false;
                         };
