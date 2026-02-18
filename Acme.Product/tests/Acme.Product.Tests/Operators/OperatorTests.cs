@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
@@ -20,7 +21,9 @@ public class ImageAcquisitionOperatorTests
 
     public ImageAcquisitionOperatorTests()
     {
-        _operator = new ImageAcquisitionOperator(Substitute.For<ILogger<ImageAcquisitionOperator>>());
+        _operator = new ImageAcquisitionOperator(
+            Substitute.For<ILogger<ImageAcquisitionOperator>>(),
+            Substitute.For<ICameraManager>());
     }
 
     [Fact]
@@ -118,8 +121,8 @@ public class GaussianBlurOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "KernelSize", "核大小", "", "int", 5, 1, 31, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "KernelSize", "核大小", "int", 5, 1, 31, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -133,8 +136,8 @@ public class GaussianBlurOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "KernelSize", "核大小", "", "int", 50, 1, 31, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "KernelSize", "核大小", "int", 50, 1, 31, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -174,10 +177,10 @@ public class CannyEdgeOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "Threshold1", "低阈值", "", "double", 50.0, 0.0, 255.0, true));
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "Threshold2", "高阈值", "", "double", 150.0, 0.0, 255.0, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "Threshold1", "低阈值", "double", 50.0, 0.0, 255.0, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "Threshold2", "高阈值", "double", 150.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -191,8 +194,8 @@ public class CannyEdgeOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "Threshold1", "低阈值", "", "double", 300.0, 0.0, 255.0, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "Threshold1", "低阈值", "double", 300.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -232,8 +235,8 @@ public class ThresholdOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "Threshold", "阈值", "", "double", 127.0, 0.0, 255.0, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "Threshold", "阈值", "double", 127.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -247,8 +250,8 @@ public class ThresholdOperatorTests
     {
         // Arrange
         var op = CreateTestOperator();
-        op.AddParameter(new Core.ValueObjects.Parameter(
-            Guid.NewGuid(), "Threshold", "阈值", "", "double", -10.0, 0.0, 255.0, true));
+        op.AddParameter(TestHelpers.CreateParameter(
+            "Threshold", "阈值", "double", -10.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);

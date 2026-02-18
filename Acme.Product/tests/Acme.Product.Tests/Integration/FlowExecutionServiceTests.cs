@@ -2,6 +2,7 @@
 // FlowExecutionService 集成测试
 // 作者：蘅芜君
 
+using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -27,11 +28,13 @@ public class FlowExecutionServiceIntegrationTests
     public FlowExecutionServiceIntegrationTests()
     {
         _logger = Substitute.For<ILogger<FlowExecutionService>>();
-        
+
         // 创建所有算子执行器
         var executors = new List<IOperatorExecutor>
         {
-            new ImageAcquisitionOperator(Substitute.For<ILogger<ImageAcquisitionOperator>>()),
+            new ImageAcquisitionOperator(
+                Substitute.For<ILogger<ImageAcquisitionOperator>>(),
+                Substitute.For<ICameraManager>()),
             new GaussianBlurOperator(Substitute.For<ILogger<GaussianBlurOperator>>()),
             new CannyEdgeOperator(Substitute.For<ILogger<CannyEdgeOperator>>()),
             new ThresholdOperator(Substitute.For<ILogger<ThresholdOperator>>()),
@@ -40,7 +43,10 @@ public class FlowExecutionServiceIntegrationTests
             new FindContoursOperator(Substitute.For<ILogger<FindContoursOperator>>())
         };
 
-        _flowExecutionService = new FlowExecutionService(executors, _logger);
+        _flowExecutionService = new FlowExecutionService(
+            executors,
+            _logger,
+            Substitute.For<IVariableContext>());
     }
 
     #region 3算子顺序执行测试
@@ -71,7 +77,7 @@ public class FlowExecutionServiceIntegrationTests
         result.OperatorResults.Should().HaveCount(3);
         result.OperatorResults.All(r => r.IsSuccess).Should().BeTrue();
         result.ExecutionTimeMs.Should().BeGreaterOrEqualTo(0);
-        
+
         // 验证每个算子都执行了
         result.OperatorResults[0].OperatorName.Should().Be("图像采集");
         result.OperatorResults[1].OperatorName.Should().Be("高斯模糊");
@@ -102,7 +108,7 @@ public class FlowExecutionServiceIntegrationTests
             Assert.Fail($"流程执行失败: {result.ErrorMessage}\n算子错误:\n{errorDetails}");
         }
         result.IsSuccess.Should().BeTrue();
-        
+
         // 最后一个算子应该有输出
         var lastResult = result.OperatorResults.Last();
         lastResult.OutputData.Should().NotBeNull();
@@ -159,7 +165,7 @@ public class FlowExecutionServiceIntegrationTests
             Assert.Fail($"流程执行失败: {result.ErrorMessage}\n算子错误:\n{errorDetails}");
         }
         var executionOrder = result.OperatorResults.Select(r => r.OperatorName).ToList();
-        
+
         executionOrder[0].Should().Be("图像采集");
         executionOrder[1].Should().Be("高斯模糊");
         executionOrder[2].Should().Be("阈值二值化");
@@ -194,11 +200,11 @@ public class FlowExecutionServiceIntegrationTests
         var flow = new OperatorFlow();
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
-        
+
         // 添加无效的核大小参数（超过最大值31）
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", 50, 1, 31, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
@@ -260,10 +266,10 @@ public class FlowExecutionServiceIntegrationTests
         var flow = new OperatorFlow();
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
-        
+
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", kernelSize, 1, 31, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
@@ -288,10 +294,10 @@ public class FlowExecutionServiceIntegrationTests
         var flow = new OperatorFlow();
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
-        
+
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", kernelSize, 1, 31, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
@@ -314,12 +320,12 @@ public class FlowExecutionServiceIntegrationTests
         var flow = new OperatorFlow();
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var cannyOp = CreateOperatorWithPorts("边缘检测", OperatorType.EdgeDetection, 100, 100);
-        
+
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold1", "低阈值", "", "double", threshold1, 0.0, 255.0, true));
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold2", "高阈值", "", "double", threshold2, 0.0, 255.0, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(cannyOp);
         flow.AddConnection(CreateConnection(acquisitionOp, cannyOp));
@@ -344,12 +350,12 @@ public class FlowExecutionServiceIntegrationTests
         var flow = new OperatorFlow();
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var cannyOp = CreateOperatorWithPorts("边缘检测", OperatorType.EdgeDetection, 100, 100);
-        
+
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold1", "低阈值", "", "double", threshold1, 0.0, 255.0, true));
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold2", "高阈值", "", "double", threshold2, 0.0, 255.0, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(cannyOp);
         flow.AddConnection(CreateConnection(acquisitionOp, cannyOp));
@@ -375,12 +381,12 @@ public class FlowExecutionServiceIntegrationTests
 
         // Act
         var executionTask = _flowExecutionService.ExecuteFlowAsync(flow, inputData);
-        
+
         // 在执行过程中检查状态
         var status = _flowExecutionService.GetExecutionStatus(flow.Id);
-        
+
         await executionTask;
-        
+
         var finalStatus = _flowExecutionService.GetExecutionStatus(flow.Id);
 
         // Assert
@@ -406,7 +412,7 @@ public class FlowExecutionServiceIntegrationTests
         {
             opResult.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(0);
         }
-        
+
         // 总执行时间应该大于等于各算子执行时间之和
         var totalOperatorTime = result.OperatorResults.Sum(r => r.ExecutionTimeMs);
         result.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(totalOperatorTime);
@@ -419,55 +425,55 @@ public class FlowExecutionServiceIntegrationTests
     private static (OperatorFlow flow, Operator acquisitionOp, Operator blurOp, Operator cannyOp) Create3OperatorLinearFlow()
     {
         var flow = new OperatorFlow();
-        
+
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
         var cannyOp = CreateOperatorWithPorts("边缘检测", OperatorType.EdgeDetection, 200, 100);
-        
+
         // 配置高斯模糊参数
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", 5, 1, 31, true));
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "SigmaX", "Sigma X", "", "double", 1.0, 0.1, 10.0, true));
-        
+
         // 配置Canny参数
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold1", "低阈值", "", "double", 50.0, 0.0, 255.0, true));
         cannyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold2", "高阈值", "", "double", 150.0, 0.0, 255.0, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddOperator(cannyOp);
-        
+
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
         flow.AddConnection(CreateConnection(blurOp, cannyOp));
-        
+
         return (flow, acquisitionOp, blurOp, cannyOp);
     }
 
     private static OperatorFlow Create5OperatorComplexFlow()
     {
         var flow = new OperatorFlow();
-        
+
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
         var thresholdOp = CreateOperatorWithPorts("阈值二值化", OperatorType.Thresholding, 200, 100);
         var morphologyOp = CreateOperatorWithPorts("形态学操作", OperatorType.Morphology, 300, 100);
-        var contoursOp = CreateOperatorWithPorts("轮廓查找", OperatorType.BlobAnalysis, 400, 100);
-        
+        var contoursOp = CreateOperatorWithPorts("轮廓查找", OperatorType.ContourDetection, 400, 100);
+
         // 配置参数
         blurOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", 5, 1, 31, true));
-        
+
         thresholdOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Threshold", "阈值", "", "double", 127.0, 0.0, 255.0, true));
-        
+
         morphologyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "Operation", "操作类型", "", "string", "Close", null, null, true));
         morphologyOp.AddParameter(new Parameter(
             Guid.NewGuid(), "KernelSize", "核大小", "", "int", 3, 1, 21, true));
-        
+
         // 配置Blob检测参数 - 使用正值避免OpenCV验证错误
         contoursOp.AddParameter(new Parameter(
             Guid.NewGuid(), "MinArea", "最小面积", "", "int", 100, 1, 1000000, true));
@@ -475,34 +481,34 @@ public class FlowExecutionServiceIntegrationTests
             Guid.NewGuid(), "MaxArea", "最大面积", "", "int", 100000, 1, 10000000, true));
         contoursOp.AddParameter(new Parameter(
             Guid.NewGuid(), "MinCircularity", "最小圆度", "", "double", 0.1, 0.0, 1.0, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddOperator(thresholdOp);
         flow.AddOperator(morphologyOp);
         flow.AddOperator(contoursOp);
-        
+
         // 连接流程
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
         flow.AddConnection(CreateConnection(blurOp, thresholdOp));
         flow.AddConnection(CreateConnection(thresholdOp, morphologyOp));
         flow.AddConnection(CreateConnection(morphologyOp, contoursOp));
-        
+
         return flow;
     }
 
     private static Operator CreateOperatorWithPorts(string name, OperatorType type, int x, int y)
     {
         var op = new Operator(name, type, x, y);
-        
+
         // 添加默认端口
         if (type != OperatorType.ImageAcquisition)
         {
             op.AddInputPort("Input", PortDataType.Image, true);
         }
-        
+
         op.AddOutputPort("Output", PortDataType.Image);
-        
+
         return op;
     }
 
@@ -510,13 +516,13 @@ public class FlowExecutionServiceIntegrationTests
     {
         var sourcePort = source.OutputPorts.First();
         Port? targetPort = target.InputPorts.FirstOrDefault();
-        
+
         if (targetPort == null)
         {
             target.AddInputPort("Input", PortDataType.Image, true);
             targetPort = target.InputPorts.First();
         }
-        
+
         return new OperatorConnection(
             source.Id,
             sourcePort.Id,
@@ -540,22 +546,22 @@ public class FlowExecutionServiceIntegrationTests
     {
         // Arrange - 创建可以并行执行的流程
         var flow = new OperatorFlow();
-        
+
         var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
         var blurOp = CreateOperatorWithPorts("高斯模糊", OperatorType.Filtering, 100, 100);
         var thresholdOp = CreateOperatorWithPorts("阈值二值化", OperatorType.Thresholding, 100, 200);
-        
+
         blurOp.AddParameter(new Parameter(Guid.NewGuid(), "KernelSize", "核大小", "", "int", 5, 1, 31, true));
         thresholdOp.AddParameter(new Parameter(Guid.NewGuid(), "Threshold", "阈值", "", "double", 127.0, 0.0, 255.0, true));
-        
+
         flow.AddOperator(acquisitionOp);
         flow.AddOperator(blurOp);
         flow.AddOperator(thresholdOp);
-        
+
         // 从采集分叉到两个并行算子
         flow.AddConnection(CreateConnection(acquisitionOp, blurOp));
         flow.AddConnection(CreateConnection(acquisitionOp, thresholdOp));
-        
+
         var testImage = CreateTestImageBytes();
         var inputData = new Dictionary<string, object> { { "Image", testImage } };
 
@@ -579,26 +585,26 @@ public class FlowExecutionServiceIntegrationTests
     {
         // Arrange - 创建算子 A, B, C
         var flow = new OperatorFlow();
-        
+
         var opA = CreateOperatorWithPorts("算子A", OperatorType.Filtering, 0, 0);
         var opB = CreateOperatorWithPorts("算子B", OperatorType.Filtering, 100, 0);
         var opC = CreateOperatorWithPorts("算子C", OperatorType.Filtering, 200, 0);
-        
+
         flow.AddOperator(opA);
         flow.AddOperator(opB);
         flow.AddOperator(opC);
-        
+
         // Act & Assert - 添加前两个正常连接
         flow.AddConnection(CreateConnection(opA, opB));
         flow.AddConnection(CreateConnection(opB, opC));
-        
+
         // 尝试添加循环连接 C → A 应该抛出异常
         var cyclicConnection = CreateConnection(opC, opA);
         var exception = Assert.Throws<InvalidOperationException>(() =>
         {
             flow.AddConnection(cyclicConnection);
         });
-        
+
         exception.Message.Should().Contain("循环依赖");
     }
 
@@ -607,7 +613,7 @@ public class FlowExecutionServiceIntegrationTests
     {
         // Arrange
         var tasks = new List<Task<FlowExecutionResult>>();
-        
+
         // Act - 同时启动10个流程执行
         for (int i = 0; i < 10; i++)
         {
@@ -616,7 +622,7 @@ public class FlowExecutionServiceIntegrationTests
             var inputData = new Dictionary<string, object> { { "Image", testImage } };
             tasks.Add(_flowExecutionService.ExecuteFlowAsync(flow, inputData));
         }
-        
+
         var results = await Task.WhenAll(tasks);
 
         // Assert - 所有流程都应该成功完成
@@ -634,14 +640,14 @@ public class FlowExecutionServiceIntegrationTests
         var flow = Create5OperatorComplexFlow();
         var testImage = CreateTestImageBytes();
         var inputData = new Dictionary<string, object> { { "Image", testImage } };
-        
+
         // Act - 启动流程
         var executionTask = _flowExecutionService.ExecuteFlowAsync(flow, inputData);
-        
+
         // 取消功能待实现 - 需要添加CancelExecutionAsync方法到IFlowExecutionService接口
         // 实现后取消下面这行的注释:
         // await _flowExecutionService.CancelExecutionAsync(flow.Id);
-        
+
         // Assert - 暂时只验证流程能正常完成
         var result = await executionTask;
         result.Should().NotBeNull();

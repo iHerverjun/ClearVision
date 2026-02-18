@@ -53,7 +53,7 @@ public class DemoProjectServiceIntegrationTests
         operators[3].Name.Should().Be("二值化");
         operators[3].Type.Should().Be(OperatorType.Thresholding);
         operators[4].Name.Should().Be("轮廓查找");
-        operators[4].Type.Should().Be(OperatorType.Measurement);
+        operators[4].Type.Should().Be(OperatorType.ContourDetection);
         operators[5].Name.Should().Be("结果输出");
         operators[5].Type.Should().Be(OperatorType.ResultOutput);
 
@@ -119,7 +119,7 @@ public class DemoProjectServiceIntegrationTests
         guide.Should().NotBeNull();
         guide.Title.Should().Be("ClearVision 演示指南");
         guide.Description.Should().Contain("PCB缺陷检测");
-        
+
         // 验证步骤
         guide.Steps.Should().HaveCount(4);
         guide.Steps[0].Step.Should().Be(1);

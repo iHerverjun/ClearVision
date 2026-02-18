@@ -2,6 +2,7 @@
 // 将 ImageWrapper 放入 inputs 字典
 // 作者：蘅芜君
 
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using OpenCvSharp;
 
@@ -9,6 +10,18 @@ namespace Acme.Product.Tests.Operators;
 
 public static class TestHelpers
 {
+    /// <summary>
+    /// 创建测试用的算子参数
+    /// </summary>
+    public static Parameter CreateParameter(string name, object value, string dataType = "String")
+    {
+        return new Parameter(Guid.NewGuid(), name, name, "", dataType, value);
+    }
+
+    public static Parameter CreateParameter(string name, string displayName, string dataType, object defaultValue, object minValue, object maxValue, bool isRequired = true)
+    {
+        return new Parameter(Guid.NewGuid(), name, displayName, "", dataType, defaultValue, minValue, maxValue, isRequired);
+    }
     /// <summary>
     /// 创建一个纯色测试图像的 ImageWrapper
     /// </summary>

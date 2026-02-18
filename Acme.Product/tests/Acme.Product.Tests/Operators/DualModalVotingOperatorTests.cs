@@ -130,14 +130,10 @@ public class DualModalVotingOperatorTests
     public async Task Execute_WithUnanimousStrategy_BothMustBeOk()
     {
         // Arrange
-        _operatorEntity.AddParameter(new Parameter(
-            Guid.NewGuid(),
+        _operatorEntity.AddParameter(TestHelpers.CreateParameter(
             "VotingStrategy",
-            "Voting Strategy",
-            "",
-            "String",
-            "Unanimous"
-        ));
+            "Unanimous",
+            "string"));
 
         var dlResult = DetectionResult.Success(true, 0.9);
         var traditionalResult = DetectionResult.Success(false, 0.4);

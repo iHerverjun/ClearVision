@@ -29,7 +29,7 @@ public class DemoProjectService
     {
         // 创建工程
         var project = new Project("PCB缺陷检测演示", "用于演示工业视觉检测的示例工程");
-        
+
         // 添加全局设置
         project.SetGlobalSetting("InspectionMode", "Single");
         project.SetGlobalSetting("SaveResults", "true");
@@ -37,7 +37,7 @@ public class DemoProjectService
 
         // 获取流程并设置名称
         var flow = project.Flow;
-        
+
         // 1. 图像采集算子
         var acquisitionOp = new Core.Entities.Operator(
             "图像采集",
@@ -122,7 +122,7 @@ public class DemoProjectService
         // 5. 轮廓查找算子
         var contourOp = new Core.Entities.Operator(
             "轮廓查找",
-            Core.Enums.OperatorType.Measurement,
+            Core.Enums.OperatorType.ContourDetection,
             900, 100);
         contourOp.AddInputPort("input", PortDataType.Image, true);
         contourOp.AddOutputPort("contours", PortDataType.Contour);
@@ -179,7 +179,7 @@ public class DemoProjectService
         var project = new Project("简单检测演示", "最简化的检测流程示例");
 
         var flow = project.Flow;
-        
+
         // 图像采集
         var acquisitionOp = new Core.Entities.Operator(
             "图像采集",

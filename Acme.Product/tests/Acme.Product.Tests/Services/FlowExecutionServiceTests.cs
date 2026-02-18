@@ -25,6 +25,7 @@ public class FlowExecutionServiceTests
     private readonly FlowExecutionService _sut;
     private readonly IOperatorExecutor _executor;
     private readonly ILogger<FlowExecutionService> _logger;
+    private readonly IVariableContext _variableContext;
 
     public FlowExecutionServiceTests()
     {
@@ -33,9 +34,10 @@ public class FlowExecutionServiceTests
         _executor.OperatorType.Returns(OperatorType.Thresholding);
 
         _logger = Substitute.For<ILogger<FlowExecutionService>>();
+        _variableContext = Substitute.For<IVariableContext>();
 
         var executors = new List<IOperatorExecutor> { _executor };
-        _sut = new FlowExecutionService(executors, _logger);
+        _sut = new FlowExecutionService(executors, _logger, _variableContext);
     }
 
     [Fact]
