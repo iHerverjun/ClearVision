@@ -1,3 +1,7 @@
+// UpdateFlowCommand.cs
+// UpdateFlow命令
+// 作者：蘅芜君
+
 using MediatR;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;

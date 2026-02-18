@@ -1,3 +1,7 @@
+// ImageWrapper.cs
+// 隐式转换：ImageWrapper -> byte[]
+// 作者：蘅芜君
+
 using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Operators;

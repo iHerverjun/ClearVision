@@ -1,3 +1,7 @@
+// TcpCommunicationOperator.cs
+// 客户端模式执行（带连接池）
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

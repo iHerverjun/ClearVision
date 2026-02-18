@@ -1,3 +1,7 @@
+// WebMessage.cs
+// 响应时间戳。
+// 作者：蘅芜君
+
 namespace Acme.Product.Contracts.Messages;
 
 /// <summary>

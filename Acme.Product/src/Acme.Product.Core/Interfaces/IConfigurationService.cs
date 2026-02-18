@@ -1,3 +1,7 @@
+// IConfigurationService.cs
+// 获取当前内存中的配置（同步方法，用于频繁访问）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 
 namespace Acme.Product.Core.Interfaces;

@@ -1,0 +1,63 @@
+DualModalVoting                          IN= 6  OUT= 5  TOTAL=11 *** NEEDS REVIEW
+ResultJudgment                           IN= 2  OUT= 6  TOTAL= 8 *** NEEDS REVIEW
+TemplateMatching                         IN= 2  OUT= 5  TOTAL= 7 *** NEEDS REVIEW
+GradientShapeMatch                       IN= 2  OUT= 5  TOTAL= 7 *** NEEDS REVIEW
+PyramidShapeMatch                        IN= 2  OUT= 5  TOTAL= 7 *** NEEDS REVIEW
+CoordinateTransform                      IN= 3  OUT= 3  TOTAL= 6 *** NEEDS REVIEW
+ImageSubtract                            IN= 2  OUT= 4  TOTAL= 6 *** NEEDS REVIEW
+AkazeFeatureMatch                        IN= 2  OUT= 4  TOTAL= 6 *** NEEDS REVIEW
+OrbFeatureMatch                          IN= 2  OUT= 4  TOTAL= 6 *** NEEDS REVIEW
+CodeRecognition                          IN= 1  OUT= 4  TOTAL= 5
+CircleMeasurement                        IN= 1  OUT= 4  TOTAL= 5
+LineMeasurement                          IN= 1  OUT= 4  TOTAL= 5
+ContourMeasurement                       IN= 1  OUT= 4  TOTAL= 5
+VariableIncrement                        IN= 0  OUT= 5  TOTAL= 5
+TryCatch                                 IN= 1  OUT= 4  TOTAL= 5
+CycleCounter                             IN= 0  OUT= 5  TOTAL= 5
+BlobAnalysis                             IN= 1  OUT= 3  TOTAL= 4
+ContourDetection                         IN= 1  OUT= 3  TOTAL= 4
+DeepLearning                             IN= 1  OUT= 3  TOTAL= 4
+ShapeMatching                            IN= 2  OUT= 2  TOTAL= 4
+VariableWrite                            IN= 1  OUT= 3  TOTAL= 4
+EdgeDetection                            IN= 1  OUT= 2  TOTAL= 3
+Measurement                              IN= 1  OUT= 2  TOTAL= 3
+ResultOutput                             IN= 2  OUT= 1  TOTAL= 3
+AngleMeasurement                         IN= 1  OUT= 2  TOTAL= 3
+GeometricTolerance                       IN= 1  OUT= 2  TOTAL= 3
+CameraCalibration                        IN= 1  OUT= 2  TOTAL= 3
+Undistort                                IN= 2  OUT= 1  TOTAL= 3
+ModbusCommunication                      IN= 1  OUT= 2  TOTAL= 3
+TcpCommunication                         IN= 1  OUT= 2  TOTAL= 3
+DatabaseWrite                            IN= 1  OUT= 2  TOTAL= 3
+ConditionalBranch                        IN= 1  OUT= 2  TOTAL= 3
+GeometricFitting                         IN= 1  OUT= 2  TOTAL= 3
+RoiManager                               IN= 1  OUT= 2  TOTAL= 3
+SubpixelEdgeDetection                    IN= 1  OUT= 2  TOTAL= 3
+ColorDetection                           IN= 1  OUT= 2  TOTAL= 3
+SiemensS7Communication                   IN= 1  OUT= 2  TOTAL= 3
+MitsubishiMcCommunication                IN= 1  OUT= 2  TOTAL= 3
+OmronFinsCommunication                   IN= 1  OUT= 2  TOTAL= 3
+ImageAdd                                 IN= 2  OUT= 1  TOTAL= 3
+ImageBlend                               IN= 2  OUT= 1  TOTAL= 3
+VariableRead                             IN= 0  OUT= 3  TOTAL= 3
+Filtering                                IN= 1  OUT= 1  TOTAL= 2
+Thresholding                             IN= 1  OUT= 1  TOTAL= 2
+Morphology                               IN= 1  OUT= 1  TOTAL= 2
+MedianBlur                               IN= 1  OUT= 1  TOTAL= 2
+BilateralFilter                          IN= 1  OUT= 1  TOTAL= 2
+ImageResize                              IN= 1  OUT= 1  TOTAL= 2
+ImageCrop                                IN= 1  OUT= 1  TOTAL= 2
+ImageRotate                              IN= 1  OUT= 1  TOTAL= 2
+PerspectiveTransform                     IN= 1  OUT= 1  TOTAL= 2
+ColorConversion                          IN= 1  OUT= 1  TOTAL= 2
+AdaptiveThreshold                        IN= 1  OUT= 1  TOTAL= 2
+HistogramEqualization                    IN= 1  OUT= 1  TOTAL= 2
+SerialCommunication                      IN= 1  OUT= 1  TOTAL= 2
+ClaheEnhancement                         IN= 1  OUT= 1  TOTAL= 2
+MorphologicalOperation                   IN= 1  OUT= 1  TOTAL= 2
+LaplacianSharpen                         IN= 1  OUT= 1  TOTAL= 2
+ImageAcquisition                         IN= 0  OUT= 1  TOTAL= 1
+CodeRecognition                          IN= 0  OUT= 0  TOTAL= 0
+
+Total operators: 60
+Operators with 6+ ports: 9

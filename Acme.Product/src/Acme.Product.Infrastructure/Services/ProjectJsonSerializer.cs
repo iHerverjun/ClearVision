@@ -1,3 +1,7 @@
+// ProjectJsonSerializer.cs
+// ProjectJsonSerializer实现
+// 作者：蘅芜君
+
 using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;

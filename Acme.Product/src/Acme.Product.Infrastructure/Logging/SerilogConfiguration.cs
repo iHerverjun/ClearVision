@@ -1,3 +1,7 @@
+// SerilogConfiguration.cs
+// 记录流程执行
+// 作者：蘅芜君
+
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;

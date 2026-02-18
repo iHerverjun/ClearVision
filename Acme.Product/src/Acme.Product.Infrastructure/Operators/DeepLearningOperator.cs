@@ -1,3 +1,7 @@
+// DeepLearningOperator.cs
+// 深度学习算子 - 使用 ONNX 模型进行 AI 缺陷检测
+// 作者：蘅芜君
+
 using System.Buffers;
 using System.Collections.Concurrent;
 using Acme.Product.Core.Entities;

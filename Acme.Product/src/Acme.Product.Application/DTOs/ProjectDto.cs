@@ -1,3 +1,7 @@
+// ProjectDto.cs
+// 算子流程（可选）
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.DTOs;
 
 /// <summary>

@@ -1,3 +1,7 @@
+// MatPool.cs
+// MatPool 统计信息
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 using OpenCvSharp;
 using Mat = OpenCvSharp.Mat;

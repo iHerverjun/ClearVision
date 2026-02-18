@@ -1,3 +1,7 @@
+// ImageStreamUtility.cs
+// 获取推荐的压缩参数
+// 作者：蘅芜君
+
 using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Utilities;

@@ -1,3 +1,7 @@
+// IPlcClient.cs
+// 错误发生事件
+// 作者：蘅芜君
+
 using Acme.PlcComm.Core;
 
 namespace Acme.PlcComm.Interfaces;

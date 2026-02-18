@@ -1,3 +1,7 @@
+// OrbFeatureMatchOperator.cs
+// ORB特征匹配算子 - 基于ORB特征的快速模板匹配
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

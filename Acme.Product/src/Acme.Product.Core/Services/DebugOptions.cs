@@ -1,3 +1,7 @@
+// DebugOptions.cs
+// 输出数据快照
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Services;
 
 /// <summary>

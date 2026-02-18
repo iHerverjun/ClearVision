@@ -1,3 +1,7 @@
+// AuthEndpoints.cs
+// 从请求头获取 Token
+// 作者：蘅芜君
+
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Microsoft.AspNetCore.Builder;

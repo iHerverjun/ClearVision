@@ -1,3 +1,7 @@
+// VariableIncrementOperator.cs
+// 变量递增算子 - 计数器自增// 功能实现自减
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

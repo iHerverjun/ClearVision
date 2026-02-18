@@ -1,3 +1,7 @@
+// OperatorEnums.cs
+// 输出端口
+// 作者：蘅芜君
+
 using System.Text.Json.Serialization;
 
 namespace Acme.Product.Core.Enums;

@@ -1,3 +1,7 @@
+// MockCamera.cs
+// 模拟相机实现（用于测试）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Cameras;
 
 namespace Acme.Product.Infrastructure.Cameras;

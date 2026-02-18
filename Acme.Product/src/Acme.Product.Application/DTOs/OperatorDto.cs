@@ -1,3 +1,7 @@
+// OperatorDto.cs
+// 算子连接数据传输对象
+// 作者：蘅芜君
+
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 

@@ -1,3 +1,7 @@
+// BasicFlowIntegrationTests.cs
+// 端到端流程集成测试 — 验证多算子串联执行
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;

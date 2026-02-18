@@ -1,3 +1,7 @@
+// OmronFinsClient.cs
+// 欧姆龙FINS// 功能实现TCP协议客户端实现
+// 作者：蘅芜君
+
 using Acme.PlcComm.Common;
 using Acme.PlcComm.Core;
 using Microsoft.Extensions.Logging;

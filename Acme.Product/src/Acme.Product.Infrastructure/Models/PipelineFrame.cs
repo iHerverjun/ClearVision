@@ -1,3 +1,7 @@
+// PipelineFrame.cs
+// 获取元数据值
+// 作者：蘅芜君
+
 using OpenCvSharp;
 using System.Diagnostics;
 

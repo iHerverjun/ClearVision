@@ -1,3 +1,7 @@
+// VariableWriteOperator.cs
+// 变量写入算子 - 写入值到全局变量表
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

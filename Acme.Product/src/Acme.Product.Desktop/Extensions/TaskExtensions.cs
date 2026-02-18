@@ -1,3 +1,7 @@
+// TaskExtensions.cs
+// 安全地触发异步任务而不等待结果，捕获并记录异常（带泛型结果版本）
+// 作者：蘅芜君
+
 using Microsoft.Extensions.Logging;
 
 namespace Acme.Product.Desktop.Extensions;

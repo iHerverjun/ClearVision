@@ -1,3 +1,7 @@
+// Entity.cs
+// 恢复删除
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Entities.Base;
 
 /// <summary>

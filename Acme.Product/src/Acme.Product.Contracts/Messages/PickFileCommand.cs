@@ -1,3 +1,7 @@
+// PickFileCommand.cs
+// 文件过滤器（例如 Image Files|*.bmp;*.jpg;*.png）
+// 作者：蘅芜君
+
 namespace Acme.Product.Contracts.Messages;
 
 /// <summary>

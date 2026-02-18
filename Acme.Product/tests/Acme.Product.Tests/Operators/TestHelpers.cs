@@ -1,3 +1,7 @@
+// TestHelpers.cs
+// 将 ImageWrapper 放入 inputs 字典
+// 作者：蘅芜君
+
 using Acme.Product.Infrastructure.Operators;
 using OpenCvSharp;
 

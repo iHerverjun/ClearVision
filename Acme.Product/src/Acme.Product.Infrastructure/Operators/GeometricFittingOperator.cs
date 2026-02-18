@@ -1,3 +1,7 @@
+// GeometricFittingOperator.cs
+// 最小二乘圆拟合 (Kasa 方法)
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

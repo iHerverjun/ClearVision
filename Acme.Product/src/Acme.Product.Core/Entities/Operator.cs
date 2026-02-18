@@ -1,3 +1,7 @@
+// Operator.cs
+// 重置执行状态
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities.Base;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;

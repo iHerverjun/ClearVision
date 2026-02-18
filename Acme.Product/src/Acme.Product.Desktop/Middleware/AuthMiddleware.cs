@@ -1,3 +1,7 @@
+// AuthMiddleware.cs
+// 用户会话信息（简化版）
+// 作者：蘅芜君
+
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Enums;
 using Microsoft.AspNetCore.Http;

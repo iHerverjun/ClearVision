@@ -1,3 +1,7 @@
+// IImageAcquisitionService.cs
+// 图像信息DTO
+// 作者：蘅芜君
+
 using Acme.Product.Application.DTOs;
 
 namespace Acme.Product.Application.Services;

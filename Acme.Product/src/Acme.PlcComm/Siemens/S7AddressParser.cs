@@ -1,3 +1,7 @@
+// S7AddressParser.cs
+// 西门子S7地址解析器
+// 作者：蘅芜君
+
 using Acme.PlcComm.Core;
 using Acme.PlcComm.Interfaces;
 using System.Text.RegularExpressions;

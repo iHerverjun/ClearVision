@@ -1,3 +1,7 @@
+// AkazeFeatureMatchOperator.cs
+// AKAZE特征匹配算子 - 基于AKAZE特征的鲁棒模板匹配
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

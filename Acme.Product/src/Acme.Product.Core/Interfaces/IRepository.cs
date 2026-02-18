@@ -1,3 +1,7 @@
+// IRepository.cs
+// 是否存在
+// 作者：蘅芜君
+
 using System.Linq.Expressions;
 
 namespace Acme.Product.Core.Interfaces;

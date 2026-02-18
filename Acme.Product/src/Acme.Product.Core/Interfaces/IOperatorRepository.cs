@@ -1,3 +1,7 @@
+// IOperatorRepository.cs
+// 根据类型获取算子
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 
 namespace Acme.Product.Core.Interfaces;

@@ -1,3 +1,7 @@
+// ImageAcquisitionServiceTests.cs
+// ImageAcquisitionService 集成测试
+// 作者：蘅芜君
+
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;

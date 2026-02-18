@@ -1,3 +1,7 @@
+// AuthService.cs
+// 映射到DTO
+// 作者：蘅芜君
+
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

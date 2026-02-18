@@ -1,3 +1,7 @@
+// OperatorService.cs
+// 初始化算子元数据缓存
+// 作者：蘅芜君
+
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

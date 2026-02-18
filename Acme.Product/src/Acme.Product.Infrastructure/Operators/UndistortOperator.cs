@@ -1,3 +1,7 @@
+// UndistortOperator.cs
+// 畸变校正算子 - 基于标定数据校正图像畸变
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

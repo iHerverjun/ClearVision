@@ -1,3 +1,7 @@
+// MorphologyOperator.cs
+// 形态学算子 - 支持腐蚀、膨胀、开运算、闭运算
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

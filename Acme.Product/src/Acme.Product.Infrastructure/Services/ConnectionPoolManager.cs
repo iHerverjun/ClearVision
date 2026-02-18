@@ -1,3 +1,7 @@
+// ConnectionPoolManager.cs
+// 连接池统计信息
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;

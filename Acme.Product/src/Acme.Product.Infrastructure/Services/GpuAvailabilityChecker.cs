@@ -1,3 +1,7 @@
+// GpuAvailabilityChecker.cs
+// DirectML
+// 作者：蘅芜君
+
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.InteropServices;

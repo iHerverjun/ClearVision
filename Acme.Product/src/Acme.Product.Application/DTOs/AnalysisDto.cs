@@ -1,3 +1,7 @@
+// AnalysisDto.cs
+// 缺陷导出DTO
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.DTOs;
 
 /// <summary>

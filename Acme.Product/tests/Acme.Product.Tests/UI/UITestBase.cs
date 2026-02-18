@@ -1,3 +1,7 @@
+// UITestBase.cs
+// UITestBase实现
+// 作者：蘅芜君
+
 using Microsoft.Playwright;
 using Xunit;
 

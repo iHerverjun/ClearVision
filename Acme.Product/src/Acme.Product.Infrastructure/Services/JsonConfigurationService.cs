@@ -1,3 +1,7 @@
+// JsonConfigurationService.cs
+// 基于 JSON 文件的配置服务实现
+// 作者：蘅芜君
+
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;

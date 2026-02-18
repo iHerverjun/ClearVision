@@ -1,3 +1,7 @@
+// ImageAddOperator.cs
+// 图像加法算子 - 图像叠加// 功能实现合并
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

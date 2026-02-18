@@ -1,3 +1,7 @@
+// InspectionService.cs
+// 从流程输出数据中判定检测状态
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Exceptions;

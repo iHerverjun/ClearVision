@@ -1,3 +1,7 @@
+// IIntelligentDetectionService.cs
+// 优先传统算法 - 传统算法权重更高
+// 作者：蘅芜君
+
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 

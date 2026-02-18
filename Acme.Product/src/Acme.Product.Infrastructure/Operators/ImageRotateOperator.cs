@@ -1,3 +1,7 @@
+// ImageRotateOperator.cs
+// 图像旋转算子 - 任意角度旋转
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

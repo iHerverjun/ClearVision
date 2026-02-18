@@ -1,3 +1,7 @@
+// PasswordHasher.cs
+// 验证密码
+// 作者：蘅芜君
+
 using Acme.Product.Application.Services;
 
 namespace Acme.Product.Infrastructure.Services;

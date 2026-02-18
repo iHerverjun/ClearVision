@@ -1,3 +1,7 @@
+// IByteTransform.cs
+// 三菱MC帧类型
+// 作者：蘅芜君
+
 using System.Text;
 using Acme.PlcComm.Core;
 

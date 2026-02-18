@@ -1,3 +1,7 @@
+// ImageAcquisitionOperator.cs
+// 图像采集算子 - 支持相机和文件采集
+// 作者：蘅芜君
+
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -16,8 +20,8 @@ public class ImageAcquisitionOperator : OperatorBase
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;
     private readonly ICameraManager _cameraManager;
 
-    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger, ICameraManager cameraManager) : base(logger) 
-    { 
+    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger, ICameraManager cameraManager) : base(logger)
+    {
         _cameraManager = cameraManager;
     }
 
@@ -55,7 +59,7 @@ public class ImageAcquisitionOperator : OperatorBase
             var width = dimensions?.width ?? 0;
             var height = dimensions?.height ?? 0;
             var channels = dimensions?.channels ?? 3;
-            
+
             // 如果PNG解析失败（非PNG格式），回退到ImageWrapper的延迟属性
             if (width == 0 || height == 0)
             {
@@ -64,7 +68,7 @@ public class ImageAcquisitionOperator : OperatorBase
                 height = wrapper.Height;
                 channels = wrapper.Channels;
             }
-            
+
             return OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
                 { "Image", rawData },
@@ -80,16 +84,25 @@ public class ImageAcquisitionOperator : OperatorBase
             var cameraId = GetStringParam(@operator, "cameraId", "");
             if (string.IsNullOrEmpty(cameraId))
             {
-                return OperatorExecutionOutput.Failure("未指定相机ID");
+                throw new InvalidOperationException("未选择相机");
             }
 
             try
             {
-                var camera = await _cameraManager.GetOrCreateCameraAsync(cameraId);
-                var imageBytes = await camera.AcquireSingleFrameAsync();
-                
+                // 获取并配置相机
+                var camera = await _cameraManager.GetOrCreateByBindingAsync(cameraId);
+
+                // 应用运行时参数
+                var exposureTime = GetDoubleParam(@operator, "exposureTime", 5000);
+                var gain = GetDoubleParam(@operator, "gain", 1.0);
+                await camera.SetExposureTimeAsync(exposureTime);
+                await camera.SetGainAsync(gain);
+
+                // 采集图像
+                var imageData = await camera.AcquireSingleFrameAsync();
+
                 // 解码图像以获取尺寸信息
-                using var mat = Cv2.ImDecode(imageBytes, ImreadModes.Color);
+                using var mat = Cv2.ImDecode(imageData, ImreadModes.Color);
                 if (mat.Empty())
                 {
                     return OperatorExecutionOutput.Failure("相机返回的图像数据无效");

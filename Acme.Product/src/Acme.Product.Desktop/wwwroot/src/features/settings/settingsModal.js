@@ -10,6 +10,7 @@ class SettingsModal {
         this.modalOverlay = null;
         this.activeTab = 'general';
         this.users = [];
+        this.cameraBindings = [];
         this.isAdmin = false;
     }
     
@@ -36,6 +37,10 @@ class SettingsModal {
             console.log('[SettingsModal] Fetching config from /settings...');
             this.config = await httpClient.get('/settings');
             console.log('[SettingsModal] Config loaded:', JSON.stringify(this.config, null, 2));
+            
+            // 同步相机绑定
+            this.cameraBindings = this.config.cameras || [];
+            this.activeCameraId = this.config.activeCameraId || '';
         } catch (error) {
             console.error('[SettingsModal] Failed to load config:', error);
             showToast('加载配置失败: ' + error.message, 'error');
@@ -193,6 +198,7 @@ class SettingsModal {
                 <button class="settings-tab" data-tab="communication">通讯</button>
                 <button class="settings-tab" data-tab="storage">存储</button>
                 <button class="settings-tab" data-tab="runtime">运行</button>
+                <button class="settings-tab" data-tab="cameras">相机管理</button>
                 ${userManagementTab}
             </div>
             <div class="settings-content">
@@ -200,6 +206,7 @@ class SettingsModal {
                 ${this.renderCommunicationTab()}
                 ${this.renderStorageTab()}
                 ${this.renderRuntimeTab()}
+                ${this.renderCameraTab()}
                 ${userManagementSection}
             </div>
         `;
@@ -348,6 +355,69 @@ class SettingsModal {
         `;
     }
 
+    renderCameraTab() {
+        return `
+            <div class="settings-section" data-section="cameras">
+                <div class="settings-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div class="settings-group-title" style="margin-bottom: 0;">相机绑定管理</div>
+                        <button class="cv-btn cv-btn-primary" id="btn-discover-cameras">搜索在线相机</button>
+                    </div>
+                    
+                    <div id="discovery-results" style="display: none; margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 15px;">
+                        <div style="font-size: 13px; color: var(--accent); margin-bottom: 10px; font-weight: bold;">发现可用设备 (点击行以创建绑定):</div>
+                        <table class="user-table">
+                            <thead>
+                                <tr>
+                                    <th>序列号/ID</th>
+                                    <th>制造商</th>
+                                    <th>型号</th>
+                                    <th>接口</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="discovery-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="user-table-container">
+                        <table class="user-table" id="camera-bindings-table">
+                            <thead>
+                                <tr>
+                                    <th>逻辑名称</th>
+                                    <th>设备序列号</th>
+                                    <th>制造商</th>
+                                    <th>型号</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${this.cameraBindings.length === 0 ? 
+                                    '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">暂无绑定配置，请点击“搜索相机”</td></tr>' : 
+                                    this.cameraBindings.map(b => `
+                                        <tr class="camera-row" data-id="${b.id}">
+                                            <td><input type="text" class="settings-input-small cam-display-name" value="${b.displayName}" style="width: 100px;"></td>
+                                            <td><code class="cam-sn">${b.serialNumber}</code></td>
+                                            <td>${b.manufacturer}</td>
+                                            <td>${b.modelName || '-'}</td>
+                                            <td>
+                                                <span class="user-status ${b.isEnabled ? 'active' : 'inactive'}">${b.isEnabled ? '启用' : '禁用'}</span>
+                                            </td>
+                                            <td>
+                                                <button class="user-btn delete-btn" data-action="remove-binding" data-id="${b.id}">删除</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderUserManagementTab() {
         const roleNames = {
             'Admin': '管理员',
@@ -459,10 +529,118 @@ class SettingsModal {
             });
         });
 
+        // 绑定相机管理相关事件
+        this.bindCameraManagementEvents();
+
         // 绑定用户管理事件（仅管理员）
         if (this.isAdmin) {
             this.bindUserManagementEvents();
         }
+    }
+
+    bindCameraManagementEvents() {
+        const section = this.modalOverlay.querySelector('[data-section="cameras"]');
+        if (!section) return;
+
+        const discoverBtn = section.querySelector('#btn-discover-cameras');
+        if (discoverBtn) {
+            discoverBtn.addEventListener('click', () => this.discoverCameras());
+        }
+
+        // 删除绑定
+        section.addEventListener('click', (e) => {
+            if (e.target.dataset.action === 'remove-binding') {
+                const id = e.target.dataset.id;
+                this.cameraBindings = this.cameraBindings.filter(b => b.id !== id);
+                this.refreshCameraTable();
+            }
+        });
+    }
+
+    async discoverCameras() {
+        const tbody = this.modalOverlay.querySelector('#discovery-tbody');
+        const resultsDiv = this.modalOverlay.querySelector('#discovery-results');
+        if (!tbody || !resultsDiv) return;
+
+        showToast('正在搜索在线相机...', 'info');
+        resultsDiv.style.display = 'block';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;">正在枚举设备...</td></tr>';
+
+        try {
+            const devices = await httpClient.get('/cameras/discover');
+            if (!devices || devices.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">未发现任何在线相机</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = devices.map(d => `
+                <tr style="cursor: pointer;" class="discovery-row" data-sn="${d.cameraId}" data-man="${d.manufacturer}" data-model="${d.model}">
+                    <td><code>${d.cameraId}</code></td>
+                    <td>${d.manufacturer}</td>
+                    <td>${d.model}</td>
+                    <td>${d.connectionType}</td>
+                    <td><button class="cv-btn cv-btn-primary" style="padding:4px 8px;font-size:12px;">绑定</button></td>
+                </tr>
+            `).join('');
+
+            // 绑定点击事件
+            tbody.querySelectorAll('tr').forEach(row => {
+                row.onclick = () => {
+                    const sn = row.dataset.sn;
+                    const manufacturer = row.dataset.man;
+                    const model = row.dataset.model;
+
+                    // 检查是否已存在
+                    if (this.cameraBindings.find(b => b.serialNumber === sn)) {
+                        showToast('该相机已在绑定列表中', 'warning');
+                        return;
+                    }
+
+                    const displayName = prompt('请输入该相机的逻辑名称 (如: Top_Camera):', `Cam_${this.cameraBindings.length + 1}`);
+                    if (displayName) {
+                        this.cameraBindings.push({
+                            id: Math.random().toString(36).substr(2, 8),
+                            displayName: displayName,
+                            serialNumber: sn,
+                            manufacturer: manufacturer,
+                            modelName: model,
+                            isEnabled: true
+                        });
+                        this.refreshCameraTable();
+                        showToast(`已绑定: ${displayName}`, 'success');
+                    }
+                };
+            });
+
+        } catch (error) {
+            showToast('搜索相机失败: ' + error.message, 'error');
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--accent);">错误: ${error.message}</td></tr>`;
+        }
+    }
+
+    refreshCameraTable() {
+        const tbody = this.modalOverlay.querySelector('#camera-bindings-table tbody');
+        if (!tbody) return;
+
+        if (this.cameraBindings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">暂无绑定配置，请点击“搜索相机”</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = this.cameraBindings.map(b => `
+            <tr class="camera-row" data-id="${b.id}">
+                <td><input type="text" class="settings-input-small cam-display-name" value="${b.displayName}" style="width: 100px;"></td>
+                <td><code class="cam-sn">${b.serialNumber}</code></td>
+                <td>${b.manufacturer}</td>
+                <td>${b.modelName || '-'}</td>
+                <td>
+                    <span class="user-status ${b.isEnabled ? 'active' : 'inactive'}">${b.isEnabled ? '启用' : '禁用'}</span>
+                </td>
+                <td>
+                    <button class="user-btn delete-btn" data-action="remove-binding" data-id="${b.id}">删除</button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     /**
@@ -760,13 +938,24 @@ class SettingsModal {
             runtime: {
                 autoRun: document.getElementById('cfg-autoRun')?.checked || false,
                 stopOnConsecutiveNg: parseInt(document.getElementById('cfg-stopOnConsecutiveNg')?.value || '0', 10)
-            }
+            },
+            cameras: this.collectCameraBindings(),
+            activeCameraId: this.activeCameraId || ''
         };
         
         console.log('[SettingsModal] Config to save:', JSON.stringify(config, null, 2));
         
         try {
+            // 首先保存全局配置 (AppConfig)
             await httpClient.put('/settings', config);
+
+            // 如果有相机绑定变化，也调用专用接口确保同步 (虽然 /settings 也会保存，但为了健壮性调用此接口)
+            // 在我们的架构中，ICameraManager 的 LoadBindings 也需要被触发
+            await httpClient.put('/cameras/bindings', {
+                bindings: config.cameras,
+                activeCameraId: config.activeCameraId
+            });
+
             console.log('[SettingsModal] Config saved successfully');
             showToast('设置已保存', 'success');
             closeModal(this.modalOverlay);
@@ -780,6 +969,30 @@ class SettingsModal {
             console.error('[SettingsModal] Failed to save config:', error);
             showToast('保存失败: ' + error.message, 'error');
         }
+    }
+
+    collectCameraBindings() {
+        const section = this.modalOverlay.querySelector('[data-section="cameras"]');
+        if (!section) return this.cameraBindings;
+
+        const rows = section.querySelectorAll('.camera-row');
+        const updatedBindings = [];
+
+        rows.forEach(row => {
+            const id = row.dataset.id;
+            const displayName = row.querySelector('.cam-display-name')?.value || 'Camera';
+            const original = this.cameraBindings.find(b => b.id === id);
+            
+            if (original) {
+                updatedBindings.push({
+                    ...original,
+                    displayName: displayName
+                });
+            }
+        });
+
+        this.cameraBindings = updatedBindings;
+        return updatedBindings;
     }
 }
 

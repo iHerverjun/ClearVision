@@ -1,3 +1,7 @@
+// WebView2Host.cs
+// 异步释放资源。
+// 作者：蘅芜君
+
 using System.Reflection;
 using System.Text.Json;
 using Acme.Product.Contracts.Messages;

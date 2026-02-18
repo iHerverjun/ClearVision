@@ -1,3 +1,7 @@
+// CameraCalibrationOperator.cs
+// 相机标定算子 - 棋盘格// 功能实现圆点标定
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

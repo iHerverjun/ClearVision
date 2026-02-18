@@ -1,3 +1,7 @@
+// FinsAddressParser.cs
+// 验证地址范围
+// 作者：蘅芜君
+
 using System.Text.RegularExpressions;
 using Acme.PlcComm.Core;
 using Acme.PlcComm.Interfaces;

@@ -1,3 +1,7 @@
+// IDomainEvent.cs
+// 领域事件基类，提供默认实现。
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Events;
 
 /// <summary>

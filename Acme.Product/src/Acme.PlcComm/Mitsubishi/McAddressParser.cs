@@ -1,3 +1,7 @@
+// McAddressParser.cs
+// 判断是否为位软元件
+// 作者：蘅芜君
+
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.RegularExpressions;

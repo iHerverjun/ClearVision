@@ -1,3 +1,7 @@
+// HikvisionCamera.cs
+// 海康威视工业相机实现
+// 作者：蘅芜君
+
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Acme.Product.Core.Cameras;

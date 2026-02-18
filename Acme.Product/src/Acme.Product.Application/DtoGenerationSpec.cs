@@ -1,3 +1,7 @@
+// DtoGenerationSpec.cs
+// DtoGenerationSpec实现
+// 作者：蘅芜君
+
 using TypeGen.Core.SpecGeneration;
 using Acme.Product.Application.DTOs;
 

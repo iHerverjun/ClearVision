@@ -1,3 +1,7 @@
+// ValueObject.cs
+// 获取用于相等性比较的属性
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.ValueObjects;
 
 /// <summary>

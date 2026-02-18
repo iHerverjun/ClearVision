@@ -1,3 +1,7 @@
+// IService.cs
+// 操作结果封装，用于统一的成功// 功能实现失败处理。
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.Services;
 
 /// <summary>

@@ -1,3 +1,7 @@
+// MitsubishiMcCommunicationOperator.cs
+// 解析写入值：优先从上游输入获取，否则使用参数面板静态值
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

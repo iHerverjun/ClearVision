@@ -1,3 +1,7 @@
+// OperatorFlowDto.cs
+// 更新流程请求
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.DTOs;
 
 using Acme.Product.Core.Entities;

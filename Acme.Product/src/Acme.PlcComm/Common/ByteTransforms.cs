@@ -1,3 +1,7 @@
+// ByteTransforms.cs
+// 小端字节序转换 (用于三菱MC)
+// 作者：蘅芜君
+
 using System.Buffers.Binary;
 using System.Text;
 using Acme.PlcComm.Interfaces;

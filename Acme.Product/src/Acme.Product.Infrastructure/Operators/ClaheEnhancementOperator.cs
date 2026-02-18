@@ -1,3 +1,7 @@
+// ClaheEnhancementOperator.cs
+// CLAHE自适应直方图均衡化算子 - 专门用于局部对比度增强
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

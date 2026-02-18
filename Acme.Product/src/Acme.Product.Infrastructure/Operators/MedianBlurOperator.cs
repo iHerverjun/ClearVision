@@ -1,3 +1,7 @@
+// MedianBlurOperator.cs
+// 中值滤波算子 - 有效去除椒盐噪声同时保留边缘
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

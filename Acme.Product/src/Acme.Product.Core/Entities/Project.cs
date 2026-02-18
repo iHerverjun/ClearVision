@@ -1,3 +1,7 @@
+// Project.cs
+// 更新算子流程
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities.Base;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Events;

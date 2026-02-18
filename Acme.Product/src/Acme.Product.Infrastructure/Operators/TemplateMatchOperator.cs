@@ -1,3 +1,7 @@
+// TemplateMatchOperator.cs
+// 模板匹配算子 - 在图像中查找模板位置
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -94,6 +98,7 @@ public class TemplateMatchOperator : OperatorBase
             { "Found", found },
             { "IsMatch", found },
             { "Score", normalizedScore },
+            { "Position", matchLoc },
             { "X", matchLoc.X },
             { "Y", matchLoc.Y },
             { "TemplateWidth", template.Width },

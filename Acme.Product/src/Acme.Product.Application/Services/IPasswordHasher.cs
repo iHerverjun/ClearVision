@@ -1,3 +1,7 @@
+// IPasswordHasher.cs
+// 验证密码
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.Services;
 
 /// <summary>

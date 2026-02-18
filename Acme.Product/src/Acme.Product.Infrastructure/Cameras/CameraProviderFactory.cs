@@ -1,3 +1,7 @@
+// CameraProviderFactory.cs
+// 模拟相机提供器 - 用于测试
+// 作者：蘅芜君
+
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Acme.Product.Core.Cameras;

@@ -1,3 +1,7 @@
+// IAggregateRoot.cs
+// 清空所有领域事件
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Entities.Base;
 
 /// <summary>

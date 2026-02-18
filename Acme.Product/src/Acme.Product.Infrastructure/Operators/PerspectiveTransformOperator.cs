@@ -1,3 +1,7 @@
+// PerspectiveTransformOperator.cs
+// 透视变换算子 - 四边形透视校正
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

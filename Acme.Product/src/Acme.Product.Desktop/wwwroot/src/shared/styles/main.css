@@ -1317,16 +1317,6 @@ body::before {
     color: var(--gold-accent);
 }
 
-/* Status Indicator Dot */
-.status-bar::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    background: var(--success-jade);
-    border-radius: 50%;
-    box-shadow: 0 0 8px var(--success-jade);
-    animation: glowBreathe 2s ease-in-out infinite;
-}
 
 /* ==========================================================================
    Scrollbar Styling - Minimal Ink

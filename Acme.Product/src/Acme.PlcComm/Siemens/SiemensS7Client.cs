@@ -1,3 +1,7 @@
+// SiemensS7Client.cs
+// Slot号
+// 作者：蘅芜君
+
 using Acme.PlcComm.Common;
 using Acme.PlcComm.Core;
 using Acme.PlcComm.Interfaces;

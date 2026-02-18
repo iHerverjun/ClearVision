@@ -1,3 +1,7 @@
+// IProjectFlowStorage.cs
+// 加载流程 JSON 字符串
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Interfaces;
 
 /// <summary>

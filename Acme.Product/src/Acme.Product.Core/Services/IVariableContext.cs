@@ -1,3 +1,7 @@
+// IVariableContext.cs
+// 变量上下文实现 - 线程安全的全局变量存储
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 
 namespace Acme.Product.Core.Services;

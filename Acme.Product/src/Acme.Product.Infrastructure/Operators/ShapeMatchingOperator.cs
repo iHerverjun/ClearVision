@@ -1,3 +1,7 @@
+// ShapeMatchingOperator.cs
+// 形状匹配算子 - 旋转// 功能实现缩放不变模板匹配
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

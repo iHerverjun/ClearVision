@@ -1,3 +1,7 @@
+// IIndustrialCamera.cs
+// 相机像素格式
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Cameras;
 
 /// <summary>

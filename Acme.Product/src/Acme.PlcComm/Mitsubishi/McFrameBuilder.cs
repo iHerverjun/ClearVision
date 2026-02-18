@@ -1,3 +1,7 @@
+// McFrameBuilder.cs
+// 获取下一个序列号(用于4E帧)
+// 作者：蘅芜君
+
 using System.Buffers.Binary;
 
 namespace Acme.PlcComm.Mitsubishi;

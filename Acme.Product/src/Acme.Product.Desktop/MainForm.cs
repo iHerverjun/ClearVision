@@ -1,3 +1,8 @@
+// MainForm.cs
+// 初始化菜单栏
+// 作者：蘅芜君
+
+using System.Windows.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Web.WebView2.WinForms;
 

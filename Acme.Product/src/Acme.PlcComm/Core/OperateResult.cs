@@ -1,3 +1,7 @@
+// OperateResult.cs
+// 创建失败结果(使用默认错误码-1)
+// 作者：蘅芜君
+
 namespace Acme.PlcComm.Core;
 
 /// <summary>

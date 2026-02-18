@@ -1,3 +1,7 @@
+// LineMeasurementOperator.cs
+// 直线测量算子 - 霍夫直线检测与测量
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

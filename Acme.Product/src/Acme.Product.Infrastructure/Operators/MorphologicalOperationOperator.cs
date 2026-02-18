@@ -1,3 +1,7 @@
+// MorphologicalOperationOperator.cs
+// 形态学操作算子 - 腐蚀// 功能实现膨胀// 功能实现开运算// 功能实现闭运算// 功能实现梯度// 功能实现顶帽// 功能实现黑帽
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

@@ -1,3 +1,7 @@
+// VisionValueObjects.cs
+// 图像数据值对象 - 封装图像数据及其元数据
+// 作者：蘅芜君
+
 using Acme.Product.Core.Enums;
 using System.ComponentModel.DataAnnotations.Schema;
 

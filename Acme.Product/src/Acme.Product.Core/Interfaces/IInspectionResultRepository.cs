@@ -1,3 +1,7 @@
+// IInspectionResultRepository.cs
+// 检测统计信息
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 
 namespace Acme.Product.Core.Interfaces;

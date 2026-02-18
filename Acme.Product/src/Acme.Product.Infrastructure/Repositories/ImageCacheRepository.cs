@@ -1,3 +1,7 @@
+// ImageCacheRepository.cs
+// 图像缓存仓储实现（内存缓存）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Interfaces;
 
 namespace Acme.Product.Infrastructure.Repositories;

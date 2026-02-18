@@ -1,3 +1,7 @@
+// DatabaseWriteOperator.cs
+// 验证表名是否合法（防止SQL注入）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

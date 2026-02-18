@@ -1,3 +1,7 @@
+// IImageCacheRepository.cs
+// 清理过期缓存
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Interfaces;
 
 /// <summary>

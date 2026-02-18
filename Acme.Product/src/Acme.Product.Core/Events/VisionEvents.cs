@@ -1,3 +1,7 @@
+// VisionEvents.cs
+// 检测完成事件
+// 作者：蘅芜君
+
 using Acme.Product.Core.Events;
 
 namespace Acme.Product.Core.Events;

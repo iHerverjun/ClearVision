@@ -1,3 +1,7 @@
+// DependencyInjection.cs
+// 注册服务
+// 作者：蘅芜君
+
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Interfaces;

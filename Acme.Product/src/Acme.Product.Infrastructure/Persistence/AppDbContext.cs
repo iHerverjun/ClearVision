@@ -1,3 +1,7 @@
+// AppDbContext.cs
+// EF Core 数据上下文。
+// 作者：蘅芜君
+
 using Microsoft.EntityFrameworkCore;
 
 namespace Acme.Product.Infrastructure.Persistence;

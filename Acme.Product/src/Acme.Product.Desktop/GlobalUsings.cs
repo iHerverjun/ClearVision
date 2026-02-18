@@ -1,3 +1,7 @@
+// GlobalUsings.cs
+// GlobalUsings实现
+// 作者：蘅芜君
+
 // 全局 Using 声明
 // 禁用 ImplicitUsings 后手动添加必要的命名空间
 

@@ -1,3 +1,7 @@
+// RepositoryBase.cs
+// 通用仓储基类
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;

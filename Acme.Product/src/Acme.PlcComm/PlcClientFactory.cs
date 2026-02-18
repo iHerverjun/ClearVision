@@ -1,3 +1,7 @@
+// PlcClientFactory.cs
+// 从连接字符串创建客户端
+// 作者：蘅芜君
+
 using Acme.PlcComm.Interfaces;
 using Acme.PlcComm.Siemens;
 using Acme.PlcComm.Mitsubishi;

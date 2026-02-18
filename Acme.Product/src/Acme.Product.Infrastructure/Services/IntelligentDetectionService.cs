@@ -1,3 +1,7 @@
+// IntelligentDetectionService.cs
+// 计算两个矩形的IoU
+// 作者：蘅芜君
+
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Services;

@@ -1,3 +1,7 @@
+// SerialCommunicationOperator.cs
+// 串口通信算子 - RS-232// 功能实现485 PLC 通信
+// 作者：蘅芜君
+
 using System.IO.Ports;
 using System.Text;
 using Acme.Product.Core.Entities;

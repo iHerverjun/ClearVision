@@ -1,3 +1,7 @@
+// DomainExceptions.cs
+// 相机ID
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Exceptions;
 
 /// <summary>

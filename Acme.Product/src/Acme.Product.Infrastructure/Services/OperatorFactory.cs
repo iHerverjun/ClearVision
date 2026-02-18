@@ -1,3 +1,7 @@
+// OperatorFactory.cs
+// 算子工厂实现
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
@@ -91,29 +95,22 @@ public class OperatorFactory : IOperatorFactory
             Type = OperatorType.ImageAcquisition,
             DisplayName = "图像采集",
             Description = "从文件或相机采集图像",
-            Category = "输入",
+            Category = "采集",
             IconName = "camera",
+            InputPorts = new List<PortDefinition>(),
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image }
             },
             Parameters = new List<ParameterDefinition>
             {
-                new() { Name = "sourceType", DisplayName = "采集源", DataType = "enum", DefaultValue = "camera", Options = new List<ParameterOption> { new() { Label = "相机", Value = "camera" }, new() { Label = "文件", Value = "file" } } },
+                new() { Name = "sourceType", DisplayName = "采集源", DataType = "enum", DefaultValue = "file", Options = new List<ParameterOption> { new() { Label = "文件", Value = "file" }, new() { Label = "相机", Value = "camera" } } },
                 new() { Name = "filePath", DisplayName = "文件路径", DataType = "file", DefaultValue = "" },
-                new() { Name = "exposureTime", DisplayName = "曝光时间", DataType = "int", DefaultValue = 5000, MinValue = 100, MaxValue = 1000000 },
-                new() { Name = "gain", DisplayName = "增益", DataType = "float", DefaultValue = 1.0, MinValue = 0.0, MaxValue = 24.0 }
+                new() { Name = "cameraId", DisplayName = "相机", DataType = "cameraBinding", DefaultValue = "" },
+                new() { Name = "exposureTime", DisplayName = "曝光时间", DataType = "double", DefaultValue = 5000.0, MinValue = 1.0, MaxValue = 1000000.0 },
+                new() { Name = "gain", DisplayName = "增益", DataType = "double", DefaultValue = 1.0, MinValue = 1.0, MaxValue = 20.0 },
+                new() { Name = "triggerMode", DisplayName = "触发模式", DataType = "enum", DefaultValue = "Software", Options = new List<ParameterOption> { new() { Label = "软触发", Value = "Software" }, new() { Label = "外触发", Value = "Hardware" } } }
             }
-        };
-
-        // 预处理
-        _metadata[OperatorType.Preprocessing] = new OperatorMetadata
-        {
-            Type = OperatorType.Preprocessing,
-            DisplayName = "预处理",
-            Description = "图像预处理操作",
-            Category = "预处理",
-            IconName = "preprocess"
         };
 
         // 滤波
@@ -285,8 +282,7 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "X", DisplayName = "匹配X", DataType = PortDataType.Float },
-                new() { Name = "Y", DisplayName = "匹配Y", DataType = PortDataType.Float },
+                new() { Name = "Position", DisplayName = "匹配位置", DataType = PortDataType.Point },
                 new() { Name = "Score", DisplayName = "匹配分数", DataType = PortDataType.Float },
                 new() { Name = "IsMatch", DisplayName = "是否匹配", DataType = PortDataType.Boolean }
             },
@@ -1633,11 +1629,8 @@ public class OperatorFactory : IOperatorFactory
             },
             OutputPorts = new List<PortDefinition>
             {
-                new() { Name = "JudgmentResult", DisplayName = "判定结果", DataType = PortDataType.String },
-                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String },
-                new() { Name = "JudgmentValueInt", DisplayName = "判定值(整数)", DataType = PortDataType.Integer },
-                new() { Name = "ActualValue", DisplayName = "实际值", DataType = PortDataType.Any },
                 new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean },
+                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String },
                 new() { Name = "Details", DisplayName = "详细信息", DataType = PortDataType.String }
             },
             Parameters = new List<ParameterDefinition>
@@ -2162,20 +2155,14 @@ public class OperatorFactory : IOperatorFactory
             IconName = "voting",
             InputPorts = new List<PortDefinition>
             {
-                new() { Name = "DLResult", DisplayName = "深度学习结果", DataType = PortDataType.Any, IsRequired = false },
-                new() { Name = "TraditionalResult", DisplayName = "传统算法结果", DataType = PortDataType.Any, IsRequired = false },
-                new() { Name = "DLIsOk", DisplayName = "DL判定结果", DataType = PortDataType.Boolean, IsRequired = false },
-                new() { Name = "DLConfidence", DisplayName = "DL置信度", DataType = PortDataType.Float, IsRequired = false },
-                new() { Name = "TraditionalIsOk", DisplayName = "传统算法判定结果", DataType = PortDataType.Boolean, IsRequired = false },
-                new() { Name = "TraditionalConfidence", DisplayName = "传统算法置信度", DataType = PortDataType.Float, IsRequired = false }
+                new() { Name = "DLResult", DisplayName = "深度学习结果", DataType = PortDataType.Any, IsRequired = true },
+                new() { Name = "TraditionalResult", DisplayName = "传统算法结果", DataType = PortDataType.Any, IsRequired = true }
             },
             OutputPorts = new List<PortDefinition>
             {
-                new() { Name = "JudgmentResult", DisplayName = "判定结果", DataType = PortDataType.String },
-                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String },
-                new() { Name = "JudgmentValueInt", DisplayName = "判定值(整数)", DataType = PortDataType.Integer },
+                new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean },
                 new() { Name = "Confidence", DisplayName = "综合置信度", DataType = PortDataType.Float },
-                new() { Name = "IsOk", DisplayName = "是否OK", DataType = PortDataType.Boolean }
+                new() { Name = "JudgmentValue", DisplayName = "判定值", DataType = PortDataType.String }
             },
             Parameters = new List<ParameterDefinition>
             {

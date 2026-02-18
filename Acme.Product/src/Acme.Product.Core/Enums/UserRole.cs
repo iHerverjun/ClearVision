@@ -1,3 +1,7 @@
+// UserRole.cs
+// 操作员 - 只能运行已有项目，可只读浏览流程
+// 作者：蘅芜君
+
 namespace Acme.Product.Core.Enums;
 
 /// <summary>

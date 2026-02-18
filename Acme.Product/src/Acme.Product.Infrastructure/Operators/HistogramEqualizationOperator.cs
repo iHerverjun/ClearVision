@@ -1,3 +1,7 @@
+// HistogramEqualizationOperator.cs
+// 直方图均衡化算子 - 支持全局均衡化和CLAHE自适应均衡化
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

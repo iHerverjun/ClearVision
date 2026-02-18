@@ -155,26 +155,7 @@ function initializeApp() {
     // 显示加载骨架屏
     showLoadingScreen();
     
-    // 添加错误显示区域
-    const debugErrors = document.createElement('div');
-    debugErrors.id = 'debug-errors';
-    debugErrors.style.cssText = 'position:fixed;bottom:5px;left:5px;right:300px;max-height:150px;overflow:auto;background:rgba(0,0,0,0.8);color:#0f0;padding:10px;font-family:monospace;font-size:11px;z-index:99998;border-radius:4px;display:none;';
-    document.body.appendChild(debugErrors);
-    
-    // 添加调试标记到页面
-    const debugIndicator = document.createElement('div');
-    debugIndicator.id = 'js-loaded-indicator';
-    debugIndicator.style.cssText = 'position:fixed;top:5px;right:5px;background:#52c41a;color:white;padding:4px 8px;border-radius:4px;font-size:12px;z-index:99999;cursor:pointer;';
-    debugIndicator.textContent = 'JS已加载 ✓';
-    debugIndicator.onclick = () => {
-        const btnCount = document.querySelectorAll('button').length;
-        const hasErrors = debugErrors.children.length > 0;
-        alert(`JavaScript运行正常！\n按钮数量: ${btnCount}\n错误数量: ${debugErrors.children.length}\n\n点击确定显示/隐藏错误日志`);
-        debugErrors.style.display = debugErrors.style.display === 'none' ? 'block' : 'none';
-    };
-    document.body.appendChild(debugIndicator);
-    
-    console.log('[App] Debug indicators added');
+    console.log('[App] Debug indicators removed for production');
     
     // 初始化导航
     initializeNavigation();

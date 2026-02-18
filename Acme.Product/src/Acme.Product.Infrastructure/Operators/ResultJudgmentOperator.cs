@@ -1,3 +1,7 @@
+// ResultJudgmentOperator.cs
+// 结果判定算子 - 通用判定逻辑（数量// 功能实现范围// 功能实现阈值）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -69,29 +73,20 @@ public class ResultJudgmentOperator : OperatorBase
 
         // 准备输出
         var outputValue = isOk ? okOutputValue : ngOutputValue;
-        var judgmentResult = isOk ? "OK" : "NG";
 
         var outputData = new Dictionary<string, object>
         {
-            { "JudgmentResult", judgmentResult },
             { "JudgmentValue", outputValue },
-            { "ActualValue", actualValueObj },
+            { "Details", details },
+            { "IsOk", isOk },
             { "FieldName", fieldName },
             { "Condition", condition },
-            { "ExpectValue", expectValue },
-            { "Details", details },
-            { "IsOk", isOk }
+            { "ExpectValue", expectValue }
         };
 
-        // 同时输出数值类型的判定值（便于PLC写入）
-        if (int.TryParse(outputValue, out var intValue))
-        {
-            outputData["JudgmentValueInt"] = intValue;
-        }
-
         Logger.LogInformation(
-            "[ResultJudgment] 判定完成: {FieldName}={ActualValue}, 条件={Condition}, 结果={JudgmentResult}",
-            fieldName, actualValueObj, condition, judgmentResult);
+            "[ResultJudgment] 判定完成: {FieldName}={ActualValue}, 条件={Condition}, 结果={IsOk}",
+            fieldName, actualValueObj, condition, isOk);
 
         return Task.FromResult(OperatorExecutionOutput.Success(outputData));
     }
@@ -186,17 +181,10 @@ public class ResultJudgmentOperator : OperatorBase
     {
         var outputData = new Dictionary<string, object>
         {
-            { "JudgmentResult", "NG" },
             { "JudgmentValue", ngOutputValue },
-            { "ActualValue", actualValue ?? "null" },
             { "Details", details },
             { "IsOk", false }
         };
-
-        if (int.TryParse(ngOutputValue, out var intValue))
-        {
-            outputData["JudgmentValueInt"] = intValue;
-        }
 
         Logger.LogWarning("[ResultJudgment] 判定失败: {Details}", details);
 

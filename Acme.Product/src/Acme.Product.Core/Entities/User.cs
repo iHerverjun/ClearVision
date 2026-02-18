@@ -1,3 +1,7 @@
+// User.cs
+// 更新显示名称
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities.Base;
 using Acme.Product.Core.Enums;
 

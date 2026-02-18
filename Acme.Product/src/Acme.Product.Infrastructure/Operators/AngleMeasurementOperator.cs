@@ -1,3 +1,7 @@
+// AngleMeasurementOperator.cs
+// 角度测量算子 - 基于三点计算角度
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

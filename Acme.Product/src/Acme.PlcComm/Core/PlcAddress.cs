@@ -1,3 +1,7 @@
+// PlcAddress.cs
+// PLC错误事件参数
+// 作者：蘅芜君
+
 namespace Acme.PlcComm.Core;
 
 /// <summary>

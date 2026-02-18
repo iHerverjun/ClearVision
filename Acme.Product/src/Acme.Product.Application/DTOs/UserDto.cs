@@ -1,3 +1,7 @@
+// UserDto.cs
+// 登录响应
+// 作者：蘅芜君
+
 using Acme.Product.Core.Enums;
 
 namespace Acme.Product.Application.DTOs;

@@ -1,3 +1,7 @@
+// WebMessageHandler.cs
+// 发送事件到前端
+// 作者：蘅芜君
+
 using Acme.Product.Contracts.Messages;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Extensions;

@@ -1,3 +1,7 @@
+// GetInspectionStatisticsQuery.cs
+// GetInspectionStatistics查询
+// 作者：蘅芜君
+
 using MediatR;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Interfaces;

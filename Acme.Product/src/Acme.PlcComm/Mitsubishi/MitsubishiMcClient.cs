@@ -1,3 +1,7 @@
+// MitsubishiMcClient.cs
+// 三菱MC协议客户端实现
+// 作者：蘅芜君
+
 using Acme.PlcComm.Common;
 using Acme.PlcComm.Core;
 using Microsoft.Extensions.Logging;

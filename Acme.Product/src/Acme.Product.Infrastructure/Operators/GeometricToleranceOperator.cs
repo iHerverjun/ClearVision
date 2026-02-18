@@ -1,3 +1,7 @@
+// GeometricToleranceOperator.cs
+// 几何公差算子 - 平行度// 功能实现垂直度测量
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

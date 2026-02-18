@@ -1,3 +1,7 @@
+// FlowExecutionService.cs
+// 流程执行服务实现
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

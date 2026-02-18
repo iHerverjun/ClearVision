@@ -1,3 +1,7 @@
+// ExecuteInspectionCommand.cs
+// ExecuteInspection命令
+// 作者：蘅芜君
+
 using MediatR;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Interfaces;

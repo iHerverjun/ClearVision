@@ -234,15 +234,26 @@ class PropertyPanel {
             case 'file':
                 inputHtml = `
                     <div class="file-picker-wrapper">
-                        <input type="text" 
-                               id="param-${name}" 
-                               name="${name}" 
-                               value="${value !== undefined ? value : defaultValue || ''}"
-                               class="form-input"
-                               readonly
-                               data-type="file">
+                        <input type="text" id="param-${name}" name="${name}" value="${value !== undefined ? value : defaultValue || ''}" class="form-input" readonly data-type="file">
                         <button type="button" class="btn btn-sm btn-secondary btn-pick-file" data-param="${name}">...</button>
                     </div>
+                `;
+                break;
+                
+            case 'cameraBinding':
+                // 从 window.cv_config 或 API 获取绑定列表
+                const config = window.cv_config || {};
+                const bindings = config.cameras || [];
+                inputHtml = `
+                    <select id="param-${name}" name="${name}" class="form-select" data-type="string">
+                        <option value="">-- 请选择相机 --</option>
+                        ${bindings.map(b => `
+                            <option value="${b.id}" ${b.id === currentValue ? 'selected' : ''}>
+                                ${b.displayName} (${b.serialNumber})
+                            </option>
+                        `).join('')}
+                    </select>
+                    ${bindings.length === 0 ? '<p class="form-description error">未检测到全局相机配置，请在“系统设置”中添加。</p>' : ''}
                 `;
                 break;
                 

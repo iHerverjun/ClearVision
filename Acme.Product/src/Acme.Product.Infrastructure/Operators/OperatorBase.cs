@@ -1,3 +1,7 @@
+// OperatorBase.cs
+// 算子执行器抽象基类 - 提供统一的参数获取、输入检查、日志记录和执行计时功能
+// 作者：蘅芜君
+
 using System.Diagnostics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

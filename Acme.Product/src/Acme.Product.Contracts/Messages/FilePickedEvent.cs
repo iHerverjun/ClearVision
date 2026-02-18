@@ -1,3 +1,7 @@
+// FilePickedEvent.cs
+// 是否取消了选择
+// 作者：蘅芜君
+
 namespace Acme.Product.Contracts.Messages;
 
 /// <summary>

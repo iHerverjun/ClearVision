@@ -1,3 +1,7 @@
+// FinsFrameBuilder.cs
+// 获取错误信息
+// 作者：蘅芜君
+
 using System.Buffers.Binary;
 
 namespace Acme.PlcComm.Omron;

@@ -1,3 +1,7 @@
+// FlowEditorTests.cs
+// 流程编辑器 UI 测试
+// 作者：蘅芜君
+
 using FluentAssertions;
 using Xunit;
 

@@ -1,3 +1,7 @@
+// VisionDbContext.cs
+// VisionDbContext实现
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.EntityFrameworkCore;

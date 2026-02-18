@@ -1,3 +1,7 @@
+// PlcBaseClient.cs
+// PLC客户端抽象基类
+// 作者：蘅芜君
+
 using System.Net.Sockets;
 using System.Text;
 using Acme.PlcComm.Common;

@@ -1,3 +1,7 @@
+// ColorConversionOperator.cs
+// 颜色空间转换算子 - 支持BGR// 功能实现GRAY// 功能实现HSV// 功能实现Lab// 功能实现YUV等颜色空间转换
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

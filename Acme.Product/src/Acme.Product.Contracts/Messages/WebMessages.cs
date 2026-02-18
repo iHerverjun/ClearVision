@@ -1,3 +1,7 @@
+// WebMessages.cs
+// 是否可恢复
+// 作者：蘅芜君
+
 using System.Text.Json.Serialization;
 
 namespace Acme.Product.Contracts.Messages;

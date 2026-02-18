@@ -1,3 +1,7 @@
+// ProjectService.cs
+// 将 OperatorConnection 值对象映射为 DTO
+// 作者：蘅芜君
+
 using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;

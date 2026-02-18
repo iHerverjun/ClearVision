@@ -1,3 +1,7 @@
+// SubpixelEdgeDetectionOperator.cs
+// 亚像素边缘提取算子 - 高精度边缘定位
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

@@ -1,3 +1,7 @@
+// GradientShapeMatcher.cs
+// GradientShapeMatcher实现
+// 作者：蘅芜君
+
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using OpenCvSharp;

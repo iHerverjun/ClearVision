@@ -1,3 +1,7 @@
+// CircleMeasurementOperator.cs
+// 圆测量算子 - 霍夫圆检测与测量
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

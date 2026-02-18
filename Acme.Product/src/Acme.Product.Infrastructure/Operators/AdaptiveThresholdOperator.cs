@@ -1,3 +1,7 @@
+// AdaptiveThresholdOperator.cs
+// 自适应阈值算子 - 支持Mean和Gaussian自适应阈值
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

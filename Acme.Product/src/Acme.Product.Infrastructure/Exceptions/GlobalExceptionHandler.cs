@@ -1,3 +1,7 @@
+// GlobalExceptionHandler.cs
+// 错误响应
+// 作者：蘅芜君
+
 using Microsoft.Extensions.Logging;
 
 namespace Acme.Product.Infrastructure.Exceptions;

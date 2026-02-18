@@ -1,3 +1,7 @@
+// FileCamera.cs
+// 文件相机实现（从文件加载图像）
+// 作者：蘅芜君
+
 using Acme.Product.Core.Cameras;
 
 namespace Acme.Product.Infrastructure.Cameras;

@@ -1,3 +1,7 @@
+// ImageDto.cs
+// 图像数据（Base64编码）
+// 作者：蘅芜君
+
 namespace Acme.Product.Application.DTOs;
 
 /// <summary>

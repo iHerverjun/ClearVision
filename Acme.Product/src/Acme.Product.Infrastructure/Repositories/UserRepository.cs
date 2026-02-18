@@ -1,3 +1,7 @@
+// UserRepository.cs
+// 检查用户名是否已存在
+// 作者：蘅芜君
+
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
