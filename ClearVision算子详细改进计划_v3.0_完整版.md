@@ -363,23 +363,27 @@ public class DirectionQuantizer
             byte* outPtr = (byte*)quantized.DataPointer;
             float* magPtr = (float*)magnitude.DataPointer;
             
-            int step = quantized16.Step();
+            // 注意: 必须使用 Step() 作为行偏移，不能用 Cols，因为 OpenCV 可能做行对齐
+            int qStep = quantized16.Step();              // byte 类型, Step 即元素偏移
+            int outStep = quantized.Step();              // byte 类型
+            int magStep = magnitude.Step() / sizeof(float);  // float 类型, 需除以元素大小
             int width = quantized16.Cols;
             int height = quantized16.Rows;
             
             Parallel.For(1, height - 1, r => {
                 for (int c = 1; c < width - 1; c++)
                 {
-                    float mag = magPtr[r * width + c];
+                    float mag = magPtr[r * magStep + c];
                     if (mag <= threshold) continue;
                     
                     // 3x3 邻域投票
-                    Span<int> hist = stackalloc int[8];
+                    // stackalloc 在 C# 7.3+ 默认清零，此处显式注释以提高可读性
+                    Span<int> hist = stackalloc int[8]; // 自动清零
                     for (int dr = -1; dr <= 1; dr++)
                     {
                         for (int dc = -1; dc <= 1; dc++)
                         {
-                            byte q = qPtr[(r + dr) * step + (c + dc)];
+                            byte q = qPtr[(r + dr) * qStep + (c + dc)];
                             q &= 7;  // 映射到 0-7
                             hist[q]++;
                         }
@@ -399,7 +403,7 @@ public class DirectionQuantizer
                     // 邻居一致性阈值 (5/9)
                     if (maxVotes >= 5)
                     {
-                        outPtr[r * step + c] = (byte)(1 << bestDir);
+                        outPtr[r * outStep + c] = (byte)(1 << bestDir);
                     }
                 }
             });
@@ -982,7 +986,11 @@ namespace ClearVision.Vision.Algorithms
                 byte* qPtr = (byte*)quantized16.DataPointer;
                 byte* outPtr = (byte*)quantized.DataPointer;
                 float* magPtr = (float*)magnitude.DataPointer;
-                int step = quantized.Step();
+                
+                // 注意: 必须使用 Step() 作为行偏移，不能用 Cols，因为 OpenCV 可能做行对齐
+                int qStep = quantized16.Step();              // byte 类型
+                int outStep = quantized.Step();              // byte 类型
+                int magStep = magnitude.Step() / sizeof(float);  // float 类型
                 int width = quantized.Cols;
                 int height = quantized.Rows;
                 
@@ -990,17 +998,15 @@ namespace ClearVision.Vision.Algorithms
                 {
                     for (int c = 1; c < width - 1; c++)
                     {
-                        int idx = r * width + c;
-                        if (magPtr[idx] <= threshold) continue;
+                        if (magPtr[r * magStep + c] <= threshold) continue;
                         
-                        // 3x3 邻域投票
-                        Span<int> hist = stackalloc int[8];
+                        // 3x3 邻域投票 (stackalloc 在 C# 7.3+ 默认清零)
+                        Span<int> hist = stackalloc int[8]; // 自动清零
                         for (int dr = -1; dr <= 1; dr++)
                         {
                             for (int dc = -1; dc <= 1; dc++)
                             {
-                                int nIdx = (r + dr) * width + (c + dc);
-                                byte q = (byte)(qPtr[nIdx] & 7);
+                                byte q = (byte)(qPtr[(r + dr) * qStep + (c + dc)] & 7);
                                 hist[q]++;
                             }
                         }
@@ -1018,7 +1024,7 @@ namespace ClearVision.Vision.Algorithms
                         // 5/9 邻居一致性
                         if (maxVotes >= 5)
                         {
-                            outPtr[r * step + c] = (byte)(1 << bestDir);
+                            outPtr[r * outStep + c] = (byte)(1 << bestDir);
                         }
                     }
                 });
@@ -1258,24 +1264,106 @@ namespace ClearVision.Vision.Algorithms
                 byte* srcPtr = (byte*)spreaded.DataPointer;
                 byte* lsbPtr = (byte*)lsb.DataPointer;
                 byte* msbPtr = (byte*)msb.DataPointer;
-                int size = spreaded.Rows * spreaded.Cols;
+                int srcStep = spreaded.Step();
+                int lsbStep = lsb.Step();
+                int msbStep = msb.Step();
+                int width = spreaded.Cols;
+                int height = spreaded.Rows;
                 
-                Parallel.For(0, size, i =>
+                // 分离高低 4 位 (使用 Step 处理行对齐)
+                for (int r = 0; r < height; r++)
                 {
-                    lsbPtr[i] = (byte)(srcPtr[i] & 0x0F);
-                    msbPtr[i] = (byte)((srcPtr[i] & 0xF0) >> 4);
-                });
+                    byte* srcRow = srcPtr + r * srcStep;
+                    byte* lsbRow = lsbPtr + r * lsbStep;
+                    byte* msbRow = msbPtr + r * msbStep;
+                    for (int c = 0; c < width; c++)
+                    {
+                        lsbRow[c] = (byte)(srcRow[c] & 0x0F);
+                        msbRow[c] = (byte)((srcRow[c] & 0xF0) >> 4);
+                    }
+                }
             }
             
-            // 为每个方向计算响应图 (简化版，实际应使用 SIMD)
+            // 为每个方向计算响应图
+            // 使用预计算的 LUT 查找表加速相似度计算
             for (int ori = 0; ori < 8; ori++)
             {
                 var response = new Mat(spreaded.Size(), MatType.CV_8U);
-                // TODO: 使用 LUT 查表计算响应值
+                byte[] lutLow = new byte[16];   // 低 4 位 LUT
+                byte[] lutHigh = new byte[16];  // 高 4 位 LUT
+                
+                // 填充 LUT: 计算模板方向 ori 与场景每种量化方向的相似度
+                for (int j = 0; j < 16; j++)
+                {
+                    byte maxSim = 0;
+                    for (int bit = 0; bit < 4; bit++)  // 低 4 位: 方向 0-3
+                    {
+                        if ((j & (1 << bit)) != 0)
+                        {
+                            byte sim = DirectionSimilarity(ori, bit);
+                            if (sim > maxSim) maxSim = sim;
+                        }
+                    }
+                    lutLow[j] = maxSim;
+                    
+                    maxSim = 0;
+                    for (int bit = 0; bit < 4; bit++)  // 高 4 位: 方向 4-7
+                    {
+                        if ((j & (1 << bit)) != 0)
+                        {
+                            byte sim = DirectionSimilarity(ori, bit + 4);
+                            if (sim > maxSim) maxSim = sim;
+                        }
+                    }
+                    lutHigh[j] = maxSim;
+                }
+                
+                // 使用 LUT 查表计算响应值
+                unsafe
+                {
+                    byte* lsbPtr = (byte*)lsb.DataPointer;
+                    byte* msbPtr = (byte*)msb.DataPointer;
+                    byte* resPtr = (byte*)response.DataPointer;
+                    int lsbStep = lsb.Step();
+                    int msbStep = msb.Step();
+                    int resStep = response.Step();
+                    int width = spreaded.Cols;
+                    int height = spreaded.Rows;
+                    
+                    Parallel.For(0, height, r =>
+                    {
+                        byte* lsbRow = lsbPtr + r * lsbStep;
+                        byte* msbRow = msbPtr + r * msbStep;
+                        byte* resRow = resPtr + r * resStep;
+                        for (int c = 0; c < width; c++)
+                        {
+                            byte lowVal = lutLow[lsbRow[c]];
+                            byte highVal = lutHigh[msbRow[c]];
+                            resRow[c] = Math.Max(lowVal, highVal);
+                        }
+                    });
+                }
+                
                 responseMaps.Add(response);
             }
             
             return responseMaps;
+        }
+        
+        /// <summary>
+        /// 方向相似度查找 (0-4 分)
+        /// </summary>
+        private static byte DirectionSimilarity(int ori1, int ori2)
+        {
+            int diff = Math.Abs(ori1 - ori2);
+            if (diff > 4) diff = 8 - diff;  // 环形距离
+            
+            return diff switch
+            {
+                0 => 4,  // 完全一致
+                1 => 3,  // 相差 45°
+                _ => 0   // 相差 >= 90°, 无关
+            };
         }
         
         /// <summary>
@@ -1308,8 +1396,75 @@ namespace ClearVision.Vision.Algorithms
         private List<MatchResult> MatchTemplate(List<Mat> responseMaps, 
             Template template, float threshold)
         {
-            // TODO: 实现相似度累加和峰值检测
-            return new List<MatchResult>();
+            var results = new List<MatchResult>();
+            if (template.Features.Count == 0) return results;
+            
+            int mapW = responseMaps[0].Cols;
+            int mapH = responseMaps[0].Rows;
+            
+            // 计算模板边界
+            int minX = template.Features.Min(f => f.X);
+            int maxX = template.Features.Max(f => f.X);
+            int minY = template.Features.Min(f => f.Y);
+            int maxY = template.Features.Max(f => f.Y);
+            
+            // 可搜索范围
+            int searchW = mapW - (maxX - minX);
+            int searchH = mapH - (maxY - minY);
+            if (searchW <= 0 || searchH <= 0) return results;
+            
+            // 归一化阈值: threshold 是 0-1 范围，满分 = 4 * 特征点数
+            float maxScore = 4.0f * template.Features.Count;
+            float scoreThreshold = threshold * maxScore;
+            
+            // 预取响应图指针
+            var mapPtrs = new IntPtr[8];
+            var mapSteps = new int[8];
+            for (int i = 0; i < 8; i++)
+            {
+                mapPtrs[i] = responseMaps[i].DataPointer;
+                mapSteps[i] = responseMaps[i].Step();
+            }
+            
+            // 并行搜索所有位置
+            var localResults = new ConcurrentBag<MatchResult>();
+            
+            unsafe
+            {
+                Parallel.For(0, searchH, y =>
+                {
+                    int offsetY = y - minY;
+                    for (int x = 0; x < searchW; x++)
+                    {
+                        int offsetX = x - minX;
+                        float score = 0;
+                        
+                        // 累加所有特征点的响应值
+                        foreach (var feat in template.Features)
+                        {
+                            int fx = feat.X + offsetX;
+                            int fy = feat.Y + offsetY;
+                            byte* mapPtr = (byte*)mapPtrs[feat.Label];
+                            score += mapPtr[fy * mapSteps[feat.Label] + fx];
+                        }
+                        
+                        if (score >= scoreThreshold)
+                        {
+                            localResults.Add(new MatchResult
+                            {
+                                X = offsetX,
+                                Y = offsetY,
+                                Score = score / maxScore,
+                                Width = maxX - minX,
+                                Height = maxY - minY
+                            });
+                        }
+                    }
+                });
+            }
+            
+            results.AddRange(localResults);
+            return results;
         }
         
         /// <summary>
@@ -1359,9 +1514,32 @@ namespace ClearVision.Vision.Algorithms
             public float Angle { get; set; }
         }
         
+        // 模板缓存 (支持序列化/反序列化)
+        private List<List<Template>> _trainedTemplates = new();
+        
+        /// <summary>
+        /// 保存训练模板到文件 (JSON 序列化)
+        /// </summary>
+        public void SaveTemplates(string filePath)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_trainedTemplates,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filePath, json);
+        }
+        
+        /// <summary>
+        /// 从文件加载训练模板
+        /// </summary>
+        public void LoadTemplates(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            _trainedTemplates = System.Text.Json.JsonSerializer
+                .Deserialize<List<List<Template>>>(json) ?? new();
+        }
+        
         public void Dispose()
         {
-            // 清理资源
+            _trainedTemplates.Clear();
         }
         
         #endregion
@@ -1876,10 +2054,10 @@ namespace ClearVision.Vision.Algorithms
         
         /// <summary>
         /// 直线拟合 - 使用亚像素边缘点拟合直线
+        /// 拟合结果: a*x + b*y + c = 0 (法线形式)
         /// </summary>
         public (double a, double b, double c, double rmse) FitLine(
             IEnumerable<SubpixelEdgePoint> edgePoints)
-        where a*x + b*y + c = 0
         {
             var points = edgePoints.ToList();
             if (points.Count < 2)
@@ -1963,21 +2141,22 @@ namespace ClearVision.Vision.Algorithms
 
 | 阶段 | 时间 | 任务 | 预期成果 |
 |------|------|------|----------|
-| **P0** | Week 1 | 修复 PyramidShapeMatchOperator | 完成真正的金字塔实现 |
-| **P1** | Week 2-3 | 实现 LINEMOD 算法 | 响应图匹配、SIMD优化 |
-| **P2** | Week 4-5 | Steger 亚像素边缘 | 0.05px 精度 |
-| **P3** | Week 6-7 | 多目标检测与NMS | 支持多实例 |
-| **P4** | Week 8 | 测试与文档 | 覆盖 80%+ |
+| **P0** | Week 1 | 修复 PyramidShapeMatchOperator | 接入 LineModShapeMatcher 框架 |
+| **P1** | Week 2-3 | LINEMOD 标量实现 | 响应图匹配 (50-70ms), Parallel.For 加速 |
+| **P2** | Week 4 | Steger 亚像素边缘 | 0.1px 精度 (工业场景) |
+| **P3** | Week 5-6 | 多目标检测与NMS + 模板序列化 | 多实例检测, JSON 持久化 |
+| **P4** | Week 7 | SIMD 优化 (可选) | 匹配降至 15-25ms |
+| **P5** | Week 8 | 集成测试与文档 | 覆盖 80%+, 架构对接完成 |
 
 ### 4.2 关键改进点对比表
 
 | 功能 | 当前 ClearVision | 改进后 (基于 LINEMOD/Steger) | 性能/精度提升 |
 |------|------------------|------------------------------|---------------|
-| **形状匹配** | 基础梯度匹配 (200ms) | LINEMOD + 响应图 (20ms) | **10x 速度** |
-| **定位精度** | 1-2 像素 | 0.05-0.1 像素 | **10-20x 精度** |
+| **形状匹配** | 基础梯度匹配 (200ms) | LINEMOD + 响应图 (~50-70ms) | **3-5x 速度** |
+| **定位精度** | 1-2 像素 | 0.1-0.3 像素 (无 SIMD C# 版) | **5-10x 精度** |
 | **旋转支持** | 不支持 | 预计算多角度模板 | **完整支持** |
 | **多目标** | 单目标 | NMS 多目标检测 | **多实例** |
-| **亚像素边缘** | 简单插值 (0.3px) | Steger (0.05px) | **6x 精度** |
+| **亚像素边缘** | 简单插值 (0.3px) | Steger (0.1px 实际工业场景) | **3x 精度** |
 | **几何测量** | 像素级 | 亚像素级圆/线拟合 | **高精度** |
 
 ---
@@ -2000,8 +2179,8 @@ public void LineMod_Performance_1024x1024_100Templates()
     var matches = matcher.Match(sceneImage, templates);
     stopwatch.Stop();
     
-    // 断言: 必须在 50ms 内完成
-    Assert.Less(stopwatch.ElapsedMilliseconds, 50);
+    // 断言: C# 无 SIMD 版本预期 200ms 内完成 (后续 SIMD 优化可进一步降至 80ms)
+    Assert.Less(stopwatch.ElapsedMilliseconds, 200);
 }
 ```
 
@@ -2030,19 +2209,211 @@ public void Steger_Precision_SyntheticCircle()
 
 ---
 
-## 六、总结
+## 六、SIMD 加速方案
 
-本文档提供了从 meiqua/shape_based_matching (LINEMOD) 和 raymondngiam/Steger 项目中提取的完整算法细节，包括:
+> **注意**: 第一版实现建议先使用 `unsafe` + `Parallel.For` 做基础加速，确保算法正确后再引入 SIMD。
 
-1. **LINEMOD 算法**: 梯度响应图、方向扩展、线性化内存、SIMD 加速
-2. **Steger 算法**: 7-tap Farid 滤波器、Hessian 矩阵、亚像素定位
-3. **完整 C# 实现**: 可直接用于 ClearVision 项目改进
+### 6.1 C# SIMD 技术选型
 
-通过这些改进，ClearVision 的形状匹配精度将从 1-2 像素提升至 0.05-0.1 像素，速度提升 5-10 倍，达到工业级标准。
+C# 中有两种 SIMD 方案：
+
+| 方案 | API | 优点 | 缺点 |
+|------|-----|------|------|
+| **System.Numerics.Vector\<T\>** | `Vector<byte>`, `Vector.BitwiseOr` | 跨平台, 自动选择最佳指令集 | 不支持 `Shuffle` 等高级操作 |
+| **System.Runtime.Intrinsics** | `Ssse3.Shuffle`, `Avx2.Max` | 精确控制, 支持查表加速 | 仅 x86, 需运行时检测 |
+
+**推荐**: 先用 `Vector<T>` 实现跨平台基础版本，再对关键热点函数（LUT 查表、响应值累加）用 `Intrinsics` 优化。
+
+### 6.2 关键 SIMD 加速点
+
+#### 6.2.1 响应图 LUT 查表加速 (Ssse3.Shuffle)
+
+```csharp
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+
+/// <summary>
+/// 使用 SSSE3 Shuffle 指令加速 LUT 查表
+/// Shuffle 可以将 16 字节的 LUT 按索引查表，一次处理 16 个像素
+/// </summary>
+private static unsafe void ComputeResponseMapSIMD(
+    byte* lsbPtr, byte* msbPtr, byte* resPtr, 
+    byte[] lutLow, byte[] lutHigh, int count)
+{
+    if (Ssse3.IsSupported)
+    {
+        // 将 LUT 加载为 128 位向量
+        fixed (byte* lutLowPtr = lutLow, lutHighPtr = lutHigh)
+        {
+            var lutLowVec = Sse2.LoadVector128(lutLowPtr);
+            var lutHighVec = Sse2.LoadVector128(lutHighPtr);
+            
+            int i = 0;
+            for (; i <= count - 16; i += 16)
+            {
+                // 加载 16 个像素的低/高 4 位索引
+                var lowIdx = Sse2.LoadVector128(lsbPtr + i);
+                var highIdx = Sse2.LoadVector128(msbPtr + i);
+                
+                // Shuffle 查表: 按索引从 LUT 中取值
+                var lowRes = Ssse3.Shuffle(lutLowVec, lowIdx);
+                var highRes = Ssse3.Shuffle(lutHighVec, highIdx);
+                
+                // 取最大值
+                var result = Sse2.Max(lowRes, highRes);
+                Sse2.Store(resPtr + i, result);
+            }
+            
+            // 处理剩余像素
+            for (; i < count; i++)
+            {
+                resPtr[i] = Math.Max(lutLow[lsbPtr[i]], lutHigh[msbPtr[i]]);
+            }
+        }
+    }
+    else
+    {
+        // 标量回退
+        for (int i = 0; i < count; i++)
+        {
+            resPtr[i] = Math.Max(lutLow[lsbPtr[i]], lutHigh[msbPtr[i]]);
+        }
+    }
+}
+```
+
+#### 6.2.2 相似度累加加速 (SSE2)
+
+```csharp
+/// <summary>
+/// 使用 SSE2 加速特征点响应值累加
+/// 将 byte 扩展为 short 后累加，避免溢出
+/// </summary>
+private static unsafe void AccumulateSimilaritySIMD(
+    byte* responsePtr, short* dstPtr, int count)
+{
+    if (Sse2.IsSupported)
+    {
+        var zero = Vector128<byte>.Zero;
+        int i = 0;
+        for (; i <= count - 16; i += 16)
+        {
+            // 加载 16 字节响应值
+            var src8 = Sse2.LoadVector128(responsePtr + i);
+            
+            // 扩展为两组 8 个 short
+            var lo16 = Sse2.UnpackLow(src8, zero).AsInt16();
+            var hi16 = Sse2.UnpackHigh(src8, zero).AsInt16();
+            
+            // 累加
+            var dstLo = Sse2.LoadVector128(dstPtr + i);
+            var dstHi = Sse2.LoadVector128(dstPtr + i + 8);
+            
+            Sse2.Store(dstPtr + i, Sse2.Add(dstLo, lo16));
+            Sse2.Store(dstPtr + i + 8, Sse2.Add(dstHi, hi16));
+        }
+        
+        for (; i < count; i++)
+        {
+            dstPtr[i] += responsePtr[i];
+        }
+    }
+}
+```
+
+### 6.3 预期性能提升
+
+| 函数 | 标量 C# | SIMD C# | 加速比 |
+|------|---------|---------|--------|
+| ComputeResponseMaps | ~15ms | ~3ms | 5x |
+| Similarity 累加 | ~20ms | ~5ms | 4x |
+| **总体匹配** | **~50-70ms** | **~15-25ms** | **3x** |
+
+> 第一阶段 (标量) 目标: 50-70ms；第二阶段 (SIMD) 目标: 15-25ms。
 
 ---
 
-**文档版本**: v3.0  
+## 七、架构集成方案
+
+### 7.1 与 OperatorBase 的对接
+
+新增的算法类 (`LineModShapeMatcher`, `StegerSubpixelEdgeDetector`) 需要通过 `OperatorBase` 框架暴露给前端流程编辑器：
+
+```csharp
+// 方案: 增强现有算子而非新建算子
+// PyramidShapeMatchOperator 内部替换为 LineModShapeMatcher
+// SubpixelEdgeDetectionOperator 内部替换为 StegerSubpixelEdgeDetector
+
+// PyramidShapeMatchOperator.cs - 改造后
+public class PyramidShapeMatchOperator : OperatorBase
+{
+    private LineModShapeMatcher? _matcher;
+    
+    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        CancellationToken cancellationToken)
+    {
+        return RunCpuBoundWork(() =>
+        {
+            _matcher ??= new LineModShapeMatcher
+            {
+                WeakThreshold = GetFloatParam(@operator, "WeakThreshold", 30f),
+                StrongThreshold = GetFloatParam(@operator, "StrongThreshold", 60f),
+                NumFeatures = GetIntParam(@operator, "NumFeatures", 150),
+                PyramidLevels = GetIntParam(@operator, "PyramidLevels", 3),
+                SpreadT = GetIntParam(@operator, "SpreadT", 4)
+            };
+            
+            // ... 训练 + 匹配逻辑
+        }, cancellationToken);
+    }
+}
+```
+
+### 7.2 关键集成要点
+
+1. **不新增算子类型**: 复用现有 `OperatorType.PyramidShapeMatch` 和 `OperatorType.SubpixelEdgeDetection`
+2. **前端参数面板**: 新增 `NumFeatures`, `SpreadT`, `WeakThreshold` 等参数配置项
+3. **模板持久化**: 模板保存到项目目录 `Templates/{operatorId}.json`，启动时自动加载
+4. **向后兼容**: 保留 `GradientShapeMatcher` 作为降级方案，通过参数 `UseLineMod: true/false` 切换
+
+### 7.3 命名空间规划
+
+```
+Acme.Product.Infrastructure/
+├── ImageProcessing/
+│   ├── GradientShapeMatcher.cs          (保留, 降级方案)
+│   ├── LineModShapeMatcher.cs           [新增] LINEMOD 核心算法
+│   ├── StegerSubpixelEdgeDetector.cs    [新增] Steger 亚像素检测
+│   └── SimdHelper.cs                    [新增] SIMD 辅助函数
+└── Operators/
+    ├── Features/
+    │   ├── PyramidShapeMatchOperator.cs  (改造, 内部使用 LineModShapeMatcher)
+    │   └── ...
+    └── SubpixelEdgeDetectionOperator.cs  (改造, 内部使用 StegerSubpixelEdgeDetector)
+```
+
+---
+
+## 八、总结
+
+本文档提供了从 meiqua/shape_based_matching (LINEMOD) 和 raymondngiam/Steger 项目中提取的完整算法细节，包括:
+
+1. **LINEMOD 算法**: 梯度响应图、方向扩展、LUT 查表、稀疏特征匹配的完整 C# 实现
+2. **Steger 算法**: 7-tap Farid 滤波器、Hessian 矩阵、亚像素定位的完整 C# 实现
+3. **SIMD 加速方案**: 基于 `System.Runtime.Intrinsics` 的 LUT 查表和响应值累加加速
+4. **架构集成方案**: 与现有 `OperatorBase` 框架的对接方式，命名空间规划
+5. **模板序列化**: 支持 JSON 格式的模板保存/加载
+
+**分阶段目标**:
+- Phase 1 (标量 C#): 形状匹配 50-70ms, 定位精度 0.1-0.3px
+- Phase 2 (SIMD 优化): 形状匹配 15-25ms, 定位精度 0.1px
+
+---
+
+**文档版本**: v3.1 (评审修订版)  
 **最后更新**: 2026年2月18日  
-**作者**: AI Code Auditor  
+**原稿**: AI Code Auditor (opencode)  
+**评审修订**: Antigravity  
 **参考项目**: meiqua/shape_based_matching, raymondngiam/subpixel-edge-contour-in-opencv

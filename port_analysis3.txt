@@ -1,9 +1,0 @@
-L2153: DualModalVoting                          IN= 6  OUT= 5  TOTAL=11
-L1619: ResultJudgment                           IN= 2  OUT= 6  TOTAL= 8
-L 270: TemplateMatching                         IN= 2  OUT= 5  TOTAL= 7
-L2091: GradientShapeMatch                       IN= 2  OUT= 5  TOTAL= 7
-L2122: PyramidShapeMatch                        IN= 2  OUT= 5  TOTAL= 7
-L 861: CoordinateTransform                      IN= 3  OUT= 3  TOTAL= 6
-L1804: ImageSubtract                            IN= 2  OUT= 4  TOTAL= 6
-L2031: AkazeFeatureMatch                        IN= 2  OUT= 4  TOTAL= 6
-L2061: OrbFeatureMatch                          IN= 2  OUT= 4  TOTAL= 6

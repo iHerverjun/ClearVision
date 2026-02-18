@@ -1,10 +1,13 @@
 // SubpixelEdgeDetectionOperator.cs
 // 亚像素边缘提取算子 - 高精度边缘定位
+// 使用 Steger 算法 (基于 Hessian 矩阵的亚像素定位)
+// 参考论文: C. Steger, "An unbiased detector of curvilinear structures", IEEE TPAMI, 1998
 // 作者：蘅芜君
 
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -12,6 +15,11 @@ namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 亚像素边缘提取算子 - 高精度边缘定位
+/// 
+/// 支持两种算法:
+/// 1. Steger - 基于 Hessian 矩阵的亚像素定位 (0.01-0.1px 精度)
+/// 2. GradientInterp - 梯度插值法 (简化版本)
+/// 3. GaussianFit - 高斯拟合法
 /// </summary>
 public class SubpixelEdgeDetectionOperator : OperatorBase
 {
@@ -36,7 +44,8 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         var lowThreshold = GetDoubleParam(@operator, "LowThreshold", 50.0, min: 0.0, max: 255.0);
         var highThreshold = GetDoubleParam(@operator, "HighThreshold", 150.0, min: 0.0, max: 255.0);
         var sigma = GetDoubleParam(@operator, "Sigma", 1.0, min: 0.1, max: 10.0);
-        var method = GetStringParam(@operator, "Method", "GradientInterp");
+        var method = GetStringParam(@operator, "Method", "Steger");
+        var edgeThreshold = GetDoubleParam(@operator, "EdgeThreshold", 10.0, min: 0.0, max: 1000.0);
 
         // 3. 获取 Mat
         using var src = imageWrapper.GetMat();
@@ -45,10 +54,85 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        // 创建结果图像
-        using var resultImage = src.Clone();
+        return RunCpuBoundWork(() =>
+        {
+            // 创建结果图像
+            using var resultImage = src.Clone();
 
-        // 4. 核心算法
+            List<SubpixelEdgePoint> edgePoints;
+            int contourCount = 0;
+
+            if (method == "Steger")
+            {
+                // 使用 Steger 算法
+                using var detector = new StegerSubpixelEdgeDetector
+                {
+                    EdgeThreshold = edgeThreshold,
+                    MaxOffset = 0.5
+                };
+
+                edgePoints = detector.DetectEdges(src, lowThreshold, highThreshold);
+                contourCount = edgePoints.Count > 0 ? 1 : 0; // Steger 不直接返回轮廓数量
+            }
+            else
+            {
+                // 使用传统方法
+                var (points, contours) = DetectEdgesTraditional(src, lowThreshold, highThreshold, sigma, method);
+                edgePoints = points;
+                contourCount = contours;
+            }
+
+            // 绘制边缘点
+            foreach (var point in edgePoints)
+            {
+                Cv2.Circle(resultImage,
+                    new Point((int)point.X, (int)point.Y),
+                    1, new Scalar(0, 255, 0), -1);
+
+                // 绘制法向方向
+                var endX = (int)(point.X + point.NormalX * 5);
+                var endY = (int)(point.Y + point.NormalY * 5);
+                Cv2.Line(resultImage,
+                    new Point((int)point.X, (int)point.Y),
+                    new Point(endX, endY),
+                    new Scalar(255, 0, 0), 1);
+            }
+
+            // 显示统计信息
+            var info = $"{method}: {edgePoints.Count} edges";
+            Cv2.PutText(resultImage, info, new Point(10, 30),
+                HersheyFonts.HersheySimplex, 0.7, new Scalar(255, 255, 0), 2);
+
+            // 转换为输出格式
+            var subpixelEdges = edgePoints.Select(p => new Dictionary<string, object>
+            {
+                { "X", p.X },
+                { "Y", p.Y },
+                { "NormalX", p.NormalX },
+                { "NormalY", p.NormalY },
+                { "Strength", p.Strength }
+            }).ToList();
+
+            var additionalData = new Dictionary<string, object>
+            {
+                { "Edges", subpixelEdges },
+                { "EdgeCount", edgePoints.Count },
+                { "ContourCount", contourCount },
+                { "Method", method }
+            };
+
+            return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// 传统边缘检测方法 (GradientInterp / GaussianFit)
+    /// </summary>
+    private (List<SubpixelEdgePoint> points, int contourCount) DetectEdgesTraditional(
+        Mat src, double lowThreshold, double highThreshold, double sigma, string method)
+    {
+        var edgePoints = new List<SubpixelEdgePoint>();
+
         // 灰度 → GaussianBlur → Canny → FindContours
         using var gray = new Mat();
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
@@ -69,55 +153,24 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         Cv2.Sobel(blurred, sobelX, MatType.CV_64F, 1, 0, 3);
         Cv2.Sobel(blurred, sobelY, MatType.CV_64F, 0, 1, 3);
 
-        // 亚像素边缘点集
-        var subpixelEdges = new List<Dictionary<string, object>>();
-
         foreach (var contour in contours)
         {
             foreach (var point in contour)
             {
-                var subpixelPoint = CalculateSubpixelEdge(
+                var subpixelPoint = CalculateSubpixelEdgeTraditional(
                     point, gray, sobelX, sobelY, method);
 
-                if (subpixelPoint.HasValue)
+                if (subpixelPoint != null)
                 {
-                    subpixelEdges.Add(new Dictionary<string, object>
-                    {
-                        { "X", subpixelPoint.Value.X },
-                        { "Y", subpixelPoint.Value.Y },
-                        { "Strength", subpixelPoint.Value.Strength }
-                    });
-
-                    // 在结果图上标记
-                    Cv2.Circle(resultImage,
-                        new Point((int)subpixelPoint.Value.X, (int)subpixelPoint.Value.Y),
-                        1, new Scalar(0, 255, 0), -1);
+                    edgePoints.Add(subpixelPoint);
                 }
             }
         }
 
-        // 绘制轮廓
-        for (int i = 0; i < contours.Length; i++)
-        {
-            Cv2.DrawContours(resultImage, contours, i, new Scalar(0, 0, 255), 1);
-        }
-
-        // 显示统计信息
-        var info = $"Edges: {subpixelEdges.Count}";
-        Cv2.PutText(resultImage, info, new Point(10, 30),
-            HersheyFonts.HersheySimplex, 0.7, new Scalar(255, 255, 0), 2);
-
-        var additionalData = new Dictionary<string, object>
-        {
-            { "Edges", subpixelEdges },
-            { "EdgeCount", subpixelEdges.Count },
-            { "ContourCount", contours.Length }
-        };
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
+        return (edgePoints, contours.Length);
     }
 
-    private (double X, double Y, double Strength)? CalculateSubpixelEdge(
+    private SubpixelEdgePoint? CalculateSubpixelEdgeTraditional(
         Point pixelPoint, Mat gray, Mat sobelX, Mat sobelY, string method)
     {
         int x = pixelPoint.X;
@@ -145,12 +198,10 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         if (method == "GradientInterp")
         {
             // 梯度插值法
-            // 沿梯度方向取3个采样值
             double g1 = BilinearInterpolate(gray, x - dxNorm, y - dyNorm);
             double g2 = gray.At<byte>(y, x);
             double g3 = BilinearInterpolate(gray, x + dxNorm, y + dyNorm);
 
-            // 抛物线拟合求亚像素偏移
             double denom = g1 - 2 * g2 + g3;
             if (Math.Abs(denom) < 1e-10)
                 return null;
@@ -162,7 +213,6 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         }
         else // GaussianFit
         {
-            // 高斯拟合法 - 简化版本，使用梯度插值的近似
             double g1 = BilinearInterpolate(gray, x - dxNorm, y - dyNorm);
             double g2 = gray.At<byte>(y, x);
             double g3 = BilinearInterpolate(gray, x + dxNorm, y + dyNorm);
@@ -172,15 +222,20 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
                 return null;
 
             double offset = 0.5 * (g1 - g3) / denom;
-
-            // 高斯拟合的修正
             offset = offset * Math.Exp(-offset * offset / 2);
 
             subpixelX = x + offset * dxNorm;
             subpixelY = y + offset * dyNorm;
         }
 
-        return (subpixelX, subpixelY, strength);
+        return new SubpixelEdgePoint
+        {
+            X = subpixelX,
+            Y = subpixelY,
+            NormalX = dxNorm,
+            NormalY = dyNorm,
+            Strength = strength
+        };
     }
 
     private double BilinearInterpolate(Mat image, double x, double y)
@@ -221,10 +276,14 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         if (sigma < 0.1 || sigma > 10.0)
             return ValidationResult.Invalid("高斯Sigma必须在 0.1-10.0 之间");
 
-        var method = GetStringParam(@operator, "Method", "GradientInterp");
-        var validMethods = new[] { "GradientInterp", "GaussianFit" };
+        var method = GetStringParam(@operator, "Method", "Steger");
+        var validMethods = new[] { "Steger", "GradientInterp", "GaussianFit" };
         if (!validMethods.Contains(method))
             return ValidationResult.Invalid($"亚像素方法必须是: {string.Join(", ", validMethods)}");
+
+        var edgeThreshold = GetDoubleParam(@operator, "EdgeThreshold", 10.0);
+        if (edgeThreshold < 0 || edgeThreshold > 1000)
+            return ValidationResult.Invalid("边缘阈值必须在 0-1000 之间");
 
         return ValidationResult.Valid();
     }
