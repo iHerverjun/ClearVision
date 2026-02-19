@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities.Base;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace Acme.Product.Core.Entities;
 
@@ -16,40 +17,44 @@ public class Operator : Entity
     /// <summary>
     /// 算子名称
     /// </summary>
-    public string Name { get; private set; }
+    [JsonInclude]
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// 算子类型
     /// </summary>
-    public OperatorType Type { get; private set; }
+    [JsonInclude]
+    public OperatorType Type { get; set; }
 
     /// <summary>
     /// 算子在画布上的位置
     /// </summary>
-    public Position Position { get; private set; }
+    [JsonInclude]
+    public Position Position { get; set; } = new Position(0, 0);
 
     /// <summary>
     /// 输入端口列表
     /// </summary>
-    private readonly List<Port> _inputPorts = [];
-    public IReadOnlyCollection<Port> InputPorts => _inputPorts.AsReadOnly();
+    [JsonInclude]
+    public List<Port> InputPorts { get; set; } = [];
 
     /// <summary>
     /// 输出端口列表
     /// </summary>
-    private readonly List<Port> _outputPorts = [];
-    public IReadOnlyCollection<Port> OutputPorts => _outputPorts.AsReadOnly();
+    [JsonInclude]
+    public List<Port> OutputPorts { get; set; } = [];
 
     /// <summary>
     /// 参数配置
     /// </summary>
-    private readonly List<Parameter> _parameters = [];
-    public IReadOnlyCollection<Parameter> Parameters => _parameters.AsReadOnly();
+    [JsonInclude]
+    public List<Parameter> Parameters { get; set; } = [];
 
     /// <summary>
     /// 是否启用
     /// </summary>
-    public bool IsEnabled { get; private set; }
+    [JsonInclude]
+    public bool IsEnabled { get; set; } = true;
 
     /// <summary>
     /// 执行状态
@@ -71,6 +76,7 @@ public class Operator : Entity
     /// </summary>
     public Guid ProjectId { get; private set; }
 
+    [JsonConstructor]
     private Operator()
     {
         Name = string.Empty;
@@ -124,7 +130,7 @@ public class Operator : Entity
     public void AddInputPort(string name, PortDataType dataType, bool isRequired = true)
     {
         var port = new Port(Guid.NewGuid(), name, PortDirection.Input, dataType, isRequired);
-        _inputPorts.Add(port);
+        InputPorts.Add(port);
         MarkAsModified();
     }
 
@@ -134,7 +140,7 @@ public class Operator : Entity
     public void AddOutputPort(string name, PortDataType dataType)
     {
         var port = new Port(Guid.NewGuid(), name, PortDirection.Output, dataType, false);
-        _outputPorts.Add(port);
+        OutputPorts.Add(port);
         MarkAsModified();
     }
 
@@ -143,8 +149,7 @@ public class Operator : Entity
     /// </summary>
     public void LoadInputPort(Guid id, string name, PortDataType dataType, bool isRequired)
     {
-        var port = new Port(id, name, PortDirection.Input, dataType, isRequired);
-        _inputPorts.Add(port);
+        InputPorts.Add(new Port(id, name, PortDirection.Input, dataType, isRequired));
     }
 
     /// <summary>
@@ -152,8 +157,7 @@ public class Operator : Entity
     /// </summary>
     public void LoadOutputPort(Guid id, string name, PortDataType dataType)
     {
-        var port = new Port(id, name, PortDirection.Output, dataType, false);
-        _outputPorts.Add(port);
+        OutputPorts.Add(new Port(id, name, PortDirection.Output, dataType, false));
     }
 
     /// <summary>
@@ -164,7 +168,7 @@ public class Operator : Entity
         if (parameter == null)
             throw new ArgumentNullException(nameof(parameter));
 
-        _parameters.Add(parameter);
+        Parameters.Add(parameter);
         MarkAsModified();
     }
 
@@ -173,7 +177,7 @@ public class Operator : Entity
     /// </summary>
     public void UpdateParameter(string parameterName, object value)
     {
-        var param = _parameters.FirstOrDefault(p => p.Name == parameterName);
+        var param = Parameters.FirstOrDefault(p => p.Name == parameterName);
         if (param == null)
             throw new InvalidOperationException($"参数 {parameterName} 不存在");
 

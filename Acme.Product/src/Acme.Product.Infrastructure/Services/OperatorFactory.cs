@@ -385,7 +385,7 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "Defects", DisplayName = "缺陷列表", DataType = PortDataType.Contour },
+                new() { Name = "Defects", DisplayName = "缺陷列表", DataType = PortDataType.DetectionList },
                 new() { Name = "DefectCount", DisplayName = "缺陷数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
@@ -641,6 +641,7 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
                 new() { Name = "Radius", DisplayName = "半径", DataType = PortDataType.Float },
                 new() { Name = "Center", DisplayName = "圆心", DataType = PortDataType.Point },
+                new() { Name = "Circle", DisplayName = "圆数据", DataType = PortDataType.CircleData },
                 new() { Name = "CircleCount", DisplayName = "圆数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
@@ -676,6 +677,7 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
                 new() { Name = "Angle", DisplayName = "角度", DataType = PortDataType.Float },
                 new() { Name = "Length", DisplayName = "长度", DataType = PortDataType.Float },
+                new() { Name = "Line", DisplayName = "直线数据", DataType = PortDataType.LineData },
                 new() { Name = "LineCount", DisplayName = "直线数量", DataType = PortDataType.Integer }
             },
             Parameters = new List<ParameterDefinition>
@@ -2179,6 +2181,360 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "ConfidenceThreshold", DisplayName = "置信度阈值", DataType = "double", DefaultValue = 0.5, MinValue = 0.0, MaxValue = 1.0 },
                 new() { Name = "OkOutputValue", DisplayName = "OK输出值", DataType = "string", DefaultValue = "1" },
                 new() { Name = "NgOutputValue", DisplayName = "NG输出值", DataType = "string", DefaultValue = "0" }
+            }
+        };
+        // ==================== Sprint 2: ForEach 与数据操作算子 ====================
+
+        // 1. ForEach 循环 (ForEach = 100)
+        _metadata[OperatorType.ForEach] = new OperatorMetadata
+        {
+            Type = OperatorType.ForEach,
+            DisplayName = "ForEach 循环",
+            Description = "对集合中的每个元素执行子图",
+            Category = "流程控制",
+            IconName = "loop",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Items", DisplayName = "集合", DataType = PortDataType.Any, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Results", DisplayName = "结果列表", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "IoMode", DisplayName = "执行模式", DataType = "enum", DefaultValue = "Parallel", Options = new List<ParameterOption> { new() { Label = "并行(纯计算)", Value = "Parallel" }, new() { Label = "串行(含通信)", Value = "Sequential" } } },
+                new() { Name = "MaxParallelism", DisplayName = "最大并行度", DataType = "int", DefaultValue = 8, MinValue = 1, MaxValue = 64 },
+                new() { Name = "Timeout", DisplayName = "超时(ms)", DataType = "int", DefaultValue = 30000 },
+                new() { Name = "FailFast", DisplayName = "遇错即停", DataType = "bool", DefaultValue = true }
+            }
+        };
+
+        // 2. 数组索引器 (ArrayIndexer = 101)
+        _metadata[OperatorType.ArrayIndexer] = new OperatorMetadata
+        {
+            Type = OperatorType.ArrayIndexer,
+            DisplayName = "数组索引器",
+            Description = "从列表中按索引或条件提取元素",
+            Category = "数据处理",
+            IconName = "index",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "List", DisplayName = "列表", DataType = PortDataType.Any, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Item", DisplayName = "元素", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Mode", DisplayName = "提取模式", DataType = "enum", DefaultValue = "Index", Options = new List<ParameterOption>
+                {
+                    new() { Label = "按索引", Value = "Index" },
+                    new() { Label = "最大置信度", Value = "MaxConfidence" },
+                    new() { Label = "最大面积", Value = "MaxArea" },
+                    new() { Label = "最小面积", Value = "MinArea" },
+                    new() { Label = "第一个", Value = "First" },
+                    new() { Label = "最后一个", Value = "Last" }
+                } },
+                new() { Name = "Index", DisplayName = "索引", DataType = "int", DefaultValue = 0 }
+            }
+        };
+
+        // 3. JSON 提取器 (JsonExtractor = 102)
+        _metadata[OperatorType.JsonExtractor] = new OperatorMetadata
+        {
+            Type = OperatorType.JsonExtractor,
+            DisplayName = "JSON 提取器",
+            Description = "按 JSONPath 从字符串中提取字段",
+            Category = "数据处理",
+            IconName = "json",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Json", DisplayName = "JSON字符串", DataType = PortDataType.String, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "提取值", DataType = PortDataType.Any },
+                new() { Name = "IsSuccess", DisplayName = "是否成功", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "JsonPath", DisplayName = "JSONPath", DataType = "string", DefaultValue = "$.data" }
+            }
+        };
+
+        // ==================== Sprint 3: 基础算子重构与扩充 ====================
+
+        // 1. 数值计算 (MathOperation = 110)
+        _metadata[OperatorType.MathOperation] = new OperatorMetadata
+        {
+            Type = OperatorType.MathOperation,
+            DisplayName = "数值计算",
+            Description = "支持加减乘除、取绝对值、开方等常用运算",
+            Category = "数据处理",
+            IconName = "calc",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "ValueA", DisplayName = "数值 A", DataType = PortDataType.Float, IsRequired = true },
+                new() { Name = "ValueB", DisplayName = "数值 B", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Operation", DisplayName = "运算类型", DataType = "enum", DefaultValue = "Add", Options = new List<ParameterOption>
+                {
+                    new() { Label = "加 (+)", Value = "Add" },
+                    new() { Label = "减 (-)", Value = "Subtract" },
+                    new() { Label = "乘 (×)", Value = "Multiply" },
+                    new() { Label = "除 (÷)", Value = "Divide" },
+                    new() { Label = "绝对值 (Abs)", Value = "Abs" },
+                    new() { Label = "取小 (Min)", Value = "Min" },
+                    new() { Label = "取大 (Max)", Value = "Max" },
+                    new() { Label = "幂运算 (Power)", Value = "Power" },
+                    new() { Label = "平方根 (Sqrt)", Value = "Sqrt" },
+                    new() { Label = "取整 (Round)", Value = "Round" },
+                    new() { Label = "取余 (Modulo)", Value = "Modulo" }
+                } }
+            }
+        };
+
+        // 2. 逻辑门 (LogicGate = 111)
+        _metadata[OperatorType.LogicGate] = new OperatorMetadata
+        {
+            Type = OperatorType.LogicGate,
+            DisplayName = "逻辑门",
+            Description = "布尔逻辑运算 (AND, OR, NOT, XOR...)",
+            Category = "通用",
+            IconName = "logic",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "In1", DisplayName = "输入 1", DataType = PortDataType.Boolean, IsRequired = true },
+                new() { Name = "In2", DisplayName = "输入 2", DataType = PortDataType.Boolean, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Out", DisplayName = "输出", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Operation", DisplayName = "逻辑操作", DataType = "enum", DefaultValue = "AND", Options = new List<ParameterOption>
+                {
+                    new() { Label = "AND (与)", Value = "AND" },
+                    new() { Label = "OR (或)", Value = "OR" },
+                    new() { Label = "NOT (非)", Value = "NOT" },
+                    new() { Label = "XOR (异或)", Value = "XOR" },
+                    new() { Label = "NAND (与非)", Value = "NAND" },
+                    new() { Label = "NOR (或非)", Value = "NOR" }
+                } }
+            }
+        };
+
+        // 3. 类型转换 (TypeConvert = 112)
+        _metadata[OperatorType.TypeConvert] = new OperatorMetadata
+        {
+            Type = OperatorType.TypeConvert,
+            DisplayName = "类型转换",
+            Description = "在不同数据类型间进行强制转换",
+            Category = "通用",
+            IconName = "convert",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Input", DisplayName = "输入", DataType = PortDataType.Any, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Output", DisplayName = "输出", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TargetType", DisplayName = "目标类型", DataType = "enum", DefaultValue = "String", Options = new List<ParameterOption>
+                {
+                    new() { Label = "String", Value = "String" },
+                    new() { Label = "Float", Value = "Float" },
+                    new() { Label = "Integer", Value = "Integer" },
+                    new() { Label = "Boolean", Value = "Boolean" }
+                } },
+                new() { Name = "Format", DisplayName = "格式字符串", DataType = "string", DefaultValue = "" }
+            }
+        };
+
+        // 4. HTTP 请求 (HttpRequest = 113)
+        _metadata[OperatorType.HttpRequest] = new OperatorMetadata
+        {
+            Type = OperatorType.HttpRequest,
+            DisplayName = "HTTP 请求",
+            Description = "调用外部 REST API",
+            Category = "通信",
+            IconName = "http",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Body", DisplayName = "请求体", DataType = PortDataType.String, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Response", DisplayName = "响应内容", DataType = PortDataType.String },
+                new() { Name = "StatusCode", DisplayName = "状态码", DataType = PortDataType.Integer },
+                new() { Name = "IsSuccess", DisplayName = "是否成功", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Url", DisplayName = "API 地址", DataType = "string", DefaultValue = "http://localhost:5000/api" },
+                new() { Name = "Method", DisplayName = "方法", DataType = "enum", DefaultValue = "POST", Options = new List<ParameterOption>
+                {
+                    new() { Label = "GET", Value = "GET" },
+                    new() { Label = "POST", Value = "POST" },
+                    new() { Label = "PUT", Value = "PUT" },
+                    new() { Label = "DELETE", Value = "DELETE" }
+                } },
+                new() { Name = "Timeout", DisplayName = "超时(ms)", DataType = "int", DefaultValue = 5000 },
+                new() { Name = "MaxRetries", DisplayName = "最大重试", DataType = "int", DefaultValue = 3 }
+            }
+        };
+
+        // 5. MQTT 发布 (MqttPublish = 114)
+        _metadata[OperatorType.MqttPublish] = new OperatorMetadata
+        {
+            Type = OperatorType.MqttPublish,
+            DisplayName = "MQTT 发布",
+            Description = "向消息队列推送数据",
+            Category = "通信",
+            IconName = "mqtt",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Payload", DisplayName = "消息负载", DataType = PortDataType.Any, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "IsSuccess", DisplayName = "是否成功", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Broker", DisplayName = "Broker地址", DataType = "string", DefaultValue = "localhost" },
+                new() { Name = "Port", DisplayName = "端口", DataType = "int", DefaultValue = 1883 },
+                new() { Name = "Topic", DisplayName = "主题", DataType = "string", DefaultValue = "cv/results" },
+                new() { Name = "Qos", DisplayName = "QoS", DataType = "int", DefaultValue = 1 }
+            }
+        };
+
+        // 6. 字符串格式化 (StringFormat = 115)
+        _metadata[OperatorType.StringFormat] = new OperatorMetadata
+        {
+            Type = OperatorType.StringFormat,
+            DisplayName = "字符串格式化",
+            Description = "按模板生成字符串",
+            Category = "通用",
+            IconName = "text",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Arg1", DisplayName = "参数 1", DataType = PortDataType.Any },
+                new() { Name = "Arg2", DisplayName = "参数 2", DataType = PortDataType.Any }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.String }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Template", DisplayName = "模板", DataType = "string", DefaultValue = "Result is {0} and {1}" }
+            }
+        };
+
+        // 7. 图像保存 (ImageSave = 116)
+        _metadata[OperatorType.ImageSave] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageSave,
+            DisplayName = "图像保存",
+            Description = "保存检测图像到本地硬盘",
+            Category = "输出",
+            IconName = "save",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "FilePath", DisplayName = "保存路径", DataType = PortDataType.String },
+                new() { Name = "IsSuccess", DisplayName = "是否成功", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Directory", DisplayName = "目录", DataType = "string", DefaultValue = "C:\\ClearVision\\NG_Images" },
+                new() { Name = "FileNameTemplate", DisplayName = "命名规则", DataType = "string", DefaultValue = "NG_{yyyyMMdd_HHmmss}_{Guid}.jpg" },
+                new() { Name = "Quality", DisplayName = "质量", DataType = "int", DefaultValue = 90, MinValue = 1, MaxValue = 100 }
+            }
+        };
+
+        // ==================== Phase 3: 缺失补齐 ====================
+
+        // 1. OCR识别 (OcrRecognition = 117)
+        _metadata[OperatorType.OcrRecognition] = new OperatorMetadata
+        {
+            Type = OperatorType.OcrRecognition,
+            DisplayName = "OCR 识别",
+            Description = "识别图像中的文本内容",
+            Category = "识别",
+            IconName = "text-recognition",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Text", DisplayName = "识别文本", DataType = PortDataType.String },
+                new() { Name = "IsSuccess", DisplayName = "成功", DataType = PortDataType.Boolean }
+            }
+        };
+
+        // 2. 图像对比 (ImageDiff = 118)
+        _metadata[OperatorType.ImageDiff] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageDiff,
+            DisplayName = "图像对比",
+            Description = "分析两幅图像的差异",
+            Category = "预处理",
+            IconName = "diff",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "BaseImage", DisplayName = "基准图", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "CompareImage", DisplayName = "对比图", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "DiffImage", DisplayName = "差异图", DataType = PortDataType.Image },
+                new() { Name = "DiffRate", DisplayName = "差异率", DataType = PortDataType.Float }
+            }
+        };
+
+        // 3. 统计分析 (Statistics = 119) - Sprint 3 Task 3.6e CPK 增强
+        _metadata[OperatorType.Statistics] = new OperatorMetadata
+        {
+            Type = OperatorType.Statistics,
+            DisplayName = "统计分析",
+            Description = "计算均值、标准差、CPK 等质量统计指标",
+            Category = "通用",
+            IconName = "stats",
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "输入值", DataType = PortDataType.Float, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Mean", DisplayName = "均值", DataType = PortDataType.Float },
+                new() { Name = "StdDev", DisplayName = "标准差", DataType = PortDataType.Float },
+                new() { Name = "Count", DisplayName = "样本数", DataType = PortDataType.Integer },
+                new() { Name = "Min", DisplayName = "最小值", DataType = PortDataType.Float },
+                new() { Name = "Max", DisplayName = "最大值", DataType = PortDataType.Float },
+                new() { Name = "Cpk", DisplayName = "过程能力指数", DataType = PortDataType.Float },
+                new() { Name = "IsCapable", DisplayName = "能力达标", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "USL", DisplayName = "规格上限", DataType = "double", DefaultValue = "", Description = "Upper Specification Limit，留空则不计算 CPK" },
+                new() { Name = "LSL", DisplayName = "规格下限", DataType = "double", DefaultValue = "", Description = "Lower Specification Limit，留空则不计算 CPK" }
             }
         };
     }

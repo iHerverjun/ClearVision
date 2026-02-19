@@ -142,6 +142,35 @@ public static class DependencyInjection
         // ==================== 清霜V3迁移：Phase 2 智能检测机制 ====================
         services.AddSingleton<IOperatorExecutor, DualModalVotingOperator>();
 
+        // ==================== Sprint 2: ForEach 与数据操作算子 ====================
+        services.AddSingleton<IOperatorExecutor, ForEachOperator>();
+        services.AddSingleton<IOperatorExecutor, ArrayIndexerOperator>();
+        services.AddSingleton<IOperatorExecutor, JsonExtractorOperator>();
+
+        // ==================== Sprint 3: 算子全面扩充 ====================
+        services.AddSingleton<IOperatorExecutor, MathOperationOperator>();
+        services.AddSingleton<IOperatorExecutor, LogicGateOperator>();
+        services.AddSingleton<IOperatorExecutor, TypeConvertOperator>();
+        services.AddSingleton<IOperatorExecutor, HttpRequestOperator>();
+        services.AddSingleton<IOperatorExecutor, MqttPublishOperator>();
+        services.AddSingleton<IOperatorExecutor, StringFormatOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageSaveOperator>();
+
+        // ==================== Sprint 3: 缺失补齐 ====================
+        services.AddSingleton<IOperatorExecutor, OcrRecognitionOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageDiffOperator>();
+        services.AddSingleton<IOperatorExecutor, StatisticsOperator>();
+
+        // ==================== Sprint 4: AI 安全沙盒 ====================
+        services.AddSingleton<FlowLinter>();
+        services.AddScoped<Acme.Product.Infrastructure.AI.DryRun.DryRunService>();
+
+        // ==================== Sprint 5: AI 编排接入 ====================
+        services.AddSingleton<Acme.Product.Infrastructure.AI.AIPromptBuilder>();
+        services.AddScoped<Acme.Product.Infrastructure.AI.AIGeneratedFlowParser>();
+        services.AddSingleton<Acme.Product.Infrastructure.AI.DryRun.StubRegistryBuilder>();
+        services.AddScoped<Acme.Product.Infrastructure.AI.AIWorkflowService>();
+
         // 应用服务 - Sprint 4新增
         services.AddScoped<IOperatorService, OperatorService>();
         services.AddScoped<IImageAcquisitionService, ImageAcquisitionService>();

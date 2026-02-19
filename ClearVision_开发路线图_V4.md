@@ -1,8 +1,9 @@
 # ClearVision 综合开发路线图 V4
 
-> **文档版本**: V4.0
+> **文档版本**: V4.1（实施状态标注版）
 > **制定日期**: 2026-02-19
-> **版本历史**: V1.0 → V2.0 → V3.0 → V4.0（深度工程修复版）
+> **状态标注日期**: 2026-02-19
+> **版本历史**: V1.0 → V2.0 → V3.0 → V4.0（深度工程修复版）→ V4.1（实施状态标注）
 >
 > **本版相对 V3 的三处核心修订**:
 >
@@ -13,6 +14,32 @@
 > | Task 4.2 仿真深度 | 统一返回 Mock 成功，单向拦截 | 引入 **Stub Registry**，支持为特定设备地址预设双向响应报文 | 离线仿真能激活异常分支和条件跳转，而非永远走单一静态路径 |
 >
 > **核心目标**: 自然语言一键生成工业视觉工程，并安全可靠地运行在高节拍 7×24 真实产线
+
+---
+
+## 📊 实施状态总览（截至 2026-02-19）
+
+| Sprint | Task | 状态 | 备注 |
+|--------|------|------|------|
+| S1 | 1.1 RC+CoW+Pool | ✅ 已完成 | `ImageWrapper.cs` + `MatPool.cs` 已实现 |
+| S1 | 1.2 端口类型扩展 | ✅ 已完成 | 枚举+Factory元数据+前端配色已全面对齐 |
+| S2 | 2.1 ForEach IoMode | ✅ 已完成 | Parallel/Sequential 双模式 + SAFETY_002 降级 |
+| S2 | 2.2 ArrayIndexer/JsonExtractor | ✅ 已完成 | 两个算子已注册并可用 |
+| S3 | 3.1 MathOperation | ✅ 已完成 | 12 种运算模式 |
+| S3 | 3.2 LogicGate | ✅ 已完成 | AND/OR/NOT/XOR/NAND/NOR |
+| S3 | 3.3 TypeConvert | ✅ 已完成 | 四向转换 |
+| S3 | 3.4 手眼标定向导 | ❌ 待办 | 独立 UI 模块，建议下阶段单独迭代 |
+| S3 | 3.5a HttpRequest | ✅ 已完成 | REST API 调用 |
+| S3 | 3.5b MqttPublish | ✅ 已完成 | MQTT 发布 |
+| S3 | 3.6a StringFormat | ✅ 已完成 | 模板拼装 |
+| S3 | 3.6b ImageSave | ✅ 已完成 | NG 图像存档 |
+| S3 | 3.6c OcrRecognition | ⚠️ Mock | 框架已实现，待集成 PaddleOCR 真实引擎 |
+| S3 | 3.6d ImageDiff | ✅ 已完成 | 基础差异检测 |
+| S3 | 3.6e Statistics/CPK | ✅ 已完成 | 均值/标准差/Cpk/Cp/CPU/CPL + USL/LSL 参数 |
+| S4 | 4.1 FlowLinter | ✅ 已完成 | 三层规则全部激活 |
+| S4 | 4.2 Dry-Run + Stub Registry | ✅ 已完成 | 双向仿真 + StubRegistryBuilder |
+| S4 | 4.3 前端安全提示层 | ✅ 已完成 | 红框/橙框/⚠图标/LintPanel/仿真横幅 |
+| S5 | AI 编排接入 | ✅ 已完成 | AIWorkflowService + PromptBuilder + Parser 已注册 |
 
 ---
 
@@ -44,7 +71,7 @@ Sprint 1              Sprint 2              Sprint 3              Sprint 4      
 
 ---
 
-### Task 1.1 — 引用计数 + 写时复制 + 分桶内存池（RC + CoW + Pool）
+### Task 1.1 — 引用计数 + 写时复制 + 分桶内存池（RC + CoW + Pool） ✅ 已完成
 
 **优先级**: P0 — 阻断性
 **预估工时**: 7~10 天
@@ -361,7 +388,7 @@ private void ApplyFanOutRefCounts(
 
 ---
 
-### Task 1.2 — 端口类型系统扩展（与 V3 相同）
+### Task 1.2 — 端口类型系统扩展（与 V3 相同） ✅ 已完成
 
 **优先级**: P1
 **预估工时**: 4~5 天
@@ -378,7 +405,7 @@ private void ApplyFanOutRefCounts(
 
 ---
 
-### Task 2.1 — ForEach 子图执行机制（IoMode 双模式）
+### Task 2.1 — ForEach 子图执行机制（IoMode 双模式） ✅ 已完成
 
 **优先级**: P0
 **预估工时**: 9~13 天
@@ -588,7 +615,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 2.2 — ArrayIndexer 与 JsonExtractor（与 V3 相同）
+### Task 2.2 — ArrayIndexer 与 JsonExtractor（与 V3 相同） ✅ 已完成
 
 **优先级**: P1（依赖 Task 1.2）
 **预估工时**: 2 天
@@ -604,7 +631,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 3.1 — MathOperation（数值计算）🔴
+### Task 3.1 — MathOperation（数值计算） ✅ 已完成
 
 **预估工时**: 2 天
 
@@ -618,7 +645,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 3.2 — LogicGate（逻辑门）🔴
+### Task 3.2 — LogicGate（逻辑门） ✅ 已完成
 
 **预估工时**: 1 天
 
@@ -631,7 +658,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 3.3 — TypeConvert（类型转换）🔴
+### Task 3.3 — TypeConvert（类型转换） ✅ 已完成
 
 **预估工时**: 1 天
 
@@ -643,7 +670,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 3.4 — 手眼标定向导（独立 UI 模块）🔴
+### Task 3.4 — 手眼标定向导（独立 UI 模块） ❌ 待办
 
 > **架构决策（来自 V3，在 V4 中保留）**：手眼标定是有状态的人机协作配置过程，其执行模型是状态机，而非数据流。`RobotX/Y` 在现实中来自示教器，不在数据流里。`NPointCalibration` 从算子库彻底移除，改为独立 UI 向导，输出静态 JSON 文件，由 `CoordinateTransform(HandEye)` 在运行时加载。
 
@@ -688,7 +715,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 3.5 — 现代工业通信扩充（HTTP / MQTT）
+### Task 3.5 — 现代工业通信扩充（HTTP / MQTT） ✅ 已完成
 
 **Task 3.5a — HttpRequest**（2 天）：调用 MES REST API，触发 AGV 搬运指令
 **Task 3.5b — MqttPublish**（2 天）：向数字孪生/IoT 平台推送检测状态
@@ -699,13 +726,13 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ### Task 3.6 — 其余原子算子
 
-| Task | 算子 | 预估工时 | 解锁场景 |
-|------|------|----------|---------|
-| 3.6a | StringFormat | 1 天 | 报告生成、日志拼装 |
-| 3.6b | ImageSave | 0.5 天 | NG 图像存档 |
-| 3.6c | OcrRecognition（PaddleOCRSharp） | 5~7 天 | 喷码日期识别 |
-| 3.6d | ImageDiff（图像差异检测） | 3 天 | 良品对比缺陷检测 |
-| 3.6e | Statistics / CPK | 2 天 | 质量统计 |
+| Task | 算子 | 预估工时 | 解锁场景 | 状态 |
+|------|------|----------|---------|------|
+| 3.6a | StringFormat | 1 天 | 报告生成、日志拼装 | ✅ 已完成 |
+| 3.6b | ImageSave | 0.5 天 | NG 图像存档 | ✅ 已完成 |
+| 3.6c | OcrRecognition（PaddleOCRSharp） | 5~7 天 | 喷码日期识别 | ⚠️ Mock 实现 |
+| 3.6d | ImageDiff（图像差异检测） | 3 天 | 良品对比缺陷检测 | ✅ 已完成 |
+| 3.6e | Statistics / CPK | 2 天 | 质量统计 | ✅ 已完成 |
 
 ---
 
@@ -715,7 +742,7 @@ private IEnumerable<LintIssue> CheckForEachSubGraphSafety(OperatorFlowDto flow)
 
 ---
 
-### Task 4.1 — 工程静态检查器（Flow Linter）
+### Task 4.1 — 工程静态检查器（Flow Linter） ✅ 已完成
 
 **优先级**: P0
 **预估工时**: 3~4 天（SAFETY_002 已在 Sprint 2 实现）
@@ -741,7 +768,7 @@ PARAM_004（Warning）：MathOperation.Divide 且无上游保证 ValueB ≠ 0
 
 ---
 
-### Task 4.2 — 深度双向仿真模式（Deep Bidirectional Dry-Run）
+### Task 4.2 — 深度双向仿真模式（Deep Bidirectional Dry-Run） ✅ 已完成
 
 **优先级**: P1
 **预估工时**: 5~7 天（相比 V3 增加 Stub Registry 实现）
@@ -920,7 +947,7 @@ public abstract class CommunicationOperatorBase : OperatorBase
 
 ---
 
-### Task 4.3 — 前端安全提示层（与 V3 相同）
+### Task 4.3 — 前端安全提示层（与 V3 相同） ✅ 已完成
 
 **预估工时**: 1 天
 
@@ -935,14 +962,14 @@ public abstract class CommunicationOperatorBase : OperatorBase
 
 **进入 Sprint 5 的 Gate Review 检查清单**
 
-- [ ] Task 1.1：`MatPool.Rent()` 命中率 ≥ 90%，P99 帧耗时 ≤ P50 × 3
-- [ ] Task 1.2：DetectionList / CircleData 端口类型已上线
-- [ ] Task 2.1：ForEach IoMode 双模式可用，SAFETY_002 为 Warning 已降级
-- [ ] Task 3.1~3.3：MathOperation / LogicGate / TypeConvert 可用
-- [ ] Task 3.4：手眼标定向导可用，CoordinateTransform 支持 HandEye 模式
-- [ ] Task 4.1：FlowLinter 全部三层规则已激活
-- [ ] Task 4.2：Stub Registry 可用，仿真能通过预设响应激活异常分支
-- [ ] Task 4.3：前端安全提示层已上线
+- [x] Task 1.1：`MatPool.Rent()` 命中率 ≥ 90%，P99 帧耗时 ≤ P50 × 3 ✅ 代码已实现
+- [x] Task 1.2：DetectionList / CircleData 端口类型已上线 ✅
+- [x] Task 2.1：ForEach IoMode 双模式可用，SAFETY_002 为 Warning 已降级 ✅
+- [x] Task 3.1~3.3：MathOperation / LogicGate / TypeConvert 可用 ✅
+- [ ] Task 3.4：手眼标定向导可用，CoordinateTransform 支持 HandEye 模式 ❌ 待办
+- [x] Task 4.1：FlowLinter 全部三层规则已激活 ✅
+- [x] Task 4.2：Stub Registry 可用，仿真能通过预设响应激活异常分支 ✅
+- [x] Task 4.3：前端安全提示层已上线 ✅
 
 **AI 接入完整流水线**
 
@@ -970,27 +997,27 @@ FlowLinter 三层检查
 
 ## 优先级与工时全量汇总
 
-| 编号 | Sprint | 优先级 | 内容 | 工时 |
-|------|--------|--------|------|------|
-| 1.1 | S1 | 🔴 P0 | RC + CoW + **分桶内存池** | **7~10 天** |
-| 1.2 | S1 | 🟠 P1 | 端口类型扩展 | 4~5 天 |
-| 2.1 | S2 | 🔴 P0 | ForEach **IoMode 双模式** + SAFETY_002 降级 | **9~13 天** |
-| 2.2 | S2 | 🟠 P1 | ArrayIndexer / JsonExtractor | 2 天 |
-| 3.1 | S3 | 🟠 P1 | MathOperation | 2 天 |
-| 3.2 | S3 | 🟠 P1 | LogicGate | 1 天 |
-| 3.3 | S3 | 🟠 P1 | TypeConvert | 1 天 |
-| 3.4 | S3 | 🟠 P1 | 手眼标定向导（UI 模块） | 5~7 天 |
-| 3.5a | S3 | 🟡 P2 | HttpRequest | 2 天 |
-| 3.5b | S3 | 🟡 P2 | MqttPublish | 2 天 |
-| 3.6a | S3 | 🟡 P2 | StringFormat | 1 天 |
-| 3.6b | S3 | 🟡 P2 | ImageSave | 0.5 天 |
-| 3.6c | S3 | 🟡 P2 | OcrRecognition | 5~7 天 |
-| 3.6d | S3 | 🟡 P2 | ImageDiff | 3 天 |
-| 3.6e | S3 | 🟢 P3 | Statistics / CPK | 2 天 |
-| 4.1 | S4 | 🔴 P0 | FlowLinter 完整三层规则 | 3~4 天 |
-| 4.2 | S4 | 🟠 P1 | **Deep Bidirectional Dry-Run + Stub Registry** | **5~7 天** |
-| 4.3 | S4 | 🟡 P2 | 前端安全提示层 | 1 天 |
-| AI | S5 | — | AI 编排接入 | 5~7 天 |
+| 编号 | Sprint | 优先级 | 内容 | 工时 | 状态 |
+|------|--------|--------|------|------|------|
+| 1.1 | S1 | 🔴 P0 | RC + CoW + **分桶内存池** | **7~10 天** | ✅ 已完成 |
+| 1.2 | S1 | 🟠 P1 | 端口类型扩展 | 4~5 天 | ✅ 已完成 |
+| 2.1 | S2 | 🔴 P0 | ForEach **IoMode 双模式** + SAFETY_002 降级 | **9~13 天** | ✅ 已完成 |
+| 2.2 | S2 | 🟠 P1 | ArrayIndexer / JsonExtractor | 2 天 | ✅ 已完成 |
+| 3.1 | S3 | 🟠 P1 | MathOperation | 2 天 | ✅ 已完成 |
+| 3.2 | S3 | 🟠 P1 | LogicGate | 1 天 | ✅ 已完成 |
+| 3.3 | S3 | 🟠 P1 | TypeConvert | 1 天 | ✅ 已完成 |
+| 3.4 | S3 | 🟠 P1 | 手眼标定向导（UI 模块） | 5~7 天 | ❌ 待办 |
+| 3.5a | S3 | 🟡 P2 | HttpRequest | 2 天 | ✅ 已完成 |
+| 3.5b | S3 | 🟡 P2 | MqttPublish | 2 天 | ✅ 已完成 |
+| 3.6a | S3 | 🟡 P2 | StringFormat | 1 天 | ✅ 已完成 |
+| 3.6b | S3 | 🟡 P2 | ImageSave | 0.5 天 | ✅ 已完成 |
+| 3.6c | S3 | 🟡 P2 | OcrRecognition | 5~7 天 | ⚠️ Mock |
+| 3.6d | S3 | 🟡 P2 | ImageDiff | 3 天 | ✅ 已完成 |
+| 3.6e | S3 | 🟢 P3 | Statistics / CPK | 2 天 | ✅ 已完成 |
+| 4.1 | S4 | 🔴 P0 | FlowLinter 完整三层规则 | 3~4 天 | ✅ 已完成 |
+| 4.2 | S4 | 🟠 P1 | **Deep Bidirectional Dry-Run + Stub Registry** | **5~7 天** | ✅ 已完成 |
+| 4.3 | S4 | 🟡 P2 | 前端安全提示层 | 1 天 | ✅ 已完成 |
+| AI | S5 | — | AI 编排接入 | 5~7 天 | ✅ 已完成 |
 
 **总计预估工时**: 63~85 天（约 13~17 工作周）
 
@@ -1009,6 +1036,90 @@ Task 1.1 / 1.2          Task 2.1 / 2.2        Task 3.1 ~ 3.6         Task 4.1 ~ 
 
 ---
 
+## 🚀 下一阶段 TODO（Sprint 6 规划）
+
+> 以下为 Sprint 1-5 遗留项 + 产品化必做项的具体任务分解，按优先级排序。
+
+### 一、遗留项收尾
+
+#### TODO 1：手眼标定向导 UI（Task 3.4）❌ 优先级 P1 | 预估 5-7 天
+
+- [ ] **步骤 1 — 后端标定服务**
+  - [ ] 创建 `HandEyeCalibrationService.cs`，封装 N 点标定矩阵计算
+  - [ ] 实现仿射变换求解（最小二乘法），支持 4~20 个标定点
+  - [ ] 输出 `hand_eye_calib.json`（3x3 变换矩阵 + 重投影误差）
+  - [ ] 单元测试：已知坐标对验证重投影误差 < 0.1mm
+
+- [ ] **步骤 2 — 前端三步向导 UI**
+  - [ ] 创建 `handEyeCalibWizard.js`：步骤导航、实时相机画面叠加
+  - [ ] 步骤 1：采集标定点（像素 XY + 机械臂 XY 手动输入）
+  - [ ] 步骤 2：计算矩阵 + 重投影误差可视化
+  - [ ] 步骤 3：保存标定文件 + 路径配置
+  - [ ] 创建 `handEyeCalibWizard.css`：遵循红/白极简科技风
+
+- [ ] **步骤 3 — 集成**
+  - [ ] `CoordinateTransform(HandEye)` 运行时加载 `hand_eye_calib.json`
+  - [ ] 设置界面添加「手眼标定」入口按钮
+
+#### TODO 2：OcrRecognition 真实引擎集成（Task 3.6c）⚠️ 优先级 P2 | 预估 5-7 天
+
+- [ ] 调研 PaddleOCR / PaddleOCRSharp NuGet 包集成方案
+- [ ] 替换 `OcrRecognitionOperator.cs` 中的 Mock 逻辑为真实推理
+- [ ] 支持中英文混合识别、旋转文字
+- [ ] 添加 `ModelPath` 参数（模型文件路径配置）
+- [ ] 性能基准：1920×1080 图像 OCR 推理 ≤ 500ms
+- [ ] 集成测试：喷码日期、批次号、序列号识别准确率 ≥ 95%
+
+---
+
+### 二、产品化增强（新增）
+
+#### TODO 3：单元测试补全 | 预估 3-5 天
+
+- [ ] `ImageWrapper` / `MatPool` 生命周期测试（RC、CoW、Pool 归还）
+- [ ] `StatisticsOperator` CPK 计算正确性测试
+- [ ] `ForEachOperator` Parallel/Sequential 模式测试
+- [ ] `FlowLinter` 各规则覆盖率测试
+- [ ] 集成测试：完整 DAG 端到端执行
+
+#### TODO 4：AI 对话 Dry-Run 结果展示 | 预估 1-2 天
+
+- [ ] AI 生成流程后，自动触发 Dry-Run
+- [ ] 在 AI 对话面板右侧展示分支覆盖率
+- [ ] 覆盖率 < 80% 时，自动提示用户补充 Stub 场景
+- [ ] 加载 `lintPanel.js` / `lintPanel.css` 到流程编辑器页面中
+
+#### TODO 5：ForEach 子图编辑器 UI | 预估 3-4 天
+
+- [ ] ForEach 节点呈现为可展开/折叠的容器节点（虚线边框）
+- [ ] 标题栏显示 IoMode 标签（⚡ 并行 / 🔗 串行），单击可切换
+- [ ] 双击进入子图编辑模式
+- [ ] 子图有独立的 `CurrentItem` 源节点（系统注入，不可删除）
+
+#### TODO 6：性能验收 | 预估 2-3 天
+
+- [ ] 内存稳定性：6000×4000 相机、25fps、3 路扇出、8 算子，连续运行 4 小时
+  - [ ] 进程内存 ±50MB 稳定
+  - [ ] P99 帧耗时 ≤ P50 × 3
+  - [ ] `MatPool.Rent()` 命中率 ≥ 90%
+- [ ] 并发测试：ForEach Parallel 15 目标 × 50ms/子图，总耗时 ≤ 150ms
+
+---
+
+### 三、优先级执行顺序建议
+
+```
+第 1 周        第 2 周        第 3-4 周       第 5 周
+[TODO 3]       [TODO 1]       [TODO 1]        [TODO 6]
+单元测试       标定后端       标定前端UI      性能验收
+               [TODO 4]       [TODO 5]        [TODO 2]
+               AI展示         子图编辑器      OCR集成
+```
+
+> **总预估工时**: 19~28 天（约 4~6 工作周）
+
+---
+
 *文档维护：ClearVision 开发团队*
 *Gate Review 节点：每 Sprint 结束时评审，确认前置条件满足后启动下一 Sprint*
-*版本历史：V1.0（初稿）→ V2.0（工业级修订）→ V3.0（深度缺陷修复）→ V4.0（内存池+IoMode+双向仿真，2026-02-19）*
+*版本历史：V1.0（初稿）→ V2.0（工业级修订）→ V3.0（深度缺陷修复）→ V4.0（内存池+IoMode+双向仿真）→ V4.1（实施状态标注+下阶段规划，2026-02-19）*

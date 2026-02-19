@@ -2,20 +2,37 @@
  * 端口类型颜色映射表 (模块级常量，提高兼容性)
  */
 const PORT_TYPE_COLORS = {
-    'Image':     '#52c41a',  // 绿色 - 图像
-    'String':    '#1890ff',  // 蓝色 - 字符串
-    'Integer':   '#fa8c16',  // 橙色 - 整数
-    'Float':     '#fa8c16',  // 橙色 - 浮点
-    'Boolean':   '#f5222d',  // 红色 - 布尔值
-    'Point':     '#eb2f96',  // 粉色 - 坐标
-    'Rectangle': '#eb2f96',  // 粉色 - 矩形
-    'Contour':   '#722ed1',  // 紫色 - 轮廓/区域
-    'Any':       '#bfbfbf',  // 灰色 - 任意
+    'Image':           '#52c41a',  // 绿色 - 图像
+    'String':          '#1890ff',  // 蓝色 - 字符串
+    'Integer':         '#fa8c16',  // 橙色 - 整数
+    'Float':           '#fa8c16',  // 橙色 - 浮点
+    'Boolean':         '#f5222d',  // 红色 - 布尔值
+    'Point':           '#eb2f96',  // 粉色 - 坐标
+    'Rectangle':       '#eb2f96',  // 粉色 - 矩形
+    'Contour':         '#722ed1',  // 紫色 - 轮廓/区域
+    'PointList':       '#eb2f96',  // 粉色 - 点列表 (Sprint 1.2)
+    'DetectionResult': '#13c2c2',  // 青色 - 检测结果 (Sprint 1.2)
+    'DetectionList':   '#13c2c2',  // 青色 - 检测列表 (Sprint 1.2)
+    'CircleData':      '#2f54eb',  // 靛蓝 - 圆数据 (Sprint 1.2)
+    'LineData':        '#2f54eb',  // 靛蓝 - 直线数据 (Sprint 1.2)
+    'Any':             '#bfbfbf',  // 灰色 - 任意
     // 兼容枚举数字值
     0: '#52c41a', 
     1: '#fa8c16', 2: '#fa8c16', 3: '#f5222d',
-    4: '#1890ff', 5: '#eb2f96', 6: '#eb2f96', 7: '#722ed1', 99: '#bfbfbf'
+    4: '#1890ff', 5: '#eb2f96', 6: '#eb2f96', 7: '#722ed1',
+    8: '#eb2f96', 9: '#13c2c2', 10: '#13c2c2', 11: '#2f54eb', 12: '#2f54eb',
+    99: '#bfbfbf'
 };
+
+/**
+ * 通信类算子类型集合 - Sprint 4 Task 4.3 安全提示
+ */
+const COMM_OPERATOR_TYPES = new Set([
+    'HttpRequest', 'MqttPublish', 'ModbusCommunication',
+    'OmronFinsCommunication', 'MitsubishiMcCommunication',
+    'TcpCommunication', 'SerialCommunication', 'DatabaseWrite'
+]);
+
 
 class FlowCanvas {
 
@@ -324,6 +341,12 @@ class FlowCanvas {
         let borderWidth = isSelected ? 3 : 1;
         let glowColor = null;
 
+        // === Sprint 4 Task 4.3: 安全提示层 ===
+        const isCommunicationOp = COMM_OPERATOR_TYPES.has(node.type);
+        const hasFileParam = node.parameters && node.parameters.some(
+            p => p.dataType === 'file' && p.value
+        );
+
         if (node.status === 'running') {
             borderColor = '#3498db';
             borderWidth = 3;
@@ -334,6 +357,15 @@ class FlowCanvas {
         } else if (node.status === 'error') {
             borderColor = '#e74c3c';
             glowColor = 'rgba(231, 76, 60, 0.5)';
+        } else if (isCommunicationOp) {
+            // 通信算子：红色警戒边框
+            borderColor = '#f5222d';
+            borderWidth = 2;
+            glowColor = 'rgba(245, 34, 45, 0.3)';
+        } else if (hasFileParam) {
+            // 含 file 参数的算子：橙色提示边框
+            borderColor = '#fa8c16';
+            borderWidth = 2;
         } else if (isSelected) {
             glowColor = `${node.color}80`; // 50% opacity
         }
@@ -412,6 +444,16 @@ class FlowCanvas {
 
         // 绘制端口
         this.drawPorts(node, x, y, w, h);
+
+        // === Sprint 4 Task 4.3: 绘制安全标记 ===
+        if (isCommunicationOp) {
+            // 通信算子：右上角绘制 ⚠ 图标
+            this.ctx.fillStyle = '#f5222d';
+            this.ctx.font = `bold ${14 * this.scale}px sans-serif`;
+            this.ctx.textAlign = 'right';
+            this.ctx.textBaseline = 'top';
+            this.ctx.fillText('⚠', x + w - 4 * this.scale, y + 2 * this.scale);
+        }
     }
 
     /**
@@ -748,8 +790,11 @@ class FlowCanvas {
             if (t === 'Integer' || t === 1 || t === 'Float' || t === 2) return 'Number';
             if (t === 'Boolean' || t === 3) return 'Boolean';
             if (t === 'String' || t === 4) return 'String';
-            if (t === 'Point' || t === 5 || t === 'Rectangle' || t === 6) return 'Geometry';
+            if (t === 'Point' || t === 5 || t === 'Rectangle' || t === 6 || t === 'PointList' || t === 8) return 'Geometry';
             if (t === 'Contour' || t === 7) return 'Contour';
+            if (t === 'DetectionResult' || t === 9 || t === 'DetectionList' || t === 10) return 'Detection';
+            if (t === 'CircleData' || t === 11) return 'CircleData';
+            if (t === 'LineData' || t === 12) return 'LineData';
             return t;
         };
 

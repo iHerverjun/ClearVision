@@ -222,8 +222,8 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 }
                 else
                 {
-                    _logger.LogError("AI 响应中找不到 JSON 对象，响应内容前 200 字符：{Content}",
-                        json.Length > 200 ? json[..200] : json);
+                    _logger.LogError(null, "AI 响应中找不到 JSON 对象，响应内容前 200 字符：{Content}",
+                        json.Length > 200 ? json.Substring(0, 200) : json);
                     return null;
                 }
             }
@@ -302,7 +302,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     DataType = p.DataType,
                     DefaultValue = p.DefaultValue,
                     IsRequired = p.IsRequired,
-                    Options = p.Options,
+                    Options = p.Options?.Select(opt => new Acme.Product.Core.ValueObjects.ParameterOption
+                    {
+                        Label = opt.Label,
+                        Value = opt.Value
+                    }).ToList(),
                     Value = op.Parameters.TryGetValue(p.Name, out var val) ? val : null
                 }).ToList()
             };

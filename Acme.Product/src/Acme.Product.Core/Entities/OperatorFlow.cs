@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities.Base;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using System.Text.Json.Serialization;
 
 namespace Acme.Product.Core.Entities;
 
@@ -16,20 +17,19 @@ public class OperatorFlow : Entity
     /// <summary>
     /// 流程名称
     /// </summary>
-    public string Name { get; private set; }
+    [JsonInclude]
+    public string Name { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 算子列表
-    /// </summary>
-    private readonly List<Operator> _operators = [];
-    public IReadOnlyCollection<Operator> Operators => _operators.AsReadOnly();
+    [JsonInclude]
+    public List<Operator> Operators { get; set; } = [];
 
     /// <summary>
     /// 连接关系列表
     /// </summary>
-    private readonly List<OperatorConnection> _connections = [];
-    public IReadOnlyCollection<OperatorConnection> Connections => _connections.AsReadOnly();
+    [JsonInclude]
+    public List<OperatorConnection> Connections { get; set; } = [];
 
+    [JsonConstructor]
     public OperatorFlow()
     {
         Name = "默认流程";
@@ -57,10 +57,10 @@ public class OperatorFlow : Entity
         if (op == null)
             throw new ArgumentNullException(nameof(op));
 
-        if (_operators.Any(o => o.Id == op.Id))
+        if (Operators.Any(o => o.Id == op.Id))
             throw new InvalidOperationException($"算子 {op.Id} 已存在");
 
-        _operators.Add(op);
+        Operators.Add(op);
         MarkAsModified();
     }
 
@@ -69,14 +69,14 @@ public class OperatorFlow : Entity
     /// </summary>
     public void RemoveOperator(Guid operatorId)
     {
-        var op = _operators.FirstOrDefault(o => o.Id == operatorId);
+        var op = Operators.FirstOrDefault(o => o.Id == operatorId);
         if (op == null)
             throw new InvalidOperationException($"算子 {operatorId} 不存在");
 
         // 移除相关连接
-        _connections.RemoveAll(c => c.SourceOperatorId == operatorId || c.TargetOperatorId == operatorId);
+        Connections.RemoveAll(c => c.SourceOperatorId == operatorId || c.TargetOperatorId == operatorId);
 
-        _operators.Remove(op);
+        Operators.Remove(op);
         MarkAsModified();
     }
 
@@ -85,7 +85,7 @@ public class OperatorFlow : Entity
     /// </summary>
     public void ClearOperators()
     {
-        _operators.Clear();
+        Operators.Clear();
         MarkAsModified();
     }
 
@@ -100,7 +100,7 @@ public class OperatorFlow : Entity
         // 验证连接有效性
         ValidateConnection(connection);
 
-        _connections.Add(connection);
+        Connections.Add(connection);
         MarkAsModified();
     }
 
@@ -109,7 +109,7 @@ public class OperatorFlow : Entity
     /// </summary>
     public void RemoveConnection(Guid connectionId)
     {
-        _connections.RemoveAll(c => c.Id == connectionId);
+        Connections.RemoveAll(c => c.Id == connectionId);
         MarkAsModified();
     }
 
@@ -118,7 +118,7 @@ public class OperatorFlow : Entity
     /// </summary>
     public void ClearConnections()
     {
-        _connections.Clear();
+        Connections.Clear();
         MarkAsModified();
     }
 
@@ -130,7 +130,7 @@ public class OperatorFlow : Entity
         var visited = new HashSet<Guid>();
         var result = new List<Operator>();
 
-        foreach (var op in _operators)
+        foreach (var op in Operators)
         {
             VisitOperator(op, visited, result);
         }
@@ -146,9 +146,9 @@ public class OperatorFlow : Entity
         visited.Add(op.Id);
 
         // 先访问依赖的算子
-        var dependencies = _connections
+        var dependencies = Connections
             .Where(c => c.TargetOperatorId == op.Id)
-            .Select(c => _operators.FirstOrDefault(o => o.Id == c.SourceOperatorId))
+            .Select(c => Operators.FirstOrDefault(o => o.Id == c.SourceOperatorId))
             .Where(o => o != null);
 
         foreach (var dep in dependencies)
@@ -161,8 +161,8 @@ public class OperatorFlow : Entity
 
     private void ValidateConnection(OperatorConnection connection)
     {
-        var sourceOp = _operators.FirstOrDefault(o => o.Id == connection.SourceOperatorId);
-        var targetOp = _operators.FirstOrDefault(o => o.Id == connection.TargetOperatorId);
+        var sourceOp = Operators.FirstOrDefault(o => o.Id == connection.SourceOperatorId);
+        var targetOp = Operators.FirstOrDefault(o => o.Id == connection.TargetOperatorId);
 
         if (sourceOp == null)
             throw new InvalidOperationException($"源算子 {connection.SourceOperatorId} 不存在");
@@ -209,7 +209,7 @@ public class OperatorFlow : Entity
         if (!visited.Add(current))
             return true; // 已访问过，说明有环
 
-        var nextOperators = _connections
+        var nextOperators = Connections
             .Where(c => c.SourceOperatorId == current)
             .Select(c => c.TargetOperatorId);
 

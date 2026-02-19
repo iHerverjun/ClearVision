@@ -306,7 +306,7 @@ public enum OperatorType
     CycleCounter = 84,
 
     // ==================== 清霜V3迁移算子 ====================
-    
+
     /// <summary>
     /// AKAZE特征匹配 - 基于AKAZE特征的鲁棒模板匹配
     /// </summary>
@@ -328,9 +328,80 @@ public enum OperatorType
     PyramidShapeMatch = 93,
 
     /// <summary>
-    /// 双模态投票 - 结合深度学习和传统算法结果进行投票决策
+    /// 双模态投票 - 结合AI和传统检测结果
     /// </summary>
-    DualModalVoting = 94
+    DualModalVoting = 94,
+
+    // ==================== Sprint 3: 缺失补齐 ====================
+
+    /// <summary>
+    /// OCR识别 - 文字识别算子
+    /// </summary>
+    OcrRecognition = 117,
+
+    /// <summary>
+    /// 图像对比 - 差分分析
+    /// </summary>
+    ImageDiff = 118,
+
+    /// <summary>
+    /// 统计分析 - CPK统计
+    /// </summary>
+    Statistics = 119,
+
+    // ==================== Sprint 2: ForEach 与数据操作算子 ====================
+
+    /// <summary>
+    /// ForEach 循环 - 对集合中的每个元素执行子图（支持 IoMode 并行/串行模式）
+    /// </summary>
+    ForEach = 100,
+
+    /// <summary>
+    /// 数组索引器 - 从列表/数组中按索引提取元素
+    /// </summary>
+    ArrayIndexer = 101,
+
+    /// <summary>
+    /// JSON 提取器 - 按 JSONPath 从 JSON 字符串中提取字段
+    /// </summary>
+    JsonExtractor = 102,
+
+    // ==================== Sprint 3: 算子全面扩充 ====================
+
+    /// <summary>
+    /// 数值计算 - Add/Subtract/Multiply/Divide/Abs/Min/Max/Power/Sqrt/Round/Modulo
+    /// </summary>
+    MathOperation = 110,
+
+    /// <summary>
+    /// 逻辑门 - AND/OR/NOT/XOR/NAND/NOR
+    /// </summary>
+    LogicGate = 111,
+
+    /// <summary>
+    /// 类型转换 - String/Float/Integer/Boolean
+    /// </summary>
+    TypeConvert = 112,
+
+    /// <summary>
+    /// HTTP 请求 - 调用 REST API
+    /// </summary>
+    HttpRequest = 113,
+
+    /// <summary>
+    /// MQTT 发布 - 向消息队列推送数据
+    /// </summary>
+    MqttPublish = 114,
+
+    /// <summary>
+    /// 字符串格式化 - 拼接字符串
+    /// </summary>
+    StringFormat = 115,
+
+    /// <summary>
+    /// 图像保存 - NG 图像存档
+    /// </summary>
+    ImageSave = 116
 }
 
 /// <summary>

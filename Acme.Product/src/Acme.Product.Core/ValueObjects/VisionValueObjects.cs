@@ -137,14 +137,16 @@ public class Parameter : ValueObject
         IsRequired = isRequired;
     }
 
+    private static readonly System.Text.Json.JsonSerializerOptions _jsonOptions = new() { IncludeFields = true };
+
     private static string? SerializeValue(object? value)
     {
-        return value == null ? null : System.Text.Json.JsonSerializer.Serialize(value);
+        return value == null ? null : System.Text.Json.JsonSerializer.Serialize(value, _jsonOptions);
     }
 
     private static object? DeserializeValue(string? json)
     {
-        return string.IsNullOrEmpty(json) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(json);
+        return string.IsNullOrEmpty(json) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(json, _jsonOptions);
     }
 
     [NotMapped]
@@ -354,28 +356,28 @@ public class DetectionResult : ValueObject
 {
     /// <summary>类别标签</summary>
     public string Label { get; set; } = string.Empty;
-    
+
     /// <summary>置信度 (0-1)</summary>
     public float Confidence { get; set; }
-    
+
     /// <summary>边界框 X 坐标</summary>
     public float X { get; set; }
-    
+
     /// <summary>边界框 Y 坐标</summary>
     public float Y { get; set; }
-    
+
     /// <summary>边界框宽度</summary>
     public float Width { get; set; }
-    
+
     /// <summary>边界框高度</summary>
     public float Height { get; set; }
-    
+
     /// <summary>中心点 X</summary>
     public float CenterX => X + Width / 2;
-    
+
     /// <summary>中心点 Y</summary>
     public float CenterY => Y + Height / 2;
-    
+
     /// <summary>面积</summary>
     public float Area => Width * Height;
 
@@ -415,10 +417,10 @@ public class DetectionResult : ValueObject
 public class DetectionList : ValueObject
 {
     public List<DetectionResult> Detections { get; set; } = new();
-    
+
     /// <summary>检测数量</summary>
     public int Count => Detections.Count;
-    
+
     /// <summary>平均置信度</summary>
     public float AverageConfidence => Detections.Count > 0 ? Detections.Average(d => d.Confidence) : 0;
 
@@ -469,19 +471,19 @@ public class CircleData : ValueObject
 {
     /// <summary>圆心 X</summary>
     public float CenterX { get; set; }
-    
+
     /// <summary>圆心 Y</summary>
     public float CenterY { get; set; }
-    
+
     /// <summary>半径（像素）</summary>
     public float Radius { get; set; }
-    
+
     /// <summary>直径</summary>
     public float Diameter => Radius * 2;
-    
+
     /// <summary>面积</summary>
     public float Area => (float)(Math.PI * Radius * Radius);
-    
+
     /// <summary>周长</summary>
     public float Circumference => (float)(2 * Math.PI * Radius);
 
@@ -526,25 +528,25 @@ public class LineData : ValueObject
 {
     /// <summary>起点 X</summary>
     public float StartX { get; set; }
-    
+
     /// <summary>起点 Y</summary>
     public float StartY { get; set; }
-    
+
     /// <summary>终点 X</summary>
     public float EndX { get; set; }
-    
+
     /// <summary>终点 Y</summary>
     public float EndY { get; set; }
-    
+
     /// <summary>线段长度</summary>
     public float Length => (float)Math.Sqrt((EndX - StartX) * (EndX - StartX) + (EndY - StartY) * (EndY - StartY));
-    
+
     /// <summary>中点 X</summary>
     public float MidX => (StartX + EndX) / 2;
-    
+
     /// <summary>中点 Y</summary>
     public float MidY => (StartY + EndY) / 2;
-    
+
     /// <summary>角度（相对于水平线，度数）</summary>
     public float Angle => (float)(Math.Atan2(EndY - StartY, EndX - StartX) * 180 / Math.PI);
 

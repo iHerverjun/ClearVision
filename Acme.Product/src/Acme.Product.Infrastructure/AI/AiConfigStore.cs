@@ -44,7 +44,7 @@ public class AiConfigStore
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[AiConfigStore] 读取 ai_config.json 失败，使用 appsettings.json 配置");
+                _logger.LogWarning("[AiConfigStore] 读取 ai_config.json 失败，使用 appsettings.json 配置。错误：{Message}", ex.Message);
                 _current = initialOptions.Value;
             }
         }
@@ -60,7 +60,7 @@ public class AiConfigStore
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[AiConfigStore] 保存初始 ai_config.json 失败");
+                _logger.LogWarning("[AiConfigStore] 保存初始 ai_config.json 失败。错误：{Message}", ex.Message);
             }
         }
     }

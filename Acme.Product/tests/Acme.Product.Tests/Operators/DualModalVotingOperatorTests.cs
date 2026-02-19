@@ -28,8 +28,8 @@ public class DualModalVotingOperatorTests
     public async Task Execute_WithDetectionResultObjects_ShouldVoteCorrectly()
     {
         // Arrange
-        var dlResult = DetectionResult.Success(true, 0.9);
-        var traditionalResult = DetectionResult.Success(false, 0.4);
+        var dlResult = Acme.Product.Core.Services.DetectionResult.Success(true, 0.9);
+        var traditionalResult = Acme.Product.Core.Services.DetectionResult.Success(false, 0.4);
 
         var inputs = new Dictionary<string, object>
         {
@@ -135,8 +135,8 @@ public class DualModalVotingOperatorTests
             "Unanimous",
             "string"));
 
-        var dlResult = DetectionResult.Success(true, 0.9);
-        var traditionalResult = DetectionResult.Success(false, 0.4);
+        var dlResult = Acme.Product.Core.Services.DetectionResult.Success(true, 0.9);
+        var traditionalResult = Acme.Product.Core.Services.DetectionResult.Success(false, 0.4);
 
         var inputs = new Dictionary<string, object>
         {
