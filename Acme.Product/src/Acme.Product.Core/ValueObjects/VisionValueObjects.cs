@@ -344,3 +344,245 @@ public class ImageData : ValueObject
         return $"ImageData[{Width}x{Height}, {Channels}ch, {Format}, {Regions.Count} ROIs]";
     }
 }
+
+#region Sprint 1 Task 1.2: 端口类型扩展值对象
+
+/// <summary>
+/// 检测结果值对象 - 表示单个检测目标（YOLO等深度学习输出）
+/// </summary>
+public class DetectionResult : ValueObject
+{
+    /// <summary>类别标签</summary>
+    public string Label { get; set; } = string.Empty;
+    
+    /// <summary>置信度 (0-1)</summary>
+    public float Confidence { get; set; }
+    
+    /// <summary>边界框 X 坐标</summary>
+    public float X { get; set; }
+    
+    /// <summary>边界框 Y 坐标</summary>
+    public float Y { get; set; }
+    
+    /// <summary>边界框宽度</summary>
+    public float Width { get; set; }
+    
+    /// <summary>边界框高度</summary>
+    public float Height { get; set; }
+    
+    /// <summary>中心点 X</summary>
+    public float CenterX => X + Width / 2;
+    
+    /// <summary>中心点 Y</summary>
+    public float CenterY => Y + Height / 2;
+    
+    /// <summary>面积</summary>
+    public float Area => Width * Height;
+
+    public DetectionResult()
+    {
+    }
+
+    public DetectionResult(string label, float confidence, float x, float y, float width, float height)
+    {
+        Label = label ?? throw new ArgumentNullException(nameof(label));
+        Confidence = confidence;
+        X = x;
+        Y = y;
+        Width = width;
+        Height = height;
+    }
+
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return Label;
+        yield return Confidence;
+        yield return X;
+        yield return Y;
+        yield return Width;
+        yield return Height;
+    }
+
+    public override string ToString()
+    {
+        return $"Detection[{Label}, {Confidence:F2}, ({X:F1},{Y:F1},{Width:F1},{Height:F1})]";
+    }
+}
+
+/// <summary>
+/// 检测结果列表值对象 - 包含多个 DetectionResult
+/// </summary>
+public class DetectionList : ValueObject
+{
+    public List<DetectionResult> Detections { get; set; } = new();
+    
+    /// <summary>检测数量</summary>
+    public int Count => Detections.Count;
+    
+    /// <summary>平均置信度</summary>
+    public float AverageConfidence => Detections.Count > 0 ? Detections.Average(d => d.Confidence) : 0;
+
+    public DetectionList()
+    {
+    }
+
+    public DetectionList(IEnumerable<DetectionResult> detections)
+    {
+        Detections = detections?.ToList() ?? new List<DetectionResult>();
+    }
+
+    public void Add(DetectionResult detection)
+    {
+        Detections.Add(detection);
+    }
+
+    public DetectionResult? GetBestByConfidence()
+    {
+        return Detections.OrderByDescending(d => d.Confidence).FirstOrDefault();
+    }
+
+    public DetectionResult? GetByLabel(string label)
+    {
+        return Detections.FirstOrDefault(d => d.Label == label);
+    }
+
+    public DetectionResult? GetMaxArea()
+    {
+        return Detections.OrderByDescending(d => d.Area).FirstOrDefault();
+    }
+
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return Detections.Count;
+    }
+
+    public override string ToString()
+    {
+        return $"DetectionList[{Count} items]";
+    }
+}
+
+/// <summary>
+/// 圆数据值对象 - 表示检测到的圆
+/// </summary>
+public class CircleData : ValueObject
+{
+    /// <summary>圆心 X</summary>
+    public float CenterX { get; set; }
+    
+    /// <summary>圆心 Y</summary>
+    public float CenterY { get; set; }
+    
+    /// <summary>半径（像素）</summary>
+    public float Radius { get; set; }
+    
+    /// <summary>直径</summary>
+    public float Diameter => Radius * 2;
+    
+    /// <summary>面积</summary>
+    public float Area => (float)(Math.PI * Radius * Radius);
+    
+    /// <summary>周长</summary>
+    public float Circumference => (float)(2 * Math.PI * Radius);
+
+    public CircleData()
+    {
+    }
+
+    public CircleData(float centerX, float centerY, float radius)
+    {
+        CenterX = centerX;
+        CenterY = centerY;
+        Radius = radius;
+    }
+
+    /// <summary>
+    /// 计算两个圆心之间的距离
+    /// </summary>
+    public float DistanceTo(CircleData other)
+    {
+        float dx = CenterX - other.CenterX;
+        float dy = CenterY - other.CenterY;
+        return (float)Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return CenterX;
+        yield return CenterY;
+        yield return Radius;
+    }
+
+    public override string ToString()
+    {
+        return $"Circle[({CenterX:F2}, {CenterY:F2}), R={Radius:F2}]";
+    }
+}
+
+/// <summary>
+/// 直线数据值对象 - 表示检测到的直线
+/// </summary>
+public class LineData : ValueObject
+{
+    /// <summary>起点 X</summary>
+    public float StartX { get; set; }
+    
+    /// <summary>起点 Y</summary>
+    public float StartY { get; set; }
+    
+    /// <summary>终点 X</summary>
+    public float EndX { get; set; }
+    
+    /// <summary>终点 Y</summary>
+    public float EndY { get; set; }
+    
+    /// <summary>线段长度</summary>
+    public float Length => (float)Math.Sqrt((EndX - StartX) * (EndX - StartX) + (EndY - StartY) * (EndY - StartY));
+    
+    /// <summary>中点 X</summary>
+    public float MidX => (StartX + EndX) / 2;
+    
+    /// <summary>中点 Y</summary>
+    public float MidY => (StartY + EndY) / 2;
+    
+    /// <summary>角度（相对于水平线，度数）</summary>
+    public float Angle => (float)(Math.Atan2(EndY - StartY, EndX - StartX) * 180 / Math.PI);
+
+    public LineData()
+    {
+    }
+
+    public LineData(float startX, float startY, float endX, float endY)
+    {
+        StartX = startX;
+        StartY = startY;
+        EndX = endX;
+        EndY = endY;
+    }
+
+    /// <summary>
+    /// 计算点到直线的距离
+    /// </summary>
+    public float DistanceToPoint(float x, float y)
+    {
+        float A = EndY - StartY;
+        float B = StartX - EndX;
+        float C = EndX * StartY - StartX * EndY;
+        return Math.Abs(A * x + B * y + C) / (float)Math.Sqrt(A * A + B * B);
+    }
+
+    protected override IEnumerable<object?> GetEqualityComponents()
+    {
+        yield return StartX;
+        yield return StartY;
+        yield return EndX;
+        yield return EndY;
+    }
+
+    public override string ToString()
+    {
+        return $"Line[({StartX:F2}, {StartY:F2}) -> ({EndX:F2}, {EndY:F2}), L={Length:F2}]";
+    }
+}
+
+#endregion

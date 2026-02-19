@@ -212,7 +212,7 @@ Acme.Product/
 │   │   │   │   ├── features/          #    功能模块（Project, Image, Results）
 │   │   │   │   └── shared/            #    共享样式与组件
 │   │   │   └── index.html
-│   │   └── Program.cs                  #    WPF + WebView2 入口
+│   │   └── Program.cs                  #    WinForms + WebView2 入口
 │   │
 │   └── Acme.Product.Desktop.Package/   # 📦 MSIX 打包项目
 │
@@ -231,7 +231,7 @@ Acme.Product/
 | **图像处理** | OpenCvSharp 4.9 | 传统视觉算法 |
 | **深度学习** | ONNX Runtime | YOLO 模型推理 |
 | **前端** | HTML5, JavaScript, CSS3 | Web UI |
-| **宿主** | WPF + WebView2 | 桌面应用容器 |
+| **宿主** | WinForms + WebView2 | 桌面应用容器 |
 | **数据库** | Entity Framework Core + SQLite | 数据持久化 |
 | **通信** | NModbus, System.IO.Ports | 工业协议 |
 | **测试** | xUnit, FluentAssertions | 自动化测试 |

@@ -7,6 +7,7 @@ import { createModal, closeModal, showToast, createButton } from '../../shared/c
 class SettingsModal {
     constructor() {
         this.config = null;
+        this.aiConfig = null;
         this.modalOverlay = null;
         this.activeTab = 'general';
         this.users = [];
@@ -41,6 +42,15 @@ class SettingsModal {
             // 同步相机绑定
             this.cameraBindings = this.config.cameras || [];
             this.activeCameraId = this.config.activeCameraId || '';
+
+            // 加载 AI 配置
+            try {
+                this.aiConfig = await httpClient.get('/ai/settings');
+                console.log('[SettingsModal] AI config loaded');
+            } catch (e) {
+                console.warn('[SettingsModal] Failed to load AI config:', e);
+                this.aiConfig = { provider: 'OpenAI', apiKey: '', model: '', baseUrl: '' };
+            }
         } catch (error) {
             console.error('[SettingsModal] Failed to load config:', error);
             showToast('加载配置失败: ' + error.message, 'error');
@@ -199,6 +209,7 @@ class SettingsModal {
                 <button class="settings-tab" data-tab="storage">存储</button>
                 <button class="settings-tab" data-tab="runtime">运行</button>
                 <button class="settings-tab" data-tab="cameras">相机管理</button>
+                <button class="settings-tab" data-tab="ai">AI 模型</button>
                 ${userManagementTab}
             </div>
             <div class="settings-content">
@@ -207,6 +218,7 @@ class SettingsModal {
                 ${this.renderStorageTab()}
                 ${this.renderRuntimeTab()}
                 ${this.renderCameraTab()}
+                ${this.renderAiTab()}
                 ${userManagementSection}
             </div>
         `;
@@ -349,6 +361,72 @@ class SettingsModal {
                         <input type="number" class="settings-input" 
                                id="cfg-stopOnConsecutiveNg" 
                                value="${runtime.stopOnConsecutiveNg || 0}">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染 AI 模型配置标签页
+     */
+    renderAiTab() {
+        const ai = this.aiConfig || {};
+        return `
+            <div class="settings-section" data-section="ai">
+                <div class="settings-group">
+                    <div class="settings-group-title">模型配置</div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">AI 供应商</div>
+                            <div class="settings-hint">选择 API 协议类型</div>
+                        </div>
+                        <select class="settings-select" id="cfg-ai-provider">
+                            <option value="OpenAI" ${ai.provider === 'OpenAI' ? 'selected' : ''}>OpenAI 兼容（DeepSeek / GPT / 通义等）</option>
+                            <option value="Anthropic" ${ai.provider === 'Anthropic' ? 'selected' : ''}>Anthropic（Claude）</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">API Key</div>
+                            <div class="settings-hint">模型服务的密钥</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="password" class="settings-input" id="cfg-ai-apikey" 
+                                   value="${ai.apiKey || ''}" placeholder="sk-..." style="width:280px">
+                            <button type="button" class="cv-btn cv-btn-secondary" id="btn-toggle-apikey"
+                                    style="padding:8px 12px;font-size:12px;min-width:auto;white-space:nowrap">👁</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">模型名称</div>
+                            <div class="settings-hint">如 deepseek-chat, gpt-4o, claude-sonnet-4-20250514</div>
+                        </div>
+                        <input type="text" class="settings-input" id="cfg-ai-model" 
+                               value="${ai.model || ''}" placeholder="deepseek-chat">
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">API 地址</div>
+                            <div class="settings-hint">自定义端点（留空则使用默认地址）</div>
+                        </div>
+                        <input type="text" class="settings-input" id="cfg-ai-baseurl" 
+                               value="${ai.baseUrl || ''}" placeholder="https://api.deepseek.com/chat/completions" style="width:340px">
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <div class="settings-group-title">连接测试</div>
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">验证当前配置</div>
+                            <div class="settings-hint">保存配置后点击测试以验证连接是否正常</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <button type="button" class="cv-btn cv-btn-primary" id="btn-ai-test"
+                                    style="padding:8px 16px;font-size:13px;min-width:auto">🔗 测试连接</button>
+                            <span id="ai-test-result" style="font-size:13px;color:var(--ink-gray)"></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -535,6 +613,54 @@ class SettingsModal {
         // 绑定用户管理事件（仅管理员）
         if (this.isAdmin) {
             this.bindUserManagementEvents();
+        }
+
+        // 绑定 AI 设置事件
+        this.bindAiSettingsEvents();
+    }
+
+    /**
+     * 绑定 AI 设置相关事件
+     */
+    bindAiSettingsEvents() {
+        // API Key 显示/隐藏切换
+        const toggleBtn = this.modalOverlay?.querySelector('#btn-toggle-apikey');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const input = this.modalOverlay.querySelector('#cfg-ai-apikey');
+                if (input) {
+                    input.type = input.type === 'password' ? 'text' : 'password';
+                    toggleBtn.textContent = input.type === 'password' ? '👁' : '🔒';
+                }
+            });
+        }
+
+        // 测试连接按钮
+        const testBtn = this.modalOverlay?.querySelector('#btn-ai-test');
+        if (testBtn) {
+            testBtn.addEventListener('click', async () => {
+                const resultEl = this.modalOverlay.querySelector('#ai-test-result');
+                testBtn.disabled = true;
+                testBtn.textContent = '⏳ 测试中...';
+                if (resultEl) resultEl.textContent = '';
+
+                try {
+                    // 先保存当前 AI 配置
+                    await this.saveAiConfig();
+                    // 再测试连接
+                    const result = await httpClient.post('/ai/test', {});
+                    if (result.success) {
+                        if (resultEl) { resultEl.textContent = '✅ ' + result.message; resultEl.style.color = '#4caf50'; }
+                    } else {
+                        if (resultEl) { resultEl.textContent = '❌ ' + result.message; resultEl.style.color = 'var(--cinnabar)'; }
+                    }
+                } catch (e) {
+                    if (resultEl) { resultEl.textContent = '❌ 请求失败: ' + e.message; resultEl.style.color = 'var(--cinnabar)'; }
+                } finally {
+                    testBtn.disabled = false;
+                    testBtn.textContent = '🔗 测试连接';
+                }
+            });
         }
     }
 
@@ -911,6 +1037,20 @@ class SettingsModal {
     }
     
     /**
+     * 保存 AI 配置（独立保存，不影响AppConfig）
+     */
+    async saveAiConfig() {
+        const aiPayload = {
+            provider: document.getElementById('cfg-ai-provider')?.value || 'OpenAI',
+            apiKey: document.getElementById('cfg-ai-apikey')?.value || '',
+            model: document.getElementById('cfg-ai-model')?.value || '',
+            baseUrl: document.getElementById('cfg-ai-baseurl')?.value || ''
+        };
+        await httpClient.put('/ai/settings', aiPayload);
+        console.log('[SettingsModal] AI config saved');
+    }
+
+    /**
      * 保存配置
      */
     async save() {
@@ -949,12 +1089,14 @@ class SettingsModal {
             // 首先保存全局配置 (AppConfig)
             await httpClient.put('/settings', config);
 
-            // 如果有相机绑定变化，也调用专用接口确保同步 (虽然 /settings 也会保存，但为了健壮性调用此接口)
-            // 在我们的架构中，ICameraManager 的 LoadBindings 也需要被触发
+            // 保存相机绑定
             await httpClient.put('/cameras/bindings', {
                 bindings: config.cameras,
                 activeCameraId: config.activeCameraId
             });
+
+            // 保存 AI 配置（独立存储）
+            await this.saveAiConfig();
 
             console.log('[SettingsModal] Config saved successfully');
             showToast('设置已保存', 'success');

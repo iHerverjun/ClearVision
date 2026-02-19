@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -61,6 +62,7 @@ public class CircleMeasurementOperator : OperatorBase
         var circles = Cv2.HoughCircles(blurred, HoughModes.Gradient, dp, minDist, param1, param2, minRadius, maxRadius);
 
         var circleResults = new List<Dictionary<string, object>>();
+        var circleDataList = new List<CircleData>(); // Sprint 1 Task 1.2: CircleData 列表
         
         if (circles != null)
         {
@@ -84,25 +86,41 @@ public class CircleMeasurementOperator : OperatorBase
                     { "Radius", circle.Radius },
                     { "Circularity", circularity }
                 });
+
+                // Sprint 1 Task 1.2: 创建 CircleData 对象
+                circleDataList.Add(new CircleData(
+                    (float)circle.Center.X,
+                    (float)circle.Center.Y,
+                    (float)circle.Radius
+                ));
             }
         }
 
         // P0: 使用ImageWrapper实现零拷贝输出
+        // Sprint 1 Task 1.2: 添加 CircleData 输出端口
         var additionalData = new Dictionary<string, object>
         {
             { "Circles", circleResults },
-            { "CircleCount", circleResults.Count }
+            { "CircleCount", circleResults.Count },
+            { "CircleDataList", circleDataList } // 新增 CircleDataList 输出
         };
         
         if (circleResults.Count > 0)
         {
             var firstCircle = circleResults.FirstOrDefault();
+            var firstCircleData = circleDataList.FirstOrDefault();
             if (firstCircle != null)
             {
                 additionalData["CenterX"] = firstCircle["CenterX"];
                 additionalData["CenterY"] = firstCircle["CenterY"];
                 additionalData["Radius"] = firstCircle["Radius"];
                 additionalData["Circularity"] = firstCircle["Circularity"];
+                
+                // Sprint 1 Task 1.2: 添加单个 CircleData 输出
+                if (firstCircleData != null)
+                {
+                    additionalData["Circle"] = firstCircleData;
+                }
             }
         }
         

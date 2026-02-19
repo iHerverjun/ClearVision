@@ -21,6 +21,7 @@ using Acme.Product.Desktop.Middleware;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Acme.Product.Core.Enums;
+using Acme.Product.Infrastructure.AI;
 
 namespace Acme.Product.Desktop;
 
@@ -97,6 +98,7 @@ static class Program
 
             // 配置服务
             builder.Services.AddVisionServices();
+            builder.Services.AddAiFlowGeneration(builder.Configuration);
             builder.Services.AddSingleton<WebMessageHandler>();
             builder.Services.AddSingleton<Acme.Product.Core.Interfaces.IProjectFlowStorage, Acme.Product.Infrastructure.Services.JsonFileProjectFlowStorage>();
 

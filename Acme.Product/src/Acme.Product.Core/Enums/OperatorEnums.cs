@@ -488,6 +488,31 @@ public enum PortDataType
     Contour = 7,
 
     /// <summary>
+    /// 点列表 - Sprint 1 Task 1.2
+    /// </summary>
+    PointList = 8,
+
+    /// <summary>
+    /// 单个检测结果（含类别、置信度、边界框等）- Sprint 1 Task 1.2
+    /// </summary>
+    DetectionResult = 9,
+
+    /// <summary>
+    /// 检测结果列表 - Sprint 1 Task 1.2
+    /// </summary>
+    DetectionList = 10,
+
+    /// <summary>
+    /// 圆数据（圆心、半径）- Sprint 1 Task 1.2
+    /// </summary>
+    CircleData = 11,
+
+    /// <summary>
+    /// 直线数据（起点、终点）- Sprint 1 Task 1.2
+    /// </summary>
+    LineData = 12,
+
+    /// <summary>
     /// 任意类型
     /// </summary>
     Any = 99

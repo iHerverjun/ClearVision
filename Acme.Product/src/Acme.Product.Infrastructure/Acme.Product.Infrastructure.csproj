@@ -57,15 +57,16 @@
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="Serilog.Exceptions" Version="8.4.0" />
     
-    <!-- ASP.NET Core -->
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
     <PackageReference Include="Microsoft.AspNetCore.Hosting.Abstractions" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Acme.Product.Core\Acme.Product.Core.csproj" />
     <ProjectReference Include="..\Acme.Product.Application\Acme.Product.Application.csproj" />
+    <ProjectReference Include="..\Acme.Product.Contracts\Acme.Product.Contracts.csproj" />
     <ProjectReference Include="..\Acme.PlcComm\Acme.PlcComm.csproj" />
   </ItemGroup>
 

@@ -4,6 +4,7 @@
 
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;
+using Acme.Product.Infrastructure.AI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -45,6 +46,68 @@ public static class SettingsEndpoints
             var defaultConfig = new AppConfig();
             await configService.SaveAsync(defaultConfig);
             return Results.Ok(defaultConfig);
+        });
+
+        // ==================== AI 设置 API ====================
+
+        // 获取当前 AI 配置（ApiKey 脱敏）
+        app.MapGet("/api/ai/settings", (AiConfigStore configStore) =>
+        {
+            return Results.Ok(configStore.GetMasked());
+        });
+
+        // 更新 AI 配置
+        app.MapPut("/api/ai/settings", (AiSettingsUpdateRequest request, AiConfigStore configStore) =>
+        {
+            try
+            {
+                var current = configStore.Get();
+
+                // 仅更新前端提交的字段
+                current.Provider = request.Provider ?? current.Provider;
+                current.Model = request.Model ?? current.Model;
+                current.BaseUrl = string.IsNullOrWhiteSpace(request.BaseUrl) ? null : request.BaseUrl;
+
+                // ApiKey：如果前端传来的值全是星号或为空，说明用户没修改，保留原值
+                if (!string.IsNullOrEmpty(request.ApiKey) && !request.ApiKey.Contains('*'))
+                {
+                    current.ApiKey = request.ApiKey;
+                }
+
+                if (request.MaxRetries.HasValue)
+                    current.MaxRetries = request.MaxRetries.Value;
+                if (request.TimeoutSeconds.HasValue)
+                    current.TimeoutSeconds = request.TimeoutSeconds.Value;
+                if (request.MaxTokens.HasValue)
+                    current.MaxTokens = request.MaxTokens.Value;
+                if (request.Temperature.HasValue)
+                    current.Temperature = request.Temperature.Value;
+
+                configStore.Update(current);
+                return Results.Ok(new { Message = "AI 配置已保存", Config = configStore.GetMasked() });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // 测试 AI 连接
+        app.MapPost("/api/ai/test", async (AiConfigStore configStore, AiApiClient apiClient) =>
+        {
+            try
+            {
+                var options = configStore.Get();
+                var response = await apiClient.CompleteAsync(
+                    "You are a helpful assistant.",
+                    "Reply with exactly: OK",
+                    CancellationToken.None);
+                return Results.Ok(new { Success = true, Message = "连接成功" });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { Success = false, Message = $"连接失败: {ex.Message}" });
+            }
         });
 
         // ==================== 相机管理 API ====================
@@ -90,4 +153,19 @@ public static class SettingsEndpoints
 
         return app;
     }
+}
+
+/// <summary>
+/// AI 设置更新请求 DTO
+/// </summary>
+public class AiSettingsUpdateRequest
+{
+    public string? Provider { get; set; }
+    public string? ApiKey { get; set; }
+    public string? Model { get; set; }
+    public string? BaseUrl { get; set; }
+    public int? MaxRetries { get; set; }
+    public int? TimeoutSeconds { get; set; }
+    public int? MaxTokens { get; set; }
+    public double? Temperature { get; set; }
 }

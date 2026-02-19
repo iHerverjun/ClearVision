@@ -63,6 +63,13 @@
     <ProjectReference Include="..\Acme.Product.Infrastructure\Acme.Product.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- 配置文件 -->
+  <ItemGroup>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- 复制 wwwroot 前端文件到输出目录 -->
   <ItemGroup>
     <Content Include="wwwroot\**\*">

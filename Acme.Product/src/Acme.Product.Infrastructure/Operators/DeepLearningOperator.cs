@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -187,23 +188,24 @@ public class DeepLearningOperator : OperatorBase
         // 10. 绘制结果
         using var outputImage = DrawResults(src, detections);
 
-        // 11. 构建输出
-        var defects = detections.Select((d, index) => new Dictionary<string, object>
-        {
-            { "Id", index + 1 },
-            { "X", d.X },
-            { "Y", d.Y },
-            { "Width", d.Width },
-            { "Height", d.Height },
-            { "Confidence", d.Confidence },
-            { "ClassId", d.ClassId },
-            { "ClassName", GetClassName(d.ClassId) }
-        }).ToList();
+        // 11. 构建输出 - Sprint 1 Task 1.2: 使用 DetectionList 类型
+        var detectionList = new DetectionList(
+            detections.Select((d, index) => new Core.ValueObjects.DetectionResult
+            {
+                Label = GetClassName(d.ClassId),
+                Confidence = d.Confidence,
+                X = d.X,
+                Y = d.Y,
+                Width = d.Width,
+                Height = d.Height
+            })
+        );
 
         var additionalData = new Dictionary<string, object>
         {
             { "DefectCount", detections.Count },
-            { "Defects", defects }
+            { "Defects", detectionList }, // 升级为 DetectionList 类型
+            { "DetectionList", detectionList } // 新增标准输出端口
         };
 
         Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);

@@ -57,6 +57,9 @@ public class FlowExecutionService : IFlowExecutionService
 
         try
         {
+            // Sprint 1 Task 1.1: 预分析扇出度，为 ImageWrapper 引用计数做准备
+            var fanOutDegrees = AnalyzeFanOutDegrees(flow);
+
             // 获取执行顺序（拓扑排序）
             var executionOrder = flow.GetExecutionOrder().ToList();
 
@@ -82,12 +85,12 @@ public class FlowExecutionService : IFlowExecutionService
             if (enableParallel && executionOrder.Count > 1)
             {
                 // 并行执行模式
-                await ExecuteFlowParallelAsync(flow, executionOrder, operatorOutputs, result, status, cts.Token);
+                await ExecuteFlowParallelAsync(flow, executionOrder, operatorOutputs, result, status, cts.Token, fanOutDegrees);
             }
             else
             {
                 // 顺序执行模式
-                await ExecuteFlowSequentialAsync(flow, executionOrder, operatorOutputs, result, status, cts.Token);
+                await ExecuteFlowSequentialAsync(flow, executionOrder, operatorOutputs, result, status, cts.Token, fanOutDegrees);
             }
 
             stopwatch.Stop();
@@ -159,7 +162,8 @@ public class FlowExecutionService : IFlowExecutionService
         ConcurrentDictionary<Guid, Dictionary<string, object>> operatorOutputs,
         FlowExecutionResult result,
         FlowExecutionStatus status,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Dictionary<string, int>? fanOutDegrees = null)
     {
         int completedCount = 0;
         foreach (var op in executionOrder)
@@ -200,7 +204,15 @@ public class FlowExecutionService : IFlowExecutionService
                 break;
             }
 
-            operatorOutputs[op.Id] = opResult.OutputData ?? new Dictionary<string, object>();
+            var outputs = opResult.OutputData ?? new Dictionary<string, object>();
+            operatorOutputs[op.Id] = outputs;
+            
+            // Sprint 1 Task 1.1: 应用扇出引用计数
+            if (fanOutDegrees != null)
+            {
+                ApplyFanOutRefCounts(outputs, fanOutDegrees, op.Id.ToString());
+            }
+            
             completedCount++;
         }
     }
@@ -214,7 +226,8 @@ public class FlowExecutionService : IFlowExecutionService
         ConcurrentDictionary<Guid, Dictionary<string, object>> operatorOutputs,
         FlowExecutionResult result,
         FlowExecutionStatus status,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Dictionary<string, int>? fanOutDegrees = null)
     {
         // 构建执行层级（哪些算子可以并行执行）
         var executionLayers = BuildExecutionLayers(flow, executionOrder);
@@ -263,7 +276,14 @@ public class FlowExecutionService : IFlowExecutionService
 
                 if (opResult.IsSuccess)
                 {
-                    operatorOutputs[op.Id] = opResult.OutputData ?? new Dictionary<string, object>();
+                    var outputs = opResult.OutputData ?? new Dictionary<string, object>();
+                    operatorOutputs[op.Id] = outputs;
+                    
+                    // Sprint 1 Task 1.1: 应用扇出引用计数
+                    if (fanOutDegrees != null)
+                    {
+                        ApplyFanOutRefCounts(outputs, fanOutDegrees, op.Id.ToString());
+                    }
                 }
 
                 return opResult;
@@ -577,6 +597,52 @@ public class FlowExecutionService : IFlowExecutionService
         }
         return result;
     }
+
+    #region Sprint 1 Task 1.1: 扇出预分析与引用计数管理
+
+    /// <summary>
+    /// 预分析 DAG 中每个输出端口的扇出度（下游连接数）。
+    /// 用于决定 ImageWrapper 的引用计数初始值。
+    /// </summary>
+    private Dictionary<string, int> AnalyzeFanOutDegrees(OperatorFlow flow)
+    {
+        var degrees = new Dictionary<string, int>();
+        foreach (var conn in flow.Connections)
+        {
+            var key = $"{conn.SourceOperatorId}:{conn.SourcePortId}";
+            degrees[key] = degrees.GetValueOrDefault(key, 0) + 1;
+        }
+        return degrees;
+    }
+
+    /// <summary>
+    /// 根据扇出度为算子输出的 ImageWrapper 设置引用计数。
+    /// 扇出度为 N 时，AddRef (N-1) 次，使总引用计数为 N。
+    /// </summary>
+    private void ApplyFanOutRefCounts(
+        Dictionary<string, object> outputs,
+        Dictionary<string, int> fanOutDegrees,
+        string operatorId)
+    {
+        foreach (var (portId, value) in outputs)
+        {
+            if (value is not ImageWrapper img) continue;
+            
+            var key = $"{operatorId}:{portId}";
+            int fanOut = fanOutDegrees.GetValueOrDefault(key, 1);
+            
+            // 引用计数初始为 1，每多一个下游消费者 AddRef 一次
+            for (int i = 1; i < fanOut; i++)
+            {
+                img.AddRef();
+            }
+            
+            _logger.LogDebug("[FlowExecution] 设置引用计数: 算子={OperatorId}, 端口={PortId}, 扇出度={FanOut}, RefCount={RefCount}",
+                operatorId, portId, fanOut, img.RefCount);
+        }
+    }
+
+    #endregion
 
     private Dictionary<string, object> PrepareOperatorInputs(OperatorFlow flow, Operator op, IDictionary<Guid, Dictionary<string, object>> operatorOutputs)
     {

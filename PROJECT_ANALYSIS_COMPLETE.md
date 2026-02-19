@@ -11,7 +11,7 @@
 ### 1.1 应用类型
 
 **桌面应用 + 混合架构**
-- **宿主层**: WPF + WebView2 (Windows桌面应用)
+- **宿主层**: WinForms + WebView2 (Windows桌面应用)
 - **前端**: HTML5/JavaScript/CSS3 (在WebView2中运行)
 - **后端**: .NET 8 C# 服务
 - **通信**: WebView2双向消息通信
@@ -111,7 +111,7 @@ Acme.Product/
 │       │   │   ├── features/          #    功能模块
 │       │   │   └── ...
 │       │   └── index.html
-│       └── Program.cs                  #    WPF入口
+│       └── Program.cs                  #    WinForms入口
 │
 └── tests/                              # ✅ 测试项目
     └── Acme.Product.Tests/
@@ -1784,7 +1784,7 @@ if (this.connectingFrom.nodeId === nodeId) {
 - 形态学: Morphology, MorphologicalOperation
 - Blob分析: BlobAnalysis
 - 模板匹配: TemplateMatching, ShapeMatching
-- 特征提取: ContourDetection, FindContours
+- 特征提取: ContourDetection, ContourDetection
 - 测量: Measurement, CircleMeasurement, LineMeasurement, ContourMeasurement, AngleMeasurement, GeometricTolerance
 - 几何拟合: GeometricFitting
 - 标定: CameraCalibration, Undistort, CoordinateTransform

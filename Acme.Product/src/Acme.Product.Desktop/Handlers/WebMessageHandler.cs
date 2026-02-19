@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Text.Json;
+using System.Net.Http;
 
 namespace Acme.Product.Desktop.Handlers;
 
@@ -23,6 +24,12 @@ public class WebMessageHandler
     private readonly ILogger<WebMessageHandler> _logger;
     private WebView2? _webViewControl;
     private CoreWebView2? _webView;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
 
     public WebMessageHandler(
         IServiceScopeFactory scopeFactory,
@@ -156,6 +163,10 @@ public class WebMessageHandler
 
                 case nameof(PickFileCommand):
                     await HandlePickFileCommand(messageJson);
+                    break;
+
+                case "GenerateFlow":
+                    await HandleGenerateFlowCommand(messageJson);
                     break;
 
                 default:
@@ -395,6 +406,96 @@ public class WebMessageHandler
     }
 
     /// <summary>
+    /// 处理 AI 生成工作流请求
+    /// </summary>
+    private async Task HandleGenerateFlowCommand(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            var payload = doc.RootElement.GetProperty("payload");
+            var description = payload.GetProperty("description").GetString() ?? "";
+
+            using var scope = _scopeFactory.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.GenerateFlowMessageHandler>();
+
+            var resultJson = await handler.HandleAsync(description,
+                onProgress: (type, payload) =>
+                {
+                    // 在 UI 线程推送进度消息
+                    var progressJson = JsonSerializer.Serialize(new
+                    {
+                        messageType = type,
+                        payload = JsonSerializer.Deserialize<object>(payload)
+                    }, _jsonOptions);
+
+                    if (_webViewControl?.InvokeRequired == true)
+                    {
+                        _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(progressJson));
+                    }
+                    else
+                    {
+                        _webView?.PostWebMessageAsJson(progressJson);
+                    }
+                });
+
+            // 发回前端（原始 JSON）
+            if (_webViewControl?.InvokeRequired == true)
+            {
+                _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(resultJson));
+            }
+            else
+            {
+                _webView?.PostWebMessageAsJson(resultJson);
+            }
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+        {
+            _logger.LogWarning(ex, "AI 服务连接被拦截");
+            SendProgressMessage("AiFirewallBlocked", new
+            {
+                message = "检测到网络连接被阻断（可能被防火墙拦截）",
+                detail = ex.Message,
+                timestamp = DateTime.Now
+            });
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "AI 服务请求超时");
+            SendProgressMessage("AiFirewallBlocked", new
+            {
+                message = "AI 服务连接超时（可能被防火墙拦截）",
+                detail = "请检查网络环境或代理设置",
+                timestamp = DateTime.Now
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理 AI 生成请求失败");
+
+            var errorResponse = new GenerateFlowResponse
+            {
+                Success = false,
+                ErrorMessage = $"系统错误：{ex.Message}"
+            };
+
+            var json = JsonSerializer.Serialize(errorResponse, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            if (_webViewControl?.InvokeRequired == true)
+            {
+                _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(json));
+            }
+            else
+            {
+                _webView?.PostWebMessageAsJson(json);
+            }
+        }
+    }
+
+    /// <summary>
     /// 发送事件到前端
     /// </summary>
     private void SendEvent<T>(T eventData)
@@ -419,6 +520,24 @@ public class WebMessageHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "[WebMessageHandler] 发送事件失败");
+        }
+    }
+
+    private void SendProgressMessage(string type, object payload)
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            messageType = type,
+            payload
+        }, _jsonOptions);
+
+        if (_webViewControl?.InvokeRequired == true)
+        {
+            _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(json));
+        }
+        else
+        {
+            _webView?.PostWebMessageAsJson(json);
         }
     }
 }

@@ -49,6 +49,34 @@ public abstract class OperatorBase : IOperatorExecutor
         Dictionary<string, object>? inputs = null,
         CancellationToken cancellationToken = default)
     {
+        // Sprint 1 Task 1.1: 使用带生命周期管理的方法
+        return await ExecuteWithLifecycleAsync(@operator, inputs, cancellationToken);
+    }
+
+    /// <summary>
+    /// 执行算子（带生命周期管理 - Sprint 1 Task 1.1）。
+    /// 
+    /// 自动管理 ImageWrapper 的引用计数：
+    /// 1. 执行前：输入中的 ImageWrapper 引用计数已由上游 AddRef
+    /// 2. 执行后：自动 Release 所有输入中的 ImageWrapper
+    /// 
+    /// 算子开发约定（框架层通过 Code Review 强制检查）：
+    ///
+    /// 读操作：image.MatReadOnly  — 不触发 Clone/Pool，多并发安全
+    ///
+    /// 写操作：var dst = image.GetWritableMat(); // 可能从 Pool 取（CoW）
+    ///          Cv2.SomeFilter(dst, dst, ...);    // 就地修改
+    ///          return new ImageWrapper(dst);     // 输出，引用计数重置为 1
+    ///          // 若不作为输出，需归还：MatPool.Shared.Return(dst)
+    ///
+    /// 禁止在算子内部手动调用 AddRef() / Release()。
+    /// 禁止在算子内部直接调用 mat.Dispose()。
+    /// </summary>
+    public async Task<OperatorExecutionOutput> ExecuteWithLifecycleAsync(
+        Operator @operator,
+        Dictionary<string, object>? inputs = null,
+        CancellationToken cancellationToken = default)
+    {
         var stopwatch = Stopwatch.StartNew();
         Logger.LogDebug("[{OperatorType}] 开始执行, 算子ID={OperatorId}, 名称={OperatorName}",
             OperatorType, @operator.Id, @operator.Name);
@@ -96,6 +124,20 @@ public abstract class OperatorBase : IOperatorExecutor
                 OperatorType, @operator.Id, stopwatch.ElapsedMilliseconds, ex.Message);
 
             return OperatorExecutionOutput.Failure($"执行失败: {ex.Message}");
+        }
+        finally
+        {
+            // Sprint 1 Task 1.1: 释放输入中的 ImageWrapper 引用
+            if (inputs != null)
+            {
+                foreach (var value in inputs.Values)
+                {
+                    if (value is ImageWrapper img)
+                    {
+                        img.Release();
+                    }
+                }
+            }
         }
     }
 

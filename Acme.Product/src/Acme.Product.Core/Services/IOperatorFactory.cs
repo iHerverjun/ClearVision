@@ -80,6 +80,11 @@ public class OperatorMetadata
     public string? IconName { get; set; }
 
     /// <summary>
+    /// 算子关键词（用于 AI 匹配）
+    /// </summary>
+    public string[]? Keywords { get; set; }
+
+    /// <summary>
     /// 输入端口定义
     /// </summary>
     public List<PortDefinition> InputPorts { get; set; } = new();

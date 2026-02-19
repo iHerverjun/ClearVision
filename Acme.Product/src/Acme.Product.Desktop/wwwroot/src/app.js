@@ -4,6 +4,7 @@
  */
 
 import { Dialog } from './shared/components/dialog.js';
+import { AiPanel } from './features/ai/aiPanel.js';
 
 // ============================================
 // 全局错误捕获 - 用于调试
@@ -97,6 +98,7 @@ import projectManager, {
 } from './features/project/projectManager.js';
 import { ResultPanel } from './features/results/resultPanel.js';
 import settingsModal from './features/settings/settingsModal.js';
+import { AiGenerationDialog } from './features/ai-generation/aiGenerationDialog.js';
 
 // 全局状态
 const [getCurrentView, setCurrentView, subscribeView] = createSignal('flow');
@@ -122,6 +124,8 @@ let propertyPanel = null;
 let projectView = null;
 let resultPanel = null;
 let inspectionPanel = null;
+let aiGenerationDialog = null;
+let aiPanel = null;
 
 // 自动保存定时器
 let autoSaveInterval = null;
@@ -184,6 +188,9 @@ function initializeApp() {
     // 初始化结果面板（数显功能）
     initializeResultPanel();
 
+    // 初始化 AI 生成对话框
+    initializeAiGeneration();
+
     // 初始化主题
     initializeTheme();
 
@@ -230,6 +237,7 @@ function switchView(view) {
     const inspectionViewContainer = document.getElementById('inspection-view');
     const resultsViewContainer = document.getElementById('results-view');
     const projectViewContainer = document.getElementById('project-view');
+    const aiViewContainer = document.getElementById('ai-view');
 
     // 隐藏所有视图
     flowEditor?.classList.add('hidden');
@@ -237,6 +245,7 @@ function switchView(view) {
     inspectionViewContainer?.classList.add('hidden');
     resultsViewContainer?.classList.add('hidden');
     projectViewContainer?.classList.add('hidden');
+    aiViewContainer?.classList.add('hidden');
 
     // 获取侧边栏元素
     const leftSidebar = document.querySelector('.sidebar.left');
@@ -305,6 +314,15 @@ function switchView(view) {
             // 刷新工程列表
             if (projectView) {
                 projectView.refresh();
+            }
+            break;
+        case 'ai':
+            aiViewContainer?.classList.remove('hidden');
+            console.log('[App] 切换到 AI 视图');
+            if (aiPanel) {
+                aiPanel.activate();
+            } else {
+                initializeAiPanel();
             }
             break;
         default:
@@ -1156,6 +1174,50 @@ function initializeToolbar() {
             console.log('[App] 用户登出');
             logout();
         });
+    }
+
+    // AI 生成按钮
+    const aiGenBtn = document.getElementById('btn-ai-gen');
+    if (aiGenBtn) {
+        aiGenBtn.addEventListener('click', () => {
+            console.log('[App] 切换到 AI 视图');
+            
+            // 切换视图
+            setCurrentView('ai');
+            switchView('ai');
+            
+            // 更新导航按钮激活状态
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.view === 'ai') btn.classList.add('active');
+            });
+        });
+    }
+}
+
+/**
+ * 初始化 AI 生成对话框
+ */
+function initializeAiGeneration() {
+    if (window.flowCanvas) {
+        // aiGenerationDialog = new AiGenerationDialog(window.flowCanvas); // 已废弃
+        // window.aiGenerationDialog = aiGenerationDialog;
+        console.log('[App] AI 生成功能已升级为独立面板');
+    } else {
+        console.warn('[App] FlowCanvas 未就绪');
+    }
+}
+
+/**
+ * 初始化 AI 面板
+ */
+function initializeAiPanel() {
+    if (window.flowCanvas) {
+        aiPanel = new AiPanel('ai-view', window.flowCanvas);
+        window.aiPanel = aiPanel;
+        console.log('[App] AI 面板初始化完成');
+    } else {
+         console.warn('[App] FlowCanvas 未就绪，无法初始化 AI 面板');
     }
 }
 
