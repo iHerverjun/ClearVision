@@ -102,6 +102,9 @@ static class Program
             builder.Services.AddSingleton<WebMessageHandler>();
             builder.Services.AddSingleton<Acme.Product.Core.Interfaces.IProjectFlowStorage, Acme.Product.Infrastructure.Services.JsonFileProjectFlowStorage>();
 
+            // 注册手眼标定服务
+            builder.Services.AddTransient<IHandEyeCalibrationService, HandEyeCalibrationService>();
+
             builder.Services.ConfigureHttpJsonOptions(options =>
             {
                 options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

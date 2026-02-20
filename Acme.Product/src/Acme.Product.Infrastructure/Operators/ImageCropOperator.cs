@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using Acme.Product.Infrastructure.Memory;
 
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -43,14 +44,19 @@ public class ImageCropOperator : OperatorBase
         }
 
         // 边界检查
-        if (x >= src.Width) x = src.Width - 1;
-        if (y >= src.Height) y = src.Height - 1;
-        if (x + width > src.Width) width = src.Width - x;
-        if (y + height > src.Height) height = src.Height - y;
+        if (x >= src.Width)
+            x = src.Width - 1;
+        if (y >= src.Height)
+            y = src.Height - 1;
+        if (x + width > src.Width)
+            width = src.Width - x;
+        if (y + height > src.Height)
+            height = src.Height - y;
 
         var roi = new Rect(x, y, width, height);
         using var cropped = new Mat(src, roi);
-        var dst = cropped.Clone();
+        var dst = MatPool.Shared.Rent(width, height, src.Type());
+        cropped.CopyTo(dst);
 
         // P0: 使用ImageWrapper实现零拷贝输出
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst)));

@@ -881,9 +881,13 @@ function initializeFlowEditor() {
             window._mainFlowState = flowCanvas.serialize();
             window._currentSubgraphNodeId = node.id;
             
+            // 读取 IoMode
+            const ioModeParam = node.parameters?.find(p => p.name === 'IoMode' || p.Name === 'IoMode');
+            const ioMode = ioModeParam?.value || 'Parallel';
+            
             // 从 ForEach 参数中获取内部流程数据
             let subGraphData = null;
-            const flowParam = node.parameters?.find(p => p.name === 'internalFlow' || p.Name === 'InternalFlow');
+            const flowParam = node.parameters?.find(p => p.name === 'SubGraph' || p.Name === 'SubGraph');
             if (flowParam && flowParam.value) {
                 try {
                     subGraphData = typeof flowParam.value === 'string' ? JSON.parse(flowParam.value) : flowParam.value;
@@ -897,9 +901,22 @@ function initializeFlowEditor() {
                 flowCanvas.deserialize(subGraphData);
             }
             
+            // 注入 CurrentItem 系统源节点（如果不存在）
+            const existingCurrentItem = Array.from(flowCanvas.nodes.values()).find(n => n.type === 'CurrentItem');
+            if (!existingCurrentItem) {
+                flowCanvas.addNode('CurrentItem', 50, 100, {
+                    title: '📦 CurrentItem',
+                    color: '#722ed1',
+                    outputs: [{ name: 'Item', type: 'Any' }, { name: 'Index', type: 'Integer' }, { name: 'Total', type: 'Integer' }],
+                    _systemNode: true  // 标记为系统节点，不可删除
+                });
+                console.log('[App] 已注入 CurrentItem 系统源节点');
+            }
+            
             if (breadcrumbContainer) {
                 breadcrumbContainer.classList.remove('hidden');
-                breadcrumbCurrent.textContent = node.title || 'ForEach 节点';
+                const ioLabel = ioMode === 'Sequential' ? '🔗 串行' : '⚡ 并行';
+                breadcrumbCurrent.textContent = `${node.title || 'ForEach'} [${ioLabel}]`;
             }
         }
     };
@@ -917,15 +934,16 @@ function initializeFlowEditor() {
                     let targetNode = mainObj.nodes.find(n => n.id === window._currentSubgraphNodeId);
                     if (targetNode) {
                         if (!targetNode.parameters) targetNode.parameters = [];
-                        let flowParam = targetNode.parameters.find(p => p.name === 'internalFlow' || p.Name === 'InternalFlow');
+                        let flowParam = targetNode.parameters.find(p => p.name === 'SubGraph' || p.Name === 'SubGraph');
                         
                         let subDataStr = typeof subFlowData === 'string' ? subFlowData : JSON.stringify(subFlowData);
                         
+                        // 保留原有参数逻辑并更新或插入
                         if (flowParam) {
                             flowParam.value = subDataStr;
                         } else {
                             targetNode.parameters.push({
-                                name: 'internalFlow',
+                                name: 'SubGraph',
                                 value: subDataStr,
                                 type: 'string'
                             });

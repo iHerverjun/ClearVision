@@ -262,6 +262,13 @@ class FlowCanvas {
      * 删除节点
      */
     removeNode(nodeId) {
+        // 保护系统节点（如 CurrentItem）不可删除
+        const node = this.nodes.get(nodeId);
+        if (node && node._systemNode) {
+            console.warn('[FlowCanvas] 系统节点不可删除:', node.title || node.type);
+            return;
+        }
+        
         // 删除相关连接
         this.connections = this.connections.filter(
             conn => conn.source !== nodeId && conn.target !== nodeId
@@ -339,6 +346,11 @@ class FlowCanvas {
         const h = node.height * this.scale;
         const isSelected = this.selectedNode === node.id;
 
+        // === ForEach 容器节点判定 ===
+        const isForEach = node.type === 'ForEach';
+        const ioMode = isForEach ? (node.parameters?.find(p => p.name === 'IoMode' || p.Name === 'IoMode')?.value || 'Parallel') : null;
+        const isSequential = ioMode === 'Sequential';
+
         // 根据状态调整边框颜色和发光效果
         let borderColor = isSelected ? node.color : 'rgba(255, 255, 255, 0.1)';
         let borderWidth = isSelected ? 3 : 1;
@@ -360,6 +372,16 @@ class FlowCanvas {
         } else if (node.status === 'error') {
             borderColor = '#e74c3c';
             glowColor = 'rgba(231, 76, 60, 0.5)';
+        } else if (isForEach && isSequential) {
+            // ForEach Sequential 模式：橙色边框
+            borderColor = '#fa8c16';
+            borderWidth = 2;
+            glowColor = 'rgba(250, 140, 22, 0.3)';
+        } else if (isForEach) {
+            // ForEach Parallel 模式：青色虚线边框
+            borderColor = '#13c2c2';
+            borderWidth = 2;
+            glowColor = 'rgba(19, 194, 194, 0.2)';
         } else if (isCommunicationOp) {
             // 通信算子：红色警戒边框
             borderColor = '#f5222d';
@@ -395,10 +417,20 @@ class FlowCanvas {
         this.ctx.strokeStyle = borderColor;
         this.ctx.lineWidth = borderWidth;
 
+        // ForEach 节点使用虚线边框
+        if (isForEach) {
+            this.ctx.setLineDash([6, 4]);
+        }
+
         // 绘制圆角矩形
         this.roundRect(x, y, w, h, 8);
         this.ctx.fill();
         this.ctx.stroke();
+
+        // 恢复实线
+        if (isForEach) {
+            this.ctx.setLineDash([]);
+        }
 
         // 重置阴影
         this.ctx.shadowColor = 'transparent';
@@ -438,6 +470,36 @@ class FlowCanvas {
         this.ctx.textBaseline = 'middle';
         const titleX = (node.icon || node.iconPath) ? x + 28 * this.scale : x + 10 * this.scale;
         this.ctx.fillText(node.title, titleX, y + 12 * this.scale);
+
+        // === ForEach IoMode 标签 ===
+        if (isForEach && ioMode) {
+            const ioLabel = isSequential ? '🔗 串行' : '⚡ 并行';
+            const labelColor = isSequential ? '#fa8c16' : '#13c2c2';
+            this.ctx.fillStyle = labelColor;
+            this.ctx.font = `bold ${9 * this.scale}px sans-serif`;
+            this.ctx.textAlign = 'right';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(ioLabel, x + w - 6 * this.scale, y + 12 * this.scale);
+            
+            // 显示子图内算子数量提示
+            const subGraphParam = node.parameters?.find(p => p.name === 'SubGraph' || p.Name === 'SubGraph');
+            let subNodeCount = 0;
+            if (subGraphParam && subGraphParam.value) {
+                try {
+                    const subGraphData = typeof subGraphParam.value === 'string' ? JSON.parse(subGraphParam.value) : subGraphParam.value;
+                    if (subGraphData && Array.isArray(subGraphData.nodes)) {
+                        subNodeCount = subGraphData.nodes.length;
+                    }
+                } catch (e) {
+                    console.warn('[FlowCanvas] Failed to parse SubGraph parameter', e);
+                }
+            }
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            this.ctx.font = `${10 * this.scale}px sans-serif`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'bottom';
+            this.ctx.fillText(`[内含 ${subNodeCount} 个算子]`, x + w / 2, y + h - 8 * this.scale);
+        }
 
         // 绘制状态指示器
         if (node.status) {

@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using Acme.Product.Infrastructure.Memory;
 
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -43,7 +44,7 @@ public class MedianBlurOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        var dst = new Mat();
+        var dst = MatPool.Shared.Rent(src.Width, src.Height, src.Type());
         Cv2.MedianBlur(src, dst, kernelSize);
 
         // P0: 使用ImageWrapper实现零拷贝输出

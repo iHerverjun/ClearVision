@@ -67,6 +67,14 @@ public class OcrRecognitionOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
+        var modelPathParam = @operator.Parameters?.FirstOrDefault(p => p.Name == "ModelPath");
+        var modelPath = modelPathParam?.Value?.ToString() ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(modelPath) && !System.IO.Directory.Exists(modelPath) && !System.IO.File.Exists(modelPath))
+        {
+            return ValidationResult.Invalid($"指定的 OCR 模型路径不存在: {modelPath}");
+        }
+
         return ValidationResult.Valid();
     }
 }

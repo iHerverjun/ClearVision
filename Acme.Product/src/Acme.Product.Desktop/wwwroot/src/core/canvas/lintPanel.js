@@ -140,6 +140,8 @@ class LintPanel {
     }
 }
 
+export default LintPanel;
+
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = LintPanel;

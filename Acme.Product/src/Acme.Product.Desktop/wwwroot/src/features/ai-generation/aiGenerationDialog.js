@@ -1,4 +1,5 @@
 import webMessageBridge from '../../core/messaging/webMessageBridge.js';
+import LintPanel from '../../core/canvas/lintPanel.js';
 
 /**
  * AI 工作流生成对话框
@@ -220,6 +221,21 @@ export class AiGenerationDialog {
                 this._highlightReviewParams(message.parametersNeedingReview);
                 document.getElementById("ai-gen-review-hint").style.display =
                     "block";
+            }
+
+            // S6-003: 检查并展示 Dry-Run 覆盖率 Banner
+            if (message.dryRunResult) {
+                if (!window._lintPanelInstance) {
+                    window._lintPanelInstance = new LintPanel('lint-panel-container');
+                }
+                const dr = message.dryRunResult;
+                // 适配 lintPanel 所需的对象的 camelCase
+                window._lintPanelInstance.showDryRunBanner({
+                    coveragePercentage: dr.coveragePercentage || dr.CoveragePercentage,
+                    coveredBranches: dr.coveredBranches || dr.CoveredBranches,
+                    totalBranches: dr.totalBranches || dr.TotalBranches,
+                    isSuccess: dr.isSuccess !== undefined ? dr.isSuccess : dr.IsSuccess
+                });
             }
 
             // 延迟关闭，让用户看到说明

@@ -10,6 +10,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Text.Json;
+using Acme.Product.Desktop.Handlers;
+using Acme.Product.Infrastructure.Services;
+using System.Text.Json;
 using System.Net.Http;
 
 namespace Acme.Product.Desktop.Handlers;
@@ -167,6 +170,14 @@ public class WebMessageHandler
 
                 case "GenerateFlow":
                     await HandleGenerateFlowCommand(messageJson);
+                    break;
+
+                case "handeye:solve":
+                    await HandleHandEyeSolveCommand(messageJson);
+                    break;
+
+                case "handeye:save":
+                    await HandleHandEyeSaveCommand(messageJson);
                     break;
 
                 default:
@@ -492,6 +503,77 @@ public class WebMessageHandler
             {
                 _webView?.PostWebMessageAsJson(json);
             }
+        }
+    }
+
+    /// <summary>
+    /// 处理手眼标定解算请求
+    /// </summary>
+    private async Task HandleHandEyeSolveCommand(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            var payload = doc.RootElement.GetProperty("payload");
+
+            var points = new List<CalibrationPoint>();
+            foreach (var pointElement in payload.EnumerateArray())
+            {
+                points.Add(new CalibrationPoint
+                {
+                    PixelX = pointElement.GetProperty("pixelX").GetDouble(),
+                    PixelY = pointElement.GetProperty("pixelY").GetDouble(),
+                    PhysicalX = pointElement.GetProperty("physicalX").GetDouble(),
+                    PhysicalY = pointElement.GetProperty("physicalY").GetDouble()
+                });
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var calibService = scope.ServiceProvider.GetRequiredService<IHandEyeCalibrationService>();
+            var result = await calibService.SolveAsync(points);
+
+            // 发送结果回前端
+            SendProgressMessage("handeye:solve:result", result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理手眼标定解算失败");
+            SendProgressMessage("handeye:solve:result", new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 处理手眼标定保存请求
+    /// </summary>
+    private async Task HandleHandEyeSaveCommand(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            var payload = doc.RootElement.GetProperty("payload");
+            var resultElement = payload.GetProperty("result");
+            var fileName = payload.GetProperty("fileName").GetString() ?? "hand_eye_calib.json";
+
+            var result = new HandEyeCalibrationResult
+            {
+                Success = resultElement.GetProperty("success").GetBoolean(),
+                OriginX = resultElement.GetProperty("originX").GetDouble(),
+                OriginY = resultElement.GetProperty("originY").GetDouble(),
+                ScaleX = resultElement.GetProperty("scaleX").GetDouble(),
+                ScaleY = resultElement.GetProperty("scaleY").GetDouble()
+            };
+
+            using var scope = _scopeFactory.CreateScope();
+            var calibService = scope.ServiceProvider.GetRequiredService<IHandEyeCalibrationService>();
+            var isSaved = await calibService.SaveCalibrationAsync(result, fileName);
+
+            // 发送结果回前端
+            SendProgressMessage("handeye:save:result", new { success = isSaved });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存手眼标定文件失败");
+            SendProgressMessage("handeye:save:result", new { success = false, message = ex.Message });
         }
     }
 

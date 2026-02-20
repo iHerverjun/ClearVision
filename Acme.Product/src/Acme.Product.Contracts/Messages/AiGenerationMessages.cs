@@ -34,6 +34,7 @@ public record GenerateFlowResponse
     public string? AiExplanation { get; init; }
     public string? Reasoning { get; init; }
     public Dictionary<string, List<string>>? ParametersNeedingReview { get; init; }
+    public object? DryRunResult { get; init; }
 }
 
 /// <summary>

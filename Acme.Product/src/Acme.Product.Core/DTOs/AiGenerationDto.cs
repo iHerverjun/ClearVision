@@ -48,6 +48,11 @@ public class AiFlowGenerationResult
     /// 实际使用的 AI 重试次数
     /// </summary>
     public int RetryCount { get; set; }
+
+    /// <summary>
+    /// 沙盒空跑验证的结果（覆盖率等信息）
+    /// </summary>
+    public object? DryRunResult { get; set; }
 }
 
 /// <summary>

@@ -4,6 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>ClearVision - 工业视觉检测软件</title>
+        <link rel="icon" href="data:," />
         <!-- 【科学方案二】动态CSS版本号：通过JavaScript动态加载，使用后端注入的版本号 -->
         <script>
             // 动态加载CSS，自动附加版本号
@@ -26,6 +27,7 @@
                     "src/features/settings/userManagement.css",
                     "src/shared/styles/ai-panel.css",
                     "src/features/calibration/calibrationWizard.css",
+                    "css/handEyeCalibWizard.css",
                 ];
 
                 cssFiles.forEach(function (file) {
@@ -252,6 +254,8 @@
                             <button id="btn-exit-subgraph" class="btn btn-secondary btn-small" style="margin-left: 20px; padding: 2px 8px; font-size: 12px;">返回主流程</button>
                         </div>
                         <canvas id="flow-canvas"></canvas>
+                        <!-- Lint/DryRun 警告提示容器 -->
+                        <div id="lint-panel-container"></div>
                     </div>
 
                     <!-- 图像查看器（默认隐藏） -->
@@ -850,9 +854,16 @@
             type="module"
             src="src/features/calibration/calibrationWizard.js"
         ></script>
+        <script
+            type="module"
+            src="src/core/calibration/handEyeCalibWizard.js"
+        ></script>
 
         <!-- 加载共享组件 -->
         <script type="module" src="src/shared/components/tooltip.js"></script>
+
+        <!-- S6-003: 引入 LintPanel -->
+        <script type="module" src="src/core/canvas/lintPanel.js"></script>
 
         <!-- 加载主应用 -->
         <script type="module" src="src/app.js"></script>

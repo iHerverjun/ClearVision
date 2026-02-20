@@ -439,7 +439,10 @@ class SettingsModal {
                 <div class="settings-group">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <div class="settings-group-title" style="margin-bottom: 0;">相机绑定管理</div>
-                        <button class="cv-btn cv-btn-primary" id="btn-discover-cameras">搜索在线相机</button>
+                        <div>
+                            <button class="cv-btn cv-btn-secondary" id="btn-hand-eye-calib" style="margin-right: 12px;">🎯 手眼标定</button>
+                            <button class="cv-btn cv-btn-primary" id="btn-discover-cameras">搜索在线相机</button>
+                        </div>
                     </div>
                     
                     <div id="discovery-results" style="display: none; margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 15px;">
@@ -671,6 +674,30 @@ class SettingsModal {
         const discoverBtn = section.querySelector('#btn-discover-cameras');
         if (discoverBtn) {
             discoverBtn.addEventListener('click', () => this.discoverCameras());
+        }
+
+        const calibBtn = section.querySelector('#btn-hand-eye-calib');
+        if (calibBtn) {
+            calibBtn.addEventListener('click', async () => {
+                try {
+                    // 关闭设置模态框以腾出空间
+                    if (typeof closeModal !== 'undefined') {
+                        closeModal(this.modalOverlay);
+                    }
+                    this.modalOverlay = null;
+                    
+                    // 动态导入向导并显示
+                    const module = await import('../../core/calibration/handEyeCalibWizard.js');
+                    const wizard = new module.HandEyeCalibWizard(window.cameraManager);
+                    wizard.show();
+                } catch (e) {
+                    if (typeof showToast !== 'undefined') {
+                        showToast('无法加载手眼标定向导: ' + e.message, 'error');
+                    } else {
+                        console.error('无法加载手眼标定向导:', e);
+                    }
+                }
+            });
         }
 
         // 删除绑定

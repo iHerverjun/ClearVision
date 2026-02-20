@@ -5,6 +5,8 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
+using Acme.Product.Core.Entities;
+using Acme.Product.Infrastructure.AI.DryRun;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -16,6 +18,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     private readonly AutoLayoutService _layoutService;
     private readonly IOperatorFactory _operatorFactory;
     private readonly AiConfigStore _configStore;
+    private readonly DryRunService _dryRunService;
     private readonly Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> _logger;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -30,6 +33,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         AutoLayoutService layoutService,
         IOperatorFactory operatorFactory,
         AiConfigStore configStore,
+        DryRunService dryRunService,
         Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> logger)
     {
         _apiClient = apiClient;
@@ -38,6 +42,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         _layoutService = layoutService;
         _operatorFactory = operatorFactory;
         _configStore = configStore;
+        _dryRunService = dryRunService;
         _logger = logger;
     }
 
@@ -112,6 +117,32 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     var flowDto = ConvertToFlowDto(generatedFlow, request.Description);
                     _layoutService.ApplyLayout(flowDto);
 
+                    onProgress?.Invoke("正在进行 Dry-Run 沙盒安全校验与分支覆盖率统计...");
+
+                    // S6-003: 转换并在虚拟沙盒中运行以收集覆盖率
+                    object? dryRunReport = null;
+                    try
+                    {
+                        var flowEntity = ConvertDtoToEntity(flowDto); // 暂时需转换为 Entity 供仿真使用
+                        var drResult = await _dryRunService.RunAsync(
+                            flowEntity,
+                            new Dictionary<string, object>(), // 空输入
+                            new DryRunStubRegistry(),
+                            cancellationToken);
+
+                        dryRunReport = new
+                        {
+                            drResult.CoveragePercentage,
+                            drResult.CoveredBranches,
+                            drResult.TotalBranches,
+                            drResult.IsSuccess
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "DryRun 预演阶段异常，跳过覆盖率采集");
+                    }
+
                     return new AiFlowGenerationResult
                     {
                         Success = true,
@@ -119,7 +150,8 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                         AiExplanation = generatedFlow.Explanation,
                         Reasoning = completionResult.Reasoning,
                         ParametersNeedingReview = generatedFlow.ParametersNeedingReview,
-                        RetryCount = retryCount
+                        RetryCount = retryCount,
+                        DryRunResult = dryRunReport
                     };
                 }
 
@@ -347,5 +379,36 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             Operators = operators,
             Connections = connections
         };
+    }
+
+    private OperatorFlow ConvertDtoToEntity(OperatorFlowDto dto)
+    {
+        // 简单转换为用于测试跑分的内部结构
+        var flow = new OperatorFlow(dto.Name);
+        typeof(OperatorFlow).GetProperty("Id")?.SetValue(flow, dto.Id);
+
+        flow.Operators = dto.Operators.Select(o =>
+        {
+            var op = _operatorFactory.CreateOperator(o.Type, o.Name, o.X, o.Y);
+            typeof(Operator).GetProperty("Id")?.SetValue(op, o.Id);
+
+            // 简单复制一下核心参数
+            foreach (var pDto in o.Parameters)
+            {
+                var targetParam = op.Parameters.FirstOrDefault(p => p.Name == pDto.Name);
+                if (targetParam != null && pDto.Value != null)
+                    targetParam.SetValue(pDto.Value);
+            }
+            return op;
+        }).ToList();
+
+        flow.Connections = dto.Connections.Select(c =>
+        {
+            var conn = new Acme.Product.Core.ValueObjects.OperatorConnection(c.SourceOperatorId, c.SourcePortId, c.TargetOperatorId, c.TargetPortId);
+            typeof(Acme.Product.Core.ValueObjects.OperatorConnection).GetProperty("Id")?.SetValue(conn, c.Id);
+            return conn;
+        }).ToList();
+
+        return flow;
     }
 }

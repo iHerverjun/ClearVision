@@ -206,13 +206,13 @@ public class FlowExecutionService : IFlowExecutionService
 
             var outputs = opResult.OutputData ?? new Dictionary<string, object>();
             operatorOutputs[op.Id] = outputs;
-            
+
             // Sprint 1 Task 1.1: 应用扇出引用计数
             if (fanOutDegrees != null)
             {
-                ApplyFanOutRefCounts(outputs, fanOutDegrees, op.Id.ToString());
+                ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
             }
-            
+
             completedCount++;
         }
     }
@@ -278,11 +278,11 @@ public class FlowExecutionService : IFlowExecutionService
                 {
                     var outputs = opResult.OutputData ?? new Dictionary<string, object>();
                     operatorOutputs[op.Id] = outputs;
-                    
+
                     // Sprint 1 Task 1.1: 应用扇出引用计数
                     if (fanOutDegrees != null)
                     {
-                        ApplyFanOutRefCounts(outputs, fanOutDegrees, op.Id.ToString());
+                        ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
                     }
                 }
 
@@ -620,25 +620,31 @@ public class FlowExecutionService : IFlowExecutionService
     /// 扇出度为 N 时，AddRef (N-1) 次，使总引用计数为 N。
     /// </summary>
     private void ApplyFanOutRefCounts(
+        Operator op,
         Dictionary<string, object> outputs,
-        Dictionary<string, int> fanOutDegrees,
-        string operatorId)
+        Dictionary<string, int> fanOutDegrees)
     {
-        foreach (var (portId, value) in outputs)
+        foreach (var (portName, value) in outputs)
         {
-            if (value is not ImageWrapper img) continue;
-            
-            var key = $"{operatorId}:{portId}";
-            int fanOut = fanOutDegrees.GetValueOrDefault(key, 1);
-            
+            if (value is not ImageWrapper img)
+                continue;
+
+            // 尝试通过名称查找端口 ID，以匹配扇出度分析使用的 Key
+            var port = op.OutputPorts.FirstOrDefault(p => p.Name == portName);
+            var portKey = port != null
+                ? $"{op.Id}:{port.Id}"
+                : $"{op.Id}:{portName}";
+
+            int fanOut = fanOutDegrees.GetValueOrDefault(portKey, 1);
+
             // 引用计数初始为 1，每多一个下游消费者 AddRef 一次
             for (int i = 1; i < fanOut; i++)
             {
                 img.AddRef();
             }
-            
-            _logger.LogDebug("[FlowExecution] 设置引用计数: 算子={OperatorId}, 端口={PortId}, 扇出度={FanOut}, RefCount={RefCount}",
-                operatorId, portId, fanOut, img.RefCount);
+
+            _logger.LogDebug("[FlowExecution] 设置引用计数: 算子={OperatorName}, 端口={PortName}, 扇出度={FanOut}, RefCount={RefCount}",
+                op.Name, portName, fanOut, img.RefCount);
         }
     }
 
