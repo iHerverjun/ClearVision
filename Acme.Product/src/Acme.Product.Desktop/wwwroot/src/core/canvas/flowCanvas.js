@@ -69,6 +69,7 @@ class FlowCanvas {
         this._wheelHandler = this.handleWheel.bind(this);
         this._contextMenuHandler = this.handleContextMenu.bind(this);
         this._keyDownHandler = this.handleKeyDown.bind(this);
+        this._dblClickHandler = this.handleDoubleClick.bind(this);
         // 【修复】页面可见性变化处理器
         this._visibilityHandler = this.handleVisibilityChange.bind(this);
 
@@ -123,6 +124,7 @@ class FlowCanvas {
         this.canvas.addEventListener('mouseup', this._mouseUpHandler);
         this.canvas.addEventListener('wheel', this._wheelHandler);
         this.canvas.addEventListener('contextmenu', this._contextMenuHandler);
+        this.canvas.addEventListener('dblclick', this._dblClickHandler);
         window.addEventListener('keydown', this._keyDownHandler);
 
         // 【修复】监听页面可见性变化，后台时暂停渲染
@@ -183,6 +185,7 @@ class FlowCanvas {
         this.canvas.removeEventListener('mouseup', this._mouseUpHandler);
         this.canvas.removeEventListener('wheel', this._wheelHandler);
         this.canvas.removeEventListener('contextmenu', this._contextMenuHandler);
+        this.canvas.removeEventListener('dblclick', this._dblClickHandler);
 
         // 清理资源
         this.nodes.clear();
@@ -1444,6 +1447,28 @@ class FlowCanvas {
         }
 
         this.render();
+    }
+
+    /**
+     * 处理双击事件（主要用于子图展开等高级交互）
+     */
+    handleDoubleClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / this.scale + this.offset.x;
+        const y = (e.clientY - rect.top) / this.scale + this.offset.y;
+
+        // 查找双击的节点
+        for (const [id, node] of this.nodes) {
+            if (x >= node.x && x <= node.x + node.width &&
+                y >= node.y && y <= node.y + node.height) {
+                
+                // 触发双击事件回调
+                if (this.onNodeDoubleClicked) {
+                    this.onNodeDoubleClicked(node);
+                }
+                return;
+            }
+        }
     }
 
     /**

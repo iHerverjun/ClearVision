@@ -866,6 +866,89 @@ function initializeFlowEditor() {
     // 保存到全局以便其他函数使用
     window.flowCanvas = flowCanvas;
     
+    // 【阶段B】支持 ForEach 子图双击进入与退出
+    const breadcrumbContainer = document.getElementById('subgraph-breadcrumb');
+    const breadcrumbCurrent = document.getElementById('breadcrumb-current');
+    const btnExitSubgraph = document.getElementById('btn-exit-subgraph');
+    
+    window._mainFlowState = null;
+    window._currentSubgraphNodeId = null;
+
+    flowCanvas.onNodeDoubleClicked = (node) => {
+        if (node.type === 'ForEach') {
+            console.log('[App] 进入 ForEach 子图:', node.id);
+            // 序列化主图状态并挂载到临时全局变量
+            window._mainFlowState = flowCanvas.serialize();
+            window._currentSubgraphNodeId = node.id;
+            
+            // 从 ForEach 参数中获取内部流程数据
+            let subGraphData = null;
+            const flowParam = node.parameters?.find(p => p.name === 'internalFlow' || p.Name === 'InternalFlow');
+            if (flowParam && flowParam.value) {
+                try {
+                    subGraphData = typeof flowParam.value === 'string' ? JSON.parse(flowParam.value) : flowParam.value;
+                } catch (e) {
+                    console.error('[App] 解析子图失败:', e);
+                }
+            }
+            
+            flowCanvas.clear();
+            if (subGraphData) {
+                flowCanvas.deserialize(subGraphData);
+            }
+            
+            if (breadcrumbContainer) {
+                breadcrumbContainer.classList.remove('hidden');
+                breadcrumbCurrent.textContent = node.title || 'ForEach 节点';
+            }
+        }
+    };
+
+    if (btnExitSubgraph) {
+        btnExitSubgraph.addEventListener('click', () => {
+            if (window._mainFlowState && window._currentSubgraphNodeId) {
+                console.log('[App] 退出并保存 ForEach 子图');
+                const subFlowData = flowCanvas.serialize();
+                let mainData = window._mainFlowState;
+                
+                // 将子图数据写回主图节点中
+                try {
+                    let mainObj = typeof mainData === 'string' ? JSON.parse(mainData) : mainData;
+                    let targetNode = mainObj.nodes.find(n => n.id === window._currentSubgraphNodeId);
+                    if (targetNode) {
+                        if (!targetNode.parameters) targetNode.parameters = [];
+                        let flowParam = targetNode.parameters.find(p => p.name === 'internalFlow' || p.Name === 'InternalFlow');
+                        
+                        let subDataStr = typeof subFlowData === 'string' ? subFlowData : JSON.stringify(subFlowData);
+                        
+                        if (flowParam) {
+                            flowParam.value = subDataStr;
+                        } else {
+                            targetNode.parameters.push({
+                                name: 'internalFlow',
+                                value: subDataStr,
+                                type: 'string'
+                            });
+                        }
+                    }
+                    mainData = typeof mainData === 'string' ? JSON.stringify(mainObj) : mainObj;
+                } catch(e) { 
+                    console.error('[App] 保存子图失败:', e); 
+                }
+
+                flowCanvas.clear();
+                flowCanvas.deserialize(mainData);
+                
+                window._mainFlowState = null;
+                window._currentSubgraphNodeId = null;
+                
+                if (breadcrumbContainer) {
+                    breadcrumbContainer.classList.add('hidden');
+                }
+            }
+        });
+    }
+    
     // 【阶段B】初始化流程编辑器交互增强（撤销/重做/复制/粘贴/框选）
     flowEditorInteraction = new FlowEditorInteraction(flowCanvas);
     window.flowEditorInteraction = flowEditorInteraction;
@@ -873,10 +956,6 @@ function initializeFlowEditor() {
     
     // 【阶段B】启动自动保存
     startAutoSave();
-    
-    // 注意：拖放支持已由 FlowEditorInteraction 类统一接管
-    // 移除了此处重复的 dragover, dragleave, drop 事件监听
-    // 避免出现重复添加算子的问题
     
     console.log('[App] 流程编辑器初始化完成');
 }

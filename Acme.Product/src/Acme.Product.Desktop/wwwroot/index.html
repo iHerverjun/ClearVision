@@ -245,6 +245,12 @@
                 <section class="workspace">
                     <!-- 流程编辑器 -->
                     <div class="flow-editor-container" id="flow-editor">
+                        <div id="subgraph-breadcrumb" class="subgraph-breadcrumb hidden" style="position: absolute; top: 10px; left: 10px; z-index: 100; background: var(--bg-color); padding: 5px 15px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;">
+                            <span class="breadcrumb-item" id="breadcrumb-root" style="cursor: pointer; color: var(--primary-color);">主流程</span>
+                            <span class="breadcrumb-separator" style="color: var(--text-secondary);">/</span>
+                            <span class="breadcrumb-item active" id="breadcrumb-current" style="font-weight: bold; color: var(--text-color);">...</span>
+                            <button id="btn-exit-subgraph" class="btn btn-secondary btn-small" style="margin-left: 20px; padding: 2px 8px; font-size: 12px;">返回主流程</button>
+                        </div>
                         <canvas id="flow-canvas"></canvas>
                     </div>
 

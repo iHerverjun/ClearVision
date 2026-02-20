@@ -1,0 +1,8 @@
+﻿1. Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_5OperatorComplexFlow_ShouldExecuteSuccessfully => 流程执行失败: 流程执行异常: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+
+2. Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_ComplexFlow_ShouldMaintainExecutionOrder => 流程执行失败: 流程执行异常: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+

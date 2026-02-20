@@ -1,0 +1,151 @@
+﻿
+=== Acme.Product.Tests.Operators.ImageAcquisitionOperatorTests.ExecuteAsync_WithEmptyInputs_ShouldReturnFailure ===
+Expected result.ErrorMessage "未提供图像数据或有效的采集设置" to contain "未提供图像数据或文件路径".
+
+=== Acme.Product.Tests.Operators.DeepLearningOperatorTests.ValidateParameters_WithVariousInputs_ShouldReturnExpectedResult(modelPath: "model.onnx", confidence: -0.100000001, version: "YOLOv8", expectedValid: False) ===
+Expected result.IsValid to be False, but found True.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_CannyEdgeWithValidThresholds_ShouldSucceed(threshold1: 0, threshold2: 255) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.ImageProcessing.LineModShapeMatcherTests.Train_WithValidImage_ShouldExtractFeatures ===
+应该至少有一个金字塔层
+
+=== Acme.Product.Tests.Operators.DeepLearningOperatorTests.ValidateParameters_WithVariousInputs_ShouldReturnExpectedResult(modelPath: "model.onnx", confidence: 1.5, version: "YOLOv8", expectedValid: False) ===
+Expected result.IsValid to be False, but found True.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_GaussianBlurWithValidKernelSize_ShouldSucceed(kernelSize: 15) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_3OperatorLinearFlow_ShouldExecuteSuccessfully ===
+流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+  - 边缘检测: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_ParallelMode_ShouldSucceed ===
+并行流程执行失败: 流程执行异常: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+
+
+=== Acme.Product.Tests.Services.FlowExecutionServiceTests.ExecuteFlowAsync_ShouldRespectCancellation ===
+Expected result.ErrorMessage "算子 'LongRunningOp' 执行失败: Object reference not set to an instance of an object." to contain "流程被取消" because Error message should indicate cancellation.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_CannyEdgeWithValidThresholds_ShouldSucceed(threshold1: 50, threshold2: 150) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_5OperatorComplexFlow_ShouldExecuteSuccessfully ===
+流程执行失败: 算子 '阈值二值化' 执行失败: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+  - 阈值二值化: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+
+=== Acme.Product.Tests.ImageProcessing.LineModShapeMatcherTests.Match_WithSameImage_ShouldFindHighScoreMatch ===
+System.InvalidOperationException : 模板未训练
+
+=== Acme.Product.Tests.Operators.UndistortOperatorTests.ExecuteAsync_WithValidImage_ShouldReturnSuccess ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Integration.BasicFlowIntegrationTests.Process_SimpleBlurAndThreshold_ShouldSucceed ===
+Expected threshResult.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_GaussianBlurWithValidKernelSize_ShouldSucceed(kernelSize: 1) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.ImageProcessing.LineModShapeMatcherTests.Match_WithTranslatedImage_ShouldFindMatch ===
+System.InvalidOperationException : 模板未训练
+
+=== Acme.Product.Tests.Memory.Sprint1_ValueObjectTests.DetectionList_AverageConfidence_CalculatesCorrectly ===
+Assert.Equal() Failure: Values differ
+Expected: 0.800000012
+Actual:   0.799999952
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_ComplexFlow_ShouldMaintainExecutionOrder ===
+流程执行失败: 算子 '阈值二值化' 执行失败: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+  - 阈值二值化: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+
+=== Acme.Product.Tests.Operators.DatabaseWriteOperatorTests.ValidateParameters_WithEmptyConnectionString_ShouldReturnInvalid ===
+Expected result.IsValid to be false, but found True.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_3OperatorFlow_ShouldPassDataBetweenOperators ===
+流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+算子错误:
+  - 边缘检测: 执行失败: Cannot access a disposed object.
+Object name: 'OpenCvSharp.Mat'.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_CannyEdgeWithValidThresholds_ShouldSucceed(threshold1: 100, threshold2: 200) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Memory.Sprint1_MemoryPoolTests.ImageWriter_CoW_ConcurrentAccess_ReturnsIndependentCopies ===
+Assert.Equal() Failure: Values differ
+Expected: 255
+Actual:   0
+
+=== Acme.Product.Tests.Operators.ConditionalBranchOperatorTests.ExecuteAsync_WithValidImage_ShouldReturnSuccess ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Operators.CoordinateTransformOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure ===
+Expected result.IsSuccess to be false, but found True.
+
+=== Acme.Product.Tests.Operators.TcpCommunicationOperatorTests.ValidateParameters_WithEmptyHost_ShouldReturnInvalid ===
+Expected result.IsValid to be false, but found True.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_ShouldRecordExecutionTimeForEachOperator ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.ImageProcessing.LineModShapeMatcherTests.Train_WithMultiplePyramidLevels_ShouldCreateCorrectHierarchy ===
+Assert.Equal() Failure: Values differ
+Expected: 3
+Actual:   0
+
+=== Acme.Product.Tests.Operators.ResultOutputOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure ===
+Expected result.IsSuccess to be false, but found True.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_GaussianBlurWithValidKernelSize_ShouldSucceed(kernelSize: 31) ===
+Expected result.IsSuccess to be true, but found False.
+
+=== Acme.Product.Tests.Integration.FlowExecutionServiceIntegrationTests.ExecuteFlowAsync_MultipleFlows_Concurrent ===
+Expected results to contain only items satisfying the inspector:
+	At index 0:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 1:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 2:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 3:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 4:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 5:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 6:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 7:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 8:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+	At index 9:
+		Expected r.IsSuccess to be true because 流程执行失败: 算子 '边缘检测' 执行失败: 执行失败: Cannot access a disposed object.
+		Object name: 'OpenCvSharp.Mat'., but found False
+
+=== Acme.Product.Tests.ImageProcessing.LineModShapeMatcherTests.Match_WithThreshold_ShouldFilterResults ===
+System.InvalidOperationException : 模板未训练
+
+=== Acme.Product.Tests.Operators.ImageAcquisitionOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure ===
+Expected result.ErrorMessage "未提供图像数据或有效的采集设置" to contain "未提供图像数据或文件路径".
