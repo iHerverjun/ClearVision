@@ -41,7 +41,7 @@ public class AdaptiveThresholdOperator : OperatorBase
         if (blockSize % 2 == 0)
             blockSize++;
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -73,7 +73,7 @@ public class AdaptiveThresholdOperator : OperatorBase
 
         // 【关键修复】将单通道二值图像转换为3通道BGR格式，确保浏览器兼容性
         // 单通道PNG在某些浏览器/Canvas中显示为白色或黑色
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.CvtColor(binary, dst, ColorConversionCodes.GRAY2BGR);
 
         // P0: 使用ImageWrapper实现零拷贝输出

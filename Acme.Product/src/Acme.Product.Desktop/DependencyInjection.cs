@@ -157,6 +157,7 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, ImageSaveOperator>();
 
         // ==================== Sprint 3: 缺失补齐 ====================
+        services.AddSingleton<Acme.Product.Infrastructure.Services.OcrEngineProvider>();
         services.AddSingleton<IOperatorExecutor, OcrRecognitionOperator>();
         services.AddSingleton<IOperatorExecutor, ImageDiffOperator>();
         services.AddSingleton<IOperatorExecutor, StatisticsOperator>();
@@ -168,12 +169,14 @@ public static class DependencyInjection
         // ==================== Sprint 5: AI 编排接入 ====================
         services.AddSingleton<Acme.Product.Infrastructure.AI.AIPromptBuilder>();
         services.AddScoped<Acme.Product.Infrastructure.AI.AIGeneratedFlowParser>();
+        services.AddSingleton<Acme.Product.Infrastructure.AI.DryRun.DryRunStubRegistry>();
         services.AddSingleton<Acme.Product.Infrastructure.AI.DryRun.StubRegistryBuilder>();
         services.AddScoped<Acme.Product.Infrastructure.AI.AIWorkflowService>();
 
         // 应用服务 - Sprint 4新增
         services.AddScoped<IOperatorService, OperatorService>();
         services.AddScoped<IImageAcquisitionService, ImageAcquisitionService>();
+        services.AddScoped<IHandEyeCalibrationService, HandEyeCalibrationService>();
         services.AddScoped<DemoProjectService>();
         services.AddScoped<IResultAnalysisService, ResultAnalysisService>();
 

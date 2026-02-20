@@ -46,7 +46,7 @@ public class RoiManagerOperator : OperatorBase
         var polygonPoints = GetStringParam(@operator, "PolygonPoints", "[[10,10],[200,10],[200,200],[10,200]]");
 
         // 3. 获取 Mat
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));

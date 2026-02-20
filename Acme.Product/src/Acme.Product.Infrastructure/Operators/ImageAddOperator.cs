@@ -51,7 +51,7 @@ public class ImageAddOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
 
         // 确保两幅图像尺寸相同
         if (src1.Size() != src2.Size())

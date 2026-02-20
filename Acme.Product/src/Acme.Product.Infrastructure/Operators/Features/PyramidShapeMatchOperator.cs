@@ -65,7 +65,7 @@ public class PyramidShapeMatchOperator : OperatorBase
             templateFromInput = templateWrapper.GetMat().Clone();
         }
 
-        using var srcImage = imageWrapper.GetMat();
+        var srcImage = imageWrapper.GetMat();
 
         try
         {
@@ -125,7 +125,7 @@ public class PyramidShapeMatchOperator : OperatorBase
                 var matches = matcher.Match(srcImage, minScore / 100.0f, maxMatches);
 
                 // 创建结果图像
-                using var resultImage = srcImage.Clone();
+                var resultImage = srcImage.Clone();
 
                 // 绘制匹配结果
                 var (primaryMatch, allMatches) = DrawMatches(resultImage, matches, templates, minScore);

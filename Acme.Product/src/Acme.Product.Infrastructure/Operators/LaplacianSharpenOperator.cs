@@ -41,14 +41,14 @@ public class LaplacianSharpenOperator : OperatorBase
         // 确保核大小为奇数
         if (kernelSize % 2 == 0) kernelSize++;
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
         using var laplacian = new Mat();
-        using var dst = new Mat();
+        var dst = new Mat();
 
         // 转换为灰度图进行拉普拉斯运算（如果是彩色图）
         if (src.Channels() == 3)

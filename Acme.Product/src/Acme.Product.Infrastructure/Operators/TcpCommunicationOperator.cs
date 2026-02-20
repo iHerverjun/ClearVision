@@ -86,7 +86,7 @@ public class TcpCommunicationOperator : OperatorBase
     {
         var key = $"{ipAddress}:{port}";
         var lockObj = _connectionLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-        
+
         await lockObj.WaitAsync(ct);
         try
         {
@@ -99,25 +99,29 @@ public class TcpCommunicationOperator : OperatorBase
                     Logger.LogDebug("TCP 连接复用: {Key}", key);
                     return (existingClient, existingStream);
                 }
-                
+
                 // 清理旧连接
-                try { existingStream.Dispose(); } catch { }
+                try
+                { existingStream.Dispose(); }
+                catch { }
                 _streamPool.TryRemove(key, out _);
-                try { existingClient.Close(); } catch { }
+                try
+                { existingClient.Close(); }
+                catch { }
                 _connectionPool.TryRemove(key, out _);
             }
-            
+
             // 建立新连接
             var client = new TcpClient();
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeoutMs);
-            
+
             await client.ConnectAsync(ipAddress, port, cts.Token);
             var stream = client.GetStream();
-            
+
             _connectionPool[key] = client;
             _streamPool[key] = stream;
-            
+
             Logger.LogInformation("TCP 连接已建立: {Key}", key);
             return (client, stream);
         }
@@ -134,7 +138,8 @@ public class TcpCommunicationOperator : OperatorBase
     {
         try
         {
-            if (!client.Connected) return false;
+            if (!client.Connected)
+                return false;
             return !(client.Client.Poll(1, SelectMode.SelectRead) && client.Client.Available == 0);
         }
         catch
@@ -194,11 +199,16 @@ public class TcpCommunicationOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
+        var host = GetStringParam(@operator, "Host", "127.0.0.1");
         var port = GetIntParam(@operator, "Port", 8080);
         var timeout = GetIntParam(@operator, "Timeout", 5000);
         var mode = GetStringParam(@operator, "Mode", "Client");
         var encoding = GetStringParam(@operator, "Encoding", "UTF8");
 
+        if (@operator.Parameters.Any(p => p.Name == "Host") && string.IsNullOrEmpty(host))
+        {
+            return ValidationResult.Invalid("主机地址不能为空");
+        }
         if (port < 1 || port > 65535)
         {
             return ValidationResult.Invalid("端口号必须在 1-65535 之间");

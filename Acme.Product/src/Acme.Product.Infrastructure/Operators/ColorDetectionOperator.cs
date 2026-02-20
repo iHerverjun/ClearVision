@@ -41,7 +41,7 @@ public class ColorDetectionOperator : OperatorBase
         var valHigh = GetIntParam(@operator, "ValHigh", 255, 0, 255);
         var dominantK = GetIntParam(@operator, "DominantK", 3, 1, 10);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));

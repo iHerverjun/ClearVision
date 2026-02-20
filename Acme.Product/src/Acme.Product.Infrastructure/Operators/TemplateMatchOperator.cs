@@ -39,7 +39,7 @@ public class TemplateMatchOperator : OperatorBase
         var threshold = GetDoubleParam(@operator, "Threshold", 0.8, min: 0, max: 1);
         var method = GetStringParam(@operator, "Method", "CCoeffNormed");
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         using var template = Cv2.ImDecode(templateData, ImreadModes.Color);
 
         if (src.Empty() || template.Empty())

@@ -15,7 +15,7 @@ namespace Acme.Product.Infrastructure.AI;
 /// </summary>
 public class AiConfigStore
 {
-    private readonly ILogger<AiConfigStore> _logger;
+    private readonly Microsoft.Extensions.Logging.ILogger<AiConfigStore> _logger;
     private readonly object _lock = new();
     private AiGenerationOptions _current;
     private readonly string _configFilePath;
@@ -26,7 +26,7 @@ public class AiConfigStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public AiConfigStore(IOptions<AiGenerationOptions> initialOptions, ILogger<AiConfigStore> logger)
+    public AiConfigStore(IOptions<AiGenerationOptions> initialOptions, Microsoft.Extensions.Logging.ILogger<AiConfigStore> logger)
     {
         _logger = logger;
         _configFilePath = Path.Combine(AppContext.BaseDirectory, "ai_config.json");

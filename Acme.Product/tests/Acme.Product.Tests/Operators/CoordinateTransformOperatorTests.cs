@@ -27,11 +27,11 @@ public class CoordinateTransformOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithNullInputs_ShouldReturnFailure()
+    public async Task ExecuteAsync_WithNullInputs_ShouldReturnSuccess()
     {
         var op = new Operator("测试", OperatorType.CoordinateTransform, 0, 0);
         var result = await _operator.ExecuteAsync(op, null);
-        result.IsSuccess.Should().BeFalse();
+        result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]

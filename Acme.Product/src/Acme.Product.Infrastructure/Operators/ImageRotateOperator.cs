@@ -37,7 +37,7 @@ public class ImageRotateOperator : OperatorBase
         var scale = GetDoubleParam(@operator, "Scale", 1.0, min: 0.1, max: 10.0);
         var autoResize = GetBoolParam(@operator, "AutoResize", true);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -67,7 +67,7 @@ public class ImageRotateOperator : OperatorBase
             dstSize = new Size(src.Width, src.Height);
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.WarpAffine(src, dst, rotationMatrix, dstSize, InterpolationFlags.Linear, BorderTypes.Constant, new Scalar(0, 0, 0));
 
         // P0: 使用ImageWrapper实现零拷贝输出

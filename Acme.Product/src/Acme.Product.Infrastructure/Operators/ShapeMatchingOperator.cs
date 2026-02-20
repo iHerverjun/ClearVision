@@ -43,7 +43,7 @@ public class ShapeMatchingOperator : OperatorBase
         var numLevels = GetIntParam(@operator, "NumLevels", 3, min: 1, max: 6);
 
         // 3. 获取搜索图像 Mat
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -72,7 +72,7 @@ public class ShapeMatchingOperator : OperatorBase
         try
         {
             // 创建结果图像
-            using var resultImage = src.Clone();
+            var resultImage = src.Clone();
 
             // 转换为灰度
             using var srcGray = new Mat();

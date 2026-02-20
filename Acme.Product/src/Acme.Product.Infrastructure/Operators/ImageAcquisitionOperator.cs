@@ -102,7 +102,7 @@ public class ImageAcquisitionOperator : OperatorBase
                 var imageData = await camera.AcquireSingleFrameAsync();
 
                 // 解码图像以获取尺寸信息
-                using var mat = Cv2.ImDecode(imageData, ImreadModes.Color);
+                var mat = Cv2.ImDecode(imageData, ImreadModes.Color);
                 if (mat.Empty())
                 {
                     return OperatorExecutionOutput.Failure("相机返回的图像数据无效");
@@ -134,7 +134,7 @@ public class ImageAcquisitionOperator : OperatorBase
                 return OperatorExecutionOutput.Failure($"图像文件不存在: {filePath}");
             }
 
-            using var mat = Cv2.ImRead(filePath, ImreadModes.Color);
+            var mat = Cv2.ImRead(filePath, ImreadModes.Color);
             if (mat.Empty())
             {
                 return OperatorExecutionOutput.Failure("无法加载图像文件，格式可能不受支持");

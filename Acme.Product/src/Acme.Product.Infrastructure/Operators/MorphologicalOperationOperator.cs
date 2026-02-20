@@ -41,7 +41,7 @@ public class MorphologicalOperationOperator : OperatorBase
         var anchorX = GetIntParam(@operator, "AnchorX", -1);
         var anchorY = GetIntParam(@operator, "AnchorY", -1);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -63,7 +63,7 @@ public class MorphologicalOperationOperator : OperatorBase
             ? new Point(-1, -1) 
             : new Point(anchorX, anchorY);
 
-        using var dst = new Mat();
+        var dst = new Mat();
 
         // 执行形态学操作
         var morphOp = operation.ToLower() switch

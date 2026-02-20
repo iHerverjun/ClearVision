@@ -10,6 +10,7 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Data;
+using Acme.Product.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -39,7 +40,37 @@ public static class ApiEndpoints
         // 图像相关端点
         MapImageEndpoints(app);
 
+        // 手眼标定端点
+        app.MapPost("/api/calibration/solve", async (List<Infrastructure.Services.CalibrationPoint> points, IHandEyeCalibrationService service) =>
+        {
+            var result = await service.SolveAsync(points);
+            return result.Success ? Results.Ok(result) : Results.BadRequest(new { Error = result.Message });
+        });
+
+        app.MapPost("/api/calibration/save", async (SaveCalibrationRequest request, IHandEyeCalibrationService service) =>
+        {
+            var resultObj = new Infrastructure.Services.HandEyeCalibrationResult
+            {
+                Success = true,
+                OriginX = request.OriginX,
+                OriginY = request.OriginY,
+                ScaleX = request.ScaleX,
+                ScaleY = request.ScaleY
+            };
+            var success = await service.SaveCalibrationAsync(resultObj, request.FileName);
+            return success ? Results.Ok(new { Message = "保存成功" }) : Results.BadRequest(new { Error = "保存失败" });
+        });
+
         return app;
+    }
+
+    public class SaveCalibrationRequest
+    {
+        public double OriginX { get; set; }
+        public double OriginY { get; set; }
+        public double ScaleX { get; set; }
+        public double ScaleY { get; set; }
+        public string FileName { get; set; } = string.Empty;
     }
 
     private static void MapProjectEndpoints(IEndpointRouteBuilder app)
@@ -203,7 +234,7 @@ public static class ApiEndpoints
             {
                 // 根据运行模式选择启动方式
                 var runMode = request.RunMode?.ToLower() ?? "camera";
-                
+
                 if (runMode == "flow" && request.FlowData != null)
                 {
                     // 流程驱动模式
@@ -212,33 +243,35 @@ public static class ApiEndpoints
                     {
                         return Results.BadRequest(new { Error = "无效的流程数据" });
                     }
-                    
+
                     await service.StartRealtimeInspectionFlowAsync(
-                        request.ProjectId, 
-                        flow, 
-                        request.CameraId, 
+                        request.ProjectId,
+                        flow,
+                        request.CameraId,
                         cancellationToken);
-                    
-                    return Results.Ok(new { 
-                        Message = "实时检测已启动 (流程驱动模式)", 
+
+                    return Results.Ok(new
+                    {
+                        Message = "实时检测已启动 (流程驱动模式)",
                         ProjectId = request.ProjectId,
                         RunMode = "flow",
-                        CameraId = request.CameraId 
+                        CameraId = request.CameraId
                     });
                 }
                 else
                 {
                     // 相机驱动模式
                     await service.StartRealtimeInspectionAsync(
-                        request.ProjectId, 
-                        request.CameraId, 
+                        request.ProjectId,
+                        request.CameraId,
                         cancellationToken);
-                    
-                    return Results.Ok(new { 
-                        Message = "实时检测已启动 (相机驱动模式)", 
+
+                    return Results.Ok(new
+                    {
+                        Message = "实时检测已启动 (相机驱动模式)",
                         ProjectId = request.ProjectId,
                         RunMode = "camera",
-                        CameraId = request.CameraId 
+                        CameraId = request.CameraId
                     });
                 }
             }
@@ -260,9 +293,10 @@ public static class ApiEndpoints
             try
             {
                 await service.StopRealtimeInspectionAsync(request.ProjectId);
-                return Results.Ok(new { 
-                    Message = "实时检测已停止", 
-                    ProjectId = request.ProjectId 
+                return Results.Ok(new
+                {
+                    Message = "实时检测已停止",
+                    ProjectId = request.ProjectId
                 });
             }
             catch (Exception ex)

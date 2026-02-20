@@ -21,13 +21,16 @@ public class Sprint2_ForEachTests
 {
     private readonly ILogger<ForEachOperator> _loggerMock;
     private readonly IFlowExecutionService _flowExecutorMock;
+    private readonly IServiceProvider _serviceProviderMock;
     private readonly ForEachOperator _operator;
 
     public Sprint2_ForEachTests()
     {
         _loggerMock = Substitute.For<ILogger<ForEachOperator>>();
         _flowExecutorMock = Substitute.For<IFlowExecutionService>();
-        _operator = new ForEachOperator(_loggerMock, _flowExecutorMock);
+        _serviceProviderMock = Substitute.For<IServiceProvider>();
+        _serviceProviderMock.GetService(typeof(IFlowExecutionService)).Returns(_flowExecutorMock);
+        _operator = new ForEachOperator(_loggerMock, _serviceProviderMock);
     }
 
     /// <summary>

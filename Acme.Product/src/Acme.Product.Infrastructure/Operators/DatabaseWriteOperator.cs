@@ -157,15 +157,20 @@ public class DatabaseWriteOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
+        var connectionString = GetStringParam(@operator, "ConnectionString", "");
         var tableName = GetStringParam(@operator, "TableName", "InspectionResults");
         var dbType = GetStringParam(@operator, "DbType", "SQLite");
+
+        if (@operator.Parameters.Any(p => p.Name == "ConnectionString") && string.IsNullOrEmpty(connectionString))
+        {
+            return ValidationResult.Invalid("连接字符串不能为空");
+        }
 
         if (string.IsNullOrEmpty(tableName))
         {
             return ValidationResult.Invalid("表名不能为空");
         }
 
-        // 验证表名合法性
         if (!IsValidTableName(tableName))
         {
             return ValidationResult.Invalid($"表名 '{tableName}' 包含非法字符。表名只能包含字母、数字和下划线，且必须以字母或下划线开头。");

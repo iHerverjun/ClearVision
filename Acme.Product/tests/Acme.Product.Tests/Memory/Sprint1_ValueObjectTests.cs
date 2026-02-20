@@ -192,7 +192,7 @@ public class Sprint1_ValueObjectTests
         });
 
         // Average = (0.9 + 0.7) / 2 = 0.8
-        Assert.Equal(0.8f, list.AverageConfidence);
+        Assert.True(Math.Abs(list.AverageConfidence - 0.8f) < 0.001f, $"Expected ~0.8 but got {list.AverageConfidence}");
     }
 
     [Fact]

@@ -44,7 +44,10 @@ public struct Feature
 
     public Feature(int x, int y, int label, float theta = 0)
     {
-        X = x; Y = y; Label = label; Theta = theta;
+        X = x;
+        Y = y;
+        Label = label;
+        Theta = theta;
     }
 }
 
@@ -61,7 +64,11 @@ internal struct Candidate
 
     public Candidate(int x, int y, int label, float score, float theta)
     {
-        X = x; Y = y; Label = label; Score = score; Theta = theta;
+        X = x;
+        Y = y;
+        Label = label;
+        Score = score;
+        Theta = theta;
     }
 }
 
@@ -134,7 +141,8 @@ public sealed class LineModShapeMatcher : IDisposable
             for (int j = 0; j < 8; j++)
             {
                 int diff = Math.Abs(i - j);
-                if (diff > 4) diff = 8 - diff;
+                if (diff > 4)
+                    diff = 8 - diff;
                 DirectionSimilarityLut[i, j] = diff switch
                 {
                     0 => 4,  // 完全一致
@@ -371,7 +379,8 @@ public sealed class LineModShapeMatcher : IDisposable
                 for (int c = 1; c < width - 1; c++)
                 {
                     float mag = magPtr[r * magStep + c];
-                    if (mag <= threshold) continue;
+                    if (mag <= threshold)
+                        continue;
 
                     // stackalloc 在 C# 自动清零
                     Span<int> hist = stackalloc int[8];
@@ -447,7 +456,7 @@ public sealed class LineModShapeMatcher : IDisposable
     {
         var candidates = new List<Candidate>();
         int nmsSize = 5;
-        float thresholdSq = StrongThreshold * StrongThreshold;
+        float nmsThreshold = StrongThreshold;
 
         float* magPtr = (float*)magnitude.DataPointer;
         byte* anglePtr = (byte*)quantizedAngle.DataPointer;
@@ -469,10 +478,12 @@ public sealed class LineModShapeMatcher : IDisposable
                 int idx = r * width + c;
 
                 // 检查 mask
-                if (maskPtr != null && maskPtr[r * maskStep + c] == 0) continue;
+                if (maskPtr != null && maskPtr[r * maskStep + c] == 0)
+                    continue;
 
                 float score = magPtr[r * magStep + c];
-                if (score < thresholdSq || anglePtr[r * angleStep + c] == 0) continue;
+                if (score < nmsThreshold || anglePtr[r * angleStep + c] == 0)
+                    continue;
 
                 // NMS: 检查 5x5 窗口
                 bool isMax = true;
@@ -480,7 +491,8 @@ public sealed class LineModShapeMatcher : IDisposable
                 {
                     for (int dc = -border; dc <= border; dc++)
                     {
-                        if (dr == 0 && dc == 0) continue;
+                        if (dr == 0 && dc == 0)
+                            continue;
                         if (magPtr[(r + dr) * magStep + (c + dc)] > score)
                         {
                             isMax = false;
@@ -532,7 +544,8 @@ public sealed class LineModShapeMatcher : IDisposable
     {
         var features = new List<Feature>();
 
-        if (candidates.Count == 0) return features;
+        if (candidates.Count == 0)
+            return features;
         if (candidates.Count <= numFeatures)
         {
             // 候选点不足，全部选择
@@ -603,6 +616,11 @@ public sealed class LineModShapeMatcher : IDisposable
             }
         }
 
+        if (features.Count > numFeatures)
+        {
+            return features.Take(numFeatures).ToList();
+        }
+
         return features;
     }
 
@@ -624,7 +642,8 @@ public sealed class LineModShapeMatcher : IDisposable
         for (int level = PyramidLevels - 1; level >= 0; level--)
         {
             var levelTemplates = _templates.Where(t => t.PyramidLevel == level).ToList();
-            if (levelTemplates.Count == 0) continue;
+            if (levelTemplates.Count == 0)
+                continue;
 
             // 处理该层图像
             using var currentScene = GetPyramidLevel(sceneImage, level);
@@ -671,7 +690,8 @@ public sealed class LineModShapeMatcher : IDisposable
     /// </summary>
     private Mat GetPyramidLevel(Mat image, int level)
     {
-        if (level == 0) return image.Clone();
+        if (level == 0)
+            return image.Clone();
 
         var current = image;
         Mat? result = null;
@@ -680,7 +700,8 @@ public sealed class LineModShapeMatcher : IDisposable
         {
             result = new Mat();
             Cv2.PyrDown(current, result);
-            if (i > 0) current.Dispose();
+            if (i > 0)
+                current.Dispose();
             current = result;
         }
 
@@ -895,7 +916,8 @@ public sealed class LineModShapeMatcher : IDisposable
             {
                 int sceneOri = bit + bitOffset;
                 byte sim = DirectionSimilarityLut[templateOri, sceneOri];
-                if (sim > maxSim) maxSim = sim;
+                if (sim > maxSim)
+                    maxSim = sim;
             }
         }
         return maxSim;
@@ -917,7 +939,8 @@ public sealed class LineModShapeMatcher : IDisposable
         int pyramidLevel)
     {
         var results = new List<LineModMatchResult>();
-        if (template.Features.Count == 0) return results;
+        if (template.Features.Count == 0)
+            return results;
 
         if (!responseMaps.IsLinearized)
         {
@@ -952,7 +975,8 @@ public sealed class LineModShapeMatcher : IDisposable
         // 可搜索范围 (以 T 为步长)
         int spanX = W - wf;
         int spanY = H - hf;
-        if (spanX <= 0 || spanY <= 0) return results;
+        if (spanX <= 0 || spanY <= 0)
+            return results;
 
         int templatePositions = spanY * W + spanX + 1;
 
@@ -1035,7 +1059,8 @@ public sealed class LineModShapeMatcher : IDisposable
         int pyramidLevel)
     {
         var results = new List<LineModMatchResult>();
-        if (template.Features.Count == 0) return results;
+        if (template.Features.Count == 0)
+            return results;
 
         var maps = responseMaps.Maps;
         int T = responseMaps.T;
@@ -1052,7 +1077,8 @@ public sealed class LineModShapeMatcher : IDisposable
         // 可搜索范围
         int searchW = mapW - (maxX - minX);
         int searchH = mapH - (maxY - minY);
-        if (searchW <= 0 || searchH <= 0) return results;
+        if (searchW <= 0 || searchH <= 0)
+            return results;
 
         // 归一化阈值
         float maxScore = 4.0f * template.Features.Count;
@@ -1111,7 +1137,8 @@ public sealed class LineModShapeMatcher : IDisposable
     /// </summary>
     private List<LineModMatchResult> NonMaximumSuppression(List<LineModMatchResult> matches, float iouThreshold = 0.5f)
     {
-        if (matches.Count <= 1) return matches;
+        if (matches.Count <= 1)
+            return matches;
 
         var sorted = matches.OrderByDescending(m => m.Score).ToList();
         var keep = new List<LineModMatchResult>();
@@ -1119,13 +1146,15 @@ public sealed class LineModShapeMatcher : IDisposable
 
         for (int i = 0; i < sorted.Count; i++)
         {
-            if (suppressed[i]) continue;
+            if (suppressed[i])
+                continue;
 
             keep.Add(sorted[i]);
 
             for (int j = i + 1; j < sorted.Count; j++)
             {
-                if (suppressed[j]) continue;
+                if (suppressed[j])
+                    continue;
 
                 // 计算距离
                 float dx = sorted[i].Position.X - sorted[j].Position.X;

@@ -40,7 +40,7 @@ public class FindContoursOperator : OperatorBase
         var maxValue = GetDoubleParam(@operator, "MaxValue", 255.0, min: 0, max: 255);
         var thresholdType = GetIntParam(@operator, "ThresholdType", 0, min: 0, max: 1);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -86,7 +86,7 @@ public class FindContoursOperator : OperatorBase
             .ToArray();
 
         // 绘制轮廓
-        using var resultImg = src.Clone();
+        var resultImg = src.Clone();
         if (drawContours && filteredContours.Length > 0)
         {
             for (int i = 0; i < filteredContours.Length; i++)

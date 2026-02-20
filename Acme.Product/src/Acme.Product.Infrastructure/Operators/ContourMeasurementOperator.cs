@@ -36,14 +36,14 @@ public class ContourMeasurementOperator : OperatorBase
         var maxArea = GetDoubleParam(@operator, "MaxArea", 100000.0, min: minArea);
         var sortBy = GetStringParam(@operator, "SortBy", "Area");
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
             if (src.Empty())
             {
                 return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
             }
 
             // 创建结果图像副本用于绘制
-            using var resultImage = src.Clone();
+            var resultImage = src.Clone();
 
             // 转换为灰度图
             using var gray = new Mat();

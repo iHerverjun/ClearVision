@@ -39,14 +39,14 @@ public class GeometricFittingOperator : OperatorBase
         var minPoints = GetIntParam(@operator, "MinPoints", 5, min: 3, max: 10000);
 
         // 3. 获取 Mat
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
         // 创建结果图像
-        using var resultImage = src.Clone();
+        var resultImage = src.Clone();
 
         // 4. 核心算法 - 灰度 → 二值化 → 查找轮廓
         using var gray = new Mat();

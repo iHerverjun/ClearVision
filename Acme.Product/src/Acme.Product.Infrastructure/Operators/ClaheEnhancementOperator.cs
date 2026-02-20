@@ -39,13 +39,13 @@ public class ClaheEnhancementOperator : OperatorBase
         var colorSpace = GetStringParam(@operator, "ColorSpace", "Lab"); // Lab / HSV / Gray
         var channel = GetStringParam(@operator, "Channel", "L"); // L / V / Y / All
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
 
         // 创建CLAHE对象
         using var clahe = Cv2.CreateCLAHE(clipLimit, new Size(tileWidth, tileHeight));

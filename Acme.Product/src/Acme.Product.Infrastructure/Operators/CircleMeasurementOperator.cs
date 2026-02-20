@@ -41,14 +41,14 @@ public class CircleMeasurementOperator : OperatorBase
         var param1 = GetDoubleParam(@operator, "Param1", 100.0, min: 0, max: 255);
         var param2 = GetDoubleParam(@operator, "Param2", 30.0, min: 0, max: 255);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
         // 创建结果图像副本用于绘制
-        using var resultImage = src.Clone();
+        var resultImage = src.Clone();
 
         // 转换为灰度图
         using var gray = new Mat();

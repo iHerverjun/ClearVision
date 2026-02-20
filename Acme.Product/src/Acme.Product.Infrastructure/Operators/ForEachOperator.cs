@@ -8,6 +8,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Acme.Product.Infrastructure.Operators;
@@ -28,13 +29,13 @@ public class ForEachOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ForEach;
 
-    private readonly IFlowExecutionService _subFlowExecutor;
+    private readonly IServiceProvider _serviceProvider;
 
     public ForEachOperator(
         ILogger<ForEachOperator> logger,
-        IFlowExecutionService subFlowExecutor) : base(logger)
+        IServiceProvider serviceProvider) : base(logger)
     {
-        _subFlowExecutor = subFlowExecutor ?? throw new ArgumentNullException(nameof(subFlowExecutor));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     /// <summary>
@@ -327,7 +328,7 @@ public class ForEachOperator : OperatorBase
         CancellationToken cancellationToken)
     {
         // 对于子图执行，禁用并行模式（子图内部已经是并行了）
-        return await _subFlowExecutor.ExecuteFlowAsync(
+        return await _serviceProvider.GetRequiredService<IFlowExecutionService>().ExecuteFlowAsync(
             subGraph,
             inputs,
             enableParallel: false,

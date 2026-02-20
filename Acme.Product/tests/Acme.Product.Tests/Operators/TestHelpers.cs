@@ -28,7 +28,7 @@ public static class TestHelpers
     public static ImageWrapper CreateTestImage(int width = 200, int height = 200, Scalar? color = null)
     {
         var c = color ?? new Scalar(128, 128, 128);
-        using var mat = new Mat(height, width, MatType.CV_8UC3, c);
+        var mat = new Mat(height, width, MatType.CV_8UC3, c);
         return new ImageWrapper(mat);
     }
 
@@ -37,7 +37,7 @@ public static class TestHelpers
     /// </summary>
     public static ImageWrapper CreateShapeTestImage()
     {
-        using var mat = new Mat(400, 400, MatType.CV_8UC3, Scalar.Black);
+        var mat = new Mat(400, 400, MatType.CV_8UC3, Scalar.Black);
         Cv2.Rectangle(mat, new Rect(50, 50, 100, 100), Scalar.White, -1);
         Cv2.Circle(mat, new Point(300, 200), 60, Scalar.White, -1);
         return new ImageWrapper(mat);
@@ -48,7 +48,7 @@ public static class TestHelpers
     /// </summary>
     public static ImageWrapper CreateGradientTestImage()
     {
-        using var mat = new Mat(200, 200, MatType.CV_8UC3);
+        var mat = new Mat(200, 200, MatType.CV_8UC3);
         for (int y = 0; y < 200; y++)
             for (int x = 0; x < 200; x++)
             {

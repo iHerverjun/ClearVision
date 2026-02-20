@@ -55,13 +55,13 @@ public class GaussianBlurOperator : OperatorBase
         // 【优化】不再手动覆盖sigmaY。OpenCV本身支持sigmaY=0时自动使用sigmaX
         // 手动覆盖反而去除了使用不同sigmaX/sigmaY的灵活性
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         var borderMode = (BorderTypes)borderType;
         Cv2.GaussianBlur(src, dst, new Size(kernelSize, kernelSize), sigmaX, sigmaY, borderMode);
 

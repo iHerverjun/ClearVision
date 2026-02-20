@@ -40,6 +40,7 @@ public class UndistortOperatorTests
         var op = new Operator("测试", OperatorType.Undistort, 0, 0);
         using var image = TestHelpers.CreateTestImage();
         var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["CalibrationData"] = "{\"CameraMatrix\":[1,0,0,0,1,0,0,0,1],\"DistCoeffs\":[0,0,0,0,0]}";
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
         result.OutputData.Should().ContainKey("Image");

@@ -50,7 +50,7 @@ public class ImageBlendOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
 
         // 调整前景图像大小以匹配背景
         if (background.Size() != foreground.Size())

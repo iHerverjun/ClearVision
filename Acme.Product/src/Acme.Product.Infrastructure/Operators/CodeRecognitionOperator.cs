@@ -35,7 +35,7 @@ public class CodeRecognitionOperator : OperatorBase
         var codeType = GetStringParam(@operator, "CodeType", "All");
         var maxResults = GetIntParam(@operator, "MaxResults", 10, 1, 100);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -46,7 +46,7 @@ public class CodeRecognitionOperator : OperatorBase
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 
         // 创建结果图像副本用于绘制标记
-        using var resultImage = src.Clone();
+        var resultImage = src.Clone();
 
         // 配置条码读取器 - 使用Bitmap作为类型参数
         var reader = new BarcodeReader<System.Drawing.Bitmap>(bitmap =>

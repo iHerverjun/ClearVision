@@ -36,13 +36,13 @@ public class LineMeasurementOperator : OperatorBase
         var minLength = GetDoubleParam(@operator, "MinLength", 50.0, min: 0);
         var maxGap = GetDoubleParam(@operator, "MaxGap", 10.0, min: 0);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var resultImage = src.Clone();
+        var resultImage = src.Clone();
         using var gray = new Mat();
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 

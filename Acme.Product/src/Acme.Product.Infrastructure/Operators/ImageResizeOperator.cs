@@ -37,13 +37,13 @@ public class ImageResizeOperator : OperatorBase
         var interpolation = GetStringParam(@operator, "Interpolation", "Linear");
         var useScale = GetBoolParam(@operator, "UseScale", false);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         InterpolationFlags interpFlag = interpolation.ToLower() switch
         {
             "nearest" => InterpolationFlags.Nearest,

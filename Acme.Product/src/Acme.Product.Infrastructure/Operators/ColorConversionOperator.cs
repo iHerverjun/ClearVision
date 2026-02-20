@@ -34,7 +34,7 @@ public class ColorConversionOperator : OperatorBase
         var conversionCode = GetStringParam(@operator, "ConversionCode", "BGR2GRAY");
         var srcChannels = GetIntParam(@operator, "SourceChannels", 3, min: 1, max: 4);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -61,7 +61,7 @@ public class ColorConversionOperator : OperatorBase
             _ => ColorConversionCodes.BGR2GRAY
         };
 
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.CvtColor(src, dst, colorCode);
 
         // P0: 使用ImageWrapper实现零拷贝输出

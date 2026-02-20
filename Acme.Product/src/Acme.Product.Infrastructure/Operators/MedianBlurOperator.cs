@@ -37,13 +37,13 @@ public class MedianBlurOperator : OperatorBase
         if (kernelSize % 2 == 0)
             kernelSize++;
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.MedianBlur(src, dst, kernelSize);
 
         // P0: 使用ImageWrapper实现零拷贝输出

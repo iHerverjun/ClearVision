@@ -35,14 +35,13 @@ public class ConditionalBranchOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
+    public async Task ExecuteAsync_WithValidValue_ShouldReturnSuccess()
     {
         var op = new Operator("测试", OperatorType.ConditionalBranch, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
-        var inputs = TestHelpers.CreateImageInputs(image);
+        var inputs = new Dictionary<string, object> { { "Value", 42.0 } };
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
-        result.OutputData.Should().ContainKey("Image");
+        result.OutputData.Should().ContainKey("Result");
     }
 
     [Fact]

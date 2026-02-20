@@ -87,11 +87,20 @@ public class AIPromptBuilder
     /// <summary>
     /// 添加系统提示词头
     /// </summary>
-    public AIPromptBuilder WithSystemPrompt()
+    public AIPromptBuilder WithSystemPrompt(string? customSystemPrompt = null)
     {
         _prompt.AppendLine("# ClearVision 工业视觉检测平台 - 流程生成助手");
         _prompt.AppendLine();
-        _prompt.AppendLine("你是一个专业的工业视觉检测流程设计助手。你的任务是将用户的自然语言需求转换为结构化的 ClearVision 流程定义。");
+
+        if (!string.IsNullOrWhiteSpace(customSystemPrompt))
+        {
+            _prompt.AppendLine(customSystemPrompt);
+        }
+        else
+        {
+            _prompt.AppendLine("你是一个专业的工业视觉检测流程设计助手。你的任务是将用户的自然语言需求转换为结构化的 ClearVision 流程定义。");
+        }
+
         _prompt.AppendLine();
         _prompt.AppendLine("## 输出格式");
         _prompt.AppendLine("你必须输出一个标准的 JSON 对象，格式如下：");

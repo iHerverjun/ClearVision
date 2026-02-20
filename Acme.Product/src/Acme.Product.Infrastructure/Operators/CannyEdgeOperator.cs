@@ -37,7 +37,7 @@ public class CannyEdgeOperator : OperatorBase
         var apertureSize = GetIntParam(@operator, "ApertureSize", 3, 3, 7);
         var l2Gradient = GetBoolParam(@operator, "L2Gradient", false);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -65,7 +65,7 @@ public class CannyEdgeOperator : OperatorBase
             gray.CopyTo(processedSrc);
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.Canny(processedSrc, dst, threshold1, threshold2, apertureSize, l2Gradient);
 
         // P0: 使用ImageWrapper实现零拷贝输出

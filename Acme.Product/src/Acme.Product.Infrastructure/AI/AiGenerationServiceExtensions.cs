@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Acme.Product.Infrastructure.AI;
 
+using Acme.Product.Infrastructure.AI.Connectors;
+
 public static class AiGenerationServiceExtensions
 {
     public static IServiceCollection AddAiFlowGeneration(
@@ -30,6 +32,17 @@ public static class AiGenerationServiceExtensions
         services.AddScoped<AutoLayoutService>();
         services.AddScoped<IAiFlowGenerationService, AiFlowGenerationService>();
         services.AddScoped<GenerateFlowMessageHandler>();
+
+        services.AddHttpClient("LLM", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(120);
+        });
+
+        services.AddSingleton<ILLMConfigurationStore, JsonLLMConfigurationStore>();
+        services.AddSingleton<IPromptVersionManager, PromptVersionManager>();
+        services.AddSingleton<IAIGeneratedFlowVersionManager, AIGeneratedFlowVersionManager>();
+        services.AddScoped<LLMConnectorFactory>();
+        services.AddScoped<ILLMConnector, DynamicLLMConnector>();
 
         return services;
     }

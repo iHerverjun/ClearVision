@@ -24,6 +24,7 @@
     <!-- CPU版本（默认）：OpenCvSharp4.runtime.win -->
     <!-- GPU版本（需NVIDIA GPU + CUDA）：OpenCvSharp4.runtime.win_gpu -->
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.9.0.20240103" />
+    <PackageReference Include="PaddleOCRSharp" Version="4.4.0.1" />
     <!-- <PackageReference Include="OpenCvSharp4.runtime.win_gpu" Version="4.9.0.20240103" /> -->
     
     <!-- 条码识别 -->
@@ -48,7 +49,7 @@
     <!-- DirectML支持：Microsoft.ML.OnnxRuntime.DirectML -->
     
     <!-- 文件处理 -->
-    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
     
     <!-- 日志 -->
     <PackageReference Include="Serilog" Version="3.1.1" />

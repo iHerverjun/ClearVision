@@ -46,7 +46,7 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
             templateFromInput = templateWrapper.GetMat();
         }
 
-        using var srcImage = imageWrapper.GetMat();
+        var srcImage = imageWrapper.GetMat();
         
         // 转换为灰度图
         using var srcGray = new Mat();
@@ -150,7 +150,7 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
                 isMatch = false;
 
             // 创建输出图像
-            using var resultImage = srcImage.Clone();
+            var resultImage = srcImage.Clone();
             var boxColor = isMatch ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
 
             if (isMatch && homography != null && !homography.Empty())

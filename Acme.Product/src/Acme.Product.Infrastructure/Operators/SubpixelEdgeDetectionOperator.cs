@@ -48,7 +48,7 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         var edgeThreshold = GetDoubleParam(@operator, "EdgeThreshold", 10.0, min: 0.0, max: 1000.0);
 
         // 3. 获取 Mat
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -57,7 +57,7 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
         return RunCpuBoundWork(() =>
         {
             // 创建结果图像
-            using var resultImage = src.Clone();
+            var resultImage = src.Clone();
 
             List<SubpixelEdgePoint> edgePoints;
             int contourCount = 0;

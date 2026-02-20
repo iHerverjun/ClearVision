@@ -44,7 +44,7 @@ public class GradientShapeMatchOperator : OperatorBase
             templateFromInput = templateWrapper.GetMat();
         }
 
-        using var srcImage = imageWrapper.GetMat();
+        var srcImage = imageWrapper.GetMat();
         
         try
         {
@@ -76,7 +76,7 @@ public class GradientShapeMatchOperator : OperatorBase
             var result = matcher.Match(srcImage, minScore);
 
             // 创建输出图像
-            using var resultImage = srcImage.Clone();
+            var resultImage = srcImage.Clone();
             var boxColor = result.IsValid ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
 
             if (result.IsValid)

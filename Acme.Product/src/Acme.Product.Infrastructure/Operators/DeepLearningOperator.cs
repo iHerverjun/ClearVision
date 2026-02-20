@@ -146,7 +146,7 @@ public class DeepLearningOperator : OperatorBase
         }
 
         // 4. 解码图像
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -388,7 +388,7 @@ public class DeepLearningOperator : OperatorBase
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var modelPath = GetStringParam(@operator, "ModelPath", string.Empty);
-        var confidence = GetFloatParam(@operator, "Confidence", 0.5f, 0.0f, 1.0f);
+        var confidence = GetFloatParam(@operator, "Confidence", 0.5f);
 
         if (string.IsNullOrWhiteSpace(modelPath))
         {

@@ -44,7 +44,7 @@ public class ImageAcquisitionOperatorTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("未提供图像数据或文件路径");
+        result.ErrorMessage.Should().Contain("未提供图像数据或有效的采集设置");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class ImageAcquisitionOperatorTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("未提供图像数据或文件路径");
+        result.ErrorMessage.Should().Contain("未提供图像数据或有效的采集设置");
     }
 
     [Fact]

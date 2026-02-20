@@ -49,7 +49,7 @@ public class UndistortOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("未提供标定数据"));
         }
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -95,7 +95,7 @@ public class UndistortOperator : OperatorBase
         }
 
         // 执行畸变校正
-        using var dst = new Mat();
+        var dst = new Mat();
         using var cameraMat = new Mat(3, 3, MatType.CV_64FC1, cameraMatrix);
         using var distMat = new Mat(distCoeffs.Length, 1, MatType.CV_64FC1, distCoeffs);
 

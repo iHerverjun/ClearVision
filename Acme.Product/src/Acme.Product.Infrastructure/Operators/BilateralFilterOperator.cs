@@ -35,13 +35,13 @@ public class BilateralFilterOperator : OperatorBase
         var sigmaColor = GetDoubleParam(@operator, "SigmaColor", 75.0, min: 1, max: 255);
         var sigmaSpace = GetDoubleParam(@operator, "SigmaSpace", 75.0, min: 1, max: 255);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.BilateralFilter(src, dst, diameter, sigmaColor, sigmaSpace);
 
         // P0: 使用ImageWrapper实现零拷贝输出

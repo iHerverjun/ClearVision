@@ -7,6 +7,7 @@ using System.Diagnostics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Infrastructure.AI.DryRun;
 using Acme.Product.Infrastructure.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -21,7 +22,9 @@ public class AIWorkflowService
     private readonly FlowLinter _linter;
     private readonly DryRunService _dryRunService;
     private readonly ILLMConnector _llmConnector;
-    private readonly ILogger<AIWorkflowService> _logger;
+    private readonly IPromptVersionManager _promptVersionManager;
+    private readonly IAIGeneratedFlowVersionManager _flowVersionManager;
+    private readonly Microsoft.Extensions.Logging.ILogger<AIWorkflowService> _logger;
 
     public AIWorkflowService(
         AIPromptBuilder promptBuilder,
@@ -29,13 +32,17 @@ public class AIWorkflowService
         FlowLinter linter,
         DryRunService dryRunService,
         ILLMConnector llmConnector,
-        ILogger<AIWorkflowService> logger)
+        IPromptVersionManager promptVersionManager,
+        IAIGeneratedFlowVersionManager flowVersionManager,
+        Microsoft.Extensions.Logging.ILogger<AIWorkflowService> logger)
     {
         _promptBuilder = promptBuilder;
         _flowParser = flowParser;
         _linter = linter;
         _dryRunService = dryRunService;
         _llmConnector = llmConnector;
+        _promptVersionManager = promptVersionManager;
+        _flowVersionManager = flowVersionManager;
         _logger = logger;
     }
 
@@ -43,13 +50,14 @@ public class AIWorkflowService
     /// 执行完整的 AI 工作流
     /// </summary>
     public async Task<AIWorkflowResult> GenerateFlowAsync(
-        string userRequirement, 
+        string userRequirement,
         AIWorkflowOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         options ??= new AIWorkflowOptions();
         var stopwatch = Stopwatch.StartNew();
         var telemetry = new WorkflowTelemetry();
+        PromptVersion? activeVersion = null;
 
         try
         {
@@ -57,8 +65,9 @@ public class AIWorkflowService
 
             // Step 1: 构建提示词
             var promptStart = stopwatch.ElapsedMilliseconds;
+            activeVersion = await _promptVersionManager.GetActiveVersionAsync();
             var prompt = _promptBuilder
-                .WithSystemPrompt()
+                .WithSystemPrompt(activeVersion.Content)
                 .WithOperatorLibrary()
                 .WithDesignRules()
                 .WithExamples()
@@ -74,6 +83,11 @@ public class AIWorkflowService
             telemetry.LLMCallTimeMs = stopwatch.ElapsedMilliseconds - llmStart;
             telemetry.LLMTokenUsage = llmResponse.TokenUsage;
             _logger.LogDebug("LLM 调用完成，耗时 {TimeMs}ms", telemetry.LLMCallTimeMs);
+
+            if (activeVersion != null)
+            {
+                await _promptVersionManager.RecordMetricsAsync(activeVersion.Id, true, telemetry.LLMTokenUsage, telemetry.LLMCallTimeMs);
+            }
 
             // Step 3: 解析生成的流程
             var parseStart = stopwatch.ElapsedMilliseconds;
@@ -94,7 +108,7 @@ public class AIWorkflowService
             var lintStart = stopwatch.ElapsedMilliseconds;
             var lintResult = _linter.Lint(flow);
             telemetry.LintTimeMs = stopwatch.ElapsedMilliseconds - lintStart;
-            
+
             if (lintResult.HasErrors && options.StrictMode)
             {
                 _logger.LogWarning("流程存在错误且启用了严格模式");
@@ -110,16 +124,16 @@ public class AIWorkflowService
             if (options.EnableDryRun)
             {
                 var dryRunStart = stopwatch.ElapsedMilliseconds;
-                
+
                 // 构建 Stub 注册表
                 var stubBuilder = new StubRegistryBuilder(new DryRunStubRegistry());
                 var operatorTypes = flow.Operators.Select(o => o.Type).ToList();
                 var stubRegistry = stubBuilder.BuildForFlow(operatorTypes);
-                
+
                 // 执行 Dry-Run
                 var testInputs = new Dictionary<string, object> { ["Image"] = "TestImage" };
                 dryRunResult = await _dryRunService.RunAsync(flow, testInputs, stubRegistry, cancellationToken);
-                
+
                 telemetry.DryRunTimeMs = stopwatch.ElapsedMilliseconds - dryRunStart;
                 _logger.LogDebug("Dry-Run 完成，耗时 {TimeMs}ms", telemetry.DryRunTimeMs);
 
@@ -136,6 +150,23 @@ public class AIWorkflowService
 
             telemetry.TotalTimeMs = stopwatch.ElapsedMilliseconds;
             _logger.LogInformation("AI 工作流完成，总耗时 {TotalMs}ms", telemetry.TotalTimeMs);
+
+            if (activeVersion != null)
+            {
+                var promptInfo = new PromptVersionInfo
+                {
+                    VersionId = activeVersion.Id,
+                    Name = activeVersion.Name
+                };
+
+                await _flowVersionManager.SaveVersionAsync(
+                    flow,
+                    userRequirement,
+                    promptInfo,
+                    llmResponse.Provider ?? "Auto",
+                    telemetry
+                );
+            }
 
             return AIWorkflowResult.Success(
                 flow,
@@ -154,6 +185,13 @@ public class AIWorkflowService
         {
             _logger.LogError(ex, "AI 工作流执行失败");
             telemetry.TotalTimeMs = stopwatch.ElapsedMilliseconds;
+
+            if (activeVersion != null)
+            {
+                long latencyToRecord = telemetry.LLMCallTimeMs > 0 ? telemetry.LLMCallTimeMs : stopwatch.ElapsedMilliseconds;
+                await _promptVersionManager.RecordMetricsAsync(activeVersion.Id, false, telemetry.LLMTokenUsage, latencyToRecord);
+            }
+
             return AIWorkflowResult.Failure($"工作流执行失败: {ex.Message}", telemetry);
         }
     }
@@ -187,7 +225,7 @@ public class AIWorkflowService
             var operatorTypes = flow.Operators.Select(o => o.Type).ToList();
             var stubRegistry = stubBuilder.BuildForFlow(operatorTypes);
             var testInputs = new Dictionary<string, object> { ["Image"] = "TestImage" };
-            
+
             dryRunResult = _dryRunService.RunAsync(flow, testInputs, stubRegistry).GetAwaiter().GetResult();
             telemetry.DryRunTimeMs = stopwatch.ElapsedMilliseconds - telemetry.LintTimeMs;
 
@@ -294,6 +332,7 @@ public class AIWorkflowOptions
 public interface ILLMConnector
 {
     Task<LLMResponse> GenerateAsync(string prompt, CancellationToken cancellationToken = default);
+    System.Collections.Generic.IAsyncEnumerable<LLMStreamChunk> GenerateStreamAsync(string prompt, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -303,19 +342,19 @@ public class LLMResponse
 {
     /// <summary>响应内容</summary>
     public string Content { get; set; } = string.Empty;
-    
+
     /// <summary>Token 使用量</summary>
     public int TokenUsage { get; set; }
-    
+
     /// <summary>使用的模型</summary>
     public string Model { get; set; } = string.Empty;
-    
+
     /// <summary>LLM 提供商</summary>
     public string Provider { get; set; } = string.Empty;
-    
+
     /// <summary>完成原因</summary>
     public string FinishReason { get; set; } = string.Empty;
-    
+
     /// <summary>延迟（毫秒）</summary>
     public long LatencyMs { get; set; }
 }

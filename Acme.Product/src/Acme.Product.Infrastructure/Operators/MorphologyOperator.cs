@@ -38,7 +38,7 @@ public class MorphologyOperator : OperatorBase
         var anchorX = GetIntParam(@operator, "AnchorX", -1);
         var anchorY = GetIntParam(@operator, "AnchorY", -1);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -54,7 +54,7 @@ public class MorphologyOperator : OperatorBase
 
         var anchor = new Point(anchorX, anchorY);
         using var kernel = Cv2.GetStructuringElement(shape, new Size(kernelSize, kernelSize), anchor);
-        using var dst = new Mat();
+        var dst = new Mat();
 
         var morphOp = operation.ToLower() switch
         {

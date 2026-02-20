@@ -72,10 +72,10 @@ public class CoordinateTransformOperator : OperatorBase
 
         if (imageWrapper != null)
         {
-            using var src = imageWrapper.GetMat();
+            var src = imageWrapper.GetMat();
             if (!src.Empty())
             {
-                using var resultImage = src.Clone();
+                var resultImage = src.Clone();
 
                 // 绘制标记
                 var center = new Point((int)pixelX, (int)pixelY);

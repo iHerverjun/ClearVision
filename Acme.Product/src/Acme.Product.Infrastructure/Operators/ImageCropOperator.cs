@@ -36,7 +36,7 @@ public class ImageCropOperator : OperatorBase
         var width = GetIntParam(@operator, "Width", 100, min: 1);
         var height = GetIntParam(@operator, "Height", 100, min: 1);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -50,7 +50,7 @@ public class ImageCropOperator : OperatorBase
 
         var roi = new Rect(x, y, width, height);
         using var cropped = new Mat(src, roi);
-        using var dst = cropped.Clone();
+        var dst = cropped.Clone();
 
         // P0: 使用ImageWrapper实现零拷贝输出
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst)));

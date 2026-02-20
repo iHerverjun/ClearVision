@@ -55,7 +55,7 @@ public class PerspectiveTransformOperator : OperatorBase
         var outputWidth = GetIntParam(@operator, "OutputWidth", 640, min: 1, max: 8192);
         var outputHeight = GetIntParam(@operator, "OutputHeight", 480, min: 1, max: 8192);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
@@ -82,7 +82,7 @@ public class PerspectiveTransformOperator : OperatorBase
         using var perspectiveMatrix = Cv2.GetPerspectiveTransform(srcPoints, dstPoints);
 
         // 执行透视变换
-        using var dst = new Mat();
+        var dst = new Mat();
         Cv2.WarpPerspective(src, dst, perspectiveMatrix, new Size(outputWidth, outputHeight), InterpolationFlags.Linear, BorderTypes.Constant, new Scalar(0, 0, 0));
 
         // P0: 使用ImageWrapper实现零拷贝输出

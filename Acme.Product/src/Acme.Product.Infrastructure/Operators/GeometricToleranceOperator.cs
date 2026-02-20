@@ -41,14 +41,14 @@ public class GeometricToleranceOperator : OperatorBase
         var line2X2 = GetIntParam(@operator, "Line2_X2", 100);
         var line2Y2 = GetIntParam(@operator, "Line2_Y2", 200);
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
             if (src.Empty())
             {
                 return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
             }
 
             // 创建结果图像副本
-            using var resultImage = src.Clone();
+            var resultImage = src.Clone();
 
             // 定义两条线的端点
             var line1Start = new Point(line1X1, line1Y1);

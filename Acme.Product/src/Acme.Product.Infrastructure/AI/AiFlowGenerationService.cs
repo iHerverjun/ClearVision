@@ -16,7 +16,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     private readonly AutoLayoutService _layoutService;
     private readonly IOperatorFactory _operatorFactory;
     private readonly AiConfigStore _configStore;
-    private readonly ILogger<AiFlowGenerationService> _logger;
+    private readonly Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> _logger;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -30,7 +30,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         AutoLayoutService layoutService,
         IOperatorFactory operatorFactory,
         AiConfigStore configStore,
-        ILogger<AiFlowGenerationService> logger)
+        Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> logger)
     {
         _apiClient = apiClient;
         _promptBuilder = promptBuilder;

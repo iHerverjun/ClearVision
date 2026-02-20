@@ -36,7 +36,7 @@ public class MeasureDistanceOperator : OperatorBase
         var y2 = GetIntParam(@operator, "Y2", 100);
         var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint");
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));

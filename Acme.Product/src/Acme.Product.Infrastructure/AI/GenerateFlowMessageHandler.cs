@@ -12,7 +12,7 @@ namespace Acme.Product.Infrastructure.AI;
 public class GenerateFlowMessageHandler
 {
     private readonly IAiFlowGenerationService _generationService;
-    private readonly ILogger<GenerateFlowMessageHandler> _logger;
+    private readonly Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler> _logger;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -21,7 +21,7 @@ public class GenerateFlowMessageHandler
 
     public GenerateFlowMessageHandler(
         IAiFlowGenerationService generationService,
-        ILogger<GenerateFlowMessageHandler> logger)
+        Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler> logger)
     {
         _generationService = generationService;
         _logger = logger;

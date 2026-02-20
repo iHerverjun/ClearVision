@@ -39,13 +39,13 @@ public class AngleMeasurementOperator : OperatorBase
         var point3Y = GetIntParam(@operator, "Point3Y", 0);
         var unit = GetStringParam(@operator, "Unit", "Degree");
 
-        using var src = imageWrapper.GetMat();
+        var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
         }
 
-        using var resultImage = src.Clone();
+        var resultImage = src.Clone();
 
         var p1 = new Point(point1X, point1Y);
         var p2 = new Point(point2X, point2Y);
