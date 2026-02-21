@@ -97,6 +97,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "从文件或相机采集图像",
             Category = "采集",
             IconName = "camera",
+            Keywords = new[] { "采集", "相机", "拍照", "取图", "摄像头", "图像输入", "Acquire", "Camera", "Capture" },
             InputPorts = new List<PortDefinition>(),
             OutputPorts = new List<PortDefinition>
             {
@@ -118,9 +119,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.Filtering,
             DisplayName = "滤波",
-            Description = "图像滤波降噪",
+            Description = "利用高斯/均值核去除图像噪声，适用于金属表面、PCB板等工业场景预处理",
             Category = "预处理",
             IconName = "filter",
+            Keywords = new[] { "滤波", "降噪", "平滑", "模糊", "去噪", "高斯", "均值", "Filter", "Blur", "Denoise" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -150,9 +152,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.EdgeDetection,
             DisplayName = "边缘检测",
-            Description = "检测图像边缘",
+            Description = "利用 Canny/Sobel 等算法检测图像边缘，用于尺寸测量和缺陷定位前的轮廓提取",
             Category = "特征提取",
             IconName = "edge",
+            Keywords = new[] { "边缘", "轮廓提取", "Canny", "Sobel", "边界", "找边", "Edge", "Contour extraction" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -182,9 +185,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.Thresholding,
             DisplayName = "二值化",
-            Description = "图像阈值分割",
+            Description = "全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离",
             Category = "预处理",
             IconName = "threshold",
+            Keywords = new[] { "二值化", "阈值", "分割", "黑白", "Otsu", "Threshold", "Binarize", "Segmentation" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -216,9 +220,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.Morphology,
             DisplayName = "形态学",
-            Description = "形态学操作（腐蚀、膨胀、开闭运算）",
+            Description = "腐蚀/膨胀/开运算/闭运算等形态学操作，用于去除毛刺、填充孔洞和分离粘连目标",
             Category = "预处理",
             IconName = "morphology",
+            Keywords = new[] { "形态学", "膨胀", "腐蚀", "开运算", "闭运算", "Morphology", "Erode", "Dilate" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -248,6 +253,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "连通区域分析",
             Category = "特征提取",
             IconName = "blob",
+            Keywords = new[] { "连通域", "缺陷区域", "斑点", "面积提取", "缺陷分析", "Blob", "Connected components" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -271,9 +277,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.TemplateMatching,
             DisplayName = "模板匹配",
-            Description = "图像模板匹配",
+            Description = "NCC/SQDiff 模板匹配，用于定位目标位置和缺失检测",
             Category = "匹配定位",
             IconName = "template",
+            Keywords = new[] { "模板匹配", "定位", "找图", "特征匹配", "关联定位", "Template", "Match", "Locate" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true },
@@ -299,12 +306,15 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.Measurement,
             DisplayName = "测量",
-            Description = "几何测量",
+            Description = "两点/水平/垂直距离测量，支持图像坐标和 Point 输入两种模式，用于尺寸检测",
             Category = "检测",
             IconName = "measure",
+            Keywords = new[] { "测量", "距离", "长度", "卡尺", "尺寸", "两点间距", "Measure", "Distance", "Length", "Size" },
             InputPorts = new List<PortDefinition>
             {
-                new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
+                new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = false },
+                new() { Name = "PointA", DisplayName = "起点", DataType = PortDataType.Point, IsRequired = false },
+                new() { Name = "PointB", DisplayName = "终点", DataType = PortDataType.Point, IsRequired = false }
             },
             OutputPorts = new List<PortDefinition>
             {
@@ -326,9 +336,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.ContourDetection,
             DisplayName = "轮廓检测",
-            Description = "查找图像中的轮廓",
+            Description = "查找图像轮廓，提取边缘点集和层次关系，供后续测量和拟合使用",
             Category = "特征提取",
             IconName = "contour",
+            Keywords = new[] { "轮廓", "边界", "形状", "多边形", "边缘点", "Contour", "Shape", "Boundary" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -354,9 +365,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.CodeRecognition,
             DisplayName = "条码识别",
-            Description = "一维码/二维码识别",
+            Description = "一维码/二维码识别，支持 QR、Code128、DataMatrix 等多种码制",
             Category = "识别",
             IconName = "barcode",
+            Keywords = new[] { "条码", "二维码", "扫码", "识别", "QR", "读取", "Barcode", "Decode", "Read code" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -375,9 +387,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.DeepLearning,
             DisplayName = "深度学习",
-            Description = "AI缺陷检测",
+            Description = "AI 深度学习推理，支持 YOLOv5/v6/v8/v11 等模型，用于缺陷检测和目标分类",
             Category = "AI检测",
             IconName = "ai",
+            Keywords = new[] { "深度学习", "AI", "模型", "推理", "缺陷识别", "目标检测", "YOLO", "判断瑕疵", "Deep learning" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -418,9 +431,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.ResultOutput,
             DisplayName = "结果输出",
-            Description = "输出检测结果",
+            Description = "汇总检测结果并输出，支持 JSON/CSV/Text 格式，可选保存到文件",
             Category = "输出",
             IconName = "output",
+            Keywords = new[] { "输出", "结果", "结束", "呈现", "记录", "Output", "Result", "Display" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = false },
@@ -447,6 +461,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "有效去除椒盐噪声同时保留边缘",
             Category = "预处理",
             IconName = "filter",
+            Keywords = new[] { "中值", "滤波", "椒盐噪声", "去噪", "Median", "Filter", "Salt and pepper" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -469,6 +484,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "边缘保留的平滑滤波",
             Category = "预处理",
             IconName = "filter",
+            Keywords = new[] { "双边", "滤波", "边缘保留", "平滑", "纹理", "Bilateral", "Edge-preserving" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -493,6 +509,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "调整图像尺寸",
             Category = "预处理",
             IconName = "resize",
+            Keywords = new[] { "缩放", "放大", "缩小", "尺寸", "Resize", "Scale", "Zoom" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -525,6 +542,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "ROI区域提取",
             Category = "预处理",
             IconName = "crop",
+            Keywords = new[] { "裁剪", "切割", "ROI", "区域提取", "Crop", "Region" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -550,6 +568,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "任意角度旋转",
             Category = "预处理",
             IconName = "rotate",
+            Keywords = new[] { "旋转", "角度", "翻转", "校正", "Rotate", "Angle", "Flip" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -576,6 +595,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "四边形透视校正",
             Category = "预处理",
             IconName = "perspective",
+            Keywords = new[] { "透视", "变换", "矫正", "仿射", "四边形", "Perspective", "Warp", "Transform" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -629,9 +649,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.CircleMeasurement,
             DisplayName = "圆测量",
-            Description = "霍夫圆检测与测量",
+            Description = "霍夫变换检测圆形并测量半径与圆心坐标，适用于孔径检测和圆形定位",
             Category = "检测",
             IconName = "circle-measure",
+            Keywords = new[] { "圆", "半径", "圆心", "霍夫", "孔", "圆检测", "Circle", "Radius", "Hough" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -668,6 +689,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "霍夫直线检测与测量",
             Category = "检测",
             IconName = "line-measure",
+            Keywords = new[] { "直线", "线段", "角度", "霍夫", "Line", "Hough", "Segment" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -701,6 +723,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "轮廓分析与测量",
             Category = "检测",
             IconName = "contour-measure",
+            Keywords = new[] { "轮廓", "面积", "周长", "形状分析", "Contour", "Area", "Perimeter" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -735,6 +758,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "基于三点计算角度",
             Category = "检测",
             IconName = "angle-measure",
+            Keywords = new[] { "角度", "三点", "弧度", "夹角", "Angle", "Degree", "Radian" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -768,6 +792,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "平行度/垂直度测量",
             Category = "检测",
             IconName = "geometric-tolerance",
+            Keywords = new[] { "公差", "平行度", "垂直度", "GD&T", "Tolerance", "Parallelism", "Perpendicularity" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -803,6 +828,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "棋盘格/圆点标定",
             Category = "标定",
             IconName = "calibration",
+            Keywords = new[] { "标定", "棋盘格", "内参", "畸变", "Calibration", "Chessboard", "Intrinsic" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -843,6 +869,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "基于标定数据校正图像畸变",
             Category = "标定",
             IconName = "undistort",
+            Keywords = new[] { "畸变", "校正", "矫正", "去畸变", "Undistort", "Distortion", "Correct" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true },
@@ -866,6 +893,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "像素坐标到物理坐标转换",
             Category = "标定",
             IconName = "coordinate-transform",
+            Keywords = new[] { "坐标", "像素", "物理", "毫米", "转换", "Coordinate", "Pixel to mm", "Physical" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = false },
@@ -897,6 +925,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "工业设备Modbus RTU/TCP通信",
             Category = "通信",
             IconName = "modbus",
+            Keywords = new[] { "Modbus", "PLC", "通信", "寄存器", "RTU", "TCP", "工业", "Communication" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
@@ -937,6 +966,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "TCP/IP网络通信",
             Category = "通信",
             IconName = "tcp",
+            Keywords = new[] { "TCP", "网络", "Socket", "通信", "发送", "接收", "IP", "Communication" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
@@ -974,6 +1004,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "检测结果存储到数据库",
             Category = "数据",
             IconName = "database",
+            Keywords = new[] { "数据库", "存储", "写入", "记录", "SQL", "Database", "Store", "Write" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = true }
@@ -1001,9 +1032,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.ConditionalBranch,
             DisplayName = "条件分支",
-            Description = "根据条件执行不同分支",
+            Description = "根据数值/字符串/布尔条件执行 True/False 两路分支，常用于 OK/NG 判定路由",
             Category = "控制",
             IconName = "branch",
+            Keywords = new[] { "条件", "分支", "判断", "如果", "否则", "IF", "Branch", "Condition", "Switch" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Value", DisplayName = "判断值", DataType = PortDataType.Any, IsRequired = true }
@@ -1036,6 +1068,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "BGR/GRAY/HSV/Lab/YUV等颜色空间转换",
             Category = "预处理",
             IconName = "color-convert",
+            Keywords = new[] { "颜色", "色彩", "灰度", "HSV", "Lab", "转换", "Color", "Convert", "Gray" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -1066,6 +1099,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "Mean和Gaussian自适应阈值",
             Category = "预处理",
             IconName = "adaptive-threshold",
+            Keywords = new[] { "自适应", "阈值", "局部", "Adaptive", "Local threshold", "Gaussian" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -1100,6 +1134,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "全局均衡化和CLAHE自适应均衡化",
             Category = "预处理",
             IconName = "histogram",
+            Keywords = new[] { "直方图", "均衡化", "对比度", "增强", "CLAHE", "Histogram", "Equalize", "Contrast" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -1130,6 +1165,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "从轮廓点拟合直线、圆或椭圆",
             Category = "测量",
             IconName = "fit",
+            Keywords = new[] { "拟合", "直线拟合", "圆拟合", "椭圆", "最小二乘", "Fit", "Line fit", "Circle fit" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -1166,6 +1202,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "矩形/圆形/多边形区域选择",
             Category = "辅助",
             IconName = "roi",
+            Keywords = new[] { "ROI", "区域", "感兴趣区", "掩膜", "选区", "Region", "Mask", "Area of interest" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -2274,6 +2311,7 @@ public class OperatorFactory : IOperatorFactory
             Description = "支持加减乘除、取绝对值、开方等常用运算",
             Category = "数据处理",
             IconName = "calc",
+            Keywords = new[] { "计算", "数学", "加减乘除", "数值", "判断大小", "运算", "Math", "Calculate", "Add", "Subtract", "Multiply", "Divide" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "ValueA", DisplayName = "数值 A", DataType = PortDataType.Float, IsRequired = true },
@@ -2281,7 +2319,8 @@ public class OperatorFactory : IOperatorFactory
             },
             OutputPorts = new List<PortDefinition>
             {
-                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.Float }
+                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.Float },
+                new() { Name = "IsPositive", DisplayName = "大于零", DataType = PortDataType.Boolean }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -2312,12 +2351,12 @@ public class OperatorFactory : IOperatorFactory
             IconName = "logic",
             InputPorts = new List<PortDefinition>
             {
-                new() { Name = "In1", DisplayName = "输入 1", DataType = PortDataType.Boolean, IsRequired = true },
-                new() { Name = "In2", DisplayName = "输入 2", DataType = PortDataType.Boolean, IsRequired = false }
+                new() { Name = "InputA", DisplayName = "输入 A", DataType = PortDataType.Boolean, IsRequired = true },
+                new() { Name = "InputB", DisplayName = "输入 B", DataType = PortDataType.Boolean, IsRequired = false }
             },
             OutputPorts = new List<PortDefinition>
             {
-                new() { Name = "Out", DisplayName = "输出", DataType = PortDataType.Boolean }
+                new() { Name = "Result", DisplayName = "输出", DataType = PortDataType.Boolean }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -2535,6 +2574,128 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "USL", DisplayName = "规格上限", DataType = "double", DefaultValue = "", Description = "Upper Specification Limit，留空则不计算 CPK" },
                 new() { Name = "LSL", DisplayName = "规格下限", DataType = "double", DefaultValue = "", Description = "Lower Specification Limit，留空则不计算 CPK" }
+            }
+        };
+
+        // ==================== 胶水算子 ====================
+
+        // Comparator（数值比较算子）
+        _metadata[OperatorType.Comparator] = new OperatorMetadata
+        {
+            Type = OperatorType.Comparator,
+            DisplayName = "数值比较",
+            Description = "比较两个数值的大小关系，输出布尔判定结果与差值",
+            Category = "逻辑控制",
+            IconName = "compare",
+            Keywords = new[] { "比较", "判断", "大于", "小于", "等于", "超限", "阈值判定", "公差", "Compare", "Threshold", "GreaterThan", "LessThan" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "ValueA", DisplayName = "数值 A", DataType = PortDataType.Float, IsRequired = true },
+                new() { Name = "ValueB", DisplayName = "数值 B", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Result", DisplayName = "判定结果", DataType = PortDataType.Boolean },
+                new() { Name = "Difference", DisplayName = "差值", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Condition", DisplayName = "比较条件", DataType = "enum", DefaultValue = "GreaterThan", Options = new List<ParameterOption>
+                {
+                    new() { Label = "大于", Value = "GreaterThan" },
+                    new() { Label = "大于等于", Value = "GreaterThanOrEqual" },
+                    new() { Label = "小于", Value = "LessThan" },
+                    new() { Label = "小于等于", Value = "LessThanOrEqual" },
+                    new() { Label = "等于", Value = "Equal" },
+                    new() { Label = "不等于", Value = "NotEqual" },
+                    new() { Label = "在范围内", Value = "InRange" }
+                } },
+                new() { Name = "CompareValue", DisplayName = "默认比较值", DataType = "double", DefaultValue = 0.0, Description = "当 ValueB 未连线时使用此值" },
+                new() { Name = "Tolerance", DisplayName = "容差", DataType = "double", DefaultValue = 0.0001, MinValue = 0.0, Description = "等于/不等于判断的容差" },
+                new() { Name = "RangeMin", DisplayName = "范围下限", DataType = "double", DefaultValue = 0.0, Description = "InRange 模式的下限" },
+                new() { Name = "RangeMax", DisplayName = "范围上限", DataType = "double", DefaultValue = 1.0, Description = "InRange 模式的上限" }
+            }
+        };
+
+        // Aggregator（数据聚合算子）
+        _metadata[OperatorType.Aggregator] = new OperatorMetadata
+        {
+            Type = OperatorType.Aggregator,
+            DisplayName = "数据聚合",
+            Description = "将多路输入数据合并为列表，并提取极值与均值",
+            Category = "数据处理",
+            IconName = "merge",
+            Keywords = new[] { "聚合", "合并", "汇总", "最大值", "最小值", "均值", "多路合并", "Aggregate", "Merge", "Max", "Min", "Average" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value1", DisplayName = "值 1", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Value2", DisplayName = "值 2", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Value3", DisplayName = "值 3", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "MergedList", DisplayName = "合并列表", DataType = PortDataType.Any },
+                new() { Name = "MaxValue", DisplayName = "最大值", DataType = PortDataType.Float },
+                new() { Name = "MinValue", DisplayName = "最小值", DataType = PortDataType.Float },
+                new() { Name = "Average", DisplayName = "均值", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Mode", DisplayName = "聚合模式", DataType = "enum", DefaultValue = "Merge", Options = new List<ParameterOption>
+                {
+                    new() { Label = "合并列表", Value = "Merge" },
+                    new() { Label = "提取最大值", Value = "Max" },
+                    new() { Label = "提取最小值", Value = "Min" },
+                    new() { Label = "计算均值", Value = "Average" }
+                } }
+            }
+        };
+
+        // Delay（延时算子）
+        _metadata[OperatorType.Delay] = new OperatorMetadata
+        {
+            Type = OperatorType.Delay,
+            DisplayName = "延时",
+            Description = "等待指定时间后继续执行，常用于通信前等待下位机就绪",
+            Category = "流程控制",
+            IconName = "timer",
+            Keywords = new[] { "延时", "等待", "暂停", "定时", "休眠", "Delay", "Wait", "Sleep", "Timer" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Input", DisplayName = "透传输入", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Output", DisplayName = "透传输出", DataType = PortDataType.Any },
+                new() { Name = "ElapsedMs", DisplayName = "实际耗时(ms)", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Milliseconds", DisplayName = "延时毫秒", DataType = "int", DefaultValue = 200, MinValue = 0, MaxValue = 60000 }
+            }
+        };
+
+        // Comment（注释算子）
+        _metadata[OperatorType.Comment] = new OperatorMetadata
+        {
+            Type = OperatorType.Comment,
+            DisplayName = "注释",
+            Description = "在工作流中添加说明文本，不影响数据流，仅用于标注设计意图",
+            Category = "辅助",
+            IconName = "comment",
+            Keywords = new[] { "注释", "备注", "说明", "标注", "文本", "Comment", "Note", "Annotation" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Input", DisplayName = "透传输入", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Output", DisplayName = "透传输出", DataType = PortDataType.Any },
+                new() { Name = "Message", DisplayName = "注释内容", DataType = PortDataType.String }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Text", DisplayName = "注释文本", DataType = "string", DefaultValue = "" }
             }
         };
     }

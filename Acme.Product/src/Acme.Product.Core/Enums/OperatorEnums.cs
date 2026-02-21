@@ -401,7 +401,29 @@ public enum OperatorType
     /// <summary>
     /// 图像保存 - NG 图像存档
     /// </summary>
-    ImageSave = 116
+    ImageSave = 116,
+
+    // ==================== 胶水算子 ====================
+
+    /// <summary>
+    /// 聚合器 - 聚合多路数据
+    /// </summary>
+    Aggregator = 120,
+
+    /// <summary>
+    /// 注释 - 添加说明文本
+    /// </summary>
+    Comment = 121,
+
+    /// <summary>
+    /// 比较器 - 比较数值
+    /// </summary>
+    Comparator = 122,
+
+    /// <summary>
+    /// 延时 - 等待一定时间
+    /// </summary>
+    Delay = 123
 }
 
 /// <summary>

@@ -85,3 +85,81 @@
 3. **Step 3 (Day 3+)**: 继续扩展其他胶水算子及增强整体稳定性。
 
 **总结**: 核心工作应转向 **"优化 AI 对现有算子能力的理解"**，而非盲目增加新的核心图像处理算子。
+
+---
+
+## 进展更新（2026-02-21）
+
+> 本节为对本报告任务项的代码实况核验结果（基于当前仓库实现）。
+
+### 已完成/部分完成清单（代码核验）
+
+| 编号 | 任务项 | 当前状态 | 说明 |
+|------|--------|----------|------|
+| A1 | `Keywords` 字段补齐 | **部分完成** | `OperatorMetadata` 已定义 `Keywords`，`PromptBuilder` 已消费该字段；但 `OperatorFactory` 各算子元数据尚未实际填充关键词。 |
+| A2 | Few-Shot 示例修正（非法连线） | **未完成** | 示例 4 仍存在 `Center(Point) -> Measurement.Image(Image)` 与 `Distance -> PixelX` 的错误连线示例。 |
+| A3 | `MathOperation` 增加 `IsPositive` 输出端口 | **部分完成** | `MathOperationOperator` 执行结果已输出 `IsPositive`；但 `OperatorFactory` 中 `MathOperation` 元数据输出端口仍仅声明 `Result`。 |
+| B1 | 新增 `Comparator` 算子 | **部分完成** | 已有 `ComparatorOperator` 实现文件；但未在 `OperatorType` 枚举与 `OperatorFactory` 元数据中完成注册接入。 |
+| B2 | 新增 `Aggregator` 算子 | **部分完成** | 已有 `AggregatorOperator` 实现文件；但未在 `OperatorType` 枚举与 `OperatorFactory` 元数据中完成注册接入。 |
+| B3 | 新增 `Delay` / `Comment` 算子 | **部分完成** | 已有 `DelayOperator`、`CommentOperator` 实现文件；但未在 `OperatorType` 枚举与 `OperatorFactory` 元数据中完成注册接入。 |
+| C1 | `Measurement` 增加 `PointA/PointB` 输入 | **未完成** | 目前 `Measurement` 仍仅支持 `Image` 输入。 |
+| C2 | 端口命名统一（如 `InputA/InputB/Result`） | **未完成** | 当前 `LogicGate` 仍使用 `In1/In2/Out` 命名。 |
+| C3 | `Description` 语义增强 | **未完成** | 多数描述仍偏简略，尚未完成面向 AI 语义检索的系统增强。 |
+
+### 已落地能力（可复用基础）
+
+1. AI Prompt 目录已支持输出 `keywords` 字段（为后续关键词补齐提供通路）。
+2. `GetAllMetadata()` 已在工厂接口与实现中可用，便于 Prompt 动态读取算子目录。
+3. `MathOperationOperator` 已具备 `IsPositive/IsZero/IsNegative` 等布尔派生输出（执行层已具备能力）。
+4. `Comparator/Aggregator/Delay/Comment` 的算子执行类已存在，可在完成枚举+元数据注册后快速接入工作流。
+
+---
+
+## 下一步 TODO 计划（按优先级）
+
+### P0（当天完成，最高优先级）
+
+- [ ] **修复 A2（Prompt/Few-Shot 硬错误）**
+  - [ ] 修正示例 4 中跨类型非法连线。
+  - [ ] 删除不存在端口引用（如 `PixelX`）。
+  - [ ] 以 `PortDataType` 规则逐条复核全部 Few-Shot 示例。
+  - 验收标准：AI 首次生成的 `FlowLinter` 端口类型错误率显著下降，示例 JSON 全量可通过校验。
+
+- [ ] **推进 A1（关键词补齐第一批）**
+  - [ ] 为高频算子先补齐关键词（建议首批 20 个：采集/滤波/阈值/测量/识别/通信类）。
+  - [ ] 每个算子补充 5~15 个中英双语关键词。
+  - 验收标准：Prompt 算子目录中的 `keywords` 不再普遍为空；典型中文口语描述可稳定命中目标算子。
+
+- [ ] **闭环 A3（元数据端口与执行输出一致）**
+  - [ ] 在 `OperatorFactory` 的 `MathOperation` 元数据中新增 `IsPositive(Boolean)` 输出端口。
+  - [ ] 增加/更新端口一致性测试（元数据端口 vs 执行输出键）。
+  - 验收标准：`MathOperation` 可直接向 `ConditionalBranch` 输出布尔结果，无额外转换。
+
+### P1（第 2 天）
+
+- [ ] **实现 B1 + C1 的最小可用闭环**
+  - [ ] 在 `OperatorType` 增加 `Comparator`，并在 `OperatorFactory` 注册其端口/参数元数据。
+  - [ ] 为 `Measurement` 增加可选 `PointA(Point)`、`PointB(Point)` 输入端口。
+  - [ ] 更新 Prompt 示例，加入“两点距离测量”标准范式。
+  - 验收标准：支持“如果半径 > 阈值则 NG”“测两检测点间距离”等自然语言一次生成通过。
+
+### P2（第 3 天）
+
+- [ ] **接入 B2/B3 胶水算子**
+  - [ ] 在 `OperatorType` 与 `OperatorFactory` 注册 `Aggregator/Delay/Comment`。
+  - [ ] 完成参数定义与默认值（`Mode`、`Milliseconds`、`Text` 等）。
+  - [ ] 补充最小单元测试与一条端到端 AI 生成样例。
+  - 验收标准：AI 可在通信流程中自动插入延时，可在多值场景生成聚合节点。
+
+### P3（第 4 天及以后）
+
+- [ ] **语义一致性优化（C2/C3）**
+  - [ ] 设计端口命名统一方案，评估兼容策略（别名映射或版本迁移）。
+  - [ ] 批量增强 `Description` 语义深度，强化场景可解释性。
+  - 验收标准：在不破坏历史流程的前提下，Prompt 可读性与 LLM 选算子稳定性提升。
+
+### 建议的执行顺序
+
+1. 先修 Prompt（A2）再补关键词（A1），可最快提升 AI 首次生成成功率。
+2. 再做端口闭环（A3 + C1），降低“能算但连不上”的结构性失败。
+3. 最后扩胶水算子（B 类）并做语义优化（C 类）。

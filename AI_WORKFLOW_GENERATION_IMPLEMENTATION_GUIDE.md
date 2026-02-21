@@ -675,27 +675,25 @@ public class PromptBuilder
 
         正确输出：
         {
-          "explanation": "相机采集图像，高斯滤波降噪，Canny边缘检测，检测两个圆形孔，测量距离，坐标转换为物理尺寸，输出结果",
+          "explanation": "相机采集图像，高斯滤波降噪，边缘检测后在图上测量两点距离，通过数学计算转换为物理尺寸毫米，最终输出",
           "operators": [
             {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
-            {"tempId": "op_2", "operatorType": "GaussianBlur", "displayName": "高斯滤波", "parameters": {"KernelSize": "5", "Sigma": "1.0"}},
+            {"tempId": "op_2", "operatorType": "Filtering", "displayName": "滤波", "parameters": {"KernelSize": "5"}},
             {"tempId": "op_3", "operatorType": "EdgeDetection", "displayName": "边缘检测", "parameters": {"Threshold1": "50", "Threshold2": "150"}},
-            {"tempId": "op_4", "operatorType": "CircleMeasurement", "displayName": "圆孔检测", "parameters": {"MinRadius": "10", "MaxRadius": "100"}},
-            {"tempId": "op_5", "operatorType": "Measurement", "displayName": "距离测量", "parameters": {"MeasureType": "PointToPoint"}},
-            {"tempId": "op_6", "operatorType": "CoordinateTransform", "displayName": "坐标转换", "parameters": {"PixelSize": "0.02"}},
-            {"tempId": "op_7", "operatorType": "ResultOutput", "displayName": "测量结果", "parameters": {}}
+            {"tempId": "op_4", "operatorType": "Measurement", "displayName": "距离测量", "parameters": {"MeasureType": "PointToPoint", "X1": "100", "Y1": "100", "X2": "200", "Y2": "200"}},
+            {"tempId": "op_5", "operatorType": "MathOperation", "displayName": "乘像素当量", "parameters": {"Operation": "Multiply", "ValueB": "0.02"}},
+            {"tempId": "op_6", "operatorType": "ResultOutput", "displayName": "测量结果", "parameters": {}}
           ],
           "connections": [
             {"sourceTempId": "op_1", "sourcePortName": "Image", "targetTempId": "op_2", "targetPortName": "Image"},
             {"sourceTempId": "op_2", "sourcePortName": "Image", "targetTempId": "op_3", "targetPortName": "Image"},
             {"sourceTempId": "op_3", "sourcePortName": "Image", "targetTempId": "op_4", "targetPortName": "Image"},
-            {"sourceTempId": "op_4", "sourcePortName": "Center", "targetTempId": "op_5", "targetPortName": "Image"},
-            {"sourceTempId": "op_5", "sourcePortName": "Distance", "targetTempId": "op_6", "targetPortName": "PixelX"},
-            {"sourceTempId": "op_6", "sourcePortName": "PhysicalX", "targetTempId": "op_7", "targetPortName": "Result"}
+            {"sourceTempId": "op_4", "sourcePortName": "Distance", "targetTempId": "op_5", "targetPortName": "ValueA"},
+            {"sourceTempId": "op_5", "sourcePortName": "Result", "targetTempId": "op_6", "targetPortName": "Result"}
           ],
           "parametersNeedingReview": {
-            "op_4": ["MinRadius", "MaxRadius"],
-            "op_6": ["PixelSize", "CalibrationFile"]
+            "op_4": ["X1", "Y1", "X2", "Y2"],
+            "op_5": ["ValueB"]
           }
         }
 
@@ -724,6 +722,64 @@ public class PromptBuilder
           "parametersNeedingReview": {
             "op_4": ["MinArea", "MaxArea"],
             "op_6": ["ConnectionString", "TableName"]
+          }
+        }
+
+        ## 示例 6
+        用户描述："检测两个定位点之间的距离，如果超过50像素则NG"
+
+        正确输出：
+        {
+          "explanation": "采集图像后通过圆检测和模板匹配分别定位两个特征点，将两点坐标传入测量算子计算距离，再通过数值比较判断是否超限，最后根据比较结果分支输出",
+          "operators": [
+            {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
+            {"tempId": "op_2", "operatorType": "CircleMeasurement", "displayName": "圆检测定位", "parameters": {"MinRadius": "10", "MaxRadius": "100"}},
+            {"tempId": "op_3", "operatorType": "TemplateMatching", "displayName": "模板匹配定位", "parameters": {"Method": "NCC", "Threshold": "0.8"}},
+            {"tempId": "op_4", "operatorType": "Measurement", "displayName": "两点距离", "parameters": {"MeasureType": "PointToPoint"}},
+            {"tempId": "op_5", "operatorType": "Comparator", "displayName": "超限判断", "parameters": {"Condition": "GreaterThan", "CompareValue": "50"}},
+            {"tempId": "op_6", "operatorType": "ConditionalBranch", "displayName": "OK/NG分支", "parameters": {}},
+            {"tempId": "op_7", "operatorType": "ResultOutput", "displayName": "输出结果", "parameters": {}}
+          ],
+          "connections": [
+            {"sourceTempId": "op_1", "sourcePortName": "Image", "targetTempId": "op_2", "targetPortName": "Image"},
+            {"sourceTempId": "op_1", "sourcePortName": "Image", "targetTempId": "op_3", "targetPortName": "Image"},
+            {"sourceTempId": "op_2", "sourcePortName": "Center", "targetTempId": "op_4", "targetPortName": "PointA"},
+            {"sourceTempId": "op_3", "sourcePortName": "Position", "targetTempId": "op_4", "targetPortName": "PointB"},
+            {"sourceTempId": "op_4", "sourcePortName": "Distance", "targetTempId": "op_5", "targetPortName": "ValueA"},
+            {"sourceTempId": "op_5", "sourcePortName": "Result", "targetTempId": "op_6", "targetPortName": "Value"},
+            {"sourceTempId": "op_6", "sourcePortName": "True", "targetTempId": "op_7", "targetPortName": "Result"}
+          ],
+          "parametersNeedingReview": {
+            "op_2": ["MinRadius", "MaxRadius"],
+            "op_3": ["Threshold"],
+            "op_5": ["CompareValue"]
+          }
+        }
+
+        ## 示例 7
+        用户描述："拍照检测后把结果通过TCP发给PLC，发送前等200毫秒让PLC准备好"
+
+        正确输出：
+        {
+          "explanation": "采集图像后二值化检测缺陷，用结果判定OK/NG，延时200ms等待PLC就绪后通过TCP发送判定结果",
+          "operators": [
+            {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
+            {"tempId": "op_2", "operatorType": "Thresholding", "displayName": "二值化", "parameters": {"UseOtsu": "true"}},
+            {"tempId": "op_3", "operatorType": "BlobAnalysis", "displayName": "缺陷检测", "parameters": {"MinArea": "50"}},
+            {"tempId": "op_4", "operatorType": "ResultJudgment", "displayName": "OK/NG判定", "parameters": {"FieldName": "BlobCount", "Condition": "LessThanOrEqual", "ThresholdValue": "0"}},
+            {"tempId": "op_5", "operatorType": "Delay", "displayName": "等待PLC就绪", "parameters": {"Milliseconds": "200"}},
+            {"tempId": "op_6", "operatorType": "TcpCommunication", "displayName": "发送结果", "parameters": {"IpAddress": "192.168.1.10", "Port": "8080"}}
+          ],
+          "connections": [
+            {"sourceTempId": "op_1", "sourcePortName": "Image", "targetTempId": "op_2", "targetPortName": "Image"},
+            {"sourceTempId": "op_2", "sourcePortName": "Image", "targetTempId": "op_3", "targetPortName": "Image"},
+            {"sourceTempId": "op_3", "sourcePortName": "BlobCount", "targetTempId": "op_4", "targetPortName": "Value"},
+            {"sourceTempId": "op_4", "sourcePortName": "IsOk", "targetTempId": "op_5", "targetPortName": "Input"},
+            {"sourceTempId": "op_5", "sourcePortName": "Output", "targetTempId": "op_6", "targetPortName": "Data"}
+          ],
+          "parametersNeedingReview": {
+            "op_5": ["Milliseconds"],
+            "op_6": ["IpAddress", "Port"]
           }
         }
         """;

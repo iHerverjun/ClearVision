@@ -1,0 +1,8 @@
+﻿c:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\Operators\Step123_GapAnalysisImplementationTests.cs(42,29): error CS0246: 未能找到类型或命名空间名“Parameter”(是否缺少 using 指令或程序集引用?) [c:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\Acme.Product.Tests.csproj]
+c:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\Operators\Step123_GapAnalysisImplementationTests.cs(62,29): error CS0246: 未能找到类型或命名空间名“Parameter”(是否缺少 using 指令或程序集引用?) [c:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\Acme.Product.Tests.csproj]
+
+生成失败。
+    7 个警告
+    2 个错误
+
+已用时间 00:00:01.40

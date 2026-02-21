@@ -24,9 +24,32 @@ public class MeasureDistanceOperator : OperatorBase
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
+        var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint");
+
+        // 优先使用 PointA/PointB 输入端口（无图测距模式）
+        if (inputs != null &&
+            inputs.TryGetValue("PointA", out var ptAObj) && ptAObj != null &&
+            inputs.TryGetValue("PointB", out var ptBObj) && ptBObj != null)
+        {
+            if (TryParsePoint(ptAObj, out var pA) && TryParsePoint(ptBObj, out var pB))
+            {
+                var dist = Math.Sqrt(Math.Pow(pB.X - pA.X, 2) + Math.Pow(pB.Y - pA.Y, 2));
+                return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
+                {
+                    { "Distance", dist },
+                    { "X1", pA.X }, { "Y1", pA.Y },
+                    { "X2", pB.X }, { "Y2", pB.Y },
+                    { "MeasureType", measureType },
+                    { "DeltaX", pB.X - pA.X },
+                    { "DeltaY", pB.Y - pA.Y }
+                }));
+            }
+        }
+
+        // 回退到 Image + 参数坐标模式
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像或 PointA/PointB"));
         }
 
         // 获取参数
@@ -34,7 +57,6 @@ public class MeasureDistanceOperator : OperatorBase
         var y1 = GetIntParam(@operator, "Y1", 0);
         var x2 = GetIntParam(@operator, "X2", 100);
         var y2 = GetIntParam(@operator, "Y2", 100);
-        var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint");
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
@@ -52,12 +74,12 @@ public class MeasureDistanceOperator : OperatorBase
             case "pointtopoint":
                 // 点到点距离
                 distance = Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
-                
+
                 // 绘制测量线
                 Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
                 Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
                 Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-                
+
                 // 显示距离
                 var midPoint = new Point((x1 + x2) / 2, (y1 + y2) / 2);
                 Cv2.PutText(resultImg, $"{distance:F2}px", midPoint,
@@ -68,11 +90,11 @@ public class MeasureDistanceOperator : OperatorBase
                 // 水平距离
                 distance = Math.Abs(x2 - x1);
                 pt2.Y = y1; // 保持水平
-                
+
                 Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
                 Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
                 Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-                
+
                 var hMidPoint = new Point((x1 + x2) / 2, y1 - 10);
                 Cv2.PutText(resultImg, $"H: {distance:F2}px", hMidPoint,
                     HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
@@ -82,11 +104,11 @@ public class MeasureDistanceOperator : OperatorBase
                 // 垂直距离
                 distance = Math.Abs(y2 - y1);
                 pt2.X = x1; // 保持垂直
-                
+
                 Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
                 Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
                 Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-                
+
                 var vMidPoint = new Point(x1 + 10, (y1 + y2) / 2);
                 Cv2.PutText(resultImg, $"V: {distance:F2}px", vMidPoint,
                     HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
@@ -110,11 +132,36 @@ public class MeasureDistanceOperator : OperatorBase
         })));
     }
 
+    /// <summary>
+    /// 尝试从输入对象中解析 Point 坐标（支持 "(x,y)" 字符串和 OpenCvSharp.Point）
+    /// </summary>
+    private static bool TryParsePoint(object obj, out Point point)
+    {
+        point = default;
+        if (obj is Point p)
+        {
+            point = p;
+            return true;
+        }
+        var str = obj.ToString()?.Trim('(', ')', ' ');
+        if (str == null)
+            return false;
+        var parts = str.Split(',');
+        if (parts.Length == 2 &&
+            int.TryParse(parts[0].Trim(), out var x) &&
+            int.TryParse(parts[1].Trim(), out var y))
+        {
+            point = new Point(x, y);
+            return true;
+        }
+        return false;
+    }
+
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint").ToLower();
         var validTypes = new[] { "pointtopoint", "horizontal", "vertical" };
-        
+
         if (!validTypes.Contains(measureType))
         {
             return ValidationResult.Invalid($"不支持的测量类型: {measureType}");
