@@ -8,6 +8,8 @@ using Acme.Product.Core.Exceptions;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
+using System.Collections;
+using System.Text.Json;
 
 namespace Acme.Product.Application.Services;
 
@@ -131,23 +133,8 @@ public class InspectionService : IInspectionService
                 _logger.LogInformation("[InspectionService] 已添加 {DefectCount} 个检测目标到结果", result.Defects.Count);
             }
 
-            // 【核心修复】保存输出的额外数据 (文本、数值等)
-            if (flowResult.OutputData != null && flowResult.OutputData.Count > 0)
-            {
-                var serializableData = new Dictionary<string, object>();
-                foreach (var kvp in flowResult.OutputData)
-                {
-                    // 跳过图像、缺陷和二进制数据
-                    if (kvp.Key == "Image" || kvp.Key == "image" || kvp.Key == "Defects" || kvp.Value is byte[])
-                        continue;
-                    serializableData[kvp.Key] = kvp.Value;
-                }
-                if (serializableData.Count > 0)
-                {
-                    var json = System.Text.Json.JsonSerializer.Serialize(serializableData);
-                    result.SetOutputDataJson(json);
-                }
-            }
+            // 保存输出的额外数据（文本、数值等），并过滤不安全对象（如 OpenCvSharp.Mat）
+            TrySetOutputDataJson(result, flowResult.OutputData);
 
             await _resultRepository.AddAsync(result);
 
@@ -427,23 +414,8 @@ public class InspectionService : IInspectionService
                 }
             }
 
-            // 【核心修复】保存输出的额外数据 (文本、数值等)
-            if (flowResult.OutputData != null && flowResult.OutputData.Count > 0)
-            {
-                var serializableData = new Dictionary<string, object>();
-                foreach (var kvp in flowResult.OutputData)
-                {
-                    // 跳过图像、缺陷和二进制数据
-                    if (kvp.Key == "Image" || kvp.Key == "image" || kvp.Key == "Defects" || kvp.Value is byte[])
-                        continue;
-                    serializableData[kvp.Key] = kvp.Value;
-                }
-                if (serializableData.Count > 0)
-                {
-                    var json = System.Text.Json.JsonSerializer.Serialize(serializableData);
-                    result.SetOutputDataJson(json);
-                }
-            }
+            // 保存输出的额外数据（文本、数值等），并过滤不安全对象（如 OpenCvSharp.Mat）
+            TrySetOutputDataJson(result, flowResult.OutputData);
 
             await _resultRepository.AddAsync(result);
 
@@ -457,6 +429,184 @@ public class InspectionService : IInspectionService
             result.MarkAsError(ex.Message);
             await _resultRepository.AddAsync(result);
         }
+    }
+
+    /// <summary>
+    /// 将流程输出写入 OutputDataJson（仅保留可安全序列化的数据）
+    /// </summary>
+    private void TrySetOutputDataJson(InspectionResult result, Dictionary<string, object>? outputData)
+    {
+        if (outputData == null || outputData.Count == 0)
+            return;
+
+        var serializableData = BuildSerializableOutputData(outputData);
+        if (serializableData.Count == 0)
+            return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(serializableData);
+            result.SetOutputDataJson(json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[InspectionService] 序列化输出数据失败，已忽略不可序列化字段");
+        }
+    }
+
+    private static Dictionary<string, object?> BuildSerializableOutputData(Dictionary<string, object> outputData)
+    {
+        var serializable = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kvp in outputData)
+        {
+            if (IsExcludedOutput(kvp.Key, kvp.Value))
+                continue;
+
+            if (TryConvertOutputValue(kvp.Value, out var converted))
+            {
+                serializable[kvp.Key] = converted;
+            }
+        }
+
+        return serializable;
+    }
+
+    private static bool IsExcludedOutput(string key, object? value)
+    {
+        if (key.Equals("Image", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("Defects", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (value is byte[])
+            return true;
+
+        if (value == null)
+            return false;
+
+        return IsKnownImageCarrierType(value.GetType());
+    }
+
+    private static bool TryConvertOutputValue(object? value, out object? converted, int depth = 0)
+    {
+        const int maxDepth = 8;
+        if (depth > maxDepth)
+        {
+            converted = value?.ToString();
+            return converted != null;
+        }
+
+        if (value == null)
+        {
+            converted = null;
+            return true;
+        }
+
+        if (IsKnownImageCarrierType(value.GetType()) || value is byte[])
+        {
+            converted = null;
+            return false;
+        }
+
+        if (value is JsonElement jsonElement)
+        {
+            converted = jsonElement;
+            return true;
+        }
+
+        if (IsSimpleValue(value))
+        {
+            converted = value;
+            return true;
+        }
+
+        if (value is IDictionary<string, object> typedDict)
+        {
+            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (k, v) in typedDict)
+            {
+                if (TryConvertOutputValue(v, out var nested, depth + 1))
+                {
+                    dict[k] = nested;
+                }
+            }
+
+            converted = dict;
+            return true;
+        }
+
+        if (value is IDictionary dictionary)
+        {
+            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var key = entry.Key?.ToString();
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                if (TryConvertOutputValue(entry.Value, out var nested, depth + 1))
+                {
+                    dict[key] = nested;
+                }
+            }
+
+            converted = dict;
+            return true;
+        }
+
+        if (value is IEnumerable enumerable && value is not string)
+        {
+            var list = new List<object?>();
+            foreach (var item in enumerable)
+            {
+                if (TryConvertOutputValue(item, out var nested, depth + 1))
+                {
+                    list.Add(nested);
+                }
+            }
+
+            converted = list;
+            return true;
+        }
+
+        try
+        {
+            JsonSerializer.Serialize(value);
+            converted = value;
+            return true;
+        }
+        catch
+        {
+            var text = value.ToString();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                converted = null;
+                return false;
+            }
+
+            converted = text;
+            return true;
+        }
+    }
+
+    private static bool IsSimpleValue(object value)
+    {
+        var type = value.GetType();
+        return type.IsPrimitive ||
+               type.IsEnum ||
+               value is string ||
+               value is decimal ||
+               value is DateTime ||
+               value is DateTimeOffset ||
+               value is Guid ||
+               value is TimeSpan;
+    }
+
+    private static bool IsKnownImageCarrierType(Type type)
+    {
+        var fullName = type.FullName;
+        return string.Equals(fullName, "OpenCvSharp.Mat", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Acme.Product.Infrastructure.Operators.ImageWrapper", StringComparison.Ordinal);
     }
 
     /// <summary>

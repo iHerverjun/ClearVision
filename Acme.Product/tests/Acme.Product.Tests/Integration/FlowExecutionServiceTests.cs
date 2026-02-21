@@ -39,6 +39,7 @@ public class FlowExecutionServiceIntegrationTests
             new CannyEdgeOperator(Substitute.For<ILogger<CannyEdgeOperator>>()),
             new ThresholdOperator(Substitute.For<ILogger<ThresholdOperator>>()),
             new MorphologyOperator(Substitute.For<ILogger<MorphologyOperator>>()),
+            new RoiManagerOperator(Substitute.For<ILogger<RoiManagerOperator>>()),
             new BlobDetectionOperator(Substitute.For<ILogger<BlobDetectionOperator>>()),
             new FindContoursOperator(Substitute.For<ILogger<FindContoursOperator>>()),
             new ResultOutputOperator(Substitute.For<ILogger<ResultOutputOperator>>())
@@ -452,6 +453,67 @@ public class FlowExecutionServiceIntegrationTests
         result.OutputData.Should().ContainKey("Image");
         result.OutputData!["Image"].Should().BeAssignableTo<byte[]>();
         ((byte[])result.OutputData!["Image"]).Length.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ExecuteFlowAsync_CannyToResultOutput_ShouldReturnSerializableEdges()
+    {
+        // Arrange - 采集 -> 边缘检测 -> 结果输出
+        var flow = new OperatorFlow();
+        var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
+        var cannyOp = CreateOperatorWithPorts("边缘检测", OperatorType.EdgeDetection, 100, 100);
+        var outputOp = CreateOperatorWithPorts("结果输出", OperatorType.ResultOutput, 200, 100);
+
+        flow.AddOperator(acquisitionOp);
+        flow.AddOperator(cannyOp);
+        flow.AddOperator(outputOp);
+        flow.AddConnection(CreateConnection(acquisitionOp, cannyOp));
+        flow.AddConnection(CreateConnection(cannyOp, outputOp));
+
+        var inputData = new Dictionary<string, object> { { "Image", CreateTestImageBytes() } };
+
+        // Act
+        var result = await _flowExecutionService.ExecuteFlowAsync(flow, inputData);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue($"流程执行失败: {result.ErrorMessage}");
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Edges");
+        result.OutputData!["Edges"].Should().BeAssignableTo<byte[]>();
+    }
+
+    [Fact]
+    public async Task ExecuteFlowAsync_RoiToResultOutput_ShouldReturnSerializableMask()
+    {
+        // Arrange - 采集 -> ROI管理 -> 结果输出
+        var flow = new OperatorFlow();
+        var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
+        var roiOp = CreateOperatorWithPorts("ROI管理", OperatorType.RoiManager, 100, 100);
+        var outputOp = CreateOperatorWithPorts("结果输出", OperatorType.ResultOutput, 200, 100);
+
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "Shape", "形状", "", "string", "Rectangle", null, null, true));
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "Operation", "操作", "", "string", "Crop", null, null, true));
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "X", "X", "", "int", 0, 0, 10000, true));
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "Y", "Y", "", "int", 0, 0, 10000, true));
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "Width", "宽度", "", "int", 1, 1, 10000, true));
+        roiOp.AddParameter(new Parameter(Guid.NewGuid(), "Height", "高度", "", "int", 1, 1, 10000, true));
+
+        flow.AddOperator(acquisitionOp);
+        flow.AddOperator(roiOp);
+        flow.AddOperator(outputOp);
+        flow.AddConnection(CreateConnection(acquisitionOp, roiOp));
+        flow.AddConnection(CreateConnection(roiOp, outputOp));
+
+        var inputData = new Dictionary<string, object> { { "Image", CreateTestImageBytes() } };
+
+        // Act
+        var result = await _flowExecutionService.ExecuteFlowAsync(flow, inputData);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue($"流程执行失败: {result.ErrorMessage}");
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Mask");
+        result.OutputData!["Mask"].Should().BeAssignableTo<byte[]>();
     }
 
     #endregion

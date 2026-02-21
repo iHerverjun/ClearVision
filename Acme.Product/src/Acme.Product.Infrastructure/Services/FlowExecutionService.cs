@@ -2,7 +2,9 @@
 // 流程执行服务实现
 // 作者：蘅芜君
 
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -10,6 +12,7 @@ using Acme.Product.Core.Services;
 using Acme.Product.Infrastructure.Logging;
 using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
+using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Services;
 
@@ -575,27 +578,119 @@ public class FlowExecutionService : IFlowExecutionService
     }
 
     /// <summary>
-    /// 将输出数据中的 ImageWrapper 转换为 byte[]，以便前端序列化
+    /// 规范化流程输出，避免将 OpenCvSharp.Mat 等非 JSON 安全对象直接暴露到上层。
     /// </summary>
     private Dictionary<string, object> ConvertImageWrappersToBytes(Dictionary<string, object>? outputData)
     {
         if (outputData == null)
             return new Dictionary<string, object>();
 
-        var result = new Dictionary<string, object>();
+        var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in outputData)
         {
-            if (kvp.Value is ImageWrapper wrapper)
+            if (TryNormalizeOutputValue(kvp.Value, out var normalized))
             {
-                // ImageWrapper 转换为 byte[]
-                result[kvp.Key] = wrapper.GetBytes();
-            }
-            else
-            {
-                result[kvp.Key] = kvp.Value;
+                result[kvp.Key] = normalized!;
             }
         }
         return result;
+    }
+
+    private static bool TryNormalizeOutputValue(object? value, out object? normalized, int depth = 0)
+    {
+        const int maxDepth = 8;
+        if (depth > maxDepth)
+        {
+            normalized = value?.ToString();
+            return normalized != null;
+        }
+
+        switch (value)
+        {
+            case null:
+                normalized = null;
+                return true;
+            case ImageWrapper wrapper:
+                normalized = wrapper.GetBytes();
+                return true;
+            case Mat mat:
+                normalized = mat.ToBytes(".png");
+                return true;
+            case byte[] bytes:
+                normalized = bytes;
+                return true;
+            case string or bool or char or sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal or DateTime or DateTimeOffset or TimeSpan or Guid:
+                normalized = value;
+                return true;
+        }
+
+        var type = value.GetType();
+        if (type.IsEnum)
+        {
+            normalized = value.ToString() ?? string.Empty;
+            return true;
+        }
+
+        if (value is IDictionary<string, object> typedDict)
+        {
+            var dictResult = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, dictValue) in typedDict)
+            {
+                if (TryNormalizeOutputValue(dictValue, out var child, depth + 1))
+                {
+                    dictResult[key] = child;
+                }
+            }
+
+            normalized = dictResult;
+            return true;
+        }
+
+        if (value is IDictionary dictionary)
+        {
+            var dictResult = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var key = entry.Key?.ToString();
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                if (TryNormalizeOutputValue(entry.Value, out var child, depth + 1))
+                {
+                    dictResult[key] = child;
+                }
+            }
+
+            normalized = dictResult;
+            return true;
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            var list = new List<object?>();
+            foreach (var item in enumerable)
+            {
+                if (TryNormalizeOutputValue(item, out var child, depth + 1))
+                {
+                    list.Add(child);
+                }
+            }
+
+            normalized = list;
+            return true;
+        }
+
+        try
+        {
+            JsonSerializer.Serialize(value);
+            normalized = value;
+            return true;
+        }
+        catch
+        {
+            normalized = value.ToString();
+            return normalized != null;
+        }
     }
 
     #region Sprint 1 Task 1.1: 扇出预分析与引用计数管理

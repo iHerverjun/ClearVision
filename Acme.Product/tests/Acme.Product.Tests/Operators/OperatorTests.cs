@@ -205,6 +205,24 @@ public class CannyEdgeOperatorTests
         result.Errors.Should().Contain("阈值1必须在 0-255 之间");
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithValidImage_ShouldOutputEdgesAsBytes()
+    {
+        // Arrange
+        var op = CreateTestOperator();
+        using var image = TestHelpers.CreateShapeTestImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        // Act
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Edges");
+        result.OutputData!["Edges"].Should().BeOfType<byte[]>();
+    }
+
     private static Operator CreateTestOperator()
     {
         return new Operator("Canny边缘检测", OperatorType.EdgeDetection, 0, 0);

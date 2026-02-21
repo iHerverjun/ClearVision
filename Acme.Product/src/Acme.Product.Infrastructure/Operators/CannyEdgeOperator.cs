@@ -68,10 +68,10 @@ public class CannyEdgeOperator : OperatorBase
         var dst = new Mat();
         Cv2.Canny(processedSrc, dst, threshold1, threshold2, apertureSize, l2Gradient);
 
-        // P0: 使用ImageWrapper实现零拷贝输出
+        // 保持 "Edges" 端口可用，同时避免将 OpenCvSharp.Mat 直接放入输出字典（会在后续 JSON 序列化阶段触发 DataPointer 错误）
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst, new Dictionary<string, object>
         {
-            { "Edges", dst }
+            { "Edges", dst.ToBytes(".png") }
         })));
     }
 
