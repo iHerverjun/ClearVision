@@ -61,6 +61,11 @@ public class InspectionResult : Entity
     /// </summary>
     public DateTime InspectionTime { get; private set; }
 
+    /// <summary>
+    /// 其他输出数据（JSON格式存储，如文本、提取的数值等）
+    /// </summary>
+    public string? OutputDataJson { get; private set; }
+
     private InspectionResult()
     {
         Status = InspectionStatus.NotInspected;
@@ -123,6 +128,15 @@ public class InspectionResult : Entity
     public void SetOutputImage(byte[] imageData)
     {
         OutputImage = imageData;
+        MarkAsModified();
+    }
+
+    /// <summary>
+    /// 设置算子额外输出数据（JSON序列化后）
+    /// </summary>
+    public void SetOutputDataJson(string json)
+    {
+        OutputDataJson = json;
         MarkAsModified();
     }
 }

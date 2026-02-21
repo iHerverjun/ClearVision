@@ -33,8 +33,8 @@ public class ImageDiffOperator : OperatorBase
         if (!TryGetInputImage(inputs, "CompareImage", out var imgB) || imgB == null)
             return Task.FromResult(OperatorExecutionOutput.Failure("对比图像不能为空"));
 
-        using var matA = imgA.GetMat();
-        using var matB = imgB.GetMat();
+        var matA = imgA.GetMat();
+        var matB = imgB.GetMat();
 
         if (matA.Size() != matB.Size())
             return Task.FromResult(OperatorExecutionOutput.Failure("算子输入图像尺寸不一致"));

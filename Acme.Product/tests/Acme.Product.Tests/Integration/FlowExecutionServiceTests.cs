@@ -40,7 +40,8 @@ public class FlowExecutionServiceIntegrationTests
             new ThresholdOperator(Substitute.For<ILogger<ThresholdOperator>>()),
             new MorphologyOperator(Substitute.For<ILogger<MorphologyOperator>>()),
             new BlobDetectionOperator(Substitute.For<ILogger<BlobDetectionOperator>>()),
-            new FindContoursOperator(Substitute.For<ILogger<FindContoursOperator>>())
+            new FindContoursOperator(Substitute.For<ILogger<FindContoursOperator>>()),
+            new ResultOutputOperator(Substitute.For<ILogger<ResultOutputOperator>>())
         };
 
         _flowExecutionService = new FlowExecutionService(
@@ -416,6 +417,41 @@ public class FlowExecutionServiceIntegrationTests
         // 总执行时间应该大于等于各算子执行时间之和
         var totalOperatorTime = result.OperatorResults.Sum(r => r.ExecutionTimeMs);
         result.ExecutionTimeMs.Should().BeGreaterThanOrEqualTo(totalOperatorTime);
+    }
+
+    #endregion
+
+    #region 生命周期回归测试
+
+    [Fact]
+    public async Task ExecuteFlowAsync_ThresholdToResultOutput_ShouldReturnImageBytes()
+    {
+        // Arrange - 采集 -> 二值化 -> 结果输出
+        var flow = new OperatorFlow();
+        var acquisitionOp = CreateOperatorWithPorts("图像采集", OperatorType.ImageAcquisition, 0, 0);
+        var thresholdOp = CreateOperatorWithPorts("阈值二值化", OperatorType.Thresholding, 100, 100);
+        var outputOp = CreateOperatorWithPorts("结果输出", OperatorType.ResultOutput, 200, 100);
+
+        thresholdOp.AddParameter(new Parameter(
+            Guid.NewGuid(), "Threshold", "阈值", "", "double", 127.0, 0.0, 255.0, true));
+
+        flow.AddOperator(acquisitionOp);
+        flow.AddOperator(thresholdOp);
+        flow.AddOperator(outputOp);
+        flow.AddConnection(CreateConnection(acquisitionOp, thresholdOp));
+        flow.AddConnection(CreateConnection(thresholdOp, outputOp));
+
+        var inputData = new Dictionary<string, object> { { "Image", CreateTestImageBytes() } };
+
+        // Act
+        var result = await _flowExecutionService.ExecuteFlowAsync(flow, inputData);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue($"流程执行失败: {result.ErrorMessage}");
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Image");
+        result.OutputData!["Image"].Should().BeAssignableTo<byte[]>();
+        ((byte[])result.OutputData!["Image"]).Length.Should().BeGreaterThan(0);
     }
 
     #endregion

@@ -43,8 +43,8 @@ public class ImageAddOperator : OperatorBase
         var scale2 = GetDoubleParam(@operator, "Scale2", 1.0, min: 0, max: 10.0);
         var offset = GetDoubleParam(@operator, "Offset", 0, min: -255, max: 255);
 
-        using var src1 = image1Wrapper.GetMat();
-        using var src2 = image2Wrapper.GetMat();
+        var src1 = image1Wrapper.GetMat();
+        var src2 = image2Wrapper.GetMat();
 
         if (src1.Empty() || src2.Empty())
         {

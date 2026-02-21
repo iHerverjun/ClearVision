@@ -39,8 +39,8 @@ public class ImageSubtractOperator : OperatorBase
 
         var absoluteDiff = GetBoolParam(@operator, "AbsoluteDiff", true);
 
-        using var src1 = image1Wrapper.GetMat();
-        using var src2 = image2Wrapper.GetMat();
+        var src1 = image1Wrapper.GetMat();
+        var src2 = image2Wrapper.GetMat();
 
         if (src1.Empty() || src2.Empty())
         {

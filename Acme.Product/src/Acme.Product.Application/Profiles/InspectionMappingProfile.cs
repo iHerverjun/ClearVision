@@ -17,8 +17,12 @@ public class InspectionMappingProfile : Profile
     {
         // InspectionResult -> InspectionResultDto
         CreateMap<InspectionResult, InspectionResultDto>()
-            .ForMember(dest => dest.OutputImage, opt => opt.MapFrom(src => 
-                src.OutputImage != null ? Convert.ToBase64String(src.OutputImage) : null));
+            .ForMember(dest => dest.OutputImage, opt => opt.MapFrom(src =>
+                src.OutputImage != null ? Convert.ToBase64String(src.OutputImage) : null))
+            .ForMember(dest => dest.OutputData, opt => opt.MapFrom(src =>
+                string.IsNullOrEmpty(src.OutputDataJson)
+                    ? null
+                    : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(src.OutputDataJson, (System.Text.Json.JsonSerializerOptions?)null)));
 
         // Defect -> DefectDto
         CreateMap<Defect, DefectDto>();

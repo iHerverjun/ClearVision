@@ -206,6 +206,11 @@ public class InspectionCompletedEvent : EventBase
     /// 结果图像（Base64，可选）
     /// </summary>
     public string? ResultImageBase64 { get; set; }
+
+    /// <summary>
+    /// 输出的额外数据字典（文本、数值等）
+    /// </summary>
+    public Dictionary<string, object>? OutputData { get; set; }
 }
 
 /// <summary>

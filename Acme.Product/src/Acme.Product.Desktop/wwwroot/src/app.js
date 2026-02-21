@@ -506,7 +506,8 @@ function initializeInspectionController() {
                 processingTime: result.processingTimeMs,
                 timestamp: new Date().toISOString(),
                 confidenceScore: result.confidenceScore,
-                imageData: result.outputImage
+                imageData: result.outputImage,
+                outputData: result.outputData || {}
             });
         }
 
@@ -689,7 +690,8 @@ async function loadInspectionHistory() {
                     processingTime: result.processingTimeMs,
                     timestamp: result.timestamp,
                     confidenceScore: result.confidenceScore,
-                    imageData: result.imageData
+                    imageData: result.imageData,
+                    outputData: result.outputData || {}
                 });
             });
             console.log(`[App] 已加载 ${response.length} 条历史检测记录`);

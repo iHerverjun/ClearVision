@@ -52,7 +52,7 @@ public class ConditionalBranchOperator : OperatorBase
         {
             { "Condition", condition },
             { "CompareValue", compareValueStr },
-            { "ActualValue", actualValue ?? "null" },
+            { "ActualValue", actualValue is ImageWrapper ? "[ImageWrapper]" : (actualValue ?? "null") },
             { "Result", result },
             { "FieldName", fieldName }
         };
@@ -62,16 +62,23 @@ public class ConditionalBranchOperator : OperatorBase
         // False端口：条件不成立时的输出
         if (result)
         {
-            outputData["True"] = value;
+            outputData["True"] = PreserveOutputValue(value);
             outputData["False"] = null;
         }
         else
         {
             outputData["True"] = null;
-            outputData["False"] = value;
+            outputData["False"] = PreserveOutputValue(value);
         }
 
         return Task.FromResult(OperatorExecutionOutput.Success(outputData));
+    }
+
+    private static object PreserveOutputValue(object value)
+    {
+        if (value is ImageWrapper wrapper)
+            return wrapper.AddRef();
+        return value;
     }
 
     private bool EvaluateCondition(object? actualValue, string condition, string compareValueStr)

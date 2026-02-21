@@ -46,7 +46,7 @@ public class TryCatchOperator : OperatorBase
         {
             foreach (var kvp in inputs)
             {
-                outputData[kvp.Key] = kvp.Value;
+                outputData[kvp.Key] = PreserveOutputValue(kvp.Value);
             }
         }
 
@@ -57,6 +57,13 @@ public class TryCatchOperator : OperatorBase
         Logger.LogDebug("[TryCatch] 异常处理节点已激活，Catch启用: {EnableCatch}", enableCatch);
 
         return Task.FromResult(OperatorExecutionOutput.Success(outputData));
+    }
+
+    private static object PreserveOutputValue(object value)
+    {
+        if (value is ImageWrapper wrapper)
+            return wrapper.AddRef();
+        return value;
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)

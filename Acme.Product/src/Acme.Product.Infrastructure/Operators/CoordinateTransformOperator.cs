@@ -73,47 +73,36 @@ public class CoordinateTransformOperator : OperatorBase
         if (imageWrapper != null)
         {
             var src = imageWrapper.GetMat();
-            if (!src.Empty())
+            if (src.Empty())
             {
-                var resultImage = src.Clone();
-
-                // 绘制标记
-                var center = new Point((int)pixelX, (int)pixelY);
-                Cv2.Circle(resultImage, center, 5, new Scalar(0, 0, 255), -1);
-                Cv2.Circle(resultImage, center, 10, new Scalar(0, 255, 0), 2);
-
-                // 显示坐标信息
-                var text = $"Pixel: ({pixelX:F1}, {pixelY:F1})";
-                var physText = $"Phys: ({physicalX:F3}, {physicalY:F3})";
-                Cv2.PutText(resultImage, text, new Point(10, 30),
-                    HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
-                Cv2.PutText(resultImage, physText, new Point(10, 55),
-                    HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
-
-                outputData = CreateImageOutput(resultImage, new Dictionary<string, object>
-                {
-                    { "PixelX", pixelX },
-                    { "PixelY", pixelY },
-                    { "PhysicalX", physicalX },
-                    { "PhysicalY", physicalY },
-                    { "PixelSize", pixelSize },
-                    { "ScaleX", scaleX },
-                    { "ScaleY", scaleY }
-                });
+                return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
             }
-            else
+
+            var resultImage = src.Clone();
+
+            // 绘制标记
+            var center = new Point((int)pixelX, (int)pixelY);
+            Cv2.Circle(resultImage, center, 5, new Scalar(0, 0, 255), -1);
+            Cv2.Circle(resultImage, center, 10, new Scalar(0, 255, 0), 2);
+
+            // 显示坐标信息
+            var text = $"Pixel: ({pixelX:F1}, {pixelY:F1})";
+            var physText = $"Phys: ({physicalX:F3}, {physicalY:F3})";
+            Cv2.PutText(resultImage, text, new Point(10, 30),
+                HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
+            Cv2.PutText(resultImage, physText, new Point(10, 55),
+                HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
+
+            outputData = CreateImageOutput(resultImage, new Dictionary<string, object>
             {
-                outputData = CreateImageOutput(src, new Dictionary<string, object>
-                {
-                    { "PixelX", pixelX },
-                    { "PixelY", pixelY },
-                    { "PhysicalX", physicalX },
-                    { "PhysicalY", physicalY },
-                    { "PixelSize", pixelSize },
-                    { "ScaleX", scaleX },
-                    { "ScaleY", scaleY }
-                });
-            }
+                { "PixelX", pixelX },
+                { "PixelY", pixelY },
+                { "PhysicalX", physicalX },
+                { "PhysicalY", physicalY },
+                { "PixelSize", pixelSize },
+                { "ScaleX", scaleX },
+                { "ScaleY", scaleY }
+            });
         }
         else
         {

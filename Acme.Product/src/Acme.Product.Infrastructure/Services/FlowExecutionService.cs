@@ -791,6 +791,7 @@ public class FlowExecutionService : IFlowExecutionService
         {
             // 获取执行顺序（拓扑排序）
             var executionOrder = flow.GetExecutionOrder().ToList();
+            var fanOutDegrees = AnalyzeFanOutDegrees(flow);
 
             // 初始化执行状态
             var status = new FlowExecutionStatus
@@ -897,7 +898,9 @@ public class FlowExecutionService : IFlowExecutionService
                 }
 
                 // 保存输出
-                operatorOutputs[op.Id] = opResult.OutputData ?? new Dictionary<string, object>();
+                var outputs = opResult.OutputData ?? new Dictionary<string, object>();
+                operatorOutputs[op.Id] = outputs;
+                ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
 
                 // 调试模式：缓存中间结果
                 if (options.EnableIntermediateCache && opResult.OutputData != null)

@@ -130,9 +130,11 @@ public abstract class OperatorBase : IOperatorExecutor
             // Sprint 1 Task 1.1: 释放输入中的 ImageWrapper 引用
             if (inputs != null)
             {
+                // 同一个 ImageWrapper 可能以多个键透传到下游；按引用去重后再 Release，避免双重释放
+                var releasedImages = new HashSet<ImageWrapper>(ReferenceEqualityComparer.Instance);
                 foreach (var value in inputs.Values)
                 {
-                    if (value is ImageWrapper img)
+                    if (value is ImageWrapper img && releasedImages.Add(img))
                     {
                         img.Release();
                     }

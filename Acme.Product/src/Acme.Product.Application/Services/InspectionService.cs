@@ -131,6 +131,24 @@ public class InspectionService : IInspectionService
                 _logger.LogInformation("[InspectionService] 已添加 {DefectCount} 个检测目标到结果", result.Defects.Count);
             }
 
+            // 【核心修复】保存输出的额外数据 (文本、数值等)
+            if (flowResult.OutputData != null && flowResult.OutputData.Count > 0)
+            {
+                var serializableData = new Dictionary<string, object>();
+                foreach (var kvp in flowResult.OutputData)
+                {
+                    // 跳过图像、缺陷和二进制数据
+                    if (kvp.Key == "Image" || kvp.Key == "image" || kvp.Key == "Defects" || kvp.Value is byte[])
+                        continue;
+                    serializableData[kvp.Key] = kvp.Value;
+                }
+                if (serializableData.Count > 0)
+                {
+                    var json = System.Text.Json.JsonSerializer.Serialize(serializableData);
+                    result.SetOutputDataJson(json);
+                }
+            }
+
             await _resultRepository.AddAsync(result);
 
             return result;
@@ -406,6 +424,24 @@ public class InspectionService : IInspectionService
                         var defect = new Defect(result.Id, DefectType.Other, x, y, width, height, confidence, className);
                         result.AddDefect(defect);
                     }
+                }
+            }
+
+            // 【核心修复】保存输出的额外数据 (文本、数值等)
+            if (flowResult.OutputData != null && flowResult.OutputData.Count > 0)
+            {
+                var serializableData = new Dictionary<string, object>();
+                foreach (var kvp in flowResult.OutputData)
+                {
+                    // 跳过图像、缺陷和二进制数据
+                    if (kvp.Key == "Image" || kvp.Key == "image" || kvp.Key == "Defects" || kvp.Value is byte[])
+                        continue;
+                    serializableData[kvp.Key] = kvp.Value;
+                }
+                if (serializableData.Count > 0)
+                {
+                    var json = System.Text.Json.JsonSerializer.Serialize(serializableData);
+                    result.SetOutputDataJson(json);
                 }
             }
 

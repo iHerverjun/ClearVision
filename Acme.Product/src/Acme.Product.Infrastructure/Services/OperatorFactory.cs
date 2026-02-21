@@ -438,7 +438,9 @@ public class OperatorFactory : IOperatorFactory
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = false },
-                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.Any, IsRequired = false }
+                new() { Name = "Result", DisplayName = "结果", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Text", DisplayName = "文本", DataType = PortDataType.String, IsRequired = false },
+                new() { Name = "Data", DisplayName = "数据", DataType = PortDataType.Any, IsRequired = false }
             },
             OutputPorts = new List<PortDefinition>
             {

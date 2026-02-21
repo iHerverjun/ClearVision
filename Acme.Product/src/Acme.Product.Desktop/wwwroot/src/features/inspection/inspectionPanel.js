@@ -382,7 +382,8 @@ class InspectionPanel {
             id: Date.now(),
             status: result.status,
             timestamp: new Date().toLocaleTimeString(),
-            imageData: result.outputImage || result.imageData
+            imageData: result.outputImage || result.imageData,
+            outputData: result.outputData || {}
         };
         
         const updated = [newResult, ...recent].slice(0, 5);
@@ -401,7 +402,11 @@ class InspectionPanel {
         
         const recent = getRecentResults();
         
-        grid.innerHTML = recent.map(result => `
+        grid.innerHTML = recent.map(result => {
+            // 提取文本摘要（OCR/条码等输出的文本数据）
+            const textPreview = this.extractTextPreview(result.outputData);
+            
+            return `
             <div class="recent-result-item ${result.status === 'OK' ? 'result-ok' : 'result-ng'}" data-id="${result.id}">
                 <div class="result-thumb">
                     ${result.imageData 
@@ -409,10 +414,11 @@ class InspectionPanel {
                         : `<div class="result-placeholder"></div>`
                     }
                 </div>
+                ${textPreview ? `<div class="result-text-preview" title="${this.escapeHtml(textPreview)}">${this.escapeHtml(textPreview.substring(0, 20))}${textPreview.length > 20 ? '...' : ''}</div>` : ''}
                 <div class="result-badge">${result.status}</div>
                 <div class="result-time">${result.timestamp}</div>
             </div>
-        `).join('');
+        `}).join('');
         
         // 添加点击事件
         grid.querySelectorAll('.recent-result-item').forEach(item => {
@@ -437,6 +443,35 @@ class InspectionPanel {
         this.renderRecentResults();
 
         this.updateStatus('idle', '就绪');
+    }
+    
+    /**
+     * 从输出数据中提取文本摘要
+     */
+    extractTextPreview(outputData) {
+        if (!outputData) return null;
+        // 优先展示 Text 字段（OCR/条码识别结果）
+        if (outputData.Text && typeof outputData.Text === 'string') return outputData.Text;
+        if (outputData.text && typeof outputData.text === 'string') return outputData.text;
+        // 其他字符串类型字段
+        for (const [key, value] of Object.entries(outputData)) {
+            if (key === 'Image' || key === 'image') continue;
+            if (typeof value === 'string' && value.length > 0 && value.length < 200) return `${key}: ${value}`;
+        }
+        // 数值类型字段
+        for (const [key, value] of Object.entries(outputData)) {
+            if (typeof value === 'number') return `${key}: ${Number.isInteger(value) ? value : value.toFixed(3)}`;
+        }
+        return null;
+    }
+    
+    /**
+     * HTML转义
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     /**

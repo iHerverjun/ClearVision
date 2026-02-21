@@ -546,6 +546,7 @@ class ResultPanel {
             const time = result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : '--:--:--';
             const processingTime = result.processingTime || result.executionTimeMs || '--';
             const globalIndex = startIndex + index;
+            const outputDataHtml = this.renderOutputDataPreview(result.outputData);
             
             return `
                 <div class="result-card result-${statusClass}" data-index="${globalIndex}" style="cursor:pointer;">
@@ -556,6 +557,7 @@ class ResultPanel {
                     <div class="result-card-body">
                         <span class="result-processing-time">${processingTime}ms</span>
                         ${result.defects?.length > 0 ? `<span class="result-defect-count">${result.defects.length} 缺陷</span>` : ''}
+                        ${outputDataHtml}
                     </div>
                 </div>
             `;
@@ -686,7 +688,140 @@ class ResultPanel {
      */
     showResultDetail(result) {
         console.log('[ResultPanel] 查看结果详情:', result);
-        // 可扩展为弹窗展示
+        
+        const modal = document.createElement('div');
+        modal.className = 'result-detail-modal';
+        
+        const statusClass = result.status?.toLowerCase() || 'unknown';
+        const time = result.timestamp ? new Date(result.timestamp).toLocaleString() : '--';
+        const processingTime = result.processingTime || result.executionTimeMs || '--';
+        
+        modal.innerHTML = `
+            <div class="result-detail-overlay"></div>
+            <div class="result-detail-content">
+                <div class="result-detail-header">
+                    <h3>检测结果详情</h3>
+                    <span class="result-status-badge ${statusClass}" style="font-size:12px;padding:4px 12px;">${result.status || 'Unknown'}</span>
+                    <button class="result-detail-close">✕</button>
+                </div>
+                <div class="result-detail-body">
+                    ${result.imageData ? `<div class="result-detail-image"><img src="data:image/png;base64,${result.imageData}" alt="检测结果图像" /></div>` : ''}
+                    <div class="result-detail-data">
+                        <div class="detail-section">
+                            <div class="detail-item"><span class="detail-label">状态</span><span class="detail-value status-${statusClass}">${result.status || '--'}</span></div>
+                            <div class="detail-item"><span class="detail-label">时间</span><span class="detail-value">${time}</span></div>
+                            <div class="detail-item"><span class="detail-label">处理耗时</span><span class="detail-value">${processingTime}ms</span></div>
+                        </div>
+                        ${this.renderOutputDataTable(result.outputData)}
+                        ${result.defects?.length > 0 ? `
+                            <div class="detail-section">
+                                <div class="detail-section-title">缺陷列表 (${result.defects.length})</div>
+                                ${result.defects.map(d => `
+                                    <div class="detail-item">
+                                        <span class="detail-label">${d.type || d.description || '未知'}</span>
+                                        <span class="detail-value">${d.confidenceScore ? (d.confidenceScore * 100).toFixed(1) + '%' : '--'}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        // 入场动画
+        requestAnimationFrame(() => modal.classList.add('visible'));
+        
+        const closeModal = () => {
+            modal.classList.remove('visible');
+            setTimeout(() => modal.remove(), 200);
+        };
+        modal.querySelector('.result-detail-close').addEventListener('click', closeModal);
+        modal.querySelector('.result-detail-overlay').addEventListener('click', closeModal);
+    }
+    
+    /**
+     * 渲染输出数据预览（卡片内简略展示）
+     */
+    renderOutputDataPreview(outputData) {
+        if (!outputData || typeof outputData !== 'object' || Object.keys(outputData).length === 0) return '';
+        
+        const items = [];
+        for (const [key, value] of Object.entries(outputData)) {
+            // 跳过 Image 类型的数据（已在缩略图中展示）
+            if (key === 'Image' || key === 'image') continue;
+            // 跳过超长字符串（可能是 base64 图像数据）
+            if (typeof value === 'string' && value.length > 500) continue;
+            
+            if (typeof value === 'string') {
+                items.push(`<div class="output-data-item output-text">
+                    <span class="output-label">${this.escapeHtml(key)}</span>
+                    <span class="output-value" title="${this.escapeHtml(value)}">${this.escapeHtml(value.length > 30 ? value.substring(0, 30) + '...' : value)}</span>
+                </div>`);
+            } else if (typeof value === 'number') {
+                items.push(`<div class="output-data-item output-number">
+                    <span class="output-label">${this.escapeHtml(key)}</span>
+                    <span class="output-value">${Number.isInteger(value) ? value : value.toFixed(3)}</span>
+                </div>`);
+            } else if (typeof value === 'boolean') {
+                items.push(`<div class="output-data-item output-boolean">
+                    <span class="output-label">${this.escapeHtml(key)}</span>
+                    <span class="output-value ${value ? 'bool-true' : 'bool-false'}">${value ? '✓' : '✗'}</span>
+                </div>`);
+            }
+            
+            if (items.length >= 3) break;  // 卡片内最多展示3条
+        }
+        
+        return items.length > 0 ? `<div class="output-data-preview">${items.join('')}</div>` : '';
+    }
+    
+    /**
+     * 渲染输出数据表格（详情弹窗内完整展示）
+     */
+    renderOutputDataTable(outputData) {
+        if (!outputData || typeof outputData !== 'object' || Object.keys(outputData).length === 0) return '';
+        
+        const rows = [];
+        for (const [key, value] of Object.entries(outputData)) {
+            if (key === 'Image' || key === 'image') continue;
+            if (typeof value === 'string' && value.length > 500) continue;
+            
+            let displayValue = '';
+            let typeClass = '';
+            
+            if (typeof value === 'string') {
+                displayValue = this.escapeHtml(value);
+                typeClass = 'type-string';
+            } else if (typeof value === 'number') {
+                displayValue = Number.isInteger(value) ? String(value) : value.toFixed(4);
+                typeClass = 'type-number';
+            } else if (typeof value === 'boolean') {
+                displayValue = value ? '✓ True' : '✗ False';
+                typeClass = value ? 'type-bool-true' : 'type-bool-false';
+            } else if (value === null || value === undefined) {
+                displayValue = '--';
+                typeClass = 'type-null';
+            } else {
+                displayValue = this.escapeHtml(JSON.stringify(value).substring(0, 100));
+                typeClass = 'type-object';
+            }
+            
+            rows.push(`<div class="detail-item ${typeClass}"><span class="detail-label">${this.escapeHtml(key)}</span><span class="detail-value">${displayValue}</span></div>`);
+        }
+        
+        if (rows.length === 0) return '';
+        return `<div class="detail-section"><div class="detail-section-title">算子输出数据</div>${rows.join('')}</div>`;
+    }
+    
+    /**
+     * HTML转义
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
     }
     
     /**

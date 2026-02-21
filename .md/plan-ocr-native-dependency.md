@@ -1,5 +1,13 @@
-# OCR 单元测试环境原生依赖修复计划
+﻿# OCR 单元测试环境原生依赖修复计划
 
+> **作者**: 蘅芜君
+> **版本**: V1.0
+> **创建日期**: 2026-02-20
+> **最后更新**: 2026-02-21
+> **文档编号**: plan-ocr-native-dependency
+> **状态**: 进行中
+
+---
 ## 1. 当前问题背景 (The Problem)
 在 Sprint 6 的 `S6-004` 任务中，我们为 `OcrRecognitionOperator` 编写了集成与性能测试。但在执行 `dotnet test` 时，测试持续失败，核心原因是：
 **`System.DllNotFoundException: Unable to load DLL 'PaddleOCR' or one of its dependencies. (0x8007007E)`**

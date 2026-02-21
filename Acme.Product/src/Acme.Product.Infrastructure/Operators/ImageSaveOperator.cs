@@ -100,7 +100,7 @@ public class ImageSaveOperator : OperatorBase
             }
 
             // 获取 Mat 并保存
-            using var mat = imageWrapper.MatReadOnly;
+            var mat = imageWrapper.MatReadOnly;
             
             var formatParams = format.ToLower() switch
             {

@@ -316,7 +316,10 @@ public class WebMessageHandler
                     Height = d.Height,
                     Confidence = d.ConfidenceScore,
                     Description = d.Description ?? string.Empty
-                }).ToList()
+                }).ToList(),
+                OutputData = string.IsNullOrEmpty(result.OutputDataJson)
+                                ? null
+                                : JsonSerializer.Deserialize<Dictionary<string, object>>(result.OutputDataJson, (JsonSerializerOptions?)null)
             };
 
             SendEvent(eventData);

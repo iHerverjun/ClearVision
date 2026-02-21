@@ -1,5 +1,13 @@
 ﻿# ClearVision
 
+> **作者**: 蘅芜君
+> **版本**: V1.0
+> **创建日期**: 2026-02-12
+> **最后更新**: 2026-02-21
+> **文档编号**: guide-readme
+> **状态**: 已完成
+
+---
 ClearVision 是一个基于 .NET 8 的工业视觉检测平台。项目采用 `WinForms + WebView2` 桌面宿主与前后端分层架构，支持通过拖拽式流程编辑器编排图像处理、检测、测量、识别与工业通信流程。
 
 ## 核心能力
@@ -87,6 +95,8 @@ publish.bat
 - 请勿在仓库中提交真实 API Key，建议改用本地配置或环境变量注入。
 
 ## 相关文档
-- `USER_GUIDE.md`
-- `DEPLOYMENT_GUIDE.md`
+- [用户指南](guide-user.md)
+- [部署指南](guide-deployment.md)
+- [算子库手册](ref-operator-handbook.md)
+- [前端修改指导](ref-frontend-modification-guide.md)
 - `Acme.Product/DEVELOPMENT_RULES.md`

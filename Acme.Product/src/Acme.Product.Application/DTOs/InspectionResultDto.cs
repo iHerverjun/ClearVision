@@ -60,6 +60,11 @@ public class InspectionResultDto
     /// 输出图像（Base64编码）
     /// </summary>
     public string? OutputImage { get; set; }
+
+    /// <summary>
+    /// 算子输出的其他数据（文本、数值等）
+    /// </summary>
+    public Dictionary<string, object>? OutputData { get; set; }
 }
 
 /// <summary>

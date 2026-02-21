@@ -96,7 +96,7 @@ public class CameraCalibrationOperator : OperatorBase
                 { "Found", false },
                 { "Message", "未检测到标定板" }
             };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(src, additionalData)));
+            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(src.Clone(), additionalData)));
         }
 
         // 精细化角点位置

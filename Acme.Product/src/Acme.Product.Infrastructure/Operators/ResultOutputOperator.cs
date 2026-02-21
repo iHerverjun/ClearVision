@@ -29,7 +29,7 @@ public class ResultOutputOperator : OperatorBase
         var output = new Dictionary<string, object>();
 
         if (inputs?.TryGetValue("Image", out var image) == true)
-            output["Image"] = image;
+            output["Image"] = PreserveOutputValue(image);
 
         if (inputs?.TryGetValue("Result", out var result) == true)
             output["Result"] = result;
@@ -41,12 +41,20 @@ public class ResultOutputOperator : OperatorBase
             {
                 if (!output.ContainsKey(kvp.Key))
                 {
-                    output[kvp.Key] = kvp.Value;
+                    output[kvp.Key] = PreserveOutputValue(kvp.Value);
                 }
             }
         }
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
+    }
+
+    private static object PreserveOutputValue(object value)
+    {
+        // 透传 ImageWrapper 时必须 AddRef，否则 ExecuteWithLifecycle finally 会 Release 输入并导致输出悬空
+        if (value is ImageWrapper wrapper)
+            return wrapper.AddRef();
+        return value;
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)

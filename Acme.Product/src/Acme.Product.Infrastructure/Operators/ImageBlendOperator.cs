@@ -42,8 +42,8 @@ public class ImageBlendOperator : OperatorBase
         var beta = GetDoubleParam(@operator, "Beta", 0.5, min: 0, max: 1.0);   // 前景权重
         var gamma = GetDoubleParam(@operator, "Gamma", 0, min: -255, max: 255); // 亮度偏移
 
-        using var background = bgWrapper.GetMat();
-        using var foreground = fgWrapper.GetMat();
+        var background = bgWrapper.GetMat();
+        var foreground = fgWrapper.GetMat();
 
         if (background.Empty() || foreground.Empty())
         {

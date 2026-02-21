@@ -45,9 +45,53 @@ public class ResultOutputOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithImageWrapper_ShouldKeepOutputImageUsable()
+    {
+        var op = new Operator("测试", OperatorType.ResultOutput, 0, 0);
+        var image = TestHelpers.CreateTestImage();
+
+        try
+        {
+            var inputs = TestHelpers.CreateImageInputs(image);
+            var result = await _operator.ExecuteAsync(op, inputs);
+
+            result.IsSuccess.Should().BeTrue();
+            result.OutputData.Should().NotBeNull();
+            result.OutputData.Should().ContainKey("Image");
+
+            var outputImage = result.OutputData!["Image"].Should().BeOfType<ImageWrapper>().Subject;
+            var outputBytes = outputImage.GetBytes();
+            outputBytes.Length.Should().BeGreaterThan(0);
+        }
+        finally
+        {
+            if (image.RefCount > 0)
+                image.Release();
+        }
+    }
+
+    [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
         var op = new Operator("测试", OperatorType.ResultOutput, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithTextInput_ShouldPassThroughText()
+    {
+        var op = new Operator("测试", OperatorType.ResultOutput, 0, 0);
+        var inputs = new Dictionary<string, object>
+        {
+            { "Text", "OCR识别结果文本" },
+            { "IsSuccess", true }
+        };
+        var result = await _operator.ExecuteAsync(op, inputs);
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Text");
+        result.OutputData!["Text"].Should().Be("OCR识别结果文本");
+        result.OutputData.Should().ContainKey("IsSuccess");
+        result.OutputData["IsSuccess"].Should().Be(true);
     }
 }

@@ -16,7 +16,7 @@ public class CommentOperator : OperatorBase
         object? input = null;
         if (inputs != null && inputs.TryGetValue("Input", out var value))
         {
-            input = value;
+            input = PreserveOutputValue(value);
         }
 
         var text = GetStringParam(@operator, "Text", string.Empty);
@@ -25,6 +25,13 @@ public class CommentOperator : OperatorBase
             ["Output"] = input ?? string.Empty,
             ["Message"] = text
         }));
+    }
+
+    private static object PreserveOutputValue(object value)
+    {
+        if (value is ImageWrapper wrapper)
+            return wrapper.AddRef();
+        return value;
     }
 
     public override ValidationResult ValidateParameters(Operator @operator) => ValidationResult.Valid();
