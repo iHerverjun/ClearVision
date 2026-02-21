@@ -65,7 +65,7 @@ public class MeasureDistanceOperator : OperatorBase
         }
 
         double distance = 0;
-        using var resultImg = src.Clone();
+        var resultImg = src.Clone();
         Point pt1 = new Point(x1, y1);
         Point pt2 = new Point(x2, y2);
 

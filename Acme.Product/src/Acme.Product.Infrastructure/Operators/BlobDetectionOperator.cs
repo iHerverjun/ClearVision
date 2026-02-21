@@ -71,7 +71,7 @@ public class BlobDetectionOperator : OperatorBase
         var keypoints = blobDetector.Detect(src);
 
         // 准备彩色结果图（用于绘制彩色标注）
-        using var colorSrc = new Mat();
+        var colorSrc = new Mat();
         if (src.Channels() == 1)
             Cv2.CvtColor(src, colorSrc, ColorConversionCodes.GRAY2BGR);
         else
