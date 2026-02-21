@@ -317,6 +317,8 @@ public class WebMessageHandler
                     Confidence = d.ConfidenceScore,
                     Description = d.Description ?? string.Empty
                 }).ToList(),
+                ProcessingTimeMs = result.ProcessingTimeMs,
+                ResultImageBase64 = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
                 OutputData = string.IsNullOrEmpty(result.OutputDataJson)
                                 ? null
                                 : JsonSerializer.Deserialize<Dictionary<string, object>>(result.OutputDataJson, (JsonSerializerOptions?)null)

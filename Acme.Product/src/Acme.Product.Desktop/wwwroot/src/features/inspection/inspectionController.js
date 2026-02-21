@@ -240,6 +240,15 @@ class InspectionController {
      * 处理检测完成
      */
     handleInspectionCompleted(result) {
+        // 【关键桥接】如果后端返回的是 raw JSON 字符串 (outputDataJson)，则在此处反序列化
+        if (result.outputDataJson && (!result.outputData || Object.keys(result.outputData).length === 0)) {
+            try {
+                result.outputData = JSON.parse(result.outputDataJson);
+            } catch (e) {
+                console.warn('[InspectionController] 解析 outputDataJson 失败:', e);
+            }
+        }
+
         setLastResult(result);
 
         setInspectionState({
