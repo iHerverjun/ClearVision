@@ -10,8 +10,3 @@ import { RouterView } from "vue-router";
     <RouterView />
   </div>
 </template>
-
-<style>
-/* Global imports */
-@import "@/styles/main.css";
-</style>

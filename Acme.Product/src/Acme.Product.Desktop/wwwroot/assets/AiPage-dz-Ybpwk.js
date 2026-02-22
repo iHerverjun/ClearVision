@@ -1,0 +1,1 @@
+import{_ as a}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as n,c as r,e as o}from"./index-BYcs0vBf.js";const t={},c={class:"page-container"};function s(l,e){return n(),r("div",c,[...e[0]||(e[0]=[o("h1",null,"AI Generation",-1),o("p",null,"Placeholder for AI Generation panel",-1)])])}const d=a(t,[["render",s],["__scopeId","data-v-825a64bc"]]);export{d as default};

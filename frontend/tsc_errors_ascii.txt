@@ -1,0 +1,9 @@
+src/components/flow/FlowEditor.vue(8,8): error TS2322: Type 'EventHookOn<Connection>' is not assignable to type '(connectionEvent: Connection) => any'.
+  Types of parameters 'fn' and 'connectionEvent' are incompatible.
+    Type 'Connection' is not assignable to type '(param: Connection) => void'.
+      Type 'Connection' provides no match for the signature '(param: Connection): void'.
+src/components/flow/FlowEditor.vue(45,15): error TS6133: 'watch' is declared but its value is never read.
+src/components/flow/FlowEditor.vue(70,43): error TS2554: Expected 1 arguments, but got 2.
+src/components/flow/FlowEditor.vue(75,43): error TS2554: Expected 1 arguments, but got 2.
+src/components/flow/FlowEditor.vue(83,21): error TS2345: Argument of type '{ type: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; }' is not assignable to parameter of type 'Edge'.
+  Property 'id' is missing in type '{ type: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; }' but required in type 'DefaultEdge<any, any, string>'.
