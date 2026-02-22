@@ -31,6 +31,20 @@ class MockBridge {
       case 'dialog.selectFile':
         mockData = { filePath: 'C:\\test\\image.jpg' };
         break;
+      case 'PickFileCommand':
+        if (this.frontendHandler) {
+          this.frontendHandler({
+            data: {
+              messageType: 'FilePickedEvent',
+              parameterName: message.parameterName ?? 'filePath',
+              filePath: 'C:\\test\\image.jpg',
+              previewImageBase64:
+                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6n5L8AAAAASUVORK5CYII=',
+              isCancelled: false,
+            },
+          });
+        }
+        break;
       default:
         mockData = { success: true, mockMode: true };
         break;

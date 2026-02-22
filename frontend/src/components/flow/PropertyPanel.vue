@@ -193,12 +193,12 @@ const isDesktopWebView = (): boolean => {
   return Boolean(w?.chrome?.webview);
 };
 
-const readFileAsDataUrl = (file: File): Promise<string> => {
+const readBlobAsDataUrl = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(`${reader.result || ""}`);
     reader.onerror = () => reject(reader.error || new Error("Failed to read file."));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
 };
 
@@ -242,14 +242,52 @@ const applyPickedFile = (
   updateNodeConfigValue(nodeId, paramName, filePath);
 
   if (paramName === "filePath") {
-    executionStore.setNodePreviewImage(
-      nodeId,
-      previewSource || resolveImageSource(filePath),
-    );
+    const resolvedPreview = resolveImageSource(previewSource || "");
+    const canRenderPreview =
+      !!resolvedPreview &&
+      !resolvedPreview.toLowerCase().startsWith("file:");
+
+    if (canRenderPreview) {
+      executionStore.setNodePreviewImage(nodeId, resolvedPreview);
+      return;
+    }
+
+    // In WebView, file:// is commonly blocked for img src from app.local.
+    // Avoid feeding an invalid url to thumbnail and showing "preview load failed".
+    if (isDesktopWebView()) {
+      executionStore.clearNodeOutputImage(nodeId);
+      return;
+    }
+
+    const fallbackSource = resolveImageSource(filePath);
+    if (fallbackSource && !fallbackSource.toLowerCase().startsWith("file:")) {
+      executionStore.setNodePreviewImage(nodeId, fallbackSource);
+    }
   }
 };
 
-const handleFilePickedEvent = (message: any) => {
+const tryReadPreviewFromLocalFile = async (
+  filePath: string,
+): Promise<string | undefined> => {
+  const resolved = resolveImageSource(filePath);
+  if (!resolved || !resolved.toLowerCase().startsWith("file:")) {
+    return undefined;
+  }
+
+  try {
+    const response = await fetch(resolved);
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const blob = await response.blob();
+    return await readBlobAsDataUrl(blob);
+  } catch {
+    return undefined;
+  }
+};
+
+const handleFilePickedEvent = async (message: any) => {
   const payload = (message?.data && typeof message.data === "object")
     ? message.data
     : message;
@@ -274,7 +312,19 @@ const handleFilePickedEvent = (message: any) => {
     return;
   }
 
-  applyPickedFile(targetNodeId, paramName, filePath, resolveImageSource(filePath));
+  const previewRaw = `${payload?.previewImageBase64 ?? payload?.PreviewImageBase64 ?? payload?.payload?.previewImageBase64 ?? payload?.payload?.PreviewImageBase64 ?? ""}`.trim();
+  let previewSource = resolveImageSource(previewRaw);
+
+  if (!previewSource && paramName === "filePath") {
+    previewSource = (await tryReadPreviewFromLocalFile(filePath)) || "";
+  }
+
+  applyPickedFile(
+    targetNodeId,
+    paramName,
+    filePath,
+    previewSource || undefined,
+  );
   pendingFilePickerContext.value = null;
 };
 
@@ -300,6 +350,7 @@ const triggerFilePicker = async (paramName: string) => {
       await webMessageBridge.sendMessage(BridgeMessageType.PickFileCommand, {
         parameterName: paramName,
         filter: getNativeFileFilter(paramName),
+        includePreviewBase64: paramName === "filePath",
       });
       return;
     } catch (error) {
@@ -319,7 +370,7 @@ const triggerFilePicker = async (paramName: string) => {
 
     try {
       const previewDataUrl =
-        paramName === "filePath" ? await readFileAsDataUrl(file) : undefined;
+        paramName === "filePath" ? await readBlobAsDataUrl(file) : undefined;
       applyPickedFile(targetNodeId, paramName, file.name, previewDataUrl);
     } catch {
       applyPickedFile(targetNodeId, paramName, file.name);

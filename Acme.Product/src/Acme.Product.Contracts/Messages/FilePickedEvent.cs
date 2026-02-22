@@ -28,4 +28,6 @@ public class FilePickedEvent : EventBase
     /// 是否取消了选择
     /// </summary>
     public bool IsCancelled { get; set; }
+
+    public string? PreviewImageBase64 { get; set; }
 }

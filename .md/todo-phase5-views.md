@@ -16,6 +16,70 @@
 
 ---
 
+## ⚙️ 框架审查结论（实施约束 — 2026-02-22 确认）
+
+> 以下内容基于对现有前端代码库的实际审查，所有实现**必须**遵循这些约束。
+
+### 全局 App Shell 架构
+
+```
+MainLayout.vue（全局壳，所有页面共享）
+├── AppHeader.vue（顶栏, 64px）
+│   ├── Logo "ClearVision"
+│   ├── GlassCard 工程选择器（Default_Project_01 / Saved）
+│   ├── GlassCard 运行仪表盘（Play按钮 + Cycle Time + Yield Rate）← 宏观数据已在此
+│   └── 操作按钮组（Load JSON / Save / Undo / Redo）
+├── AppSidebar.vue（左侧栏, 展开200px / 收起64px, 悬停展开）
+│   └── 5 路由项: Flow Editor / Inspection / Results / Projects / AI Assistant
+├── .content-area（主舞台）← ★ 页面组件渲染在此容器内
+│   ├── 定位: top:96px, left:236px(展开)/100px(收起), bottom:56px, right:16px
+│   ├── 样式: background:rgba(255,255,255,0.6) + border-radius:24px + blur(20px)
+│   └── <router-view> ← InspectionPage / ResultsPage / ProjectsPage 在这里
+└── AppStatusBar.vue（底栏, 40px）
+    ├── 用户身份（Role + Username）
+    ├── 通信心跳（Host Link + PLC-1 状态点）
+    └── 硬件资源（CPU% + RAM + 版本号）
+```
+
+> [!CAUTION]
+> **页面组件（如 InspectionPage.vue）不需要也不能自行实现顶栏、侧栏、底栏。** 只负责 `.content-area` 容器内部的内容渲染。
+
+### 设计约束（硬性规则）
+
+| 约束项 | 值 | 来源 |
+|--------|------|------|
+| 主色调 | Light Mode: `--bg-primary: #F5F5F7` / `--bg-secondary: #FFFFFF` | `style.css` |
+| 强调色 | 丹砂红 `--accent-red: #FF4D4D` | `style.css` |
+| 成功色 | `#10b981` | `AppStatusBar` / `AppHeader` |
+| 卡片风格 | `GlassCard.vue`: `rgba(255,255,255,0.7)` + `blur(20px)` + `border-radius: 16px` | `shared/GlassCard.vue` |
+| 主舞台圆角 | `border-radius: 24px` | `MainLayout.vue .content-area` |
+| 图标库 | `lucide-vue-next`（**禁止**使用 Font Awesome 或其他图标库） | `AppHeader` / `AppSidebar` |
+| 按钮组件 | 使用 `shared/IconButton.vue`，禁止自行定义按钮样式 | `shared/IconButton.vue` |
+| 暗色模式 | 通过 `document.documentElement.dataset.theme = 'dark'` 切换，`GlassCard` 已适配 | `stores/ui.ts` |
+| 字体 | `Inter`, system-ui | `style.css` |
+| 过渡动画 | 页面切换: `fade-slide`（opacity + translateY 15px） | `MainLayout.vue` |
+
+### 业务逻辑依赖现状
+
+| 依赖项 | 文件 | 状态 | Phase 5 需要做的 |
+|--------|------|------|------------------|
+| 执行状态 Store | `stores/execution.ts` (545行) | ✅ 已就绪 | 直接消费。已有 `OperatorExecutedEvent`(含outputData/outputImageBase64/executionTimeMs)、`InspectionCompletedEvent`(含status/processingTimeMs)、`ProgressNotificationEvent`、`ImageStreamEvent` |
+| 流程 Store | `stores/flow.ts` (8KB) | ✅ 已就绪 | 直接消费。含节点、连线数据 |
+| Auth Store | `stores/auth.ts` | ✅ 已就绪 | 直接消费 |
+| UI Store | `stores/ui.ts` | ✅ 已就绪 | 含 theme / sidebarCollapsed 状态 |
+| WebView2 Bridge | `services/bridge.ts` | ✅ 已就绪 | 通过 `webMessageBridge.sendMessage()` 与后端通信，支持 Mock 模式 |
+| Bridge 消息类型 | `services/bridge.types.ts` | ✅ 已就绪 | 包含 `FlowExecute` / `FlowStop` / `ImageStreamEvent` 等 |
+| REST Endpoints | `services/endpoints.ts` | ⚠️ 需补充 | 现有: Auth/Project/Flow/Settings/AI。**需新增**: Inspection Results 相关端点 |
+| 图像解码 | `services/imageSource.ts` + `execution.ts` 内 | ✅ 已就绪 | PNG/JPEG 自动检测 + base64 ↔ DataURL 转换 + SharedBuffer → Canvas |
+| 流程序列化 | `services/flowSerializer.ts` | ✅ 已就绪 | 工程导入/导出 |
+| GlassCard 组件 | `components/shared/GlassCard.vue` | ✅ 可直接复用 | props: `interactive` / `hoverGlow` |
+| IconButton 组件 | `components/shared/IconButton.vue` | ✅ 可直接复用 | props: `variant` / `size` / `disabled` |
+| Inspection Store | — | ❌ 需新建 | `stores/inspection.ts`：管理当前检测状态、节点输出数据、历史记录 |
+| Project Store | — | ❌ 需新建 | `stores/project.ts`：工程列表、CRUD 操作 |
+| ECharts | — | ❌ 需安装 | `npm install echarts vue-echarts`（用于统计图表） |
+
+---
+
 ## 一、 检测视图（InspectionPage.vue）
 
 ### 1.1 基础布局

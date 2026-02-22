@@ -1,18 +1,25 @@
 ﻿<template>
-  <div class="node-thumbnail" v-if="imageSrc" @click="openImageViewer">
-    <img :src="imageSrc" :alt="altText" class="thumbnail-image" />
+  <div class="node-thumbnail" v-if="displayImageSrc" @click="openImageViewer">
+    <img
+      :src="displayImageSrc"
+      :alt="altText"
+      class="thumbnail-image"
+      @error="handleImageError"
+    />
     <div class="thumbnail-overlay">
       <ZoomInIcon class="zoom-icon" />
     </div>
   </div>
   <div class="node-thumbnail placeholder" v-else>
     <ImageIcon class="placeholder-icon" />
-    <span class="placeholder-text">无预览</span>
+    <span class="placeholder-text">{{
+      imageLoadFailed ? "预览加载失败" : "无预览"
+    }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ZoomInIcon, ImageIcon } from 'lucide-vue-next';
 import { resolveImageSource } from '../../../services/imageSource';
 
@@ -29,7 +36,15 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const imageSrc = computed(() => resolveImageSource(props.outputImage));
+const imageLoadFailed = ref<boolean>(false);
+const displayImageSrc = computed(() =>
+  imageLoadFailed.value ? '' : imageSrc.value,
+);
 const altText = computed(() => `${props.nodeName} 输出图像`);
+
+watch(imageSrc, () => {
+  imageLoadFailed.value = false;
+});
 
 const escapeHtml = (value: string): string => {
   return value
@@ -41,7 +56,7 @@ const escapeHtml = (value: string): string => {
 };
 
 const openImageViewer = () => {
-  if (!imageSrc.value) return;
+  if (!displayImageSrc.value) return;
 
   const safeNodeName = escapeHtml(props.nodeName || '节点');
   const safeNodeId = escapeHtml(props.nodeId || '');
@@ -125,13 +140,17 @@ const openImageViewer = () => {
             <button class="close-btn" onclick="window.close()">关闭</button>
           </div>
           <div class="image-container">
-            <img src="${imageSrc.value}" alt="${safeAlt}" />
+            <img src="${displayImageSrc.value}" alt="${safeAlt}" />
           </div>
         </body>
       </html>
     `);
     win.document.close();
   }
+};
+
+const handleImageError = () => {
+  imageLoadFailed.value = true;
 };
 </script>
 

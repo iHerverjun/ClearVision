@@ -59,8 +59,8 @@ import type { Node, Edge } from "@vue-flow/core";
 const flowStore = useFlowStore();
 const executionStore = useExecutionStore();
 
-// We need project from useVueFlow to map screen coordinates to canvas coordinates
-const { project, getSelectedNodes, getSelectedEdges, addSelectedNodes } = useVueFlow(FLOW_INSTANCE_ID);
+// Use screenToFlowCoordinate to convert viewport client coordinates to flow coordinates.
+const { screenToFlowCoordinate, getSelectedNodes, getSelectedEdges, addSelectedNodes } = useVueFlow(FLOW_INSTANCE_ID);
 
 // Context Menu State
 const contextMenuState = reactive({
@@ -75,7 +75,6 @@ const contextMenuState = reactive({
 // Clipboard
 const clipboard = ref<{ nodes: Node[], edges: Edge[] } | null>(null);
 
-// We need project from useVueFlow to map screen coordinates to canvas coordinates
 const onDrop = (event: DragEvent) => {
   event.preventDefault();
 
@@ -83,7 +82,12 @@ const onDrop = (event: DragEvent) => {
 
   if (!operatorType) return;
 
-  const position = project({
+  const target = event.target as HTMLElement | null;
+  if (!target?.closest(".clearvision-flow")) {
+    return;
+  }
+
+  const position = screenToFlowCoordinate({
     x: event.clientX,
     y: event.clientY,
   });
@@ -197,7 +201,7 @@ const closeContextMenu = () => {
 // Context Menu Action Handlers
 const handleAddNodeFromContext = (position: { x: number; y: number }) => {
   // Convert screen position to canvas position
-  const canvasPos = project(position);
+  const canvasPos = screenToFlowCoordinate(position);
   console.log('[FlowEditorPage] Add node at', canvasPos);
   // TODO: Show node picker dialog
 };

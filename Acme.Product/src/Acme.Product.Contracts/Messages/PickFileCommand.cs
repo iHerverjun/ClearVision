@@ -23,4 +23,6 @@ public class PickFileCommand : CommandBase
     /// 文件过滤器（例如 "Image Files|*.bmp;*.jpg;*.png"）
     /// </summary>
     public string Filter { get; set; } = "All Files|*.*";
+
+    public bool IncludePreviewBase64 { get; set; }
 }

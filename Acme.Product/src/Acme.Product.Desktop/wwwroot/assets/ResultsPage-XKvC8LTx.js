@@ -1,1 +1,0 @@
-import{_ as o}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as t,c as a,e as s}from"./index-BYcs0vBf.js";const r={},c={class:"page-container"};function n(l,e){return t(),a("div",c,[...e[0]||(e[0]=[s("h1",null,"Results",-1),s("p",null,"Placeholder for Results",-1)])])}const f=o(r,[["render",n],["__scopeId","data-v-a84b6467"]]);export{f as default};

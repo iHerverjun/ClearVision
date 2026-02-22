@@ -1,5 +1,5 @@
 <template>
-  <div class="flow-editor-container">
+  <div class="flow-editor-container" :class="{ 'is-click-connecting': isClickConnecting }">
     <VueFlow
       :id="FLOW_INSTANCE_ID"
       :nodes="nodes"
@@ -7,7 +7,7 @@
       :apply-default="false"
       :is-valid-connection="isConnectionValid"
       :connection-mode="ConnectionMode.Strict"
-      :connection-radius="40"
+      :connection-radius="64"
       :connection-line-options="connectionLineOptions"
       :default-edge-options="defaultEdgeOptions"
       :connect-on-click="true"
@@ -31,6 +31,9 @@
         class="cv-minimap"
         node-color="#FF4D4D"
         mask-color="rgba(245, 245, 247, 0.7)"
+        :pannable="true"
+        :zoomable="true"
+        @click="onMiniMapClick"
       />
 
       <!-- Custom Node Typography & Renderers -->
@@ -84,7 +87,20 @@ import TypedEdge from "./edges/TypedEdge.vue";
 import { FLOW_INSTANCE_ID } from "./flow.constants";
 
 const flowStore = useFlowStore();
-const { applyNodeChanges, applyEdgeChanges } = useVueFlow(FLOW_INSTANCE_ID);
+const {
+  applyNodeChanges,
+  applyEdgeChanges,
+  endConnection,
+  connectionClickStartHandle,
+  setCenter,
+  getViewport,
+} = useVueFlow(FLOW_INSTANCE_ID);
+
+interface MiniMapClickEvent {
+  event: MouseEvent;
+  position: { x: number; y: number };
+}
+
 const nodes = computed({
   get: () => flowStore.nodes,
   set: (value) => flowStore.setNodes(value),
@@ -94,12 +110,17 @@ const edges = computed({
   set: (value) => flowStore.setEdges(value),
 });
 
+const isClickConnecting = computed(
+  () => connectionClickStartHandle.value !== null,
+);
+
 const connectionLineOptions = {
-  type: ConnectionLineType.SmoothStep,
+  type: ConnectionLineType.Bezier,
   style: {
     stroke: "rgba(77, 148, 255, 0.9)",
-    strokeWidth: 3,
+    strokeWidth: 3.2,
     strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
   },
 };
 
@@ -107,11 +128,11 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   type: "typed",
   markerEnd: {
     type: MarkerType.ArrowClosed,
-    width: 18,
-    height: 18,
+    width: 20,
+    height: 20,
     color: "#4D94FF",
   },
-  interactionWidth: 32,
+  interactionWidth: 44,
 };
 
 const PORT_TYPE_COLORS: Record<string, string> = {
@@ -244,11 +265,23 @@ const onConnect = (connection: Connection) => {
   flowStore.addEdge(newEdge);
 };
 
+const onMiniMapClick = ({ position }: MiniMapClickEvent) => {
+  const viewport = getViewport();
+  void setCenter(position.x, position.y, {
+    zoom: viewport.zoom,
+    duration: 180,
+  });
+};
+
 const onNodeClick = (event: { node: { id: string } }) => {
   flowStore.selectNode(event.node.id);
 };
 
-const onPaneClick = () => {
+const onPaneClick = (event?: MouseEvent) => {
+  if (connectionClickStartHandle.value) {
+    endConnection(event, true);
+  }
+
   flowStore.selectNode(null);
 };
 </script>
@@ -266,6 +299,10 @@ const onPaneClick = () => {
   --vf-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
+.flow-editor-container.is-click-connecting :deep(.clearvision-flow .vue-flow__pane) {
+  cursor: crosshair;
+}
+
 /* Guard against parent clipping/hiding of custom handles */
 :deep(.clearvision-flow .vue-flow__node) {
   overflow: visible;
@@ -279,6 +316,11 @@ const onPaneClick = () => {
 :deep(.clearvision-flow .vue-flow__connection-path) {
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 5px rgba(77, 148, 255, 0.32));
+}
+
+:deep(.clearvision-flow .vue-flow__connectionline) {
+  pointer-events: none;
 }
 
 /* Custom Controls overrides for light mode */
@@ -301,5 +343,6 @@ const onPaneClick = () => {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  pointer-events: auto;
 }
 </style>

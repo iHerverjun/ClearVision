@@ -36,10 +36,14 @@
           type="target"
           :position="LEFT_POSITION"
           :id="port.handleId"
-          class="custom-handle"
+          class="custom-handle custom-handle-input"
           :connectable="true"
+          :connectable-start="true"
           :connectable-end="true"
-          :style="{ backgroundColor: getPortColor(port.type) }"
+          :style="{
+            '--port-color': getPortColor(port.type),
+            '--port-glow': getPortGlowColor(port.type),
+          }"
         />
         <span class="port-label">{{ port.label }}</span>
       </div>
@@ -72,10 +76,14 @@
           type="source"
           :position="RIGHT_POSITION"
           :id="port.handleId"
-          class="custom-handle"
+          class="custom-handle custom-handle-output"
           :connectable="true"
           :connectable-start="true"
-          :style="{ backgroundColor: getPortColor(port.type) }"
+          :connectable-end="true"
+          :style="{
+            '--port-color': getPortColor(port.type),
+            '--port-glow': getPortGlowColor(port.type),
+          }"
         />
       </div>
     </div>
@@ -249,6 +257,21 @@ const getPortColor = (type: string) => {
   };
   return mapping[type] || "#9CA3AF"; // Default Gray
 };
+
+const toAlphaHex = (hex: string, alpha: number): string => {
+  const normalized = hex.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return `rgba(77, 148, 255, ${alpha})`;
+  }
+
+  const value = Number.parseInt(normalized, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type), 0.38);
 </script>
 
 <style scoped>
@@ -355,61 +378,108 @@ const getPortColor = (type: string) => {
   color: var(--text-muted, #64748b);
 }
 
-/* Base Handle Styling: Need to use :deep() because Handle is an external component and scoped css might not pierce it */
+/* Port handles: compact visual core + larger click target */
 :deep(.vue-flow__handle.custom-handle) {
-  width: 14px !important;
-  height: 14px !important;
-  min-width: 14px !important;
-  min-height: 14px !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
   display: block !important;
   opacity: 1 !important;
   visibility: visible !important;
   position: absolute !important;
   border-radius: 50% !important;
-  border: 2px solid rgba(255, 255, 255, 0.96) !important;
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 4px 10px rgba(0, 0, 0, 0.18) !important;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: all !important;
+  cursor: pointer;
   z-index: 999 !important;
-  background-color: var(--vf-handle, #ff4d4d); /* Fallback */
+  transition:
+    transform 0.14s ease,
+    filter 0.14s ease;
 }
 
 :deep(.vue-flow__handle.custom-handle::before) {
   content: "";
   position: absolute;
-  inset: -8px;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: transparent;
+  transform: translate(-50%, -50%);
+  background: var(--port-color, #4d94ff);
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.18),
+    0 2px 7px rgba(15, 23, 42, 0.24);
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+:deep(.vue-flow__handle.custom-handle::after) {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--port-color, #4d94ff);
+  background: var(--port-glow, rgba(77, 148, 255, 0.24));
+  opacity: 0.24;
+  transform: scale(0.86);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    background-color 0.14s ease;
 }
 
 :deep(.vue-flow__handle.custom-handle:hover),
-:deep(.vue-flow__handle.custom-handle.connectable:hover) {
-  transform: scale(1.18);
-  filter: saturate(1.1);
-  box-shadow:
-    0 0 0 4px rgba(77, 148, 255, 0.25),
-    0 6px 14px rgba(0, 0, 0, 0.2) !important;
+:deep(.vue-flow__handle.custom-handle.connectionindicator) {
+  transform: scale(1.08);
 }
 
-:deep(.vue-flow__handle.custom-handle.connecting) {
-  transform: scale(1.22);
+:deep(.vue-flow__handle.custom-handle:hover::before),
+:deep(.vue-flow__handle.custom-handle.connectionindicator::before),
+:deep(.vue-flow__handle.custom-handle.connecting::before) {
+  transform: translate(-50%, -50%) scale(1.14);
   box-shadow:
-    0 0 0 4px rgba(77, 148, 255, 0.28),
-    0 8px 18px rgba(0, 0, 0, 0.22) !important;
+    0 0 0 1px rgba(15, 23, 42, 0.22),
+    0 0 0 5px var(--port-glow, rgba(77, 148, 255, 0.24)),
+    0 3px 9px rgba(15, 23, 42, 0.24);
+}
+
+:deep(.vue-flow__handle.custom-handle:hover::after),
+:deep(.vue-flow__handle.custom-handle.connectionindicator::after),
+:deep(.vue-flow__handle.custom-handle.connecting::after) {
+  opacity: 0.7;
+  transform: scale(1);
+}
+
+:deep(.vue-flow__handle.custom-handle.valid::before),
+:deep(.vue-flow__handle.custom-handle.vue-flow__handle-valid::before) {
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.4),
+    0 0 0 5px rgba(16, 185, 129, 0.22),
+    0 3px 9px rgba(15, 23, 42, 0.24);
+}
+
+:deep(.vue-flow__handle.custom-handle.valid::after),
+:deep(.vue-flow__handle.custom-handle.vue-flow__handle-valid::after) {
+  border-color: rgba(16, 185, 129, 0.75);
+  background: rgba(16, 185, 129, 0.16);
+  opacity: 0.78;
 }
 
 /* Position overrides since parent padding messes with absolute handles */
 :deep(.inputs .vue-flow__handle.custom-handle) {
-  left: -10px !important;
+  left: -14px !important;
   right: auto !important;
 }
 
 :deep(.outputs .vue-flow__handle.custom-handle) {
-  right: -10px !important;
+  right: -14px !important;
   left: auto !important;
 }
 

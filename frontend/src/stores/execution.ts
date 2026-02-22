@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { webMessageBridge } from '../services/bridge';
 import { BridgeMessageType } from '../services/bridge.types';
+import { resolveImageSource } from '../services/imageSource';
 import { useFlowStore } from './flow';
 
 export type ExecutionStatus = 'idle' | 'running' | 'success' | 'error';
@@ -141,6 +142,86 @@ const getMessagePayload = <T>(message: any): T => {
   return (message?.data ?? message) as T;
 };
 
+const normalizeOutputImage = (raw: unknown): string | undefined => {
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+
+  const resolved = resolveImageSource(raw);
+  return resolved || undefined;
+};
+
+const extractImageCandidate = (raw: unknown): string | undefined => {
+  if (typeof raw === 'string') {
+    const resolved = resolveImageSource(raw);
+    return resolved ? raw : undefined;
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const payload = raw as Record<string, unknown>;
+  const candidateKeys = [
+    'imageBase64',
+    'outputImageBase64',
+    'previewImageBase64',
+    'base64',
+    'DataBase64',
+    'data',
+    'value',
+  ];
+
+  for (const key of candidateKeys) {
+    const candidate = payload[key];
+    if (typeof candidate !== 'string') {
+      continue;
+    }
+
+    const resolved = resolveImageSource(candidate);
+    if (resolved) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+};
+
+const extractImageFromOutputData = (
+  outputData?: Record<string, unknown>,
+): string | undefined => {
+  if (!outputData) {
+    return undefined;
+  }
+
+  const preferredKeys = [
+    'Image',
+    'image',
+    'OutputImage',
+    'outputImage',
+    'OutputImageBase64',
+    'outputImageBase64',
+    'PreviewImageBase64',
+    'previewImageBase64',
+  ];
+
+  for (const key of preferredKeys) {
+    const candidate = extractImageCandidate(outputData[key]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  for (const value of Object.values(outputData)) {
+    const candidate = extractImageCandidate(value);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+};
+
 export const useExecutionStore = defineStore('execution', () => {
   const flowStore = useFlowStore();
 
@@ -247,10 +328,18 @@ export const useExecutionStore = defineStore('execution', () => {
     outputImage?: string,
     outputData?: Record<string, unknown>,
   ): void {
-    updateNodeState(nodeId, 'success', { outputImage, outputData });
+    updateNodeState(nodeId, 'success', {
+      outputImage: normalizeOutputImage(outputImage),
+      outputData,
+    });
   }
 
   function setNodePreviewImage(nodeId: string, outputImage?: string): void {
+    const normalizedOutputImage = normalizeOutputImage(outputImage);
+    if (!normalizedOutputImage) {
+      return;
+    }
+
     const existingState = nodeStates.value.get(nodeId);
 
     nodeStates.value.set(nodeId, {
@@ -259,7 +348,7 @@ export const useExecutionStore = defineStore('execution', () => {
       startTime: existingState?.startTime,
       endTime: existingState?.endTime,
       errorMessage: existingState?.errorMessage,
-      outputImage,
+      outputImage: normalizedOutputImage,
       outputData: existingState?.outputData,
     });
   }
@@ -325,9 +414,10 @@ export const useExecutionStore = defineStore('execution', () => {
   function handleOperatorExecuted(event: OperatorExecutedEvent): void {
     const { operatorId, isSuccess, outputData, outputImageBase64, errorMessage } = event;
     const nodeId = `${operatorId}`;
+    const resolvedOutputImage = outputImageBase64 || extractImageFromOutputData(outputData);
 
     if (isSuccess) {
-      setNodeSuccess(nodeId, outputImageBase64, outputData);
+      setNodeSuccess(nodeId, resolvedOutputImage, outputData);
     } else {
       setNodeError(nodeId, errorMessage || '执行失败');
     }

@@ -366,11 +366,18 @@ public class WebMessageHandler
             // 解决方案：在独立 STA 线程运行对话框，UI 线程完全不被阻塞。
             var (filePath, isCancelled) = await ShowFileDialogOnNewThreadAsync(command);
 
+            string? previewImageBase64 = null;
+            if (!isCancelled && command.IncludePreviewBase64 && !string.IsNullOrWhiteSpace(filePath))
+            {
+                previewImageBase64 = TryReadImagePreviewBase64(filePath);
+            }
+
             var eventData = new FilePickedEvent
             {
                 ParameterName = command.ParameterName,
                 FilePath = filePath,
-                IsCancelled = isCancelled
+                IsCancelled = isCancelled,
+                PreviewImageBase64 = previewImageBase64
             };
 
             SendEvent(eventData);
@@ -419,6 +426,33 @@ public class WebMessageHandler
         thread.Start();
 
         return tcs.Task;
+    }
+
+    private string? TryReadImagePreviewBase64(string filePath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                return null;
+            }
+
+            // Keep an upper bound to avoid huge payload over WebView message channel.
+            const long maxPreviewBytes = 64 * 1024 * 1024;
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length <= 0 || fileInfo.Length > maxPreviewBytes)
+            {
+                return null;
+            }
+
+            var bytes = File.ReadAllBytes(filePath);
+            return Convert.ToBase64String(bytes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[WebMessageHandler] 读取预览图失败: {FilePath}", filePath);
+            return null;
+        }
     }
 
     /// <summary>
