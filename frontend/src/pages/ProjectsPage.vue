@@ -1,13 +1,17 @@
 <template>
-  <div class="page-container">
-    <h1>Projects</h1>
-    <p>Placeholder for Projects management</p>
+  <div class="projects-page flex flex-1 h-full w-full overflow-hidden relative">
+    <ProjectSidebar />
+    <ProjectDashboard />
   </div>
 </template>
 
+<script setup lang="ts">
+import ProjectSidebar from '../components/projects/ProjectSidebar.vue';
+import ProjectDashboard from '../components/projects/ProjectDashboard.vue';
+</script>
+
 <style scoped>
-.page-container {
-  padding: 2rem;
-  color: white;
+.projects-page {
+  /* Fills the .content-area from MainLayout */
 }
 </style>

@@ -234,6 +234,10 @@ export const useExecutionStore = defineStore('execution', () => {
   const progressMessage = ref<string>('');
   const lastError = ref<string | null>(null);
   const bridgeListenersInitialized = ref<boolean>(false);
+  
+  // Real-time inspection state
+  const lastInspectionResult = ref<'Pass' | 'Fail' | 'Error' | null>(null);
+  const latestCameraImage = ref<string | null>(null);
 
   const getNodeStatus = computed(() => {
     return (nodeId: string): ExecutionStatus => {
@@ -435,6 +439,7 @@ export const useExecutionStore = defineStore('execution', () => {
     stopExecution();
     updateProgress(100, '执行完成');
     executionTime.value = event.processingTimeMs;
+    lastInspectionResult.value = event.status;
   }
 
   function handleImageStreamEvent(message: any): void {
@@ -451,6 +456,9 @@ export const useExecutionStore = defineStore('execution', () => {
     }
 
     setNodePreviewImage(nodeId, outputImage);
+    if (nodeId === resolveCameraPreviewNodeId()) {
+      latestCameraImage.value = outputImage;
+    }
   }
 
   function handleSharedImageStream(message: any): void {
@@ -470,6 +478,7 @@ export const useExecutionStore = defineStore('execution', () => {
 
     if (imageDataUrl) {
       setNodePreviewImage(nodeId, imageDataUrl);
+      latestCameraImage.value = imageDataUrl;
     }
   }
 
@@ -517,6 +526,9 @@ export const useExecutionStore = defineStore('execution', () => {
     progress,
     progressMessage,
     lastError,
+    
+    lastInspectionResult,
+    latestCameraImage,
 
     getNodeStatus,
     getNodeOutputImage,

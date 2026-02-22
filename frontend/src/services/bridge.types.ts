@@ -26,6 +26,16 @@ export const BridgeMessageType = {
   ImageStreamShared: 'image.stream.shared',
   AuthLogin: 'auth.login',
   AuthLogout: 'auth.logout',
+  
+  // AI
+  AiGenerateFlow: 'GenerateFlowCommand',
+  AiGenerateFlowResult: 'GenerateFlowResult',
+  
+  // Calibration
+  CalibSolve: 'CalibSolveCommand',
+  CalibSave: 'CalibSaveCommand',
+  HandEyeSolve: 'HandEyeSolveCommand',
+  HandEyeSave: 'HandEyeSaveCommand',
 } as const;
 
 export type BridgeMessageAction = typeof BridgeMessageType[keyof typeof BridgeMessageType];

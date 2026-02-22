@@ -1,180 +1,156 @@
-# Phase 6：AI 面板 + 设置面板 + 标定向导 + i18n + 测试
+# Phase 6：功能集成 · 设置面板 · i18n（更新版）
 
 > **作者**: 蘅芜君
 > **所属计划**: 前端重构 6 阶段渐进式迁移
-> **预计工时**: 6 天（Phase 5 原 3 天 + Phase 6 原 3 天合并）
-> **产出目标**: 全部功能模块迁移完成，多语言可用，E2E 测试覆盖
-> **前置依赖**: Phase 5（检测/结果/工程）
+> **更新日期**: 2026-02-22
+> **当前状态**: 根据实际架构重新审视，去除已不存在的旧 JS 迁移任务。
 
 ---
 
 > [!IMPORTANT]
-> **AI 协作规则**：每完成一个 `[ ]` 项后，AI 助手必须立即将其标记为 `[x]`，并在文档底部的「执行日志」中追加一条记录。
+> **架构现状摘要** (Phase 6 计划更新的核心依据)：
+> 1. **双通道通讯已建立**：
+>    - `WebMessageBridge` (WebView2 `postMessage`) → 实时事件：流程执行、图像推流、文件对话框、AI 生成、手眼标定。
+>    - `apiClient` (Axios REST) → CRUD 操作：登录、工程管理、设置读写。
+>    - `MockBridge` → 浏览器开发模式下的后端模拟。
+> 2. **已有 Pinia Store**：`auth.ts`、`flow.ts`、`execution.ts`、`ui.ts`。
+> 3. **旧版 JS 文件已全部移除**：无 `aiPanel.js`、`settingsModal.js` 等需要迁移。
+> 4. **C# 后端 `WebMessageHandler.cs` (665 行)**：已实现 `HandleGenerateFlowCommand`、`HandleHandEyeSolveCommand`、`HandleStartInspectionCommand` 等。
+> 5. **`vue-i18n` 已安装**：在 `main.ts` 中有基础配置，但语言文件为空壳。
+> 6. **路由已就绪**：`/ai-assistant`、`/settings` (重定向到 `?modal=settings`) 已注册。
 
 ---
 
-## 一、 AI 面板（AiPage.vue）
+## 一、 AI 面板功能集成
 
-### 1.1 基础布局
-- [ ] 创建 `pages/AiPage.vue` / `components/ai/AiPanel.vue`：
-  - [ ] 对话式 Chat UI（类似 ChatGPT 对话界面）
-  - [ ] 左侧：对话历史列表
-  - [ ] 右侧：当前对话 + 输入区
-- [ ] 从现有 `aiPanel.js`（550 行）迁移核心逻辑
+> **目标**：将 `AiChatSidebar.vue` 从静态展示升级为可与 C# 后端 `HandleGenerateFlowCommand` 真实交互的 AI 对话面板。
 
-### 1.2 AI 工作流生成对话框
-- [ ] 创建 `components/ai/AiGenerationDialog.vue`：
-  - [ ] 输入框：用户描述检测需求（自然语言）
-  - [ ] AI 响应区：流式显示 AI 生成的工作流描述
-  - [ ] 预览区：显示 AI 生成的工作流节点图（基于 Vue Flow 渲染）
-  - [ ] 「应用到画布」按钮 → 将 AI 生成的流程加载到编辑器
-- [ ] 从现有 `aiGenerationDialog.js` 迁移
-- [ ] 集成 DeepSeek API 调用逻辑
+### 1.1 创建 `stores/ai.ts` (Pinia Store)
+- [x] 定义 `state`：`messages: Message[]`、`isGenerating: boolean`、`currentModel: string`。
+- [x] 实现 `action: sendPrompt(text: string)`：
+  - 通过 `webMessageBridge.sendMessage('GenerateFlowCommand', { prompt }, true)` 向 C# 后端发送请求。
+  - 处理返回的 `flowJson`（解析并传递给 `useFlowStore().loadLegacyProject()`）。
+- [x] 实现 `action: applyGeneratedFlow(flowJson)`：将 AI 生成结果加载到画布。
 
-### 1.3 AI Store
-- [ ] 创建 `stores/ai.ts`（Pinia store）：
-  - [ ] `state`: `conversations`, `currentConversationId`, `isGenerating`, `model`
-  - [ ] `actions`: `sendMessage()`, `generateWorkflow()`, `applyWorkflow()`
-  - [ ] 流式响应处理（SSE / WebSocket）
+### 1.2 改造 `AiChatSidebar.vue`
+- [x] 将静态消息列表替换为 `v-for="msg in aiStore.messages"` 动态渲染。
+- [x] 输入框绑定 `v-model` + `@keyup.enter` → 调用 `aiStore.sendPrompt()`。
+- [x] 快捷指令按钮 → 调用预设 prompt。
+- [x] 加载状态：`isGenerating` 为 `true` 时显示骨架屏/加载动画。
 
-## 二、 设置面板（SettingsModal）
+### 1.3 改造 `AiInsightsPanel.vue`（与 AI Store 联动）
+- [x] 从 `aiStore` 读取最近一次生成的 `flowJson`，动态渲染 Tools Used 和 JSON Preview。
 
-### 2.1 设置弹窗
-- [ ] 创建 `components/settings/SettingsModal.vue`：
-  - [ ] 模态弹窗覆盖层（Glassmorphism 毛玻璃背景）
-  - [ ] 左侧标签导航，右侧内容区
-- [ ] 从现有 `settingsModal.js`（1340 行）迁移
+### 1.4 扩展 `bridge.types.ts`
+- [x] 添加 AI 相关消息类型常量：`AiGenerateFlow: 'GenerateFlowCommand'`、`AiGenerateFlowResult: 'GenerateFlowResult'`。
 
-### 2.2 设置标签页
-- [ ] 创建各标签页组件：
-  - [ ] `components/settings/GeneralTab.vue` — 常规设置：
-    - [ ] 主题切换（亮/暗）
-    - [ ] 语言设置（中/英）
-    - [ ] 自动保存间隔
-  - [ ] `components/settings/CameraTab.vue` — 相机管理：
-    - [ ] 相机列表（添加/编辑/删除/测试连接）
-    - [ ] 相机参数配置
-    - [ ] 实时预览
-  - [ ] `components/settings/CommunicationTab.vue` — 通信设置：
-    - [ ] PLC 连接配置（西门子S7/三菱MC/欧姆龙FINS）
-    - [ ] TCP/Serial 端口配置
-    - [ ] MQTT Broker 配置
-    - [ ] HTTP 端点配置
-    - [ ] 连接测试按钮
-  - [ ] `components/settings/DatabaseTab.vue` — 数据库设置：
-    - [ ] 数据库连接字符串配置
-    - [ ] 连接测试
-  - [ ] `components/settings/AiTab.vue` — AI 设置：
-    - [ ] API Key 配置
-    - [ ] 模型选择（DeepSeek / OpenAI）
-    - [ ] 超时设置
-  - [ ] `components/settings/AboutTab.vue` — 关于：
-    - [ ] 版本信息
-    - [ ] 开源协议
-    - [ ] 作者信息
+### 1.5 扩展 `bridge.mock.ts`
+- [x] 为 `GenerateFlowCommand` 添加 mock 响应，返回预设的 `flowJson` 示例。
 
-### 2.3 Settings Store
-- [ ] 创建 `stores/settings.ts`（Pinia store）：
-  - [ ] 从后端加载设置 → 缓存在本地
-  - [ ] 设置变更 → 实时保存到后端
-  - [ ] 支持设置导入/导出
+---
+
+## 二、 设置面板
+
+> **目标**：创建全局设置弹窗，通过 Bridge 读写 C# 后端的 `appsettings.json`。
+
+### 2.1 创建 `stores/settings.ts`
+- [x] 定义 `state`：`settings: AppSettings`（主题、语言、相机列表、通讯配置、AI API Key 等）。
+- [x] `loadSettings()`：通过 `webMessageBridge.sendMessage(BridgeMessageType.SettingsGet, {}, true)` 从后端加载。
+- [x] `saveSettings()`：通过 `webMessageBridge.sendMessage(BridgeMessageType.SettingsSave, settings, true)` 保存到后端。
+
+### 2.2 创建 `components/settings/SettingsModal.vue`
+- [x] Glassmorphism 毛玻璃模态弹窗。
+- [x] 左侧标签导航 (Lucide 图标)，右侧内容区。
+- [x] 通过路由 query `?modal=settings` 或全局事件触发显示。
+
+### 2.3 创建设置标签页组件
+- [x] `GeneralTab.vue`：主题切换 (接入 `useUiStore`)、语言选择 (接入 `vue-i18n`)、自动保存间隔。
+- [x] `CameraTab.vue`：相机列表（增删改）、参数配置。
+- [x] `CommunicationTab.vue`：PLC / TCP / Serial / MQTT / HTTP 连接配置。
+- [x] `DatabaseTab.vue`：连接字符串、连接测试。
+- [x] `AiTab.vue`：API Key、模型选择、超时设置。
+- [x] `AboutTab.vue`：版本信息、开源协议、作者信息。
+
+### 2.4 扩展 `WebMessageHandler.cs`（C# 后端）
+- [x] 确认/实现 `SettingsGet` 和 `SettingsSave` 消息处理逻辑。
+- [x] 扩展 `bridge.mock.ts` 中对应的 mock 响应。
+
+---
 
 ## 三、 标定向导
 
-### 3.1 相机标定向导
-- [ ] 创建 `components/calibration/CalibrationWizard.vue`：
-  - [ ] 多步骤向导（Step 1: 选择标定板 → Step 2: 采集图像 → Step 3: 计算标定）
-  - [ ] 实时图像预览 + 角点检测叠加
-  - [ ] 标定结果展示（内参矩阵、畸变系数、重投影误差）
-- [ ] 从现有 `calibrationWizard.js`（540 行）迁移
+> **目标**：创建多步骤标定向导组件，对接已有的 C# `HandleHandEyeSolveCommand` / `HandleHandEyeSaveCommand`。
 
-### 3.2 手眼标定向导
-- [ ] 创建 `components/calibration/HandEyeCalibWizard.vue`：
-  - [ ] 多步骤向导（Step 1: 配置机器人 → Step 2: 多点采集 → Step 3: 求解变换矩阵）
-  - [ ] 3D 坐标可视化
-  - [ ] 标定精度验证
-- [ ] 从现有 `handEyeCalibWizard.js`（590 行）迁移
+### 3.1 相机标定 `CalibrationWizard.vue`
+- [ ] 多步骤向导：选择标定板 → 采集图像 → 计算标定。
+- [ ] 通过 Bridge 调用后端标定服务。
+- [ ] 结果展示：内参矩阵、畸变系数、重投影误差。
 
-## 四、 共享组件最终迁移
+### 3.2 手眼标定 `HandEyeCalibWizard.vue`
+- [ ] 多步骤向导：配置机器人 → 多点采集 → 求解变换矩阵。
+- [ ] 对接 `HandleHandEyeSolveCommand` 和 `HandleHandEyeSaveCommand`。
+- [ ] 精度验证展示。
 
-- [ ] 完成所有剩余共享组件的 Vue 化改写：
-  - [ ] `components/shared/ModalDialog.vue` — 通用模态弹窗（替代 `dialog.js`）
-  - [ ] `components/shared/SplitPanel.vue` — 可拖拽分割面板（替代 `splitPanel.js`）
-  - [ ] `components/shared/TreeView.vue` — 树形视图（替代 `treeView.js`）
-  - [ ] `components/shared/Toast.vue` — 轻量提示通知
-- [ ] 从现有 `shared/components/uiComponents.js`（12.7 KB）提取：
-  - [ ] 确认对话框
-  - [ ] 进度条
-  - [ ] 加载 Spinner
+### 3.3 扩展 `bridge.types.ts`
+- [ ] 添加标定相关消息类型常量：`CalibSolve`、`CalibSave`、`HandEyeSolve`、`HandEyeSave`。
 
-## 五、 Flow Lint 面板
+---
 
-- [ ] 创建 `components/flow/LintPanel.vue`：
-  - [ ] 显示流程图中的警告和错误列表
-  - [ ] 点击项 → 定位到对应节点
-  - [ ] 从现有 `lintPanel.js`（178 行）迁移
+## 四、 国际化 (i18n) 完整实现
 
-## 六、 国际化（i18n）
+> **现状**：`vue-i18n` 已安装并在 `main.ts` 中配置，但语言文件为空。
 
-- [ ] 创建语言文件：
-  - [ ] `locales/zh-CN.json` — 中文（默认）
-  - [ ] `locales/en-US.json` — 英文
-- [ ] 提取所有硬编码中文字符串为 i18n 键值：
-  - [ ] 所有页面标题
-  - [ ] 所有按钮文本
-  - [ ] 所有提示信息
-  - [ ] 所有表单标签
-  - [ ] 算子名称和描述（从后端元数据获取，可选前端覆盖）
-- [ ] 在 `main.ts` 中配置 Vue I18n 插件
-- [ ] 在设置面板中实现语言切换功能
-- [ ] 验证切换语言后所有界面文本正确更新
+### 4.1 创建完整语言文件
+- [ ] `locales/zh-CN.json`：提取全部中文硬编码字符串。
+- [ ] `locales/en-US.json`：对应英文翻译。
 
-## 七、 RBAC 权限控制
+### 4.2 替换模板中的硬编码文本
+- [ ] 全部页面标题、按钮文本、提示信息、表单标签 → `$t('key')` 或 `t('key')`。
+- [ ] 侧边栏导航项 → i18n 键。
 
-- [ ] 创建 `directives/permission.ts` — `v-permission` 自定义指令：
-  - [ ] `v-permission="'admin'"` → 仅管理员可见
-  - [ ] `v-permission="'editor'"` → 编辑者可见
-  - [ ] 无权限时隐藏元素或显示「无权限」提示
-- [ ] 在需要权限控制的位置应用指令：
-  - [ ] 设置面板 → 仅管理员可访问
-  - [ ] 工程删除 → 仅管理员/拥有者
-  - [ ] AI 面板 → 可选权限控制
+### 4.3 语言切换功能
+- [ ] 在 `GeneralTab.vue` 设置面板中实现语言切换 (切换 `i18n.locale`)。
+- [ ] 持久化语言选择到 `localStorage`。
 
-## 八、 E2E 测试
+---
 
-- [ ] 安装 Playwright：`npm install -D @playwright/test`
-- [ ] 创建测试文件：
-  - [ ] `tests/e2e/auth.spec.ts` — 登录/登出/权限测试
-  - [ ] `tests/e2e/flow-editor.spec.ts` — 流程编辑器基本操作测试
-  - [ ] `tests/e2e/inspection.spec.ts` — 检测视图数据展示测试
-  - [ ] `tests/e2e/settings.spec.ts` — 设置面板功能测试
-  - [ ] `tests/e2e/projects.spec.ts` — 工程管理 CRUD 测试
-- [ ] 配置 CI 集成（可选）
+## 五、 检测页面真实数据接入
 
-## 九、 全局遗留清理
+> **目标**：将 Inspection 页面从静态 mock 数据升级为接收 `execution.ts` store 的真实执行数据。
 
-- [ ] 移除所有 `window.*` 全局挂载引用
-- [ ] 移除旧前端 `wwwroot/js/` 和 `wwwroot/css/` 目录
-- [ ] 更新 `WebView2Host.cs` 的 `LoadInitialPage()` 指向 Vite 构建产物
-- [ ] 更新 `WebMessageHandler.cs`（如有必要）
-- [ ] 最终全量回归测试
+### 5.1 `InspectionControls.vue` 绑定 `executionStore`
+- [ ] "Single Run" / "Continuous Run" / "Stop" 按钮 → 调用 `executionStore.startExecution()` / `stopExecution()`。
+- [ ] 统计数据 (OK/NG/Total/Yield) → 从 `executionStore` 的节点执行状态计算。
 
-## 十、 C# 宿主适配
+### 5.2 `ImageViewer.vue` 接收实时图像流
+- [ ] 从 `executionStore` 的 `handleImageStreamEvent` / `handleSharedImageStream` 获取实时画面。
+- [ ] `isNg` 状态 → 根据最近一次 `InspectionCompletedEvent.status` 动态切换。
 
-- [ ] 修改 `WebView2Host.cs`：
-  - [ ] `LoadInitialPage()` 路径指向 Vite 构建产物 `wwwroot/index.html`
-  - [ ] 确保 `file://` 协议下 Vite 产物可正常加载
-- [ ] 验证 Release 构建流程（`npm run build` → .NET 发布 → 一体化包）
+### 5.3 `NodeOutputPanel.vue` 动态展示节点结果
+- [ ] 从 `executionStore.nodeStates` 获取每个节点的 `outputData` → 动态渲染测量卡片、OCR 卡片等。
 
-## 十一、 集成验证
+---
 
-- [ ] AI 面板：可发送消息 → AI 响应流式展示 → 生成工作流 → 应用到画布
-- [ ] 设置面板：所有标签页功能正常 → 设置保存/加载正确
-- [ ] 标定向导：完整的多步骤向导流程可走通
-- [ ] i18n：中英文切换 → 所有界面文本正确更新
-- [ ] RBAC：权限指令正确隐藏/显示受控元素
-- [ ] E2E 测试：所有测试用例通过
-- [ ] Release 构建：完整的打包 → 安装 → 运行流程
+## 六、 共享组件 & 遗留清理
+
+### 6.1 通用弹窗组件
+- [ ] `components/shared/ModalDialog.vue`：通用模态弹窗基础组件（设置面板和标定向导复用）。
+- [ ] `components/shared/Toast.vue`：轻量级提示通知。
+
+### 6.2 全局遗留清理
+- [ ] 确认 `window.*` 无全局挂载残留。
+- [ ] 验证 `WebView2Host.LoadInitialPage()` 正确指向 Vite 构建产物。
+- [ ] 验证 Release 构建流程 (`npm run build` → .NET 发布 → 一体化包)。
+
+---
+
+## 七、 E2E 测试 (可选 / 低优先级)
+
+- [ ] 安装 Playwright：`npm install -D @playwright/test`。
+- [ ] 基础测试用例：
+  - [ ] 登录 → 路由守卫验证。
+  - [ ] 流程编辑器 → 添加/删除节点。
+  - [ ] 设置面板 → 主题切换。
 
 ---
 
@@ -182,3 +158,7 @@
 
 > AI 助手在每次完成任务后，在此处追加记录：
 
+- **2026-02-22**: 根据实际架构重新审视 Phase 6 计划。核心变化：(1) 去除已不存在的旧 JS 迁移任务 (2) 明确双通道通讯策略 (3) 新增"检测页面真实数据接入"板块 (4) 调整优先级顺序。
+- **2026-02-22**: 完成 Phase 6 第 1 节 (AI 面板功能集成)。创建了 `stores/ai.ts`，打通了前端 UI 到 C# `HandleGenerateFlowCommand` 的交互闭环。
+- **2026-02-22**: 完成 Phase 6 第 2 节 (设置面板)。创建了 `stores/settings.ts` 和全局挂载的 `SettingsModal.vue`（含 6 个独立 Tab），并打通了 mock backend 数据。
+- **2026-02-22**: 完成 Phase 6 第 3 节 (标定向导)。创建了 `CalibrationWizard.vue` 和 `HandEyeCalibWizard.vue`，实现了多步骤的标定工作流模板，并接入 `InspectionControls.vue` 工具栏。

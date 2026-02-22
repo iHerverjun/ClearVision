@@ -15,6 +15,7 @@
         @selection-context-menu="onSelectionContextMenu"
       />
       <PropertyPanel />
+      <LintPanel />
     </div>
 
     <!-- Context Menu -->
@@ -50,6 +51,7 @@ import ContextMenu from "../components/flow/ContextMenu.vue";
 import { FLOW_INSTANCE_ID } from "../components/flow/flow.constants";
 import OperatorLibrary from "../components/flow/OperatorLibrary.vue";
 import PropertyPanel from "../components/flow/PropertyPanel.vue";
+import LintPanel from "../components/flow/LintPanel.vue";
 import { useFlowStore } from "../stores/flow";
 import { useExecutionStore } from "../stores/execution";
 import { getSchemaByType } from "../config/operatorSchema";

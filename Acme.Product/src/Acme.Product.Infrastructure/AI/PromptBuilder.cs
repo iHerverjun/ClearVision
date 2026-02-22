@@ -27,6 +27,8 @@ public class PromptBuilder
         sb.AppendLine();
         sb.AppendLine(GetConnectionRules());
         sb.AppendLine();
+        sb.AppendLine(GetParameterSettingRules());
+        sb.AppendLine();
         sb.AppendLine(GetOutputFormatSpec());
         sb.AppendLine();
         sb.AppendLine(GetFewShotExamples());
@@ -85,7 +87,11 @@ public class PromptBuilder
                     display_name = p.DisplayName,
                     type = p.DataType,
                     default_value = p.DefaultValue?.ToString(),
-                    required = p.IsRequired
+                    required = p.IsRequired,
+                    options = p.Options?.Select(o => o.Value).ToArray(),
+                    min_value = p.MinValue,
+                    max_value = p.MaxValue,
+                    description = p.Description
                 })
             }),
             new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
@@ -111,6 +117,27 @@ public class PromptBuilder
         - 一个输出端口可以连接到多个输入端口（扇出）
         - 不允许环路（流程必须是有向无环图）
         - 不同类型的端口不可连接（除非其中一方是 Any）
+        """;
+
+    private string GetParameterSettingRules() => """
+        # 参数设置规则（必读，严格遵守）
+
+        ## 核心原则
+        你必须根据用户描述**主动推断和设置**相关参数，**禁止将所有参数留空或全部使用默认值**。
+
+        ## 具体规则
+        1. 参数名（param_name）必须与算子目录中的定义**完全一致**（大小写敏感）
+        2. 对于 type="enum" 的参数，值必须从 options 列表中选择，不能自创值
+        3. 对于有 min_value/max_value 范围的数值参数，值必须在范围内
+        4. 如果用户描述了与某参数相关的信息，**必须设置该参数**：
+           - "5×5滤波" → KernelSize = "5"
+           - "检测微小缺陷" → MinArea 设为较小值如 "20"
+           - "用Otsu自动阈值" → UseOtsu = "true"
+           - "高精度" → 适当提高灵敏度参数
+           - "发送到PLC" → Protocol 和 FunctionCode 必须设置
+        5. 对于文件路径、IP地址等**无法从描述推断**的参数，放入 parametersNeedingReview
+        6. 用户未提及但有合理默认值的参数，可保持默认值不设置
+        7. 所有参数值都必须是**字符串类型**（如 "5" 而不是 5，"true" 而不是 true）
         """;
 
     private string GetOutputFormatSpec() => """
@@ -246,7 +273,7 @@ public class PromptBuilder
           "explanation": "相机采集图像，高斯滤波降噪，Canny边缘检测，检测两个圆形孔，测量距离，坐标转换为物理尺寸，输出结果",
           "operators": [
             {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
-            {"tempId": "op_2", "operatorType": "GaussianBlur", "displayName": "高斯滤波", "parameters": {"KernelSize": "5", "Sigma": "1.0"}},
+            {"tempId": "op_2", "operatorType": "Filtering", "displayName": "高斯滤波", "parameters": {"KernelSize": "5", "SigmaX": "1.0"}},
             {"tempId": "op_3", "operatorType": "EdgeDetection", "displayName": "边缘检测", "parameters": {"Threshold1": "50", "Threshold2": "150"}},
             {"tempId": "op_4", "operatorType": "CircleMeasurement", "displayName": "圆孔检测", "parameters": {"MinRadius": "10", "MaxRadius": "100"}},
             {"tempId": "op_5", "operatorType": "Measurement", "displayName": "距离测量", "parameters": {"MeasureType": "PointToPoint"}},
@@ -274,11 +301,11 @@ public class PromptBuilder
         {
           "explanation": "循环计数器控制10次拍照，每次采集后二值化分析，结果写入数据库，计数递增",
           "operators": [
-            {"tempId": "op_1", "operatorType": "CycleCounter", "displayName": "循环计数", "parameters": {"CycleLimit": "10", "AutoReset": "true"}},
+            {"tempId": "op_1", "operatorType": "CycleCounter", "displayName": "循环计数", "parameters": {"MaxCycles": "10", "Action": "Read"}},
             {"tempId": "op_2", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
             {"tempId": "op_3", "operatorType": "Thresholding", "displayName": "二值化", "parameters": {"UseOtsu": "true"}},
             {"tempId": "op_4", "operatorType": "BlobAnalysis", "displayName": "缺陷分析", "parameters": {"MinArea": "100"}},
-            {"tempId": "op_5", "operatorType": "ResultJudgment", "displayName": "OK/NG判定", "parameters": {"FieldName": "BlobCount", "Condition": "LessThanOrEqual", "ThresholdValue": "0"}},
+            {"tempId": "op_5", "operatorType": "ResultJudgment", "displayName": "OK/NG判定", "parameters": {"FieldName": "BlobCount", "Condition": "LessThanOrEqual", "ExpectValue": "0"}},
             {"tempId": "op_6", "operatorType": "DatabaseWrite", "displayName": "记录到数据库", "parameters": {"DbType": "SQLite", "TableName": "InspectionResults"}},
             {"tempId": "op_7", "operatorType": "ResultOutput", "displayName": "输出结果", "parameters": {}}
           ],

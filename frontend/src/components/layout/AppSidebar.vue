@@ -26,11 +26,11 @@
       <div class="spacer"></div>
 
       <div class="sidebar-footer">
-        <button class="nav-item settings-btn" @click="openSettings">
+        <button v-permission="['admin']" class="nav-item settings-btn" @click="openSettings">
           <div class="nav-icon-wrapper">
             <SettingsIcon class="nav-icon" />
           </div>
-          <span class="nav-label">Settings</span>
+          <span class="nav-label">{{ $t('nav.settings') }}</span>
         </button>
       </div>
     </div>
@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import {
   NetworkIcon,
   CameraIcon,
@@ -50,14 +51,16 @@ import {
 } from "lucide-vue-next";
 import { useUiStore } from "../../stores/ui";
 
-// In Vue 3, icons must be registered components for `<component :is>` or directly assigned
-const navItems = [
+const { t } = useI18n();
+
+// Make navItems reactive so they update when the language changes
+const navItems = computed(() => [
   { path: "/flow-editor", label: "Flow Editor", icon: NetworkIcon },
-  { path: "/inspection", label: "Inspection", icon: CameraIcon },
-  { path: "/results", label: "Results", icon: LineChartIcon },
-  { path: "/projects", label: "Projects", icon: FolderIcon },
-  { path: "/ai-assistant", label: "AI Assistant", icon: SparklesIcon },
-];
+  { path: "/inspection", label: t('nav.inspection'), icon: CameraIcon },
+  { path: "/results", label: t('nav.results'), icon: LineChartIcon },
+  { path: "/projects", label: t('nav.projects'), icon: FolderIcon },
+  { path: "/ai-assistant", label: t('nav.ai_assistant'), icon: SparklesIcon },
+]);
 
 const router = useRouter();
 const uiStore = useUiStore();

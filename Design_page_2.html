@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ClearVision Inspection Results History View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined|Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#EF4444", 
+                        "primary-hover": "#DC2626",
+                        "primary-soft": "#FEF2F2",
+                        "background-light": "#F9FAFB", 
+                        "surface-light": "#FFFFFF",
+                        "border-light": "#E5E7EB",
+                        "text-light-primary": "#111827",
+                        "text-light-secondary": "#6B7280",
+                        "background-dark": "#111827", 
+                        "surface-dark": "#1F2937", 
+                        "border-dark": "#374151",
+                        "text-dark-primary": "#F9FAFB",
+                        "text-dark-secondary": "#9CA3AF",
+                        "primary-dark-soft": "rgba(239, 68, 68, 0.15)",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.375rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                    },
+                    boxShadow: {
+                        'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+                        'floating': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #374151;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+        .checkbox-red:checked {
+            background-color: #EF4444;
+            border-color: #EF4444;
+        }
+        .checkbox-red:focus {
+            ring-color: #EF4444;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans h-screen flex flex-col overflow-hidden text-text-light-primary dark:text-text-dark-primary">
+<header class="h-14 px-4 flex items-center justify-between bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark flex-shrink-0 z-20">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2">
+<span class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Clear<span class="text-primary">Vision</span></span>
+</div>
+<div class="flex items-center bg-gray-50 dark:bg-gray-800 rounded px-3 py-1 border border-border-light dark:border-border-dark cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+<span class="material-icons-outlined text-gray-400 dark:text-gray-500 mr-2 text-lg">folder_open</span>
+<div class="flex flex-col">
+<span class="text-xs font-medium leading-tight">Default_Project_01</span>
+</div>
+<span class="material-icons-round text-gray-400 dark:text-gray-500 ml-2 text-sm">expand_more</span>
+</div>
+</div>
+<div class="flex items-center space-x-4 bg-white dark:bg-gray-800 rounded-full px-2 py-0.5 shadow-sm border border-gray-100 dark:border-gray-700">
+<button class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-full p-1.5 shadow-sm transition-colors w-8 h-8 flex items-center justify-center">
+<span class="material-icons-round text-lg">pause</span>
+</button>
+<div class="flex space-x-4 px-2">
+<div class="flex flex-col items-end">
+<div class="flex items-baseline space-x-1">
+<span class="font-bold text-sm text-gray-800 dark:text-gray-100">45</span>
+<span class="text-[10px] text-gray-500">ms</span>
+</div>
+</div>
+<div class="w-px h-6 bg-gray-200 dark:bg-gray-600 self-center"></div>
+<div class="flex flex-col items-start">
+<div class="flex items-baseline space-x-1">
+<span class="font-bold text-sm text-gray-800 dark:text-gray-100">99.8</span>
+<span class="text-[10px] text-gray-500">%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center bg-gray-50 dark:bg-gray-800 rounded p-0.5 border border-border-light dark:border-border-dark">
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">ios_share</span>
+</button>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">save</span>
+</button>
+<div class="w-px h-4 bg-gray-200 dark:bg-gray-600 mx-1"></div>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">undo</span>
+</button>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">redo</span>
+</button>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden relative">
+<nav class="w-14 flex flex-col items-center py-4 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark z-20 space-y-4 flex-shrink-0">
+<div class="flex flex-col space-y-2 w-full px-2">
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">account_tree</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">photo_camera</span>
+</button>
+<button class="group relative flex items-center justify-center p-2 rounded-lg bg-primary-soft dark:bg-primary-dark-soft text-primary transition-colors w-full">
+<div class="absolute left-0 w-0.5 h-6 bg-primary rounded-r-full"></div>
+<span class="material-icons-outlined text-xl">insights</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">folder</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">auto_awesome</span>
+</button>
+</div>
+<div class="mt-auto w-full px-2">
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">settings</span>
+</button>
+</div>
+</nav>
+<aside class="w-64 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark flex flex-col z-10 shadow-sm flex-shrink-0">
+<div class="p-4 border-b border-border-light dark:border-border-dark">
+<h2 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center">
+<span class="material-icons-outlined text-sm mr-2">filter_alt</span>
+                    FILTER (筛选)
+                </h2>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-6">
+<div class="space-y-2">
+<label class="text-xs font-semibold text-gray-700 dark:text-gray-300 block">日期范围</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons-outlined text-gray-400 text-sm">calendar_today</span>
+</span>
+<input class="block w-full pl-9 pr-3 py-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 rounded-md shadow-sm focus:ring-primary focus:border-primary text-xs" type="text" value="2023-10-27 - 2023-10-27"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-semibold text-gray-700 dark:text-gray-300 block">状态 (Status)</label>
+<div class="relative">
+<select class="block w-full pl-3 pr-10 py-2 text-xs border-gray-300 dark:bg-gray-800 dark:border-gray-600 focus:outline-none focus:ring-primary focus:border-primary rounded-md shadow-sm dark:text-white">
+<option>全部 (All)</option>
+<option>合格 (OK)</option>
+<option>不合格 (NG)</option>
+</select>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-semibold text-gray-700 dark:text-gray-300 block">搜索 (Batch/Serial)</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons-outlined text-gray-400 text-sm">search</span>
+</span>
+<input class="block w-full pl-9 pr-3 py-2 border-gray-300 dark:border-gray-600 dark:bg-gray-800 rounded-md shadow-sm focus:ring-primary focus:border-primary text-xs placeholder-gray-400" placeholder="输入批次号或序列号..." type="text"/>
+</div>
+</div>
+<div class="pt-4 border-t border-gray-100 dark:border-gray-700">
+<button class="w-full bg-primary hover:bg-primary-hover text-white text-xs font-medium py-2 px-4 rounded shadow-sm transition-colors flex items-center justify-center">
+<span class="material-icons-outlined text-sm mr-1">check</span> 应用筛选
+                     </button>
+</div>
+</div>
+<div class="p-4 bg-gray-50 dark:bg-gray-800 border-t border-border-light dark:border-border-dark">
+<div class="flex justify-between text-xs text-gray-500 mb-1">
+<span>总记录数:</span>
+<span class="font-mono font-medium text-gray-700 dark:text-gray-300">1,248</span>
+</div>
+<div class="flex justify-between text-xs text-gray-500">
+<span>NG 数量:</span>
+<span class="font-mono font-medium text-primary">12</span>
+</div>
+</div>
+</aside>
+<section class="flex-1 bg-background-light dark:bg-gray-900 flex flex-col min-w-0">
+<div class="flex-1 bg-gray-900 relative flex items-center justify-center overflow-hidden border-b border-gray-700">
+<div class="relative h-full w-full flex items-center justify-center p-8">
+<div class="relative shadow-2xl border border-gray-700 rounded-sm bg-black max-h-full max-w-full">
+<div class="w-[600px] h-[400px] bg-gray-800 flex items-center justify-center relative overflow-hidden group">
+<div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=1000&amp;q=80')] bg-cover bg-center opacity-70"></div>
+<div class="absolute top-[30%] left-[40%] w-[10%] h-[15%] border-2 border-primary shadow-[0_0_10px_rgba(239,68,68,0.5)] bg-primary/10"></div>
+<div class="absolute bottom-[20%] right-[30%] w-[12%] h-[8%] border-2 border-primary shadow-[0_0_10px_rgba(239,68,68,0.5)] bg-primary/10"></div>
+<div class="absolute top-[25%] left-[40%] bg-primary text-white text-[10px] px-1 rounded-sm">Defect: Scratch</div>
+</div>
+</div>
+<div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800/80 backdrop-blur rounded-full px-4 py-2 flex items-center space-x-4 border border-gray-600">
+<button class="text-white hover:text-primary transition"><span class="material-icons-outlined">zoom_in</span></button>
+<button class="text-white hover:text-primary transition"><span class="material-icons-outlined">zoom_out</span></button>
+<button class="text-white hover:text-primary transition"><span class="material-icons-outlined">crop_free</span></button>
+<div class="w-px h-4 bg-gray-500"></div>
+<button class="text-white hover:text-primary transition"><span class="material-icons-outlined">download</span></button>
+</div>
+</div>
+</div>
+<div class="h-48 bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark flex flex-col flex-shrink-0">
+<div class="px-4 py-2 border-b border-border-light dark:border-border-dark flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+<h3 class="text-xs font-bold text-gray-500 uppercase">Image History (结果回溯)</h3>
+<div class="flex space-x-2">
+<button class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"><span class="material-icons-outlined text-gray-500 text-sm">grid_view</span></button>
+<button class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"><span class="material-icons-outlined text-gray-500 text-sm">list</span></button>
+</div>
+</div>
+<div class="flex-1 overflow-x-auto p-3 flex space-x-3 items-center">
+<div class="relative group cursor-pointer flex-shrink-0 w-32">
+<div class="h-24 w-full rounded border-2 border-primary overflow-hidden relative">
+<div class="absolute inset-0 bg-gray-800 bg-[url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=200&amp;q=60')] bg-cover bg-center"></div>
+<div class="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">NG</div>
+</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[10px] text-gray-500 font-mono">10:42:05</span>
+<span class="text-[10px] text-gray-400">#042</span>
+</div>
+</div>
+<div class="relative group cursor-pointer flex-shrink-0 w-32 opacity-70 hover:opacity-100 transition-opacity">
+<div class="h-24 w-full rounded border border-gray-200 dark:border-gray-700 overflow-hidden relative">
+<div class="absolute inset-0 bg-gray-800 bg-[url('https://images.unsplash.com/photo-1565514020176-db793616a843?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=200&amp;q=60')] bg-cover bg-center"></div>
+<div class="absolute top-1 right-1 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">OK</div>
+</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[10px] text-gray-500 font-mono">10:41:58</span>
+<span class="text-[10px] text-gray-400">#041</span>
+</div>
+</div>
+<div class="relative group cursor-pointer flex-shrink-0 w-32 opacity-70 hover:opacity-100 transition-opacity">
+<div class="h-24 w-full rounded border border-gray-200 dark:border-gray-700 overflow-hidden relative">
+<div class="absolute inset-0 bg-gray-800 bg-[url('https://images.unsplash.com/photo-1531297461136-82lw9b6266d2?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=200&amp;q=60')] bg-cover bg-center"></div>
+<div class="absolute top-1 right-1 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">OK</div>
+</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[10px] text-gray-500 font-mono">10:41:45</span>
+<span class="text-[10px] text-gray-400">#040</span>
+</div>
+</div>
+<div class="relative group cursor-pointer flex-shrink-0 w-32 opacity-70 hover:opacity-100 transition-opacity">
+<div class="h-24 w-full rounded border border-gray-200 dark:border-gray-700 overflow-hidden relative">
+<div class="absolute inset-0 bg-gray-800 bg-[url('https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=200&amp;q=60')] bg-cover bg-center"></div>
+<div class="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">NG</div>
+</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[10px] text-gray-500 font-mono">10:41:30</span>
+<span class="text-[10px] text-gray-400">#039</span>
+</div>
+</div>
+<div class="relative group cursor-pointer flex-shrink-0 w-32 opacity-70 hover:opacity-100 transition-opacity">
+<div class="h-24 w-full rounded border border-gray-200 dark:border-gray-700 overflow-hidden relative">
+<div class="absolute inset-0 bg-gray-800 bg-[url('https://images.unsplash.com/photo-1580983218765-f663bec07b37?ixlib=rb-4.0.3&amp;auto=format&amp;fit=crop&amp;w=200&amp;q=60')] bg-cover bg-center"></div>
+<div class="absolute top-1 right-1 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">OK</div>
+</div>
+<div class="mt-1 flex justify-between items-center">
+<span class="text-[10px] text-gray-500 font-mono">10:41:22</span>
+<span class="text-[10px] text-gray-400">#038</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<aside class="w-80 bg-surface-light dark:bg-surface-dark border-l border-border-light dark:border-border-dark flex flex-col z-10 shadow-sm flex-shrink-0">
+<div class="p-4 border-b border-border-light dark:border-border-dark bg-gray-50/50 dark:bg-gray-800/50">
+<h2 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center">
+<span class="material-icons-outlined text-sm mr-2">analytics</span>
+                    INSPECTION DETAILS (详情)
+                </h2>
+</div>
+<div class="flex-1 overflow-y-auto p-5">
+<div class="flex items-center justify-between mb-6">
+<div>
+<div class="text-2xl font-bold text-gray-900 dark:text-white">Batch_A01</div>
+<div class="text-xs text-gray-500 font-mono">SN: 20231027-042</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="px-3 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-sm font-bold border border-red-200 dark:border-red-800">NG</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-6">
+<div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+<div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Score</div>
+<div class="text-lg font-semibold text-gray-800 dark:text-gray-200">87.5%</div>
+</div>
+<div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+<div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Time</div>
+<div class="text-lg font-semibold text-gray-800 dark:text-gray-200">45ms</div>
+</div>
+</div>
+<div class="space-y-4">
+<h3 class="text-xs font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-100 dark:border-gray-700 pb-2">Measurement Data</h3>
+<div class="flex justify-between items-center py-1">
+<span class="text-xs text-gray-500">Defect Type</span>
+<span class="text-xs font-medium text-red-600 dark:text-red-400">Surface Scratch</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="text-xs text-gray-500">Coordinates (X, Y)</span>
+<span class="text-xs font-mono text-gray-700 dark:text-gray-300">1240, 856</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="text-xs text-gray-500">Area Size</span>
+<span class="text-xs font-mono text-gray-700 dark:text-gray-300">45 px²</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="text-xs text-gray-500">Confidence</span>
+<span class="text-xs font-mono text-gray-700 dark:text-gray-300">0.92</span>
+</div>
+<div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+<h3 class="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-2">OCR Text</h3>
+<div class="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs font-mono text-gray-800 dark:text-gray-200 break-all border border-gray-200 dark:border-gray-600">
+                             L88-421-B
+                         </div>
+</div>
+</div>
+<div class="mt-8 space-y-2">
+<button class="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center">
+<span class="material-icons-outlined text-sm mr-2">flag</span> 标记为误报 (False Positive)
+                     </button>
+<button class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:text-primary hover:border-primary dark:hover:border-primary text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center">
+<span class="material-icons-outlined text-sm mr-2">share</span> 导出报告
+                     </button>
+</div>
+</div>
+</aside>
+</main>
+<footer class="h-8 bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark flex items-center justify-between px-4 text-xs z-20 flex-shrink-0">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+<span class="material-icons-outlined text-sm">person</span>
+<span class="font-bold">OPERATOR</span>
+<span class="text-gray-400 dark:text-gray-600">Guest</span>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-1.5">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
+<span class="font-medium text-gray-700 dark:text-gray-300">Host Link</span>
+</div>
+<div class="flex items-center space-x-1.5">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
+<span class="font-medium text-gray-700 dark:text-gray-300">PLC-1</span>
+</div>
+</div>
+<div class="flex items-center space-x-4 text-gray-500 dark:text-gray-400">
+<div class="flex items-center space-x-1">
+<span class="material-icons-outlined text-sm">memory</span>
+<span class="font-mono">12%</span>
+</div>
+<div class="flex items-center space-x-1">
+<span class="material-icons-outlined text-sm">upload</span>
+<span class="font-mono">1.2 GB</span>
+</div>
+<span class="font-mono opacity-50">v3.1.0</span>
+</div>
+</footer>
+<script>
+        // Simple dark mode toggle for demonstration purposes
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
+
+<script>
+    // 注入的路由拦截脚本
+    document.addEventListener('DOMContentLoaded', () => {
+        const iconMap = {
+            'account_tree': 7, 
+            'photo_camera': 8, 
+            'insights': 2, 
+            'folder': 4, 
+            'auto_awesome': 10, 
+            'settings': 1 
+        };
+        
+        const settingsMap = {
+            'camera_alt': 1,
+            'settings_input_component': 12,
+            'psychology': 3, 
+            'storage': 6,
+            'manage_accounts': 5
+        };
+
+        // 查找所有可能的按钮或者导航项
+        document.querySelectorAll('button, a, div.cursor-pointer, tr.cursor-pointer').forEach(el => {
+            const iconSpan = el.querySelector('.material-icons-outlined, .material-icons-round');
+            if (!iconSpan) return;
+            
+            const iconName = iconSpan.textContent.trim();
+            let targetPageId = null;
+            
+            // 检查主左侧导航栏
+            if (iconMap[iconName] && el.closest('nav') && el.closest('nav').classList.contains('w-16') || el.closest('nav') && el.closest('nav').classList.contains('w-14')) {
+                targetPageId = iconMap[iconName];
+            } else if (iconMap[iconName] && el.closest('nav') && !el.closest('aside')) { 
+                targetPageId = iconMap[iconName];
+            }
+            
+            // 检查设置子菜单
+            if (settingsMap[iconName]) {
+                const text = el.textContent || '';
+                if (text.includes('设置') || text.includes('管理') || el.closest('nav') || el.closest('aside')) {
+                    targetPageId = settingsMap[iconName];
+                }
+            }
+
+            if (targetPageId) {
+                // 如果是按钮或链接，覆盖点击事件
+                el.style.cursor = 'pointer';
+                el.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.parent.postMessage({ type: 'NAVIGATE', pageId: targetPageId }, '*');
+                };
+            }
+        });
+    });
+</script>
+
+</body></html>

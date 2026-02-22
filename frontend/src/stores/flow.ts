@@ -9,11 +9,19 @@ interface FlowNode extends Node {
   parentId?: string;
 }
 
+export interface LintIssue {
+  id: string;
+  type: 'error' | 'warning' | 'info';
+  message: string;
+  nodeId?: string;
+}
+
 export const useFlowStore = defineStore('flow', () => {
   const nodes = ref<FlowNode[]>([]);
   const edges = ref<Edge[]>([]);
   const selectedNodeId = ref<string | null>(null);
   const isDirty = ref<boolean>(false);
+  const lintIssues = ref<LintIssue[]>([]);
 
   // Undo / Redo Stacks (Store serialized JSON strings)
   const history = ref<string[]>([]);
@@ -79,6 +87,30 @@ export const useFlowStore = defineStore('flow', () => {
 
   // --- Serialization & History ---
   
+  const validateFlow = () => {
+    const issues: LintIssue[] = [];
+    
+    // Check for disconnected nodes (no edges connected to them) unless it's just a single node
+    if (nodes.value.length > 1) {
+      nodes.value.forEach(node => {
+        // Exclude group nodes
+        if (node.type === 'group') return;
+        
+        const hasEdges = edges.value.some(e => e.source === node.id || e.target === node.id);
+        if (!hasEdges) {
+          issues.push({
+            id: `isolated-${node.id}`,
+            type: 'warning',
+            message: `Node "${node.data?.name || node.id}" is isolated and not connected to the flow.`,
+            nodeId: node.id
+          });
+        }
+      });
+    }
+
+    lintIssues.value = issues;
+  };
+
   const snapshot = () => {
     if (isUndoing.value) return;
     const state = JSON.stringify({ nodes: nodes.value, edges: edges.value });
@@ -100,6 +132,7 @@ export const useFlowStore = defineStore('flow', () => {
   // Watch for changes and take snapshot
   watch([nodes, edges], () => {
     snapshot();
+    validateFlow();
   }, { deep: true });
 
   const undo = () => {
@@ -267,6 +300,7 @@ export const useFlowStore = defineStore('flow', () => {
     edges,
     selectedNodeId,
     isDirty,
+    lintIssues,
     setNodes,
     setEdges,
     addNode,
@@ -285,6 +319,7 @@ export const useFlowStore = defineStore('flow', () => {
     buildLegacyProject,
     createGroup,
     ungroupNodes,
-    updateNodeParent
+    updateNodeParent,
+    validateFlow
   };
 });

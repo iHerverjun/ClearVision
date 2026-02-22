@@ -1,13 +1,19 @@
 <template>
-  <div class="page-container">
-    <h1>AI Generation</h1>
-    <p>Placeholder for AI Generation panel</p>
+  <div class="ai-page flex flex-1 h-full w-full overflow-hidden relative">
+    <AiChatSidebar />
+    <AiFlowCanvas />
+    <AiInsightsPanel />
   </div>
 </template>
 
+<script setup lang="ts">
+import AiChatSidebar from '../components/ai/AiChatSidebar.vue';
+import AiFlowCanvas from '../components/ai/AiFlowCanvas.vue';
+import AiInsightsPanel from '../components/ai/AiInsightsPanel.vue';
+</script>
+
 <style scoped>
-.page-container {
-  padding: 2rem;
-  color: white;
+.ai-page {
+  /* Fills the .content-area from MainLayout */
 }
 </style>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ClearVision User Access Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined|Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#EF4444", 
+                        "primary-hover": "#DC2626",
+                        "primary-soft": "#FEF2F2",
+                        "background-light": "#F9FAFB", 
+                        "surface-light": "#FFFFFF",
+                        "border-light": "#E5E7EB",
+                        "text-light-primary": "#111827",
+                        "text-light-secondary": "#6B7280",
+                        "background-dark": "#111827", 
+                        "surface-dark": "#1F2937", 
+                        "border-dark": "#374151",
+                        "text-dark-primary": "#F9FAFB",
+                        "text-dark-secondary": "#9CA3AF",
+                        "primary-dark-soft": "rgba(239, 68, 68, 0.15)",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.375rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                    },
+                    boxShadow: {
+                        'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+                        'floating': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #374151;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+        .checkbox-red:checked {
+            background-color: #EF4444;
+            border-color: #EF4444;
+        }
+        .checkbox-red:focus {
+            ring-color: #EF4444;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans h-screen flex flex-col overflow-hidden text-text-light-primary dark:text-text-dark-primary">
+<header class="h-14 px-4 flex items-center justify-between bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark flex-shrink-0 z-20">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2">
+<span class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">Clear<span class="text-primary">Vision</span></span>
+</div>
+<div class="flex items-center bg-gray-50 dark:bg-gray-800 rounded px-3 py-1 border border-border-light dark:border-border-dark cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+<span class="material-icons-outlined text-gray-400 dark:text-gray-500 mr-2 text-lg">folder_open</span>
+<div class="flex flex-col">
+<span class="text-xs font-medium leading-tight">Default_Project_01</span>
+</div>
+<span class="material-icons-round text-gray-400 dark:text-gray-500 ml-2 text-sm">expand_more</span>
+</div>
+</div>
+<div class="flex items-center space-x-4 bg-white dark:bg-gray-800 rounded-full px-2 py-0.5 shadow-sm border border-gray-100 dark:border-gray-700">
+<button class="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-full p-1.5 shadow-sm transition-colors w-8 h-8 flex items-center justify-center">
+<span class="material-icons-round text-lg">pause</span>
+</button>
+<div class="flex space-x-4 px-2">
+<div class="flex flex-col items-end">
+<div class="flex items-baseline space-x-1">
+<span class="font-bold text-sm text-gray-800 dark:text-gray-100">--</span>
+<span class="text-[10px] text-gray-500">ms</span>
+</div>
+</div>
+<div class="w-px h-6 bg-gray-200 dark:bg-gray-600 self-center"></div>
+<div class="flex flex-col items-start">
+<div class="flex items-baseline space-x-1">
+<span class="font-bold text-sm text-gray-800 dark:text-gray-100">--</span>
+<span class="text-[10px] text-gray-500">%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center bg-gray-50 dark:bg-gray-800 rounded p-0.5 border border-border-light dark:border-border-dark">
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">ios_share</span>
+</button>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">save</span>
+</button>
+<div class="w-px h-4 bg-gray-200 dark:bg-gray-600 mx-1"></div>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">undo</span>
+</button>
+<button class="p-1.5 text-gray-500 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded transition-colors shadow-sm">
+<span class="material-icons-outlined text-lg">redo</span>
+</button>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden relative">
+<nav class="w-14 flex flex-col items-center py-4 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark z-20 space-y-4 flex-shrink-0">
+<div class="flex flex-col space-y-2 w-full px-2">
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">account_tree</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">photo_camera</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">insights</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">folder</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+<span class="material-icons-outlined text-xl">auto_awesome</span>
+</button>
+</div>
+<div class="mt-auto w-full px-2">
+<button class="group relative flex items-center justify-center p-2 rounded-lg bg-primary-soft dark:bg-primary-dark-soft text-primary transition-colors w-full">
+<div class="absolute left-0 w-0.5 h-6 bg-primary rounded-r-full"></div>
+<span class="material-icons-outlined text-xl">settings</span>
+</button>
+</div>
+</nav>
+<aside class="w-60 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark flex flex-col z-10 shadow-sm flex-shrink-0">
+<div class="p-4 border-b border-border-light dark:border-border-dark">
+<h2 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Settings Menu</h2>
+</div>
+<div class="flex-1 overflow-y-auto p-2">
+<nav class="space-y-0.5">
+<button class="w-full flex items-center px-3 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md font-medium text-sm transition-colors group">
+<span class="material-icons-outlined mr-3 text-lg group-hover:text-gray-800 dark:group-hover:text-white">camera_alt</span>
+                        相机设置
+                    </button>
+<button class="w-full flex items-center px-3 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md font-medium text-sm transition-colors group">
+<span class="material-icons-outlined mr-3 text-lg group-hover:text-gray-800 dark:group-hover:text-white">settings_input_component</span>
+                        PLC设置
+                    </button>
+<button class="w-full flex items-center px-3 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md font-medium text-sm transition-colors group">
+<span class="material-icons-outlined mr-3 text-lg group-hover:text-gray-800 dark:group-hover:text-white">psychology</span>
+                        AI模型设置
+                    </button>
+<button class="w-full flex items-center px-3 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md font-medium text-sm transition-colors group">
+<span class="material-icons-outlined mr-3 text-lg group-hover:text-gray-800 dark:group-hover:text-white">storage</span>
+                        存储设置
+                    </button>
+<button class="w-full flex items-center px-3 py-2.5 bg-red-50 dark:bg-red-900/10 text-primary rounded-md font-medium text-sm transition-colors">
+<span class="material-icons-outlined mr-3 text-lg">manage_accounts</span>
+                        用户管理
+                    </button>
+</nav>
+</div>
+</aside>
+<section class="flex-1 bg-background-light dark:bg-gray-900 flex flex-col overflow-hidden">
+<div class="h-full flex flex-col px-8 py-6 overflow-y-auto">
+<div class="flex items-center justify-between mb-8">
+<div class="flex flex-col">
+<h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">用户管理</h1>
+<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">管理系统用户账户、角色分配及功能权限矩阵。</p>
+</div>
+<button class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+<span class="material-icons-outlined text-lg mr-2">save</span>
+                    保存更改
+                </button>
+</div>
+<div class="grid grid-cols-12 gap-6 pb-20 max-w-7xl h-full">
+<div class="col-span-12 lg:col-span-7 xl:col-span-8 bg-surface-light dark:bg-surface-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full">
+<div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+<h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
+<span class="material-icons-outlined text-primary mr-2">people_alt</span>
+                                用户列表
+                            </h3>
+<button class="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded-md text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+<span class="material-icons-outlined text-sm mr-1">add</span>
+                                新增用户
+                            </button>
+</div>
+<div class="flex-1 overflow-x-auto">
+<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+<thead class="bg-gray-50 dark:bg-gray-800">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">用户名</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">角色</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">状态</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">最近登录</th>
+<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" scope="col">操作</th>
+</tr>
+</thead>
+<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">A</div>
+<div class="ml-4">
+<div class="text-sm font-medium text-gray-900 dark:text-white">Admin</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                                            管理员
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+<span class="w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5"></span>
+                                            Online
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        2023-10-27 09:15
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-gray-400 hover:text-primary transition-colors mr-3">
+<span class="material-icons-outlined text-lg">edit</span>
+</button>
+<button class="text-gray-400 hover:text-red-600 transition-colors">
+<span class="material-icons-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors bg-blue-50/30 dark:bg-blue-900/10 border-l-2 border-primary">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 font-bold text-sm">O</div>
+<div class="ml-4">
+<div class="text-sm font-medium text-gray-900 dark:text-white">Operator_01</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                            操作员
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+<span class="w-1.5 h-1.5 rounded-full bg-gray-400 mr-1.5"></span>
+                                            Offline
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        2023-10-26 16:30
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-primary hover:text-primary-hover transition-colors mr-3">
+<span class="material-icons-outlined text-lg">edit</span>
+</button>
+<button class="text-gray-400 hover:text-red-600 transition-colors">
+<span class="material-icons-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 font-bold text-sm">T</div>
+<div class="ml-4">
+<div class="text-sm font-medium text-gray-900 dark:text-white">Tech_Lead</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                            技术员
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+<span class="w-1.5 h-1.5 rounded-full bg-gray-400 mr-1.5"></span>
+                                            Offline
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        2023-10-25 11:20
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-gray-400 hover:text-primary transition-colors mr-3">
+<span class="material-icons-outlined text-lg">edit</span>
+</button>
+<button class="text-gray-400 hover:text-red-600 transition-colors">
+<span class="material-icons-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="col-span-12 lg:col-span-5 xl:col-span-4 bg-surface-light dark:bg-surface-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full">
+<div class="px-6 py-4 border-b border-border-light dark:border-border-dark flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+<h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
+<span class="material-icons-outlined text-primary mr-2">verified_user</span>
+                                角色与权限配置
+                            </h3>
+</div>
+<div class="p-6 flex-1 flex flex-col space-y-6">
+<div class="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 border border-blue-100 dark:border-blue-800/30 flex items-start gap-3">
+<div class="flex-shrink-0">
+<div class="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 font-bold text-sm">O</div>
+</div>
+<div>
+<p class="text-sm font-medium text-gray-900 dark:text-white">Operator_01</p>
+<p class="text-xs text-gray-500 dark:text-gray-400">正在编辑权限</p>
+</div>
+</div>
+<div>
+<label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">分配角色</label>
+<div class="relative">
+<select class="block w-full pl-3 pr-10 py-2 text-sm border-gray-300 dark:bg-gray-800 dark:border-gray-600 focus:outline-none focus:ring-primary focus:border-primary rounded-md shadow-sm dark:text-white">
+<option>操作员 (Operator)</option>
+<option>管理员 (Admin)</option>
+<option>技术员 (Technician)</option>
+<option>访客 (Guest)</option>
+</select>
+</div>
+</div>
+<div class="flex-1">
+<label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">权限矩阵</label>
+<div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
+<div class="divide-y divide-gray-200 dark:divide-gray-700">
+<div class="flex items-center justify-between p-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+<div class="flex items-center space-x-3">
+<span class="material-icons-outlined text-gray-400 text-lg">architecture</span>
+<span class="text-sm text-gray-700 dark:text-gray-300 font-medium">工程编辑</span>
+</div>
+<input class="checkbox-red h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+<div class="flex items-center space-x-3">
+<span class="material-icons-outlined text-gray-400 text-lg">settings_remote</span>
+<span class="text-sm text-gray-700 dark:text-gray-300 font-medium">设备控制</span>
+</div>
+<input checked="" class="checkbox-red h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+<div class="flex items-center space-x-3">
+<span class="material-icons-outlined text-gray-400 text-lg">tune</span>
+<span class="text-sm text-gray-700 dark:text-gray-300 font-medium">系统设置</span>
+</div>
+<input class="checkbox-red h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+<div class="flex items-center space-x-3">
+<span class="material-icons-outlined text-gray-400 text-lg">file_download</span>
+<span class="text-sm text-gray-700 dark:text-gray-300 font-medium">数据导出</span>
+</div>
+<input checked="" class="checkbox-red h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+<div class="flex items-center space-x-3">
+<span class="material-icons-outlined text-gray-400 text-lg">model_training</span>
+<span class="text-sm text-gray-700 dark:text-gray-300 font-medium">AI模型训练</span>
+</div>
+<input class="checkbox-red h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" type="checkbox"/>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-2 text-xs text-gray-400 dark:text-gray-500 flex items-center">
+<span class="material-icons-outlined text-sm mr-1">info</span>
+                            修改角色可能会立即影响用户当前的会话。
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<footer class="h-8 bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark flex items-center justify-between px-4 text-xs z-20 flex-shrink-0">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+<span class="material-icons-outlined text-sm">person</span>
+<span class="font-bold">OPERATOR</span>
+<span class="text-gray-400 dark:text-gray-600">Guest</span>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-1.5">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
+<span class="font-medium text-gray-700 dark:text-gray-300">Host Link</span>
+</div>
+<div class="flex items-center space-x-1.5">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
+<span class="font-medium text-gray-700 dark:text-gray-300">PLC-1</span>
+</div>
+</div>
+<div class="flex items-center space-x-4 text-gray-500 dark:text-gray-400">
+<div class="flex items-center space-x-1">
+<span class="material-icons-outlined text-sm">memory</span>
+<span class="font-mono">12%</span>
+</div>
+<div class="flex items-center space-x-1">
+<span class="material-icons-outlined text-sm">upload</span>
+<span class="font-mono">1.2 GB</span>
+</div>
+<span class="font-mono opacity-50">v3.1.0</span>
+</div>
+</footer>
+<script>
+        // Simple dark mode toggle for demonstration purposes
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
+
+<script>
+    // 注入的路由拦截脚本
+    document.addEventListener('DOMContentLoaded', () => {
+        const iconMap = {
+            'account_tree': 7, 
+            'photo_camera': 8, 
+            'insights': 2, 
+            'folder': 4, 
+            'auto_awesome': 10, 
+            'settings': 1 
+        };
+        
+        const settingsMap = {
+            'camera_alt': 1,
+            'settings_input_component': 12,
+            'psychology': 3, 
+            'storage': 6,
+            'manage_accounts': 5
+        };
+
+        // 查找所有可能的按钮或者导航项
+        document.querySelectorAll('button, a, div.cursor-pointer, tr.cursor-pointer').forEach(el => {
+            const iconSpan = el.querySelector('.material-icons-outlined, .material-icons-round');
+            if (!iconSpan) return;
+            
+            const iconName = iconSpan.textContent.trim();
+            let targetPageId = null;
+            
+            // 检查主左侧导航栏
+            if (iconMap[iconName] && el.closest('nav') && el.closest('nav').classList.contains('w-16') || el.closest('nav') && el.closest('nav').classList.contains('w-14')) {
+                targetPageId = iconMap[iconName];
+            } else if (iconMap[iconName] && el.closest('nav') && !el.closest('aside')) { 
+                targetPageId = iconMap[iconName];
+            }
+            
+            // 检查设置子菜单
+            if (settingsMap[iconName]) {
+                const text = el.textContent || '';
+                if (text.includes('设置') || text.includes('管理') || el.closest('nav') || el.closest('aside')) {
+                    targetPageId = settingsMap[iconName];
+                }
+            }
+
+            if (targetPageId) {
+                // 如果是按钮或链接，覆盖点击事件
+                el.style.cursor = 'pointer';
+                el.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.parent.postMessage({ type: 'NAVIGATE', pageId: targetPageId }, '*');
+                };
+            }
+        });
+    });
+</script>
+
+</body></html>

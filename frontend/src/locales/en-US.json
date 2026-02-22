@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "inspection": "Inspection",
+    "results": "Results",
+    "ai_assistant": "AI Assistant",
+    "settings": "Settings"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "confirm": "Confirm",
+    "loading": "Loading..."
+  },
+  "inspection": {
+    "title": "Inspection",
+    "single_run": "Single Run",
+    "start_continuous": "Start Continuous",
+    "stop": "Stop",
+    "calibration": "Local Calib",
+    "hand_eye": "Hand-Eye"
+  },
+  "settings": {
+    "title": "System Settings",
+    "general": {
+      "title": "General",
+      "language": "Language",
+      "theme": "Theme",
+      "auto_save": "Auto Save"
+    }
+  }
+}

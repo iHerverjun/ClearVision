@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "projects": "工程管理",
+    "inspection": "检测监控",
+    "results": "结果历史",
+    "ai_assistant": "AI 助手",
+    "settings": "系统设置"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "confirm": "确定",
+    "loading": "加载中..."
+  },
+  "inspection": {
+    "title": "检测监控",
+    "single_run": "单次执行",
+    "start_continuous": "连续执行",
+    "stop": "停止",
+    "calibration": "相机标定",
+    "hand_eye": "手眼标定"
+  },
+  "settings": {
+    "title": "系统设置",
+    "general": {
+      "title": "通用设置",
+      "language": "界面语言",
+      "theme": "主题配色",
+      "auto_save": "自动保存"
+    }
+  }
+}

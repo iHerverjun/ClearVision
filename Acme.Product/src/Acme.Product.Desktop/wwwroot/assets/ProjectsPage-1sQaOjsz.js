@@ -1,1 +1,0 @@
-import{_ as t}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as r,c as a,e as o}from"./index-DlrESTcB.js";const s={},c={class:"page-container"};function n(l,e){return r(),a("div",c,[...e[0]||(e[0]=[o("h1",null,"Projects",-1),o("p",null,"Placeholder for Projects management",-1)])])}const f=t(s,[["render",n],["__scopeId","data-v-5a8f73bb"]]);export{f as default};

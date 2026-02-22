@@ -45,6 +45,47 @@ class MockBridge {
           });
         }
         break;
+      case 'GenerateFlowCommand':
+        mockData = {
+          success: true,
+          flowJson: JSON.stringify({
+            nodes: [
+              { id: '1', type: 'ImageSourceOperator', position: { x: 100, y: 100 }, data: { name: 'Capture' } },
+              { id: '2', type: 'EdgeDetectionOperator', position: { x: 300, y: 100 }, data: { name: 'Edge Detect' } }
+            ],
+            edges: [
+              { id: 'e1-2', source: '1', target: '2' }
+            ]
+          }),
+          usedTools: ['ImageSourceOperator', 'EdgeDetectionOperator'],
+          rawResponse: "I have generated a flow that captures an image and performs edge detection."
+        };
+        break;
+      case 'settings.get':
+        mockData = {
+          settings: {
+            general: { theme: 'system', language: 'zh-CN', autoSaveInterval: 5 },
+            camera: { defaultResolution: '1920x1080', exposureTarget: 120 },
+            communication: { protocol: 'TCP', host: '127.0.0.1', port: 8080 },
+            ai: { apiKey: 'mock-key-123', model: 'DeepSeek-V3', timeoutMs: 30000 }
+          }
+        };
+        break;
+      case 'settings.save':
+        mockData = { success: true };
+        break;
+      case 'CalibSolveCommand':
+      case 'HandEyeSolveCommand':
+        mockData = {
+          success: true,
+          error: 0.045, // reprojection error
+          matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        };
+        break;
+      case 'CalibSaveCommand':
+      case 'HandEyeSaveCommand':
+        mockData = { success: true };
+        break;
       default:
         mockData = { success: true, mockMode: true };
         break;

@@ -1,13 +1,19 @@
 <template>
-  <div class="page-container">
-    <h1>Results</h1>
-    <p>Placeholder for Results</p>
+  <div class="results-page flex flex-1 h-full w-full overflow-hidden relative">
+    <ResultsFilterSidebar />
+    <ResultsMainView />
+    <ResultsDetailPanel />
   </div>
 </template>
 
+<script setup lang="ts">
+import ResultsFilterSidebar from '../components/results/ResultsFilterSidebar.vue';
+import ResultsMainView from '../components/results/ResultsMainView.vue';
+import ResultsDetailPanel from '../components/results/ResultsDetailPanel.vue';
+</script>
+
 <style scoped>
-.page-container {
-  padding: 2rem;
-  color: white;
+.results-page {
+  /* Fills the .content-area from MainLayout */
 }
 </style>

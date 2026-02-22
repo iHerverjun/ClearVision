@@ -1,1 +1,0 @@
-import{_ as n}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as t,c as s,e as o}from"./index-DlrESTcB.js";const c={},r={class:"page-container"};function a(i,e){return t(),s("div",r,[...e[0]||(e[0]=[o("h1",null,"Inspection View",-1),o("p",null,"Placeholder for Inspection operations",-1)])])}const _=n(c,[["render",a],["__scopeId","data-v-26be3d51"]]);export{_ as default};
