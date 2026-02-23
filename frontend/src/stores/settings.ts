@@ -50,9 +50,18 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const isSettingsModalOpen = ref(false);
   const isLoading = ref(false);
+  const errorMessage = ref<string | null>(null);
+
+  const resolveErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return fallback;
+  };
 
   function openModal() {
     isSettingsModalOpen.value = true;
+    errorMessage.value = null;
     loadSettings();
   }
 
@@ -62,18 +71,25 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function loadSettings() {
     isLoading.value = true;
+    errorMessage.value = null;
     try {
       const response = await webMessageBridge.sendMessage(
         BridgeMessageType.SettingsGet,
         {},
         true
       );
-      if (response && response.settings) {
-         // Deep merge or replace
-         settings.value = { ...settings.value, ...response.settings };
+      if (response?.settings) {
+        const remote = response.settings as Partial<AppSettings>;
+        settings.value = {
+          general: { ...settings.value.general, ...(remote.general || {}) },
+          camera: { ...settings.value.camera, ...(remote.camera || {}) },
+          communication: { ...settings.value.communication, ...(remote.communication || {}) },
+          ai: { ...settings.value.ai, ...(remote.ai || {}) },
+        };
       }
-    } catch (e) {
-      console.error('[SettingsStore] Failed to load settings', e);
+    } catch (error) {
+      console.error('[SettingsStore] Failed to load settings', error);
+      errorMessage.value = resolveErrorMessage(error, '加载设置失败，请稍后重试。');
     } finally {
       isLoading.value = false;
     }
@@ -81,6 +97,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function saveSettings() {
     isLoading.value = true;
+    errorMessage.value = null;
     try {
       await webMessageBridge.sendMessage(
         BridgeMessageType.SettingsSave,
@@ -89,8 +106,9 @@ export const useSettingsStore = defineStore('settings', () => {
       );
       // Show toast ideally, but for now just close
       closeModal();
-    } catch (e) {
-      console.error('[SettingsStore] Failed to save settings', e);
+    } catch (error) {
+      console.error('[SettingsStore] Failed to save settings', error);
+      errorMessage.value = resolveErrorMessage(error, '保存设置失败，请检查后重试。');
     } finally {
       isLoading.value = false;
     }
@@ -100,6 +118,7 @@ export const useSettingsStore = defineStore('settings', () => {
     settings,
     isSettingsModalOpen,
     isLoading,
+    errorMessage,
     openModal,
     closeModal,
     loadSettings,

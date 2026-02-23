@@ -7,7 +7,7 @@
       :apply-default="false"
       :is-valid-connection="isConnectionValid"
       :connection-mode="ConnectionMode.Strict"
-      :connection-radius="64"
+      :connection-radius="80"
       :connection-line-options="connectionLineOptions"
       :default-edge-options="defaultEdgeOptions"
       :connect-on-click="true"
@@ -15,7 +15,15 @@
       @nodes-change="handleNodesChange"
       @edges-change="handleEdgesChange"
       @connect="onConnect"
+      @connect-start="onConnectStart"
+      @connect-end="onConnectEnd"
+      @click-connect-start="onConnectStart"
+      @click-connect-end="onConnectEnd"
       @node-click="onNodeClick"
+      @node-context-menu="onNodeContextMenu"
+      @edge-context-menu="onEdgeContextMenu"
+      @selection-context-menu="onSelectionContextMenu"
+      @edge-double-click="onEdgeDoubleClick"
       @pane-click="onPaneClick"
       fit-view-on-init
       :default-zoom="1"
@@ -36,7 +44,6 @@
         @click="onMiniMapClick"
       />
 
-      <!-- Custom Node Typography & Renderers -->
       <template #node-operator-node="props">
         <OperatorNode v-bind="props" />
       </template>
@@ -49,16 +56,23 @@
         <GroupNode v-bind="props" />
       </template>
 
-      <!-- Custom Edges -->
+      <template #node-reroute-node="props">
+        <RerouteNode v-bind="props" />
+      </template>
+
       <template #edge-typed="props">
         <TypedEdge v-bind="props" />
+      </template>
+
+      <template #edge-pathfinding="props">
+        <PathFindingEdge v-bind="toPathfindingProps(props)" />
       </template>
     </VueFlow>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed } from 'vue';
 import {
   ConnectionLineType,
   ConnectionMode,
@@ -70,23 +84,52 @@ import {
   type EdgeChange,
   type Connection,
   type Edge,
-} from "@vue-flow/core";
-import { Background } from "@vue-flow/background";
-import { Controls } from "@vue-flow/controls";
-import { MiniMap } from "@vue-flow/minimap";
-import "@vue-flow/core/dist/style.css";
-import "@vue-flow/core/dist/theme-default.css";
-import "@vue-flow/controls/dist/style.css";
-import "@vue-flow/minimap/dist/style.css";
+  type Node,
+  type OnConnectStartParams,
+} from '@vue-flow/core';
+import { Background } from '@vue-flow/background';
+import { Controls } from '@vue-flow/controls';
+import { MiniMap } from '@vue-flow/minimap';
+import { PathFindingEdge } from '@vue-flow/pathfinding-edge';
+import '@vue-flow/core/dist/style.css';
+import '@vue-flow/core/dist/theme-default.css';
+import '@vue-flow/controls/dist/style.css';
+import '@vue-flow/minimap/dist/style.css';
 
-import { useFlowStore } from "../../stores/flow";
-import OperatorNode from "./nodes/OperatorNode.vue";
-import GroupNode from "./nodes/GroupNode.vue";
-import ImageAcquisitionNode from "./nodes/ImageAcquisitionNode.vue";
-import TypedEdge from "./edges/TypedEdge.vue";
-import { FLOW_INSTANCE_ID } from "./flow.constants";
+import { useFlowStore, type EdgeRenderStyle } from '../../stores/flow';
+import OperatorNode from './nodes/OperatorNode.vue';
+import GroupNode from './nodes/GroupNode.vue';
+import ImageAcquisitionNode from './nodes/ImageAcquisitionNode.vue';
+import RerouteNode from './nodes/RerouteNode.vue';
+import TypedEdge from './edges/TypedEdge.vue';
+import { FLOW_INSTANCE_ID } from './flow.constants';
+import {
+  getPortColor,
+  getPortGlowColor,
+  isTypeCompatible,
+} from '../../config/portTypeRegistry';
 
 const flowStore = useFlowStore();
+
+const emit = defineEmits<{
+  (
+    event: 'node-context-menu',
+    payload: { node: Node; originalEvent: MouseEvent },
+  ): void;
+  (
+    event: 'edge-context-menu',
+    payload: { edge: Edge; originalEvent: MouseEvent },
+  ): void;
+  (
+    event: 'selection-context-menu',
+    payload: { nodes: Node[]; edges: Edge[]; originalEvent: MouseEvent },
+  ): void;
+  (
+    event: 'edge-double-click',
+    payload: { edge: Edge; originalEvent: MouseEvent },
+  ): void;
+}>();
+
 const {
   applyNodeChanges,
   applyEdgeChanges,
@@ -94,6 +137,7 @@ const {
   connectionClickStartHandle,
   setCenter,
   getViewport,
+  getSelectedEdges,
 } = useVueFlow(FLOW_INSTANCE_ID);
 
 interface MiniMapClickEvent {
@@ -101,10 +145,16 @@ interface MiniMapClickEvent {
   position: { x: number; y: number };
 }
 
+interface PortLike {
+  id?: string | number | null;
+  type?: string | null;
+}
+
 const nodes = computed({
   get: () => flowStore.nodes,
   set: (value) => flowStore.setNodes(value),
 });
+
 const edges = computed({
   get: () => flowStore.edges,
   set: (value) => flowStore.setEdges(value),
@@ -114,46 +164,59 @@ const isClickConnecting = computed(
   () => connectionClickStartHandle.value !== null,
 );
 
-const connectionLineOptions = {
-  type: ConnectionLineType.Bezier,
-  style: {
-    stroke: "rgba(77, 148, 255, 0.9)",
-    strokeWidth: 3.2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  },
+const resolvePreviewLineType = () => {
+  if (flowStore.preferredEdgeStyle === 'smoothstep') {
+    return ConnectionLineType.SmoothStep;
+  }
+  return ConnectionLineType.Bezier;
 };
 
-const defaultEdgeOptions: DefaultEdgeOptions = {
-  type: "typed",
+const resolveEdgeType = (style: EdgeRenderStyle) => {
+  return style === 'pathfinding' ? 'pathfinding' : 'typed';
+};
+
+const resolveRouteStyle = (style: EdgeRenderStyle) => {
+  return style === 'smoothstep' ? 'smoothstep' : 'bezier';
+};
+
+const connectionLineOptions = computed(() => {
+  const activeColor = flowStore.connectingSourceType
+    ? getPortColor(flowStore.connectingSourceType)
+    : 'rgba(77, 148, 255, 0.95)';
+  const glowColor = flowStore.connectingSourceType
+    ? getPortGlowColor(flowStore.connectingSourceType, 0.55)
+    : 'rgba(77, 148, 255, 0.42)';
+
+  return {
+    type: resolvePreviewLineType(),
+    style: {
+      stroke: activeColor,
+      strokeWidth: 3.3,
+      strokeLinecap: 'round' as const,
+      strokeLinejoin: 'round' as const,
+      filter: `drop-shadow(0 0 8px ${glowColor})`,
+    },
+  };
+});
+
+const defaultEdgeOptions = computed<DefaultEdgeOptions>(() => ({
+  type: resolveEdgeType(flowStore.preferredEdgeStyle),
   markerEnd: {
     type: MarkerType.ArrowClosed,
     width: 20,
     height: 20,
-    color: "#4D94FF",
+    color: '#4D94FF',
   },
   interactionWidth: 44,
-};
-
-const PORT_TYPE_COLORS: Record<string, string> = {
-  Image: "#4D94FF",
-  Integer: "#00E676",
-  Float: "#FFA726",
-  Boolean: "#FF4D4D",
-  String: "#BA68C8",
-  Point: "#00BCD4",
-  Unknown: "#9CA3AF",
-};
-
-interface PortLike {
-  id?: string | number | null;
-  type?: string | null;
-}
+  data: {
+    routeStyle: resolveRouteStyle(flowStore.preferredEdgeStyle),
+  },
+}));
 
 const findPortType = (
   nodeId: string | null | undefined,
   handleId: string | null | undefined,
-  direction: "inputs" | "outputs",
+  direction: 'inputs' | 'outputs',
 ) => {
   if (!nodeId || !handleId) return null;
 
@@ -161,17 +224,8 @@ const findPortType = (
   const ports = Array.isArray((node?.data as any)?.[direction])
     ? (((node?.data as any)[direction] ?? []) as PortLike[])
     : [];
-  const port = ports.find((candidate) => `${candidate.id ?? ""}` === handleId);
+  const port = ports.find((candidate) => `${candidate.id ?? ''}` === handleId);
   return port?.type ?? null;
-};
-
-const isCompatibleType = (
-  sourceType: string | null | undefined,
-  targetType: string | null | undefined,
-) => {
-  if (!sourceType || !targetType) return true;
-  if (sourceType === "Unknown" || targetType === "Unknown") return true;
-  return sourceType === targetType;
 };
 
 const isConnectionValid = (connection: Connection) => {
@@ -203,32 +257,31 @@ const isConnectionValid = (connection: Connection) => {
   const sourceType = findPortType(
     connection.source,
     connection.sourceHandle,
-    "outputs",
+    'outputs',
   );
   const targetType = findPortType(
     connection.target,
     connection.targetHandle,
-    "inputs",
+    'inputs',
   );
 
-  return isCompatibleType(sourceType, targetType);
+  return isTypeCompatible(sourceType, targetType);
 };
 
 const buildEdgeId = (connection: Connection) =>
-  `e-${connection.source}-${connection.sourceHandle ?? "na"}-${connection.target}-${connection.targetHandle ?? "na"}-${Date.now()}-${Math.random()
+  `e-${connection.source}-${connection.sourceHandle ?? 'na'}-${connection.target}-${connection.targetHandle ?? 'na'}-${Date.now()}-${Math.random()
     .toString(16)
     .slice(2, 8)}`;
 
-// Keep store synced with local Vue Flow internal events
 const handleNodesChange = (changes: NodeChange[]) => {
   const nextNodes = applyNodeChanges(changes);
-  const markDirty = changes.some((change) => change.type !== "select");
+  const markDirty = changes.some((change) => change.type !== 'select');
   flowStore.setNodes(nextNodes, markDirty);
 };
 
 const handleEdgesChange = (changes: EdgeChange[]) => {
   const nextEdges = applyEdgeChanges(changes);
-  const markDirty = changes.some((change) => change.type !== "select");
+  const markDirty = changes.some((change) => change.type !== 'select');
   flowStore.setEdges(nextEdges, markDirty);
 };
 
@@ -240,29 +293,62 @@ const onConnect = (connection: Connection) => {
   const sourceType = findPortType(
     connection.source,
     connection.sourceHandle,
-    "outputs",
+    'outputs',
   );
-  const edgeColor =
-    PORT_TYPE_COLORS[sourceType ?? "Unknown"] ?? PORT_TYPE_COLORS.Unknown;
+  const targetType = findPortType(
+    connection.target,
+    connection.targetHandle,
+    'inputs',
+  );
+  const sourceColor = getPortColor(sourceType);
+  const targetColor = getPortColor(targetType);
+  const preferredStyle = flowStore.preferredEdgeStyle;
 
   const newEdge: Edge = {
     ...connection,
     id: buildEdgeId(connection),
-    type: "typed",
-    interactionWidth: 32,
+    type: resolveEdgeType(preferredStyle),
+    interactionWidth: 36,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       width: 18,
       height: 18,
-      color: edgeColor,
+      color: targetColor,
+    },
+    style: {
+      stroke: sourceColor,
+      strokeWidth: 2.5,
     },
     data: {
-      type: sourceType ?? "Unknown",
-      color: edgeColor,
+      type: sourceType ?? 'Unknown',
+      sourceType,
+      targetType,
+      sourceColor,
+      targetColor,
+      routeStyle: resolveRouteStyle(preferredStyle),
     },
   };
 
   flowStore.addEdge(newEdge);
+};
+
+const onConnectStart = ({
+  nodeId,
+  handleId,
+  handleType,
+}: OnConnectStartParams) => {
+  if (!nodeId || !handleId || !handleType) {
+    flowStore.clearConnectingType();
+    return;
+  }
+
+  const direction = handleType === 'source' ? 'outputs' : 'inputs';
+  const activeType = findPortType(nodeId, handleId, direction);
+  flowStore.setConnectingType(activeType, handleType);
+};
+
+const onConnectEnd = () => {
+  flowStore.clearConnectingType();
 };
 
 const onMiniMapClick = ({ position }: MiniMapClickEvent) => {
@@ -277,13 +363,63 @@ const onNodeClick = (event: { node: { id: string } }) => {
   flowStore.selectNode(event.node.id);
 };
 
+const onNodeContextMenu = (event: {
+  event: MouseEvent | TouchEvent;
+  node: Node;
+}) => {
+  if (!(event.event instanceof MouseEvent)) return;
+  event.event.preventDefault();
+  emit('node-context-menu', {
+    node: event.node,
+    originalEvent: event.event,
+  });
+};
+
+const onEdgeContextMenu = (event: {
+  event: MouseEvent | TouchEvent;
+  edge: Edge;
+}) => {
+  if (!(event.event instanceof MouseEvent)) return;
+  event.event.preventDefault();
+  emit('edge-context-menu', {
+    edge: event.edge,
+    originalEvent: event.event,
+  });
+};
+
+const onSelectionContextMenu = (event: {
+  event: MouseEvent;
+  nodes: Node[];
+}) => {
+  event.event.preventDefault();
+  emit('selection-context-menu', {
+    nodes: event.nodes,
+    edges: getSelectedEdges.value,
+    originalEvent: event.event,
+  });
+};
+
+const onEdgeDoubleClick = (event: {
+  event: MouseEvent | TouchEvent;
+  edge: Edge;
+}) => {
+  if (!(event.event instanceof MouseEvent)) return;
+  emit('edge-double-click', {
+    edge: event.edge,
+    originalEvent: event.event,
+  });
+};
+
 const onPaneClick = (event?: MouseEvent) => {
   if (connectionClickStartHandle.value) {
     endConnection(event, true);
   }
 
+  flowStore.clearConnectingType();
   flowStore.selectNode(null);
 };
+
+const toPathfindingProps = (props: unknown) => props as any;
 </script>
 
 <style scoped>
@@ -294,16 +430,15 @@ const onPaneClick = (event?: MouseEvent) => {
 }
 
 .clearvision-flow {
-  /* Override default Vue Flow handles to match our aesthetic */
   --vf-handle: var(--accent-red, #ff4d4d);
   --vf-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.flow-editor-container.is-click-connecting :deep(.clearvision-flow .vue-flow__pane) {
+.flow-editor-container.is-click-connecting
+  :deep(.clearvision-flow .vue-flow__pane) {
   cursor: crosshair;
 }
 
-/* Guard against parent clipping/hiding of custom handles */
 :deep(.clearvision-flow .vue-flow__node) {
   overflow: visible;
 }
@@ -316,14 +451,12 @@ const onPaneClick = (event?: MouseEvent) => {
 :deep(.clearvision-flow .vue-flow__connection-path) {
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 5px rgba(77, 148, 255, 0.32));
 }
 
 :deep(.clearvision-flow .vue-flow__connectionline) {
   pointer-events: none;
 }
 
-/* Custom Controls overrides for light mode */
 :deep(.cv-controls .vue-flow__controls-button) {
   background: var(--glass-bg, rgba(255, 255, 255, 0.7));
   backdrop-filter: blur(12px);

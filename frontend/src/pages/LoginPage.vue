@@ -8,32 +8,32 @@
     <div class="login-container glass-panel">
       <div class="login-header">
         <h1 class="logo-text">Clear<span>Vision</span></h1>
-        <p class="subtitle">AI-Powered Machine Vision Platform</p>
+        <p class="subtitle">AI 驱动的机器视觉平台</p>
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="input-group">
-          <label for="username">Username</label>
+          <label for="username">用户名</label>
           <input
             type="text"
             id="username"
             v-model="username"
             required
             autocomplete="username"
-            placeholder="Enter username"
+            placeholder="请输入用户名"
             ref="usernameInput"
           />
         </div>
 
         <div class="input-group">
-          <label for="password">Password</label>
+          <label for="password">密码</label>
           <input
             type="password"
             id="password"
             v-model="password"
             required
             autocomplete="current-password"
-            placeholder="Enter password"
+            placeholder="请输入密码"
           />
         </div>
 
@@ -58,7 +58,7 @@
 
         <button type="submit" class="login-btn" :disabled="isLoading">
           <span v-if="isLoading" class="spinner"></span>
-          <span v-else>Sign In</span>
+          <span v-else>登录</span>
         </button>
       </form>
     </div>
@@ -97,11 +97,11 @@ const handleLogin = async () => {
       const redirect = (route.query.redirect as string) || "/flow-editor";
       router.push(redirect);
     } else {
-      errorMessage.value = "Invalid username or password";
+      errorMessage.value = "用户名或密码错误";
     }
   } catch (err: any) {
     errorMessage.value =
-      err.message || "Login failed. Please check connection.";
+      err.message || "登录失败，请检查连接。";
   } finally {
     isLoading.value = false;
   }

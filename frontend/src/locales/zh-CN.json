@@ -1,5 +1,6 @@
 {
   "nav": {
+    "flow_editor": "流程编辑",
     "projects": "工程管理",
     "inspection": "检测监控",
     "results": "结果历史",

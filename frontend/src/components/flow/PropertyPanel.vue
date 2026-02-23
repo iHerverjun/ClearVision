@@ -7,9 +7,9 @@
     <div class="panel-header">
       <div class="header-titles">
         <h3 class="panel-title">
-          {{ schema?.displayName || selectedNode.data.name || "Configuration" }}
+          {{ schema?.displayName || selectedNode.data.name || "配置" }}
         </h3>
-        <span class="panel-subtitle">{{ schema?.type || "Unknown Type" }}</span>
+        <span class="panel-subtitle">{{ schema?.type || "未知类型" }}</span>
       </div>
       <button class="close-btn" @click="closePanel">
         <XIcon class="close-icon" />
@@ -21,7 +21,7 @@
         <div class="empty-icon-wrapper">
           <SettingsIcon class="empty-icon" />
         </div>
-        <p>No configurable parameters for this operator.</p>
+        <p>该算子暂无可配置参数。</p>
       </div>
 
       <div v-else class="property-form">
@@ -80,7 +80,7 @@
               class="cv-input file-path-input"
               v-model="configProxy[String(param.name)]"
               readonly
-              placeholder="Select a file..."
+              placeholder="请选择文件..."
             />
             <button
               class="cv-btn file-browse-btn"
@@ -197,7 +197,7 @@ const readBlobAsDataUrl = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(`${reader.result || ""}`);
-    reader.onerror = () => reject(reader.error || new Error("Failed to read file."));
+    reader.onerror = () => reject(reader.error || new Error("读取文件失败。"));
     reader.readAsDataURL(blob);
   });
 };

@@ -208,6 +208,8 @@ static class Program
         });
 
         // 结果分析 API
+        app.MapStatisticsEndpoints();
+
         app.MapGet("/api/analysis/statistics/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
         {
             return Results.Ok(await analysisService.GetStatisticsAsync(projectId, startTime, endTime));

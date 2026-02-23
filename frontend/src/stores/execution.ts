@@ -37,7 +37,7 @@ interface ProgressNotificationEvent {
 interface InspectionCompletedEvent {
   resultId: string;
   projectId: string;
-  status: 'Pass' | 'Fail' | 'Error';
+  status: 'Pass' | 'Fail' | 'OK' | 'NG' | 'Error';
   processingTimeMs: number;
 }
 
@@ -226,6 +226,7 @@ export const useExecutionStore = defineStore('execution', () => {
   const flowStore = useFlowStore();
 
   const isRunning = ref<boolean>(false);
+  const isContinuousMode = ref<boolean>(false);
   const currentExecutingNodeId = ref<string | null>(null);
   const nodeStates = ref<Map<string, NodeExecutionState>>(new Map());
   const executionTime = ref<number>(0);
@@ -236,8 +237,13 @@ export const useExecutionStore = defineStore('execution', () => {
   const bridgeListenersInitialized = ref<boolean>(false);
   
   // Real-time inspection state
-  const lastInspectionResult = ref<'Pass' | 'Fail' | 'Error' | null>(null);
+  const lastInspectionResult = ref<'OK' | 'NG' | 'Error' | null>(null);
   const latestCameraImage = ref<string | null>(null);
+  const latestCameraId = ref<string | null>(null);
+  const latestCameraMeta = ref<{ width: number; height: number } | null>(null);
+  const okCount = ref(0);
+  const ngCount = ref(0);
+  const cycleTimeMs = ref(0);
 
   const getNodeStatus = computed(() => {
     return (nodeId: string): ExecutionStatus => {
@@ -274,6 +280,14 @@ export const useExecutionStore = defineStore('execution', () => {
     return errors;
   });
 
+  const totalCount = computed(() => okCount.value + ngCount.value);
+  const yieldRate = computed(() => {
+    if (totalCount.value <= 0) {
+      return 0;
+    }
+    return Number(((okCount.value / totalCount.value) * 100).toFixed(2));
+  });
+
   function startExecution(): void {
     isRunning.value = true;
     executionStartTime.value = Date.now();
@@ -291,6 +305,16 @@ export const useExecutionStore = defineStore('execution', () => {
     if (executionStartTime.value) {
       executionTime.value = Date.now() - executionStartTime.value;
     }
+  }
+
+  function startContinuousRun(): void {
+    isContinuousMode.value = true;
+    startExecution();
+  }
+
+  function stopContinuousRun(): void {
+    isContinuousMode.value = false;
+    stopExecution();
   }
 
   function updateNodeState(
@@ -376,6 +400,7 @@ export const useExecutionStore = defineStore('execution', () => {
 
   function clear(): void {
     isRunning.value = false;
+    isContinuousMode.value = false;
     currentExecutingNodeId.value = null;
     nodeStates.value.clear();
     executionTime.value = 0;
@@ -383,6 +408,16 @@ export const useExecutionStore = defineStore('execution', () => {
     progress.value = 0;
     progressMessage.value = '';
     lastError.value = null;
+    latestCameraImage.value = null;
+    latestCameraId.value = null;
+    latestCameraMeta.value = null;
+    resetCounters();
+  }
+
+  function resetCounters(): void {
+    okCount.value = 0;
+    ngCount.value = 0;
+    cycleTimeMs.value = 0;
   }
 
   function clearNodeOutputImage(nodeId: string): void {
@@ -439,7 +474,18 @@ export const useExecutionStore = defineStore('execution', () => {
     stopExecution();
     updateProgress(100, '执行完成');
     executionTime.value = event.processingTimeMs;
-    lastInspectionResult.value = event.status;
+    cycleTimeMs.value = event.processingTimeMs;
+
+    const status = String(event.status || '').toUpperCase();
+    if (status === 'PASS' || status === 'OK') {
+      okCount.value += 1;
+      lastInspectionResult.value = 'OK';
+    } else if (status === 'FAIL' || status === 'NG') {
+      ngCount.value += 1;
+      lastInspectionResult.value = 'NG';
+    } else {
+      lastInspectionResult.value = 'Error';
+    }
   }
 
   function handleImageStreamEvent(message: any): void {
@@ -456,6 +502,7 @@ export const useExecutionStore = defineStore('execution', () => {
     }
 
     setNodePreviewImage(nodeId, outputImage);
+    latestCameraId.value = nodeId;
     if (nodeId === resolveCameraPreviewNodeId()) {
       latestCameraImage.value = outputImage;
     }
@@ -479,6 +526,10 @@ export const useExecutionStore = defineStore('execution', () => {
     if (imageDataUrl) {
       setNodePreviewImage(nodeId, imageDataUrl);
       latestCameraImage.value = imageDataUrl;
+      latestCameraId.value = nodeId;
+      if (width > 0 && height > 0) {
+        latestCameraMeta.value = { width, height };
+      }
     }
   }
 
@@ -523,12 +574,20 @@ export const useExecutionStore = defineStore('execution', () => {
     currentExecutingNodeId,
     nodeStates,
     executionTime,
+    cycleTimeMs,
     progress,
     progressMessage,
     lastError,
     
     lastInspectionResult,
     latestCameraImage,
+    latestCameraId,
+    latestCameraMeta,
+    okCount,
+    ngCount,
+    totalCount,
+    yieldRate,
+    isContinuousMode,
 
     getNodeStatus,
     getNodeOutputImage,
@@ -538,6 +597,8 @@ export const useExecutionStore = defineStore('execution', () => {
 
     startExecution,
     stopExecution,
+    startContinuousRun,
+    stopContinuousRun,
     updateNodeState,
     setNodeRunning,
     setNodeSuccess,
@@ -547,6 +608,7 @@ export const useExecutionStore = defineStore('execution', () => {
     resetAllNodeStates,
     clear,
     clearNodeOutputImage,
+    resetCounters,
 
     initializeBridgeListeners,
     handleOperatorExecuted,

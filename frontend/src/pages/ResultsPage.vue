@@ -7,9 +7,17 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import ResultsFilterSidebar from '../components/results/ResultsFilterSidebar.vue';
 import ResultsMainView from '../components/results/ResultsMainView.vue';
 import ResultsDetailPanel from '../components/results/ResultsDetailPanel.vue';
+import { useResultsStore } from '../stores/results';
+
+const resultsStore = useResultsStore();
+
+onMounted(async () => {
+  await resultsStore.loadRecords();
+});
 </script>
 
 <style scoped>

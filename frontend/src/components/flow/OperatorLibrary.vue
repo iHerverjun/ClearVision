@@ -1,69 +1,75 @@
 <template>
   <div class="operator-library">
     <div class="library-header">
-      <h3 class="title">Library</h3>
+      <h3 class="title">算子库</h3>
       <div class="search-box">
         <SearchIcon class="search-icon" />
         <input
           type="text"
           v-model="searchQuery"
-          placeholder="Search operators..."
+          placeholder="搜索算子..."
           class="search-input"
         />
       </div>
     </div>
 
     <div class="library-content">
-      <div
-        v-for="(group, category) in filteredOperators"
-        :key="category"
-        class="category-group"
-      >
-        <div
-          class="category-header"
-          @click="toggleCategory(category as string)"
-        >
-          <span class="category-name">{{ category }}</span>
-          <ChevronDownIcon
-            class="chevron-icon"
-            :class="{ 'is-collapsed': collapsedCategories[category as string] }"
-          />
-        </div>
+      <div v-if="isLoading" class="empty-state">
+        算子加载中...
+      </div>
 
+      <template v-if="!isLoading">
         <div
-          class="operator-list"
-          v-show="!collapsedCategories[category as string]"
+          v-for="(group, category) in filteredOperators"
+          :key="category"
+          class="category-group"
         >
           <div
-            v-for="op in group"
-            :key="op.type"
-            class="operator-item"
-            :draggable="true"
-            @dragstart="onDragStart($event, op.type)"
+            class="category-header"
+            @click="toggleCategory(category as string)"
           >
-            <div class="op-icon-wrapper">
-              <component :is="getIconComponent(op.icon)" class="op-icon" />
-            </div>
-            <div class="op-details">
-              <div class="op-name">{{ op.displayName }}</div>
-              <div class="op-desc">{{ op.description }}</div>
+            <span class="category-name">{{ category }}</span>
+            <ChevronDownIcon
+              class="chevron-icon"
+              :class="{ 'is-collapsed': collapsedCategories[category as string] }"
+            />
+          </div>
+
+          <div
+            class="operator-list"
+            v-show="!collapsedCategories[category as string]"
+          >
+            <div
+              v-for="op in group"
+              :key="op.type"
+              class="operator-item"
+              :draggable="true"
+              @dragstart="onDragStart($event, op.type)"
+            >
+              <div class="op-icon-wrapper">
+                <component :is="getIconComponent(op.icon)" class="op-icon" />
+              </div>
+              <div class="op-details">
+                <div class="op-name">{{ op.displayName }}</div>
+                <div class="op-desc">{{ op.description }}</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <div
-        v-if="Object.keys(filteredOperators).length === 0"
+        v-if="!isLoading && Object.keys(filteredOperators).length === 0"
         class="empty-state"
       >
-        No operators found.
+        未找到算子
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from "vue";
+import { ref, computed, reactive, onMounted } from "vue";
 import {
   SearchIcon,
   ChevronDownIcon,
@@ -76,21 +82,24 @@ import {
 } from "lucide-vue-next";
 
 import {
-  OPERATOR_SCHEMAS,
+  getOperatorSchemas,
+  loadOperatorSchemas,
   type OperatorSchema,
 } from "../../config/operatorSchema";
 
 const searchQuery = ref("");
 const collapsedCategories = reactive<Record<string, boolean>>({});
+const isLoading = ref(false);
+const operatorSchemas = ref<OperatorSchema[]>(getOperatorSchemas());
 
 const filteredOperators = computed(() => {
   const query = searchQuery.value.toLowerCase();
   const grouped: Record<string, OperatorSchema[]> = {};
 
-  OPERATOR_SCHEMAS.forEach((op) => {
+  operatorSchemas.value.forEach((op) => {
     if (
-      op.displayName.toLowerCase().includes(query) ||
-      op.description.toLowerCase().includes(query)
+      `${op.displayName || ""}`.toLowerCase().includes(query) ||
+      `${op.description || ""}`.toLowerCase().includes(query)
     ) {
       if (!grouped[op.category]) {
         grouped[op.category] = [];
@@ -100,6 +109,16 @@ const filteredOperators = computed(() => {
   });
 
   return grouped;
+});
+
+onMounted(async () => {
+  isLoading.value = true;
+  try {
+    // Force refresh on each mount to recover from previous transient auth/network fallback.
+    operatorSchemas.value = await loadOperatorSchemas(true);
+  } finally {
+    isLoading.value = false;
+  }
 });
 
 const toggleCategory = (category: string) => {

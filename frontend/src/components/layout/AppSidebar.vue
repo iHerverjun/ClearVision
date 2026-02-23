@@ -55,7 +55,7 @@ const { t } = useI18n();
 
 // Make navItems reactive so they update when the language changes
 const navItems = computed(() => [
-  { path: "/flow-editor", label: "Flow Editor", icon: NetworkIcon },
+  { path: "/flow-editor", label: t('nav.flow_editor'), icon: NetworkIcon },
   { path: "/inspection", label: t('nav.inspection'), icon: CameraIcon },
   { path: "/results", label: t('nav.results'), icon: LineChartIcon },
   { path: "/projects", label: t('nav.projects'), icon: FolderIcon },

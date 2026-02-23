@@ -26,6 +26,30 @@ export const BridgeMessageType = {
   ImageStreamShared: 'image.stream.shared',
   AuthLogin: 'auth.login',
   AuthLogout: 'auth.logout',
+
+  // Project management
+  ProjectListQuery: 'ProjectListQuery',
+  ProjectListResult: 'ProjectListResult',
+  ProjectCreateCommand: 'ProjectCreateCommand',
+  ProjectCreateResult: 'ProjectCreateResult',
+  ProjectDeleteCommand: 'ProjectDeleteCommand',
+  ProjectDeleteResult: 'ProjectDeleteResult',
+  ProjectOpenCommand: 'ProjectOpenCommand',
+
+  // Results
+  ResultsQuery: 'ResultsQuery',
+  ResultsQueryResult: 'ResultsQueryResult',
+  ResultsExportCommand: 'ResultsExportCommand',
+  ResultsExportResult: 'ResultsExportResult',
+  FalsePositiveCommand: 'FalsePositiveCommand',
+
+  // System stats
+  SystemStatsQuery: 'SystemStatsQuery',
+  SystemStatsResult: 'SystemStatsResult',
+  HardwareStatusQuery: 'HardwareStatusQuery',
+  HardwareStatusResult: 'HardwareStatusResult',
+  ActivityLogQuery: 'ActivityLogQuery',
+  ActivityLogResult: 'ActivityLogResult',
   
   // AI
   AiGenerateFlow: 'GenerateFlowCommand',

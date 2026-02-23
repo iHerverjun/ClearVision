@@ -18,7 +18,7 @@ export const useAiStore = defineStore('ai', () => {
     {
       id: 'greeting',
       role: 'assistant',
-      content: 'Hello! I am ClearVision AI. How can I help you build your inspection workflow today?',
+      content: '你好！我是 ClearVision AI，有什么可以帮你构建检测工程的？',
       timestamp: new Date().toISOString()
     }
   ]);
@@ -47,7 +47,8 @@ export const useAiStore = defineStore('ai', () => {
       const response = await webMessageBridge.sendMessage(
         BridgeMessageType.AiGenerateFlow,
         { prompt },
-        true
+        true,
+        120000
       );
 
       lastGeneratedFlowJson.value = response.flowJson;
@@ -57,7 +58,7 @@ export const useAiStore = defineStore('ai', () => {
       messages.value.push({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.rawResponse || 'Workflow generated successfully.',
+        content: response.rawResponse || '工程生成成功。',
         timestamp: new Date().toISOString(),
         flowJson: response.flowJson,
         usedTools: response.usedTools
@@ -68,7 +69,7 @@ export const useAiStore = defineStore('ai', () => {
       messages.value.push({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Generation failed: ${error.message || 'Unknown error'}`,
+        content: `生成失败：${error.message || '未知错误'}`,
         timestamp: new Date().toISOString(),
         isError: true
       });
@@ -82,7 +83,7 @@ export const useAiStore = defineStore('ai', () => {
       {
         id: 'greeting',
         role: 'assistant',
-        content: 'Conversation cleared. How can I help you?',
+        content: '对话已清空，有什么可以帮你？',
         timestamp: new Date().toISOString()
       }
     ];

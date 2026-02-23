@@ -2,27 +2,41 @@
   <header class="app-header">
     <div class="header-left">
       <div class="logo">
-        <span class="logo-text"
-          >Clear<span class="highlight">Vision</span></span
-        >
+        <span class="logo-text">Clear<span class="highlight">Vision</span></span>
       </div>
 
-      <!-- Project Switcher Placeholder -->
-      <GlassCard class="project-switcher" interactive>
-        <FolderIcon class="icon-sm" />
-        <div class="project-info">
-          <span class="project-name">Default_Project_01</span>
-          <span class="project-status">Saved</span>
+      <div class="project-switcher-wrapper">
+        <GlassCard class="project-switcher" interactive @click="toggleProjectMenu">
+          <FolderIcon class="icon-sm" />
+          <div class="project-info">
+            <span class="project-name">{{ currentProjectName }}</span>
+            <span class="project-status">{{ currentProjectStatus }}</span>
+          </div>
+          <ChevronDownIcon class="icon-sm text-muted" />
+        </GlassCard>
+
+        <div v-if="isProjectMenuOpen" class="project-menu">
+          <button
+            v-for="project in projectsStore.projects"
+            :key="project.id"
+            class="project-menu-item"
+            :class="{ active: project.id === projectsStore.currentProject?.id }"
+            @click="openProject(project.id)"
+          >
+            <span class="project-menu-name">{{ project.name }}</span>
+            <span class="project-menu-meta">{{ project.type }}</span>
+          </button>
+          <div v-if="projectsStore.projects.length === 0" class="project-menu-empty">
+            暂无工程数据
+          </div>
         </div>
-        <ChevronDownIcon class="icon-sm text-muted" />
-      </GlassCard>
+      </div>
     </div>
 
-    <!-- Execution Center Placeholder -->
     <div class="header-center">
       <GlassCard class="execution-dashboard">
-        <div class="play-btn-wrapper" :class="{ 'is-running': isRunning }">
-          <svg class="progress-ring" width="40" height="40" v-if="isRunning">
+        <div class="play-btn-wrapper" :class="{ 'is-running': executionStore.isRunning }">
+          <svg class="progress-ring" width="40" height="40" v-if="executionStore.isRunning">
             <circle
               class="progress-ring__circle"
               stroke="rgba(232, 72, 85, 0.2)"
@@ -44,36 +58,32 @@
             />
           </svg>
           <IconButton
-            :variant="isRunning ? 'danger' : 'primary'"
+            :variant="executionStore.isRunning ? 'danger' : 'primary'"
             size="md"
-            title="Run Sequence"
+            title="运行流程"
             @click="toggleRun"
           >
-            <SquareIcon v-if="isRunning" />
+            <SquareIcon v-if="executionStore.isRunning" />
             <PlayIcon v-else />
           </IconButton>
         </div>
 
         <div class="execution-stats">
-          <span class="stat-value">12.5<span class="stat-unit">ms</span></span>
-          <span class="stat-label">Cycle Time</span>
+          <span class="stat-value">{{ cycleTimeText }}<span class="stat-unit">ms</span></span>
+          <span class="stat-label">节拍</span>
         </div>
 
         <div class="divider"></div>
 
         <div class="execution-stats">
-          <span class="stat-value success"
-            >99.2<span class="stat-unit">%</span></span
-          >
-          <span class="stat-label">Yield Rate</span>
+          <span class="stat-value success">{{ yieldRateText }}<span class="stat-unit">%</span></span>
+          <span class="stat-label">良率</span>
         </div>
       </GlassCard>
     </div>
 
     <div class="header-right">
-      <!-- Action Buttons -->
       <div class="actions-group">
-        <!-- Hidden file input for loading C# JSON -->
         <input
           type="file"
           ref="fileInputRef"
@@ -82,27 +92,19 @@
           @change="onFileImport"
         />
 
-        <IconButton title="Load Legacy JSON (Ctrl+O)" @click="triggerFileInput">
+        <IconButton title="导入旧版 JSON（Ctrl+O）" @click="triggerFileInput">
           <UploadIcon />
         </IconButton>
 
-        <IconButton title="Save Project (Ctrl+S)" @click="saveProject">
+        <IconButton title="保存工程（Ctrl+S）" @click="saveProject">
           <SaveIcon />
         </IconButton>
 
-        <IconButton
-          title="Undo (Ctrl+Z)"
-          :disabled="!flowStore.canUndo"
-          @click="flowStore.undo"
-        >
+        <IconButton title="撤销（Ctrl+Z）" :disabled="!flowStore.canUndo" @click="flowStore.undo">
           <UndoIcon />
         </IconButton>
 
-        <IconButton
-          title="Redo (Ctrl+Y)"
-          :disabled="!flowStore.canRedo"
-          @click="flowStore.redo"
-        >
+        <IconButton title="重做（Ctrl+Y）" :disabled="!flowStore.canRedo" @click="flowStore.redo">
           <RedoIcon />
         </IconButton>
       </div>
@@ -111,7 +113,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   FolderIcon,
   ChevronDownIcon,
@@ -121,17 +124,46 @@ import {
   UndoIcon,
   RedoIcon,
   UploadIcon,
-} from "lucide-vue-next";
-import GlassCard from "../shared/GlassCard.vue";
-import IconButton from "../shared/IconButton.vue";
-import { useFlowStore } from "../../stores/flow";
+} from 'lucide-vue-next';
+import GlassCard from '../shared/GlassCard.vue';
+import IconButton from '../shared/IconButton.vue';
+import { useFlowStore } from '../../stores/flow';
+import { useExecutionStore } from '../../stores/execution';
+import { useProjectsStore } from '../../stores/projects';
 
-const isRunning = ref(false);
+const router = useRouter();
 const flowStore = useFlowStore();
+const executionStore = useExecutionStore();
+const projectsStore = useProjectsStore();
+
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const isProjectMenuOpen = ref(false);
+
+const cycleTimeText = computed(() => Math.round(executionStore.cycleTimeMs || 0).toString());
+const yieldRateText = computed(() => executionStore.yieldRate.toFixed(1));
+const currentProjectName = computed(() => projectsStore.currentProject?.name || '未加载工程');
+const currentProjectStatus = computed(() => (projectsStore.currentProject ? '已保存' : '未加载'));
+
+const toggleProjectMenu = () => {
+  isProjectMenuOpen.value = !isProjectMenuOpen.value;
+};
+
+const openProject = async (projectId: string) => {
+  try {
+    await projectsStore.openProject(projectId);
+    isProjectMenuOpen.value = false;
+    await router.push({ name: 'FlowEditor' });
+  } catch (error) {
+    console.error('[AppHeader] Failed to open project:', error);
+  }
+};
 
 const toggleRun = () => {
-  isRunning.value = !isRunning.value;
+  if (executionStore.isRunning) {
+    executionStore.stopContinuousRun();
+  } else {
+    executionStore.startExecution();
+  }
 };
 
 const triggerFileInput = () => {
@@ -148,36 +180,37 @@ const onFileImport = (event: Event) => {
     try {
       const content = e.target?.result as string;
       const data = JSON.parse(content);
-      // Pass the deserialized backend payload directly to the pinia store
-      // which uses flowSerializer under the hood
       flowStore.loadLegacyProject(data);
     } catch (err) {
-      console.error("Failed to parse legacy JSON project file:", err);
-      alert("Invalid Project File");
+      console.error('Failed to parse legacy JSON project file:', err);
+      window.alert('工程文件无效。');
     }
   };
   reader.readAsText(file);
 
-  // Reset input so the same file could be loaded again
   if (fileInputRef.value) {
-    fileInputRef.value.value = "";
+    fileInputRef.value.value = '';
   }
 };
 
 const saveProject = () => {
   const legacyData = flowStore.buildLegacyProject();
   const blob = new Blob([JSON.stringify(legacyData, null, 2)], {
-    type: "application/json",
+    type: 'application/json',
   });
   const url = URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ClearVision_Export_${Date.now()}.json`;
-  a.click();
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ClearVision_Export_${Date.now()}.json`;
+  anchor.click();
 
   URL.revokeObjectURL(url);
 };
+
+onMounted(async () => {
+  await projectsStore.loadProjects();
+});
 </script>
 
 <style scoped>
@@ -191,10 +224,9 @@ const saveProject = () => {
   justify-content: space-between;
   align-items: center;
   z-index: 100;
-  pointer-events: none; /* Let clicks pass through empty space to canvas */
+  pointer-events: none;
 }
 
-/* Re-enable pointer events for child elements */
 .header-left,
 .header-center,
 .header-right {
@@ -217,8 +249,13 @@ const saveProject = () => {
 .logo-text {
   color: var(--text-primary);
 }
+
 .logo-text .highlight {
   color: var(--accent-red);
+}
+
+.project-switcher-wrapper {
+  position: relative;
 }
 
 .project-switcher {
@@ -245,6 +282,58 @@ const saveProject = () => {
   color: var(--text-muted);
 }
 
+.project-menu {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border-glass, rgba(0, 0, 0, 0.05));
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  z-index: 120;
+}
+
+.project-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-menu-item:hover {
+  background: rgba(255, 77, 77, 0.06);
+}
+
+.project-menu-item.active {
+  background: rgba(255, 77, 77, 0.12);
+}
+
+.project-menu-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.project-menu-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.project-menu-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 12px;
+}
+
 .icon-sm {
   width: 16px;
   height: 16px;
@@ -255,7 +344,6 @@ const saveProject = () => {
   color: var(--text-muted);
 }
 
-/* Center Dashboard */
 .header-center {
   position: absolute;
   left: 50%;
@@ -342,7 +430,6 @@ const saveProject = () => {
   background: var(--border-glass, rgba(0, 0, 0, 0.05));
 }
 
-/* Right Section */
 .actions-group {
   display: flex;
   gap: 4px;
@@ -353,20 +440,5 @@ const saveProject = () => {
   border-radius: 12px;
   border: 1px solid var(--border-glass, rgba(0, 0, 0, 0.05));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-}
-
-.ai-trigger {
-  padding: 0 16px;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  height: 40px;
-  border-radius: 20px;
-}
-
-.ai-icon {
-  color: var(--accent-red);
-  width: 18px;
-  height: 18px;
 }
 </style>

@@ -5,7 +5,7 @@
       <div v-if="isProcessing" class="absolute inset-0 bg-[var(--color-surface)]/80 backdrop-blur-sm z-50 flex items-center justify-center">
         <div class="flex flex-col items-center">
           <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mb-4"></div>
-          <span class="text-sm font-bold text-[var(--color-text)]">Processing Calibration...</span>
+          <span class="text-sm font-bold text-[var(--color-text)]">正在处理标定...</span>
         </div>
       </div>
 
@@ -16,8 +16,8 @@
             <CombineIcon class="text-red-500 w-4 h-4" />
           </div>
           <div>
-            <h2 class="text-lg font-bold text-[var(--color-text)]">Hand-Eye Calibration Wizard</h2>
-            <p class="text-xs text-[var(--color-text-muted)]">Step {{ currentStep }}: {{ stepTitles[currentStep] }}</p>
+            <h2 class="text-lg font-bold text-[var(--color-text)]">手眼标定向导</h2>
+            <p class="text-xs text-[var(--color-text-muted)]">步骤 {{ currentStep }}：{{ stepTitles[currentStep] }}</p>
           </div>
         </div>
         <button @click="close" class="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-gray-500">
@@ -66,26 +66,26 @@
           <div v-if="currentStep === 1" class="space-y-6 animate-fade-in">
             <div class="grid grid-cols-2 gap-6">
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Mount Type</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">安装方式</label>
                 <select v-model="config.mountType" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5">
-                  <option value="eye_in_hand">Eye-in-Hand (Camera mounted on robot arm)</option>
-                  <option value="eye_to_hand">Eye-to-Hand (Camera fixed, observing robot arm)</option>
+                  <option value="eye_in_hand">眼在手上（相机安装在机械臂末端）</option>
+                  <option value="eye_to_hand">眼在手外（相机固定，观察机械臂）</option>
                 </select>
               </div>
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Algorithm</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">算法</label>
                 <select v-model="config.algorithm" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5">
-                  <option value="tsai">Tsai-Lenz (Standard)</option>
+                  <option value="tsai">Tsai-Lenz（标准）</option>
                   <option value="park">Park-Martin</option>
                   <option value="horaud">Horaud</option>
-                  <option value="daniilidis">Daniilidis (Dual Quaternion)</option>
+                  <option value="daniilidis">Daniilidis（双四元数）</option>
                 </select>
               </div>
               <div class="col-span-2 bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
                  <h4 class="text-sm font-bold text-[var(--color-text)] mb-2 flex items-center">
-                   <MonitorIcon class="w-4 h-4 mr-2" /> Note on Prior Calibration
+                   <MonitorIcon class="w-4 h-4 mr-2" /> 标定前置说明
                  </h4>
-                 <p class="text-sm text-[var(--color-text-muted)]">Please ensure the camera is independently calibrated (intrinsics known) before attempting hand-eye calibration. The system will use the currently active camera parameters.</p>
+                 <p class="text-sm text-[var(--color-text-muted)]">请先确保相机已完成独立标定（内参已知），再进行手眼标定。系统将使用当前激活的相机参数。</p>
               </div>
             </div>
           </div>
@@ -94,17 +94,17 @@
           <div v-if="currentStep === 2" class="space-y-6 animate-fade-in flex flex-col h-full">
             <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm flex items-center justify-between">
               <div>
-                <h4 class="text-sm font-bold text-[var(--color-text)]">Acquired Pairs: {{ dataPairs.length }} / 20</h4>
-                <p class="text-xs text-[var(--color-text-muted)] mt-1">Capture synchronized image pattern and robot TCP pose pairs.</p>
+                <h4 class="text-sm font-bold text-[var(--color-text)]">已采集配对：{{ dataPairs.length }} / 20</h4>
+                <p class="text-xs text-[var(--color-text-muted)] mt-1">采集同步的图像标定板与机器人 TCP 位姿配对数据。</p>
               </div>
               <div class="flex space-x-2">
                 <button @click="readRobotPose" class="px-4 py-2 bg-[var(--color-surface)] hover:bg-gray-100 dark:hover:bg-gray-800 text-[var(--color-text)] border border-[var(--color-border)] rounded-lg flex items-center font-bold text-sm shadow-sm transition-colors">
                   <ListOrderedIcon class="w-4 h-4 mr-2" />
-                  Read Pose
+                  读取位姿
                 </button>
                 <button @click="capturePair" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center font-bold text-sm shadow-sm transition-colors">
                   <CameraIcon class="w-4 h-4 mr-2" />
-                  Capture Pair
+                  采集配对
                 </button>
               </div>
             </div>
@@ -113,22 +113,22 @@
                <!-- Table Header -->
                <div class="grid grid-cols-12 gap-2 p-3 bg-[var(--color-surface)] border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-muted)] uppercase">
                  <div class="col-span-1 text-center">#</div>
-                 <div class="col-span-3">Image</div>
-                 <div class="col-span-7">Robot Pose (X, Y, Z, Rx, Ry, Rz)</div>
-                 <div class="col-span-1 text-center">ACT</div>
+                 <div class="col-span-3">图像</div>
+                 <div class="col-span-7">机器人位姿 (X, Y, Z, Rx, Ry, Rz)</div>
+                 <div class="col-span-1 text-center">操作</div>
                </div>
 
                <!-- List -->
                <div v-if="dataPairs.length === 0" class="flex-1 flex flex-col items-center justify-center text-gray-400">
                  <CombineIcon class="w-12 h-12 mb-2 opacity-50" />
-                 <span>No pose-image pairs captured yet.</span>
+                 <span>暂无位姿-图像配对数据。</span>
                </div>
                <div v-else class="flex-1 overflow-y-auto p-2 space-y-2">
                  <div v-for="(pair, idx) in dataPairs" :key="idx" class="grid grid-cols-12 gap-2 p-2 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg items-center hover:bg-red-50/50 transition-colors group">
                     <div class="col-span-1 text-center font-bold text-[var(--color-text)]">{{ idx + 1 }}</div>
                     <div class="col-span-3 flex items-center">
                        <div class="h-8 w-12 bg-black rounded overflow-hidden flex items-center justify-center border border-gray-600 mr-2">
-                         <span class="text-[8px] text-gray-400">IMG</span>
+                         <span class="text-[8px] text-gray-400">图</span>
                        </div>
                        <span class="text-xs text-[var(--color-text-muted)] truncate">{{ pair.image }}</span>
                     </div>
@@ -149,15 +149,15 @@
           <div v-if="currentStep === 3" class="space-y-6 animate-fade-in">
              <div v-if="!result" class="flex flex-col items-center justify-center h-64">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mb-4"></div>
-                <h3 class="text-lg font-bold text-[var(--color-text)]">Solving Hand-Eye Relationship...</h3>
+                <h3 class="text-lg font-bold text-[var(--color-text)]">正在求解手眼关系...</h3>
              </div>
              <div v-else class="space-y-6">
                 <!-- Status Banner -->
                 <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800 flex items-center">
                   <CheckCircleIcon class="w-6 h-6 text-green-500 mr-3" />
                   <div>
-                    <h4 class="text-sm font-bold text-green-800 dark:text-green-400">Hand-Eye Calibration Successful</h4>
-                    <p class="text-xs text-green-700 dark:text-green-500">Translation Error: {{ result.translationError.toFixed(4) }} mm | Rotation Error: {{ result.rotationError.toFixed(4) }} rad</p>
+                    <h4 class="text-sm font-bold text-green-800 dark:text-green-400">手眼标定成功</h4>
+                    <p class="text-xs text-green-700 dark:text-green-500">平移误差：{{ result.translationError.toFixed(4) }} mm | 旋转误差：{{ result.rotationError.toFixed(4) }} rad</p>
                   </div>
                 </div>
 
@@ -165,7 +165,7 @@
                 <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
                   <h4 class="text-sm font-bold text-[var(--color-text)] mb-3 flex items-center">
                     <GridIcon class="w-4 h-4 mr-2 text-red-500" />
-                    Transformation Matrix (Camera {{ config.mountType === 'eye_in_hand' ? 'to Gripper' : 'to Base' }})
+                    变换矩阵（相机{{ config.mountType === 'eye_in_hand' ? '到夹爪' : '到基座' }}）
                   </h4>
                   <pre class="bg-black/5 p-4 rounded-lg text-sm font-mono text-[var(--color-text)] overflow-x-auto">{{ formatMatrix(result.matrix) }}</pre>
                 </div>
@@ -177,18 +177,18 @@
       <!-- Footer Actions -->
       <div class="p-4 border-t border-[var(--color-border)] bg-[var(--color-background)] flex justify-between items-center">
         <button @click="close" class="px-5 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded-xl transition-colors border border-[var(--color-border)] shadow-sm">
-          Cancel
+          取消
         </button>
         <div class="flex space-x-3">
           <button v-if="currentStep > 1" @click="prevStep" class="px-5 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded-xl transition-colors border border-[var(--color-border)] shadow-sm">
-            Previous
+            上一步
           </button>
           <button v-if="currentStep < 3" @click="nextStep" :disabled="currentStep === 2 && dataPairs.length < 5" class="px-5 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-md hover:shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:hover:shadow-md">
-            Next
+            下一步
           </button>
           <button v-if="currentStep === 3" @click="handleSave" class="px-5 py-2 text-sm font-bold text-white bg-green-500 hover:bg-green-600 rounded-xl transition-all shadow-md hover:shadow-lg shadow-green-500/20 flex items-center">
             <SaveIcon class="w-4 h-4 mr-2" />
-            Save Transformation
+            保存变换矩阵
           </button>
         </div>
       </div>
@@ -225,9 +225,9 @@ const currentStep = ref(1);
 const isProcessing = ref(false);
 
 const stepTitles: Record<number, string> = {
-  1: 'Configuration',
-  2: 'Acquisition (Pairs)',
-  3: 'Compute & Review'
+  1: '参数配置',
+  2: '数据采集（配对）',
+  3: '计算与复核'
 };
 
 const config = reactive({
@@ -245,7 +245,7 @@ const result = ref<any>(null);
 
 const readRobotPose = () => {
   // Mock grabbing pose from TCP or PLC
-  console.log('Reading pose from robot...');
+  console.log('正在从机器人读取位姿...');
 };
 
 const capturePair = () => {
@@ -310,7 +310,7 @@ const solveCalibration = async () => {
       };
     }
   } catch (e) {
-    console.error('Hand-Eye Calibration failed', e);
+    console.error('手眼标定失败', e);
   } finally {
     isProcessing.value = false;
   }
@@ -326,7 +326,7 @@ const handleSave = async () => {
     );
     close();
   } catch(e) {
-    console.error('Save failed', e);
+    console.error('保存失败', e);
   } finally {
     isProcessing.value = false;
   }

@@ -308,6 +308,13 @@ public static class ApiEndpoints
 
     private static void MapOperatorEndpoints(IEndpointRouteBuilder app)
     {
+        // 获取全部算子元数据（动态加载主入口）
+        app.MapGet("/api/operators/metadata", (IOperatorFactory factory) =>
+        {
+            var metadata = factory.GetAllMetadata();
+            return Results.Ok(metadata);
+        });
+
         // 获取算子库
         app.MapGet("/api/operators/library", (IOperatorFactory factory) =>
         {

@@ -16,12 +16,33 @@ export interface LintIssue {
   nodeId?: string;
 }
 
+export type EdgeRenderStyle = 'bezier' | 'smoothstep' | 'pathfinding';
+
 export const useFlowStore = defineStore('flow', () => {
   const nodes = ref<FlowNode[]>([]);
   const edges = ref<Edge[]>([]);
   const selectedNodeId = ref<string | null>(null);
   const isDirty = ref<boolean>(false);
   const lintIssues = ref<LintIssue[]>([]);
+  const preferredEdgeStyle = ref<EdgeRenderStyle>('bezier');
+
+  // ─── Connection Drag State ─────────────────
+  const connectingSourceType = ref<string | null>(null);
+  const connectingDirection = ref<'source' | 'target' | null>(null);
+
+  const setConnectingType = (type: string | null, direction: 'source' | 'target' | null = null) => {
+    connectingSourceType.value = type;
+    connectingDirection.value = direction;
+  };
+
+  const clearConnectingType = () => {
+    connectingSourceType.value = null;
+    connectingDirection.value = null;
+  };
+
+  const setPreferredEdgeStyle = (style: EdgeRenderStyle) => {
+    preferredEdgeStyle.value = style;
+  };
 
   // Undo / Redo Stacks (Store serialized JSON strings)
   const history = ref<string[]>([]);
@@ -301,6 +322,9 @@ export const useFlowStore = defineStore('flow', () => {
     selectedNodeId,
     isDirty,
     lintIssues,
+    connectingSourceType,
+    connectingDirection,
+    preferredEdgeStyle,
     setNodes,
     setEdges,
     addNode,
@@ -311,6 +335,9 @@ export const useFlowStore = defineStore('flow', () => {
     clear,
     selectedNode,
     getNodeById,
+    setConnectingType,
+    clearConnectingType,
+    setPreferredEdgeStyle,
     undo,
     redo,
     canUndo,

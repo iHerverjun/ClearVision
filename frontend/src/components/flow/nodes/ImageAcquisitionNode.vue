@@ -1,10 +1,10 @@
 <template>
   <OperatorNode :id="id" :data="data" :selected="selected" class="camera-node">
     <div class="camera-config">
-      <label class="control-label">Source Camera</label>
+      <label class="control-label">图像来源</label>
       <select class="modern-select" v-model="configProxy.sourceType">
-        <option value="camera">-- Connect to Local Camera --</option>
-        <option value="file">-- Load Image Sequence --</option>
+        <option value="camera">-- 连接本地相机 --</option>
+        <option value="file">-- 加载图像序列 --</option>
       </select>
     </div>
   </OperatorNode>

@@ -3,6 +3,7 @@ export const ENDPOINTS = {
   Auth: {
     Login: '/api/auth/login',
     Logout: '/api/auth/logout',
+    Me: '/api/auth/me',
     Verify: '/api/auth/verify',
   },
   // Projects

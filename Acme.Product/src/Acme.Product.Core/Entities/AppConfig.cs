@@ -25,6 +25,16 @@ public class AppConfig
     public StorageConfig Storage { get; set; } = new();
 
     /// <summary>
+    /// 相机默认参数
+    /// </summary>
+    public CameraDefaultsConfig CameraDefaults { get; set; } = new();
+
+    /// <summary>
+    /// AI 助手配置
+    /// </summary>
+    public AiUiConfig Ai { get; set; } = new();
+
+    /// <summary>
     /// 运行时参数
     /// </summary>
     public RuntimeConfig Runtime { get; set; } = new();
@@ -53,9 +63,50 @@ public class GeneralConfig
     public string Theme { get; set; } = "dark";
 
     /// <summary>
+    /// 当前语言
+    /// </summary>
+    public string Language { get; set; } = "zh-CN";
+
+    /// <summary>
+    /// 自动保存间隔（分钟）
+    /// </summary>
+    public int AutoSaveIntervalMinutes { get; set; } = 5;
+
+    /// <summary>
     /// 是否开机自启动
     /// </summary>
     public bool AutoStart { get; set; } = false;
+}
+
+public class CameraDefaultsConfig
+{
+    /// <summary>
+    /// 默认分辨率
+    /// </summary>
+    public string DefaultResolution { get; set; } = "1920x1080";
+
+    /// <summary>
+    /// 曝光目标值（0-255）
+    /// </summary>
+    public int ExposureTarget { get; set; } = 120;
+}
+
+public class AiUiConfig
+{
+    /// <summary>
+    /// API Key
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 默认模型
+    /// </summary>
+    public string Model { get; set; } = "DeepSeek-V3";
+
+    /// <summary>
+    /// 请求超时（毫秒）
+    /// </summary>
+    public int TimeoutMs { get; set; } = 30000;
 }
 
 public class CommunicationConfig

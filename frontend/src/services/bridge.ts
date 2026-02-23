@@ -2,15 +2,33 @@ import { BridgeMessageType, type BridgeMessage, type RequestRecord } from './bri
 import { mockBridge } from './bridge.mock';
 
 type MessageHandler = (message: any) => void | Promise<any>;
+type ConnectionStateHandler = (isConnected: boolean) => void;
 
 class WebMessageBridge {
   private messageHandlers = new Map<string, MessageHandler>();
   private pendingRequests = new Map<number, RequestRecord>();
   private requestId = 0;
   private isMockMode = false;
+  private isConnected = false;
+  private connectionStateHandlers = new Set<ConnectionStateHandler>();
 
   constructor() {
     this.initialize();
+  }
+
+  private setConnectionState(nextState: boolean) {
+    if (this.isConnected === nextState) {
+      return;
+    }
+
+    this.isConnected = nextState;
+    this.connectionStateHandlers.forEach((handler) => {
+      try {
+        handler(nextState);
+      } catch (error) {
+        console.error('[WebMessageBridge] Error in connection state handler:', error);
+      }
+    });
   }
 
   private initialize() {
@@ -20,10 +38,12 @@ class WebMessageBridge {
       w.chrome.webview.addEventListener('message', this.handleMessage.bind(this));
       w.chrome.webview.addEventListener('sharedbufferreceived', this.handleSharedBuffer.bind(this));
       console.log('[WebMessageBridge] WebView2 Environment Initialized');
+      this.setConnectionState(true);
     } else {
       console.warn('[WebMessageBridge] Not in WebView2, using Mock mode');
       this.isMockMode = true;
       mockBridge.initialize(this.handleMessage.bind(this));
+      this.setConnectionState(true);
     }
   }
 
@@ -49,17 +69,10 @@ class WebMessageBridge {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private handleMessage(event: any) {
-    const message: BridgeMessage = event.data;
-    
-    // Safely get message type to accommodate variable backend naming
-    const messageType = message ? (message.type || message.messageType || message.MessageType) : null;
-    
-    if (!message || !messageType) {
-      console.warn('[WebMessageBridge] Received invalid message:', message);
+    const message: BridgeMessage = event?.data ?? event;
+    if (!message) {
       return;
     }
-
-    // console.log('[WebMessageBridge] Received:', messageType, message);
 
     // Handle responses for pending requests
     if (message.requestId && this.pendingRequests.has(message.requestId)) {
@@ -73,6 +86,13 @@ class WebMessageBridge {
         // Backend might wrap data or spread it
         resolve(message.data !== undefined ? message.data : message);
       }
+      return;
+    }
+
+    // Safely get message type to accommodate variable backend naming
+    const messageType = message.type || message.messageType || message.MessageType;
+    if (!messageType) {
+      console.warn('[WebMessageBridge] Received message without message type:', message);
       return;
     }
 
@@ -95,7 +115,7 @@ class WebMessageBridge {
       } catch (error: any) {
         console.error('[WebMessageBridge] Error handling message:', error);
         if (message.requestId) {
-          this.sendError(message.requestId, error.message || 'Unknown error');
+          this.sendError(message.requestId, error.message || '未知错误');
         }
       }
     } else {
@@ -103,7 +123,12 @@ class WebMessageBridge {
     }
   }
 
-  public async sendMessage<T = any>(type: string, data: any = null, expectResponse = false): Promise<T> {
+  public async sendMessage<T = any>(
+    type: string,
+    data: any = null,
+    expectResponse = false,
+    timeoutMs = 15000,
+  ): Promise<T> {
     const message: BridgeMessage = {
       ...data,
       messageType: type,
@@ -112,19 +137,34 @@ class WebMessageBridge {
 
     if (expectResponse) {
       message.requestId = ++this.requestId;
-      
+      const effectiveTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 15000;
+
       return new Promise<T>((resolve, reject) => {
-        this.pendingRequests.set(message.requestId as number, { resolve, reject });
-        
-        // Timeout 30s
-        setTimeout(() => {
+        const timeoutId = window.setTimeout(() => {
           if (this.pendingRequests.has(message.requestId as number)) {
             this.pendingRequests.delete(message.requestId as number);
-            reject(new Error(`Request timeout for type: ${type}`));
+            reject(new Error(`请求超时（${effectiveTimeoutMs}ms）：${type}`));
           }
-        }, 30000);
+        }, effectiveTimeoutMs);
 
-        this.postMessage(message);
+        this.pendingRequests.set(message.requestId as number, {
+          resolve: (value: any) => {
+            window.clearTimeout(timeoutId);
+            resolve(value);
+          },
+          reject: (reason?: any) => {
+            window.clearTimeout(timeoutId);
+            reject(reason);
+          },
+        });
+
+        try {
+          this.postMessage(message);
+        } catch (error) {
+          window.clearTimeout(timeoutId);
+          this.pendingRequests.delete(message.requestId as number);
+          reject(error);
+        }
       });
     } else {
       this.postMessage(message);
@@ -139,7 +179,15 @@ class WebMessageBridge {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any;
       if (w.chrome && w.chrome.webview) {
-        w.chrome.webview.postMessage(message);
+        try {
+          w.chrome.webview.postMessage(message);
+          this.setConnectionState(true);
+        } catch (error) {
+          this.setConnectionState(false);
+          throw error;
+        }
+      } else {
+        this.setConnectionState(false);
       }
     }
   }
@@ -168,6 +216,19 @@ class WebMessageBridge {
 
   public off(type: string) {
     this.messageHandlers.delete(type);
+  }
+
+  public getConnectionState() {
+    return this.isConnected;
+  }
+
+  public isUsingMockMode() {
+    return this.isMockMode;
+  }
+
+  public onConnectionStateChange(handler: ConnectionStateHandler) {
+    this.connectionStateHandlers.add(handler);
+    return () => this.connectionStateHandlers.delete(handler);
   }
 }
 

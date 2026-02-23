@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <div
       v-if="isVisible"
@@ -6,16 +6,15 @@
       :style="{ left: `${position.x}px`, top: `${position.y}px` }"
       @click.stop
     >
-      <!-- 鐢诲竷绌虹櫧澶勫彸閿?-->
       <template v-if="contextType === 'pane'">
         <div class="menu-item" @click="handleAddNode">
           <PlusIcon class="menu-icon" />
-          <span>娣诲姞鑺傜偣</span>
+          <span>添加节点</span>
         </div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="handlePaste" :class="{ disabled: !hasClipboard }">
           <ClipboardIcon class="menu-icon" />
-          <span>绮樿创</span>
+          <span>粘贴</span>
           <span class="shortcut">Ctrl+V</span>
         </div>
         <div class="menu-item" @click="handleSelectAll">
@@ -25,57 +24,84 @@
         </div>
       </template>
 
-      <!-- 鑺傜偣涓婂彸閿?-->
       <template v-else-if="contextType === 'node'">
         <div class="menu-item" @click="handleCopy">
           <CopyIcon class="menu-icon" />
-          <span>澶嶅埗</span>
+          <span>复制</span>
           <span class="shortcut">Ctrl+C</span>
         </div>
         <div class="menu-item" @click="handleDuplicate">
           <CopyPlusIcon class="menu-icon" />
-          <span>澶嶅埗鑺傜偣</span>
+          <span>复制节点</span>
         </div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="handleCopyNodeId">
           <HashIcon class="menu-icon" />
-          <span>澶嶅埗鑺傜偣ID</span>
+          <span>复制节点 ID</span>
         </div>
         <div class="menu-item" @click="handleViewOutput">
           <ImageIcon class="menu-icon" />
-          <span>鏌ョ湅杈撳嚭</span>
+          <span>查看输出</span>
         </div>
         <div class="menu-divider"></div>
         <div class="menu-item danger" @click="handleDeleteNode">
           <TrashIcon class="menu-icon" />
-          <span>鍒犻櫎</span>
+          <span>删除</span>
           <span class="shortcut">Del</span>
         </div>
       </template>
 
-      <!-- 杩炵嚎涓婂彸閿?-->
       <template v-else-if="contextType === 'edge'">
         <div class="menu-item danger" @click="handleDeleteEdge">
           <TrashIcon class="menu-icon" />
-          <span>鍒犻櫎杩炵嚎</span>
+          <span>删除连接</span>
+        </div>
+        <div class="menu-item" @click="handleInsertReroute">
+          <PlusIcon class="menu-icon" />
+          <span>插入 Reroute 节点</span>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="menu-section-title">连线样式</div>
+        <div
+          class="menu-item style-item"
+          :class="{ active: currentEdgeStyle === 'bezier' }"
+          @click="handleSetEdgeStyle('bezier')"
+        >
+          <CheckIcon class="menu-icon active-check" />
+          <span>Bezier</span>
+        </div>
+        <div
+          class="menu-item style-item"
+          :class="{ active: currentEdgeStyle === 'smoothstep' }"
+          @click="handleSetEdgeStyle('smoothstep')"
+        >
+          <CheckIcon class="menu-icon active-check" />
+          <span>SmoothStep</span>
+        </div>
+        <div
+          class="menu-item style-item"
+          :class="{ active: currentEdgeStyle === 'pathfinding' }"
+          @click="handleSetEdgeStyle('pathfinding')"
+        >
+          <CheckIcon class="menu-icon active-check" />
+          <span>Pathfinding</span>
         </div>
       </template>
 
-      <!-- 澶氶€夊悗鍙抽敭 -->
       <template v-else-if="contextType === 'selection'">
         <div class="menu-item" @click="handleGroupNodes">
-          <GroupIcon class="menu-icon" />
-          <span>鍒涘缓鍒嗙粍</span>
+          <PlusIcon class="menu-icon" />
+          <span>创建分组</span>
         </div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="handleCopySelection">
           <CopyIcon class="menu-icon" />
-          <span>澶嶅埗</span>
+          <span>复制</span>
           <span class="shortcut">Ctrl+C</span>
         </div>
         <div class="menu-item danger" @click="handleDeleteSelection">
           <TrashIcon class="menu-icon" />
-          <span>鎵归噺鍒犻櫎</span>
+          <span>批量删除</span>
           <span class="shortcut">Del</span>
         </div>
       </template>
@@ -84,24 +110,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useFlowStore } from '../../stores/flow';
-import { useExecutionStore } from '../../stores/execution';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import type { Edge, Node } from '@vue-flow/core';
 import {
-  PlusIcon,
-  ClipboardIcon,
+  CheckIcon,
   CheckSquareIcon,
+  ClipboardIcon,
   CopyIcon,
   CopyPlusIcon,
   HashIcon,
   ImageIcon,
+  PlusIcon,
   TrashIcon,
-  GroupIcon,
 } from 'lucide-vue-next';
-import type { Node, Edge } from '@vue-flow/core';
+import { useExecutionStore } from '../../stores/execution';
+import { useFlowStore, type EdgeRenderStyle } from '../../stores/flow';
 import { resolveImageSource } from '../../services/imageSource';
 
-// Props
 interface Props {
   isVisible: boolean;
   position: { x: number; y: number };
@@ -109,6 +134,10 @@ interface Props {
   targetId?: string | null;
   selectedNodes?: Node[];
   selectedEdges?: Edge[];
+}
+
+interface EdgeDataLike {
+  routeStyle?: EdgeRenderStyle;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -131,6 +160,8 @@ const emit = defineEmits<{
   viewOutput: [nodeId: string];
   deleteNode: [nodeId: string];
   deleteEdge: [edgeId: string];
+  insertReroute: [edgeId: string, screenPosition: { x: number; y: number }];
+  setEdgeStyle: [edgeId: string, style: EdgeRenderStyle];
   groupNodes: [nodeIds: string[]];
   copySelection: [nodeIds: string[]];
   deleteSelection: [nodeIds: string[], edgeIds: string[]];
@@ -139,16 +170,25 @@ const emit = defineEmits<{
 const flowStore = useFlowStore();
 const executionStore = useExecutionStore();
 
-// 鍓创鏉跨姸鎬?
-const clipboard = ref<{ nodes: Node[], edges: Edge[] } | null>(null);
-const hasClipboard = computed(() => clipboard.value !== null && clipboard.value.nodes.length > 0);
+const clipboard = ref<{ nodes: Node[]; edges: Edge[] } | null>(null);
+const hasClipboard = computed(
+  () => clipboard.value !== null && clipboard.value.nodes.length > 0,
+);
 
-// 鍏抽棴鑿滃崟
+const currentEdgeStyle = computed<EdgeRenderStyle>(() => {
+  const selectedEdge = props.selectedEdges[0];
+  if (!selectedEdge) return 'bezier';
+  if (selectedEdge.type === 'pathfinding') return 'pathfinding';
+  return (selectedEdge.data as EdgeDataLike | undefined)?.routeStyle ===
+    'smoothstep'
+    ? 'smoothstep'
+    : 'bezier';
+});
+
 const closeMenu = () => {
   emit('close');
 };
 
-// 鐢诲竷鎿嶄綔
 const handleAddNode = () => {
   emit('addNode', props.position);
   closeMenu();
@@ -166,13 +206,12 @@ const handleSelectAll = () => {
   closeMenu();
 };
 
-// 鑺傜偣鎿嶄綔
 const handleCopy = () => {
   if (props.targetId) {
     const node = flowStore.getNodeById(props.targetId);
     if (node) {
       clipboard.value = {
-        nodes: [JSON.parse(JSON.stringify(node))],
+        nodes: [JSON.parse(JSON.stringify(node)) as Node],
         edges: [],
       };
     }
@@ -197,14 +236,15 @@ const handleCopyNodeId = () => {
 };
 
 const handleViewOutput = () => {
-  if (props.targetId) {
-    const outputImage = executionStore.getNodeOutputImage(props.targetId);
-    if (outputImage) {
-      const imageSrc = resolveImageSource(outputImage);
-      if (!imageSrc) {
-        return;
-      }
+  if (!props.targetId) {
+    closeMenu();
+    return;
+  }
 
+  const outputImage = executionStore.getNodeOutputImage(props.targetId);
+  if (outputImage) {
+    const imageSrc = resolveImageSource(outputImage);
+    if (imageSrc) {
       const win = window.open('', '_blank');
       if (win) {
         win.document.write(`
@@ -218,8 +258,9 @@ const handleViewOutput = () => {
         win.document.close();
       }
     }
-    emit('viewOutput', props.targetId);
   }
+
+  emit('viewOutput', props.targetId);
   closeMenu();
 };
 
@@ -230,7 +271,6 @@ const handleDeleteNode = () => {
   closeMenu();
 };
 
-// 杩炵嚎鎿嶄綔
 const handleDeleteEdge = () => {
   if (props.targetId) {
     emit('deleteEdge', props.targetId);
@@ -238,9 +278,22 @@ const handleDeleteEdge = () => {
   closeMenu();
 };
 
-// 澶氶€夋搷浣?
+const handleInsertReroute = () => {
+  if (props.targetId) {
+    emit('insertReroute', props.targetId, props.position);
+  }
+  closeMenu();
+};
+
+const handleSetEdgeStyle = (style: EdgeRenderStyle) => {
+  if (props.targetId) {
+    emit('setEdgeStyle', props.targetId, style);
+  }
+  closeMenu();
+};
+
 const handleGroupNodes = () => {
-  const nodeIds = props.selectedNodes.map(n => n.id);
+  const nodeIds = props.selectedNodes.map((node) => node.id);
   if (nodeIds.length > 1) {
     emit('groupNodes', nodeIds);
   }
@@ -248,28 +301,29 @@ const handleGroupNodes = () => {
 };
 
 const handleCopySelection = () => {
-  const nodeIds = props.selectedNodes.map(n => n.id);
+  const nodeIds = props.selectedNodes.map((node) => node.id);
   clipboard.value = {
-    nodes: JSON.parse(JSON.stringify(props.selectedNodes)),
-    edges: JSON.parse(JSON.stringify(
-      props.selectedEdges.filter(e => 
-        nodeIds.includes(e.source) && nodeIds.includes(e.target)
-      )
-    )),
+    nodes: JSON.parse(JSON.stringify(props.selectedNodes)) as Node[],
+    edges: JSON.parse(
+      JSON.stringify(
+        props.selectedEdges.filter(
+          (edge) => nodeIds.includes(edge.source) && nodeIds.includes(edge.target),
+        ),
+      ),
+    ) as Edge[],
   };
   emit('copySelection', nodeIds);
   closeMenu();
 };
 
 const handleDeleteSelection = () => {
-  const nodeIds = props.selectedNodes.map(n => n.id);
-  const edgeIds = props.selectedEdges.map(e => e.id);
+  const nodeIds = props.selectedNodes.map((node) => node.id);
+  const edgeIds = props.selectedEdges.map((edge) => edge.id);
   emit('deleteSelection', nodeIds, edgeIds);
   closeMenu();
 };
 
-// 鐐瑰嚮澶栭儴鍏抽棴
-const handleClickOutside = (_e: MouseEvent) => {
+const handleClickOutside = () => {
   if (props.isVisible) {
     closeMenu();
   }
@@ -290,7 +344,7 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   z-index: 9999;
-  min-width: 180px;
+  min-width: 204px;
   background: var(--glass-bg, rgba(255, 255, 255, 0.95));
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -298,7 +352,7 @@ onUnmounted(() => {
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   padding: 6px;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
   animation: menu-appear 0.15s ease-out;
 }
 
@@ -331,7 +385,7 @@ onUnmounted(() => {
 }
 
 .menu-item.danger {
-  color: #EF4444;
+  color: #ef4444;
 }
 
 .menu-item.danger:hover {
@@ -355,7 +409,7 @@ onUnmounted(() => {
 }
 
 .menu-item.danger .menu-icon {
-  color: #EF4444;
+  color: #ef4444;
 }
 
 .menu-item span:first-of-type {
@@ -372,5 +426,32 @@ onUnmounted(() => {
   height: 1px;
   background: var(--border-glass, rgba(0, 0, 0, 0.08));
   margin: 4px 8px;
+}
+
+.menu-section-title {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.2px;
+}
+
+.style-item {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.style-item .active-check {
+  opacity: 0;
+}
+
+.style-item.active {
+  background: rgba(77, 148, 255, 0.12);
+  color: #2563eb;
+}
+
+.style-item.active .active-check {
+  opacity: 1;
+  color: #2563eb;
 }
 </style>

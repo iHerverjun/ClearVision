@@ -65,19 +65,26 @@ const router = createRouter({
   routes
 });
 
+let authHydrated = false;
+
 // Navigation Guards
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore();
-  
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ name: 'Login', query: { redirect: to.fullPath } });
-  } 
-  else if (to.name === 'Login' && authStore.isAuthenticated) {
-    next({ name: 'FlowEditor' });
-  } 
-  else {
-    next();
+
+  if (!authHydrated) {
+    await authStore.checkAuth();
+    authHydrated = true;
   }
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return { name: 'Login', query: { redirect: to.fullPath } };
+  }
+
+  if (to.name === 'Login' && authStore.isAuthenticated) {
+    return { name: 'FlowEditor' };
+  }
+
+  return true;
 });
 
 export default router;

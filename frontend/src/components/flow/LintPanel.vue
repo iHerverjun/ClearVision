@@ -15,7 +15,7 @@
         <AlertTriangleIcon v-if="hasErrors || hasWarnings" class="w-4 h-4" />
         <CheckCircleIcon v-else class="w-4 h-4" />
         <span class="text-sm font-bold">
-          {{ hasErrors ? `${errorCount} Errors` : hasWarnings ? `${warningCount} Warnings` : '0 Issues' }}
+          {{ hasErrors ? `${errorCount} 个错误` : hasWarnings ? `${warningCount} 个警告` : '0 个问题' }}
         </span>
         <ChevronUpIcon 
           :class="['w-4 h-4 transition-transform duration-300', isExpanded ? 'rotate-180' : '']" 
@@ -32,7 +32,7 @@
         <div class="flex items-center justify-between mb-3 border-b border-[var(--color-border)] pb-2">
           <h3 class="text-sm font-bold text-[var(--color-text)] flex items-center space-x-2">
             <ActivityIcon class="w-4 h-4 text-primary-500" />
-            <span>Flow Linter</span>
+            <span>流程检查</span>
           </h3>
           <button @click="isExpanded = false" class="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
             <XIcon class="w-4 h-4" />
@@ -44,7 +44,7 @@
             v-if="flowStore.lintIssues.length === 0" 
             class="flex items-center justify-center h-full text-sm text-[var(--color-text-muted)]"
           >
-            No issues found. Flow is ready for execution.
+            未发现问题，流程可执行。
           </div>
 
           <div 
@@ -78,7 +78,7 @@
                 {{ issue.message }}
               </span>
               <span v-if="issue.nodeId" class="text-xs text-[var(--color-text-muted)] font-mono">
-                Node: {{ issue.nodeId }}
+                节点：{{ issue.nodeId }}
               </span>
             </div>
           </div>

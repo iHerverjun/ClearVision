@@ -5,7 +5,7 @@
       <div v-if="settingsStore.isLoading" class="absolute inset-0 bg-[var(--color-surface)]/80 backdrop-blur-sm z-50 flex items-center justify-center">
         <div class="flex flex-col items-center">
           <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mb-4"></div>
-          <span class="text-sm font-bold text-[var(--color-text)]">Processing...</span>
+          <span class="text-sm font-bold text-[var(--color-text)]">处理中...</span>
         </div>
       </div>
 
@@ -16,13 +16,20 @@
             <SettingsIcon class="text-red-500 w-4 h-4" />
           </div>
           <div>
-            <h2 class="text-lg font-bold text-[var(--color-text)]">Settings</h2>
-            <p class="text-xs text-[var(--color-text-muted)]">Configure system preferences and defaults</p>
+            <h2 class="text-lg font-bold text-[var(--color-text)]">系统设置</h2>
+            <p class="text-xs text-[var(--color-text-muted)]">配置系统偏好与默认值</p>
           </div>
         </div>
         <button @click="settingsStore.closeModal()" class="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-gray-500">
           <XIcon class="w-5 h-5" />
         </button>
+      </div>
+
+      <div
+        v-if="settingsStore.errorMessage"
+        class="mx-4 mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-600"
+      >
+        {{ settingsStore.errorMessage }}
       </div>
 
       <!-- Main Layout: Sidebar + Content -->
@@ -56,11 +63,11 @@
       <!-- Footer Actions -->
       <div class="p-4 border-t border-[var(--color-border)] bg-[var(--color-background)] flex justify-end space-x-3">
         <button @click="settingsStore.closeModal()" class="px-5 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded-xl transition-colors border border-[var(--color-border)] shadow-sm">
-          Cancel
+          取消
         </button>
         <button @click="handleSave" class="px-5 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-md hover:shadow-lg shadow-red-500/20 flex items-center">
           <SaveIcon class="w-4 h-4 mr-2" />
-          Save Changes
+          保存更改
         </button>
       </div>
     </div>
@@ -96,12 +103,12 @@ const route = useRoute();
 const router = useRouter();
 
 const tabs = [
-  { id: 'general', label: 'General', icon: MonitorIcon, component: GeneralTab },
-  { id: 'camera', label: 'Camera', icon: CameraIconGen, component: CameraTab },
-  { id: 'communication', label: 'Communication', icon: NetworkIcon, component: CommunicationTab },
-  { id: 'database', label: 'Database', icon: DatabaseIcon, component: DatabaseTab },
-  { id: 'ai', label: 'AI Assistance', icon: SparklesIcon, component: AiTab },
-  { id: 'about', label: 'About', icon: InfoIcon, component: AboutTab },
+  { id: 'general', label: '通用', icon: MonitorIcon, component: GeneralTab },
+  { id: 'camera', label: '相机', icon: CameraIconGen, component: CameraTab },
+  { id: 'communication', label: '通信', icon: NetworkIcon, component: CommunicationTab },
+  { id: 'database', label: '数据库', icon: DatabaseIcon, component: DatabaseTab },
+  { id: 'ai', label: 'AI 助手', icon: SparklesIcon, component: AiTab },
+  { id: 'about', label: '关于', icon: InfoIcon, component: AboutTab },
 ] as const;
 
 const activeTab = ref<string>(tabs[0].id);

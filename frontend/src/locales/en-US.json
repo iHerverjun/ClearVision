@@ -1,5 +1,6 @@
 {
   "nav": {
+    "flow_editor": "Flow Editor",
     "projects": "Projects",
     "inspection": "Inspection",
     "results": "Results",

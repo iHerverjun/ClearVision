@@ -5,7 +5,7 @@
       <div v-if="isProcessing" class="absolute inset-0 bg-[var(--color-surface)]/80 backdrop-blur-sm z-50 flex items-center justify-center">
         <div class="flex flex-col items-center">
           <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mb-4"></div>
-          <span class="text-sm font-bold text-[var(--color-text)]">Processing Calibration...</span>
+          <span class="text-sm font-bold text-[var(--color-text)]">正在处理标定...</span>
         </div>
       </div>
 
@@ -16,8 +16,8 @@
             <ScanIcon class="text-red-500 w-4 h-4" />
           </div>
           <div>
-            <h2 class="text-lg font-bold text-[var(--color-text)]">Camera Calibration Wizard</h2>
-            <p class="text-xs text-[var(--color-text-muted)]">Step {{ currentStep }}: {{ stepTitles[currentStep] }}</p>
+            <h2 class="text-lg font-bold text-[var(--color-text)]">相机标定向导</h2>
+            <p class="text-xs text-[var(--color-text-muted)]">步骤 {{ currentStep }}：{{ stepTitles[currentStep] }}</p>
           </div>
         </div>
         <button @click="close" class="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-gray-500">
@@ -66,22 +66,22 @@
           <div v-if="currentStep === 1" class="space-y-6 animate-fade-in">
             <div class="grid grid-cols-2 gap-6">
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Pattern Type</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">标定板类型</label>
                 <select v-model="config.patternType" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5">
-                  <option value="checkerboard">Checkerboard</option>
-                  <option value="circles">Circles Grid</option>
+                  <option value="checkerboard">棋盘格</option>
+                  <option value="circles">圆点阵列</option>
                 </select>
               </div>
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Square Size (mm)</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">方格尺寸（mm）</label>
                 <input type="number" v-model.number="config.squareSize" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5" />
               </div>
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Pattern Rows</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">标定板行数</label>
                 <input type="number" v-model.number="config.rows" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5" />
               </div>
               <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
-                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">Pattern Cols</label>
+                <label class="block text-sm font-bold text-[var(--color-text)] mb-2">标定板列数</label>
                 <input type="number" v-model.number="config.cols" class="w-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block p-2.5" />
               </div>
             </div>
@@ -91,24 +91,24 @@
           <div v-if="currentStep === 2" class="space-y-6 animate-fade-in flex flex-col h-full">
             <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm flex items-center justify-between">
               <div>
-                <h4 class="text-sm font-bold text-[var(--color-text)]">Acquired Images: {{ images.length }} / 15</h4>
-                <p class="text-xs text-[var(--color-text-muted)] mt-1">Capture at least 10-15 images of the pattern from different angles.</p>
+                <h4 class="text-sm font-bold text-[var(--color-text)]">已采集图像：{{ images.length }} / 15</h4>
+                <p class="text-xs text-[var(--color-text-muted)] mt-1">请从不同角度采集至少 10-15 张标定板图像。</p>
               </div>
               <button @click="captureImage" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center font-bold text-sm shadow-sm transition-colors">
                 <CameraIcon class="w-4 h-4 mr-2" />
-                Capture Frame
+                采集当前帧
               </button>
             </div>
             
             <div class="flex-1 bg-black/5 rounded-xl border border-[var(--color-border)] flex items-center justify-center relative overflow-hidden">
                <div v-if="images.length === 0" class="text-gray-400 flex flex-col items-center">
                  <ImagePlusIcon class="w-12 h-12 mb-2 opacity-50" />
-                 <span>No images captured yet.</span>
+                 <span>暂无采集图像。</span>
                </div>
                <div v-else class="grid grid-cols-4 gap-2 p-2 w-full h-full overflow-y-auto">
                  <div v-for="(_, idx) in images" :key="idx" class="relative group aspect-video bg-black rounded-lg overflow-hidden border border-gray-700">
                     <!-- Placeholder for actual image -->
-                    <div class="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500">Img_{{ idx+1 }}.png</div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500">图像_{{ idx+1 }}.png</div>
                     <button @click="removeImage(idx)" class="absolute top-1 right-1 bg-red-500 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                       <XIcon class="w-3 h-3" />
                     </button>
@@ -121,15 +121,15 @@
           <div v-if="currentStep === 3" class="space-y-6 animate-fade-in">
              <div v-if="!result" class="flex flex-col items-center justify-center h-64">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mb-4"></div>
-                <h3 class="text-lg font-bold text-[var(--color-text)]">Solving Calibration...</h3>
+                <h3 class="text-lg font-bold text-[var(--color-text)]">正在求解标定参数...</h3>
              </div>
              <div v-else class="space-y-6">
                 <!-- Status Banner -->
                 <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800 flex items-center">
                   <CheckCircleIcon class="w-6 h-6 text-green-500 mr-3" />
                   <div>
-                    <h4 class="text-sm font-bold text-green-800 dark:text-green-400">Calibration Successful</h4>
-                    <p class="text-xs text-green-700 dark:text-green-500">Reprojection Error: {{ result.error.toFixed(4) }} px</p>
+                    <h4 class="text-sm font-bold text-green-800 dark:text-green-400">标定成功</h4>
+                    <p class="text-xs text-green-700 dark:text-green-500">重投影误差：{{ result.error.toFixed(4) }} px</p>
                   </div>
                 </div>
 
@@ -138,14 +138,14 @@
                   <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
                     <h4 class="text-sm font-bold text-[var(--color-text)] mb-3 flex items-center">
                       <GridIcon class="w-4 h-4 mr-2 text-red-500" />
-                      Camera Matrix
+                      相机矩阵
                     </h4>
                     <pre class="bg-black/5 p-3 rounded-lg text-xs font-mono text-[var(--color-text)]">{{ JSON.stringify(result.matrix, null, 2) }}</pre>
                   </div>
                   <div class="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] shadow-sm">
                     <h4 class="text-sm font-bold text-[var(--color-text)] mb-3 flex items-center">
                       <ApertureIcon class="w-4 h-4 mr-2 text-red-500" />
-                      Distortion Coefficients
+                      畸变系数
                     </h4>
                     <pre class="bg-black/5 p-3 rounded-lg text-xs font-mono text-[var(--color-text)]">[0.123, -0.045, 0.001, 0.002, -0.001]</pre>
                   </div>
@@ -158,18 +158,18 @@
       <!-- Footer Actions -->
       <div class="p-4 border-t border-[var(--color-border)] bg-[var(--color-background)] flex justify-between items-center">
         <button @click="close" class="px-5 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded-xl transition-colors border border-[var(--color-border)] shadow-sm">
-          Cancel
+          取消
         </button>
         <div class="flex space-x-3">
           <button v-if="currentStep > 1" @click="prevStep" class="px-5 py-2 text-sm font-bold text-[var(--color-text)] hover:bg-[var(--color-surface)] rounded-xl transition-colors border border-[var(--color-border)] shadow-sm">
-            Previous
+            上一步
           </button>
           <button v-if="currentStep < 3" @click="nextStep" :disabled="currentStep === 2 && images.length < 3" class="px-5 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-md hover:shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:hover:shadow-md">
-            Next
+            下一步
           </button>
           <button v-if="currentStep === 3" @click="handleSave" class="px-5 py-2 text-sm font-bold text-white bg-green-500 hover:bg-green-600 rounded-xl transition-all shadow-md hover:shadow-lg shadow-green-500/20 flex items-center">
             <SaveIcon class="w-4 h-4 mr-2" />
-            Save Parameters
+            保存参数
           </button>
         </div>
       </div>
@@ -205,9 +205,9 @@ const currentStep = ref(1);
 const isProcessing = ref(false);
 
 const stepTitles: Record<number, string> = {
-  1: 'Configuration',
-  2: 'Acquisition',
-  3: 'Compute & Review'
+  1: '参数配置',
+  2: '图像采集',
+  3: '计算与复核'
 };
 
 const config = reactive({
@@ -259,7 +259,7 @@ const solveCalibration = async () => {
       };
     }
   } catch (e) {
-    console.error('Calibration failed', e);
+    console.error('标定失败', e);
   } finally {
     isProcessing.value = false;
   }
@@ -275,7 +275,7 @@ const handleSave = async () => {
     );
     close();
   } catch(e) {
-    console.error('Save failed', e);
+    console.error('保存失败', e);
   } finally {
     isProcessing.value = false;
   }

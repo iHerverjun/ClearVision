@@ -9,58 +9,110 @@
     </div>
 
     <div class="status-center">
-      <!-- Communication Heartbeat -->
-      <div class="comm-channel" title="Main Bridge Connection">
-        <span
-          class="status-dot"
-          :class="isBridgeConnected ? 'healthy' : 'error'"
-        ></span>
-        <span class="channel-name">Host Link</span>
+      <div class="comm-channel" title="主桥接连接">
+        <span class="status-dot" :class="isBridgeConnected ? 'healthy' : 'error'"></span>
+        <span class="channel-name">主机连接</span>
       </div>
 
       <div class="divider"></div>
 
-      <div class="comm-channel" title="PLC Modbus Status (Placeholder)">
-        <span class="status-dot healthy"></span>
-        <span class="channel-name">PLC-1</span>
+      <div class="comm-channel" title="相机状态">
+        <span class="status-dot" :class="cameraHealthy ? 'healthy' : 'error'"></span>
+        <span class="channel-name">{{ cameraLabel }}</span>
       </div>
     </div>
 
     <div class="status-right">
-      <!-- Hardware Resource Placeholders -->
       <div class="hardware-stat">
         <CpuIcon class="icon-xs" />
-        <span>12%</span>
+        <span>{{ cpuText }}</span>
       </div>
       <div class="hardware-stat">
         <MemoryStickIcon class="icon-xs" />
-        <!-- Simulated Memory Icon -->
-        <span>1.2 GB</span>
+        <span>{{ memoryText }}</span>
       </div>
 
       <div class="divider"></div>
 
-      <div class="version-badge">v3.1.0</div>
+      <div class="version-badge">v{{ statsStore.appVersion }}</div>
     </div>
   </footer>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { useAuthStore } from "../../stores/auth";
-import {
-  UserIcon,
-  CpuIcon,
-  BaselineIcon as MemoryStickIcon,
-} from "lucide-vue-next";
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useAuthStore } from '../../stores/auth';
+import { useSystemStatsStore } from '../../stores/systemStats';
+import { webMessageBridge } from '../../services/bridge';
+import { UserIcon, CpuIcon, BaselineIcon as MemoryStickIcon } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
+const statsStore = useSystemStatsStore();
 
-const userName = computed(() => authStore.currentUser?.username || "Guest");
-const roleName = computed(() => (authStore.isAdmin ? "Admin" : "Operator"));
+const bridgeConnected = ref(webMessageBridge.getConnectionState());
+let unsubscribeConnection: (() => void) | null = null;
 
-// Mocked healthy status for bridge
-const isBridgeConnected = true;
+const userName = computed(() => authStore.currentUser?.username || '访客');
+const roleName = computed(() => (authStore.isAdmin ? '管理员' : '操作员'));
+
+const isBridgeConnected = computed(() => {
+  if (statsStore.hardwareStatus) {
+    return statsStore.hardwareStatus.isBridgeConnected && bridgeConnected.value;
+  }
+  return bridgeConnected.value;
+});
+
+const cpuText = computed(() => {
+  const usage = statsStore.hardwareStatus?.cpuUsage;
+  return typeof usage === 'number' ? `${Math.round(usage)}%` : '--';
+});
+
+const memoryText = computed(() => {
+  const used = statsStore.hardwareStatus?.memoryUsedGb;
+  const total = statsStore.hardwareStatus?.memoryTotalGb;
+  if (typeof used === 'number' && typeof total === 'number' && total > 0) {
+    return `${used.toFixed(1)} / ${total.toFixed(1)} GB`;
+  }
+  return '--';
+});
+
+const cameraHealthy = computed(() => statsStore.hardwareStatus?.cameraStatus === 'connected');
+const cameraStatusText = computed(() => {
+  const raw = String(statsStore.hardwareStatus?.cameraStatus || 'unknown').toLowerCase();
+  switch (raw) {
+    case 'connected':
+      return '已连接';
+    case 'connecting':
+      return '连接中';
+    case 'disconnected':
+      return '未连接';
+    case 'error':
+      return '异常';
+    default:
+      return '未知';
+  }
+});
+const cameraLabel = computed(() => `相机：${cameraStatusText.value}`);
+
+onMounted(async () => {
+  unsubscribeConnection = webMessageBridge.onConnectionStateChange((connected) => {
+    bridgeConnected.value = connected;
+  });
+
+  await Promise.all([
+    statsStore.loadHardwareStatus(),
+    statsStore.loadAppVersion(),
+  ]);
+  statsStore.startHardwareMonitoring(2000);
+});
+
+onUnmounted(() => {
+  if (unsubscribeConnection) {
+    unsubscribeConnection();
+    unsubscribeConnection = null;
+  }
+  statsStore.stopHardwareMonitoring();
+});
 </script>
 
 <style scoped>
@@ -125,7 +177,6 @@ const isBridgeConnected = true;
   color: var(--text-muted, #64748b);
 }
 
-/* Comm Channels Heartbeat */
 .comm-channel {
   display: flex;
   align-items: center;
@@ -174,7 +225,6 @@ const isBridgeConnected = true;
   }
 }
 
-/* Hardware Stats */
 .hardware-stat {
   display: flex;
   align-items: center;

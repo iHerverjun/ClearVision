@@ -27,20 +27,13 @@ function checkPermission(el: HTMLElement, binding: DirectiveBinding) {
 
   const hasRole = authStore.user?.roles?.some(role => requiredRoles.includes(role)) ?? false;
 
-  // If the user doesn't have the required role, hide the element
+  // If the user doesn't have the required role, hide the element via CSS.
+  // DO NOT use removeChild here, as it will crash Vue 3's virtual DOM patcher.
   if (!hasRole) {
-    // If it has a parent, remove it completely
-    if (el.parentNode) {
-      el.parentNode.removeChild(el);
-    } else {
-      // Fallback: hide it via CSS
-      el.style.display = 'none';
-      el.setAttribute('data-permission-hidden', 'true');
-    }
+    el.style.display = 'none';
+    el.setAttribute('data-permission-hidden', 'true');
   } else {
     // If recovering from a hidden state (e.g. user logged in)
-    // Note: Due to how Vue updates DOM, removed elements might need structural directives (v-if) 
-    // for complex reactivity, but simple hiding works for basic access control.
     if (el.getAttribute('data-permission-hidden') === 'true') {
       el.style.display = '';
       el.removeAttribute('data-permission-hidden');

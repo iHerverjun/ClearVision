@@ -179,6 +179,7 @@ public static class DependencyInjection
         services.AddScoped<IHandEyeCalibrationService, HandEyeCalibrationService>();
         services.AddScoped<DemoProjectService>();
         services.AddScoped<IResultAnalysisService, ResultAnalysisService>();
+        services.AddScoped<ISystemStatsService, SystemStatsService>();
 
         // 相机
         services.AddSingleton<ICameraManager, CameraManager>();

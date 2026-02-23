@@ -9,10 +9,10 @@
     <!-- Main Canvas Area -->
     <div class="canvas-wrapper" @drop="onDrop" @dragover.prevent>
       <FlowEditor 
-        ref="flowEditorRef"
         @node-context-menu="onNodeContextMenu"
         @edge-context-menu="onEdgeContextMenu"
         @selection-context-menu="onSelectionContextMenu"
+        @edge-double-click="onEdgeDoubleClick"
       />
       <PropertyPanel />
       <LintPanel />
@@ -36,6 +36,8 @@
       @view-output="handleViewOutput"
       @delete-node="handleDeleteNode"
       @delete-edge="handleDeleteEdge"
+      @insert-reroute="handleInsertReroute"
+      @set-edge-style="handleSetEdgeStyle"
       @group-nodes="handleGroupNodes"
       @copy-selection="handleCopySelection"
       @delete-selection="handleDeleteSelection"
@@ -45,16 +47,17 @@
 
 <script setup lang="ts">
 import { ref, reactive } from "vue";
-import { useVueFlow } from "@vue-flow/core";
+import { MarkerType, useVueFlow } from "@vue-flow/core";
 import FlowEditor from "../components/flow/FlowEditor.vue";
 import ContextMenu from "../components/flow/ContextMenu.vue";
 import { FLOW_INSTANCE_ID } from "../components/flow/flow.constants";
 import OperatorLibrary from "../components/flow/OperatorLibrary.vue";
 import PropertyPanel from "../components/flow/PropertyPanel.vue";
 import LintPanel from "../components/flow/LintPanel.vue";
-import { useFlowStore } from "../stores/flow";
+import { useFlowStore, type EdgeRenderStyle } from "../stores/flow";
 import { useExecutionStore } from "../stores/execution";
 import { getSchemaByType } from "../config/operatorSchema";
+import { getPortColor } from "../config/portTypeRegistry";
 import { resolveImageSource } from "../services/imageSource";
 import type { Node, Edge } from "@vue-flow/core";
 
@@ -76,6 +79,200 @@ const contextMenuState = reactive({
 
 // Clipboard
 const clipboard = ref<{ nodes: Node[], edges: Edge[] } | null>(null);
+
+interface EdgeDataLike {
+  type?: string;
+  sourceType?: string | null;
+  targetType?: string | null;
+  sourceColor?: string;
+  targetColor?: string;
+  routeStyle?: "bezier" | "smoothstep";
+}
+
+interface PortLike {
+  id?: string | number | null;
+  type?: string | null;
+}
+
+const buildEdgeId = (
+  source: string,
+  sourceHandle: string | null | undefined,
+  target: string,
+  targetHandle: string | null | undefined,
+) =>
+  `e-${source}-${sourceHandle ?? "na"}-${target}-${targetHandle ?? "na"}-${Date.now()}-${Math.random()
+    .toString(16)
+    .slice(2, 8)}`;
+
+const resolveEdgeRenderStyle = (edge: Edge): EdgeRenderStyle => {
+  if (edge.type === "pathfinding") return "pathfinding";
+  const routeStyle = (edge.data as EdgeDataLike | undefined)?.routeStyle;
+  return routeStyle === "smoothstep" ? "smoothstep" : "bezier";
+};
+
+const findPortType = (
+  nodeId: string | null | undefined,
+  handleId: string | null | undefined,
+  direction: "inputs" | "outputs",
+) => {
+  if (!nodeId || !handleId) return null;
+  const node = flowStore.getNodeById(nodeId);
+  const ports = Array.isArray((node?.data as any)?.[direction])
+    ? (((node?.data as any)[direction] ?? []) as PortLike[])
+    : [];
+  const port = ports.find((candidate) => `${candidate.id ?? ""}` === handleId);
+  return port?.type ?? null;
+};
+
+const withEdgeStyle = (
+  edge: Edge,
+  style: EdgeRenderStyle,
+) => {
+  const existingData = (edge.data as EdgeDataLike | undefined) ?? {};
+  const sourceType =
+    existingData.sourceType ??
+    findPortType(edge.source, edge.sourceHandle, "outputs") ??
+    existingData.type ??
+    "Unknown";
+  const targetType =
+    existingData.targetType ??
+    findPortType(edge.target, edge.targetHandle, "inputs") ??
+    sourceType;
+  const sourceColor = existingData.sourceColor ?? getPortColor(sourceType);
+  const targetColor = existingData.targetColor ?? getPortColor(targetType);
+  const routeStyle =
+    style === "smoothstep"
+      ? "smoothstep"
+      : style === "bezier"
+        ? "bezier"
+        : existingData.routeStyle === "smoothstep"
+          ? "smoothstep"
+          : "bezier";
+
+  return {
+    ...edge,
+    type: style === "pathfinding" ? "pathfinding" : "typed",
+    interactionWidth: 36,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 18,
+      height: 18,
+      color: targetColor,
+    },
+    style: {
+      stroke: sourceColor,
+      strokeWidth: 2.5,
+    },
+    data: {
+      ...existingData,
+      type: sourceType,
+      sourceType,
+      targetType,
+      sourceColor,
+      targetColor,
+      routeStyle,
+    },
+  } as Edge;
+};
+
+const insertRerouteForEdge = (
+  edgeId: string,
+  screenPosition?: { x: number; y: number },
+) => {
+  const originalEdge = flowStore.edges.find((edge) => edge.id === edgeId);
+  if (!originalEdge) return;
+
+  const sourceType =
+    (originalEdge.data as EdgeDataLike | undefined)?.sourceType ??
+    findPortType(originalEdge.source, originalEdge.sourceHandle, "outputs") ??
+    (originalEdge.data as EdgeDataLike | undefined)?.type ??
+    "Any";
+  const targetType =
+    (originalEdge.data as EdgeDataLike | undefined)?.targetType ??
+    findPortType(originalEdge.target, originalEdge.targetHandle, "inputs") ??
+    sourceType;
+  const style = resolveEdgeRenderStyle(originalEdge);
+
+  const rerouteId = `reroute-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`;
+  const flowPosition = screenPosition
+    ? screenToFlowCoordinate(screenPosition)
+    : (() => {
+        const sourceNode = flowStore.getNodeById(originalEdge.source);
+        const targetNode = flowStore.getNodeById(originalEdge.target);
+        if (!sourceNode || !targetNode) {
+          return { x: 0, y: 0 };
+        }
+        return {
+          x: (sourceNode.position.x + targetNode.position.x) / 2,
+          y: (sourceNode.position.y + targetNode.position.y) / 2,
+        };
+      })();
+
+  const rerouteNode: Node = {
+    id: rerouteId,
+    type: "reroute-node",
+    position: {
+      x: flowPosition.x - 8,
+      y: flowPosition.y - 8,
+    },
+    data: {
+      name: "Reroute",
+      category: "Routing",
+      rawType: "Reroute",
+      rerouteType: sourceType,
+      inputs: [{ id: "in", label: "In", type: sourceType }],
+      outputs: [{ id: "out", label: "Out", type: sourceType }],
+      legacyConfig: {},
+    },
+  };
+
+  const firstEdge = withEdgeStyle(
+    {
+      id: buildEdgeId(
+        originalEdge.source,
+        originalEdge.sourceHandle,
+        rerouteId,
+        "in",
+      ),
+      source: originalEdge.source,
+      sourceHandle: originalEdge.sourceHandle,
+      target: rerouteId,
+      targetHandle: "in",
+      data: {
+        sourceType,
+        targetType: sourceType,
+      },
+    } as Edge,
+    style,
+  );
+
+  const secondEdge = withEdgeStyle(
+    {
+      id: buildEdgeId(
+        rerouteId,
+        "out",
+        originalEdge.target,
+        originalEdge.targetHandle,
+      ),
+      source: rerouteId,
+      sourceHandle: "out",
+      target: originalEdge.target,
+      targetHandle: originalEdge.targetHandle,
+      data: {
+        sourceType,
+        targetType,
+      },
+    } as Edge,
+    style,
+  );
+
+  flowStore.addNode(rerouteNode);
+  flowStore.setEdges(
+    flowStore.edges
+      .filter((edge) => edge.id !== edgeId)
+      .concat([firstEdge, secondEdge]),
+  );
+};
 
 const onDrop = (event: DragEvent) => {
   event.preventDefault();
@@ -112,7 +309,7 @@ const onDrop = (event: DragEvent) => {
 
   // Decide visualization type (fallback to basic operator-node if not a special Acquisition node)
   const vwType =
-    schema.category === "杈撳叆" ||
+    schema.category === "输入" ||
     schema.category === "Acquisition" ||
     operatorType === "ImageAcquisition"
       ? "image-acquisition"
@@ -130,11 +327,11 @@ const onDrop = (event: DragEvent) => {
       // Minimal defaults for ports; usually populated further from backend data,
       // but we spawn 1 IN and 1 OUT by default logic unless it's a pure source or sink
       inputs:
-        schema.category === "杈撳叆"
+        schema.category === "输入"
           ? []
           : [{ id: `${nodeId}-in-0`, label: "Input", type: "Image" }],
       outputs:
-        schema.category === "杈撳嚭"
+        schema.category === "输出"
           ? []
           : [{ id: `${nodeId}-out-0`, label: "Output", type: "Image" }],
       legacyConfig: defaultLegacyConfig as Record<string, any>,
@@ -194,6 +391,13 @@ const onSelectionContextMenu = (event: { nodes: Node[]; edges: Edge[]; originalE
   contextMenuState.targetId = null;
   contextMenuState.selectedNodes = event.nodes;
   contextMenuState.selectedEdges = event.edges;
+};
+
+const onEdgeDoubleClick = (event: { edge: Edge; originalEvent: MouseEvent }) => {
+  insertRerouteForEdge(event.edge.id, {
+    x: event.originalEvent.clientX,
+    y: event.originalEvent.clientY,
+  });
 };
 
 const closeContextMenu = () => {
@@ -289,6 +493,25 @@ const handleDeleteNode = (nodeId: string) => {
 
 const handleDeleteEdge = (edgeId: string) => {
   flowStore.removeEdge(edgeId);
+};
+
+const handleInsertReroute = (
+  edgeId: string,
+  screenPosition: { x: number; y: number },
+) => {
+  insertRerouteForEdge(edgeId, screenPosition);
+};
+
+const handleSetEdgeStyle = (edgeId: string, style: EdgeRenderStyle) => {
+  const updated = flowStore.edges.map((edge) => {
+    if (edge.id !== edgeId) {
+      return edge;
+    }
+    return withEdgeStyle(edge, style);
+  });
+
+  flowStore.setPreferredEdgeStyle(style);
+  flowStore.setEdges(updated);
 };
 
 const handleGroupNodes = (nodeIds: string[]) => {

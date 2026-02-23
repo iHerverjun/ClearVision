@@ -24,28 +24,76 @@
         <component :is="iconComponent" class="node-icon" v-if="iconComponent" />
       </div>
       <div class="title-wrapper">
-        <div class="node-name">{{ data.name || "Operator" }}</div>
-        <div class="node-category">{{ data.category || "General" }}</div>
+        <div class="node-name">{{ data.name || "算子" }}</div>
+        <div class="node-category">{{ data.category || "通用" }}</div>
       </div>
     </div>
 
     <!-- Inputs -->
     <div class="node-ports inputs">
-      <div class="port-row" v-for="port in inputPorts" :key="port.handleId">
+      <div
+        class="port-row"
+        v-for="port in inputPorts"
+        :key="port.handleId"
+        @mouseenter="hoveredPort = port.handleId"
+        @mouseleave="hoveredPort = null"
+      >
         <Handle
           type="target"
           :position="LEFT_POSITION"
           :id="port.handleId"
-          class="custom-handle custom-handle-input"
+          :class="[
+            'custom-handle',
+            'custom-handle-input',
+            `shape-${getShapeCategoryClass(port.type)}`,
+            {
+              'is-connected': isPortConnected(port.handleId, 'target'),
+              'is-disconnected': !isPortConnected(port.handleId, 'target'),
+              'handle-compatible': connectingType && connectingDir === 'source' && checkCompatibility(connectingType, port.type),
+              'handle-incompatible': connectingType && connectingDir === 'source' && !checkCompatibility(connectingType, port.type),
+            },
+          ]"
           :connectable="true"
           :connectable-start="true"
           :connectable-end="true"
           :style="{
-            '--port-color': getPortColor(port.type),
-            '--port-glow': getPortGlowColor(port.type),
+            '--port-color': getColor(port.type),
+            '--port-glow': getGlow(port.type),
           }"
-        />
+        >
+          <span class="port-visual" aria-hidden="true">
+            <svg
+              class="port-shape"
+              :class="`shape-${getShapeCategoryClass(port.type)}`"
+              viewBox="0 0 14 14"
+            >
+              <circle class="shape-circle" cx="7" cy="7" r="4.4" />
+              <rect
+                class="shape-diamond"
+                x="3.4"
+                y="3.4"
+                width="7.2"
+                height="7.2"
+                rx="1.2"
+                transform="rotate(45 7 7)"
+              />
+              <rect class="shape-square" x="3.1" y="3.1" width="7.8" height="7.8" rx="1.2" />
+            </svg>
+          </span>
+        </Handle>
         <span class="port-label">{{ port.label }}</span>
+        <!-- Tooltip -->
+        <div
+          v-if="hoveredPort === port.handleId"
+          class="port-tooltip port-tooltip-left"
+        >
+          <span
+            class="tooltip-dot"
+            :class="`shape-${getShapeCategoryClass(port.type)}`"
+            :style="{ '--dot-color': getColor(port.type) }"
+          />
+          <span class="tooltip-text">{{ getLabel(port.type) }}</span>
+        </div>
       </div>
     </div>
 
@@ -70,21 +118,69 @@
 
     <!-- Outputs -->
     <div class="node-ports outputs">
-      <div class="port-row" v-for="port in outputPorts" :key="port.handleId">
+      <div
+        class="port-row"
+        v-for="port in outputPorts"
+        :key="port.handleId"
+        @mouseenter="hoveredPort = port.handleId"
+        @mouseleave="hoveredPort = null"
+      >
         <span class="port-label">{{ port.label }}</span>
         <Handle
           type="source"
           :position="RIGHT_POSITION"
           :id="port.handleId"
-          class="custom-handle custom-handle-output"
+          :class="[
+            'custom-handle',
+            'custom-handle-output',
+            `shape-${getShapeCategoryClass(port.type)}`,
+            {
+              'is-connected': isPortConnected(port.handleId, 'source'),
+              'is-disconnected': !isPortConnected(port.handleId, 'source'),
+              'handle-compatible': connectingType && connectingDir === 'target' && checkCompatibility(port.type, connectingType),
+              'handle-incompatible': connectingType && connectingDir === 'target' && !checkCompatibility(port.type, connectingType),
+            },
+          ]"
           :connectable="true"
           :connectable-start="true"
           :connectable-end="true"
           :style="{
-            '--port-color': getPortColor(port.type),
-            '--port-glow': getPortGlowColor(port.type),
+            '--port-color': getColor(port.type),
+            '--port-glow': getGlow(port.type),
           }"
-        />
+        >
+          <span class="port-visual" aria-hidden="true">
+            <svg
+              class="port-shape"
+              :class="`shape-${getShapeCategoryClass(port.type)}`"
+              viewBox="0 0 14 14"
+            >
+              <circle class="shape-circle" cx="7" cy="7" r="4.4" />
+              <rect
+                class="shape-diamond"
+                x="3.4"
+                y="3.4"
+                width="7.2"
+                height="7.2"
+                rx="1.2"
+                transform="rotate(45 7 7)"
+              />
+              <rect class="shape-square" x="3.1" y="3.1" width="7.8" height="7.8" rx="1.2" />
+            </svg>
+          </span>
+        </Handle>
+        <!-- Tooltip -->
+        <div
+          v-if="hoveredPort === port.handleId"
+          class="port-tooltip port-tooltip-right"
+        >
+          <span
+            class="tooltip-dot"
+            :class="`shape-${getShapeCategoryClass(port.type)}`"
+            :style="{ '--dot-color': getColor(port.type) }"
+          />
+          <span class="tooltip-text">{{ getLabel(port.type) }}</span>
+        </div>
       </div>
     </div>
 
@@ -103,10 +199,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type PropType } from "vue";
+import { computed, ref, type PropType } from "vue";
 import { Handle, type Position } from "@vue-flow/core";
 import { BoxIcon, CameraIcon, TargetIcon, NetworkIcon, LoaderIcon, CheckIcon, XIcon } from "lucide-vue-next";
 import { useExecutionStore, type ExecutionStatus } from "../../../stores/execution";
+import { useFlowStore } from "../../../stores/flow";
 import NodeThumbnail from "./NodeThumbnail.vue";
 
 import {
@@ -114,6 +211,14 @@ import {
   type ParameterSchema,
   type ParameterOption,
 } from "../../../config/operatorSchema";
+
+import {
+  getPortConfig,
+  getPortColor,
+  getPortGlowColor,
+  getShapeCategory,
+  isTypeCompatible,
+} from "../../../config/portTypeRegistry";
 
 interface PortLike {
   id?: string | number | null;
@@ -155,17 +260,25 @@ const props = defineProps({
 });
 
 const executionStore = useExecutionStore();
+const flowStore = useFlowStore();
 
-// 从 execution store 获取当前节点的执行状态
+// ─── Tooltip State ─────────────────────────────
+const hoveredPort = ref<string | null>(null);
+
+// ─── Connecting State (from flow store) ────────
+const connectingType = computed(() => (flowStore as any).connectingSourceType ?? null);
+const connectingDir = computed(() => (flowStore as any).connectingDirection ?? null);
+
+// ─── Execution State ───────────────────────────
 const executionStatus = computed<ExecutionStatus>(() => {
   return executionStore.getNodeStatus(props.id);
 });
 
-// 从 execution store 获取当前节点的输出图像
 const outputImage = computed(() => {
   return executionStore.getNodeOutputImage(props.id);
 });
 
+// ─── Icon ──────────────────────────────────────
 const iconComponent = computed(() => {
   switch (props.data.iconType) {
     case "camera":
@@ -179,6 +292,7 @@ const iconComponent = computed(() => {
   }
 });
 
+// ─── Port Normalization ────────────────────────
 const normalizePorts = (ports: unknown, direction: "in" | "out") => {
   if (!Array.isArray(ports)) return [] as NormalizedPort[];
 
@@ -191,8 +305,8 @@ const normalizePorts = (ports: unknown, direction: "in" | "out") => {
 
     return {
       handleId: normalizedId,
-      label: port.label ? `${port.label}` : `Port ${index + 1}`,
-      type: port.type ? `${port.type}` : "Unknown",
+      label: port.label ? `${port.label}` : `端口 ${index + 1}`,
+      type: port.type ? `${port.type}` : "未知",
     };
   });
 };
@@ -200,6 +314,7 @@ const normalizePorts = (ports: unknown, direction: "in" | "out") => {
 const inputPorts = computed(() => normalizePorts(props.data?.inputs, "in"));
 const outputPorts = computed(() => normalizePorts(props.data?.outputs, "out"));
 
+// ─── Property Preview ──────────────────────────
 const configProxy = computed<any>(() => props.data?.legacyConfig || {});
 
 const schema = computed(() => {
@@ -215,7 +330,6 @@ const hasProperties = computed(() => {
   );
 });
 
-// Show max 3 parameters on the node card preview to keep it clean
 const previewParameters = computed(() => {
   if (!schema.value?.parameters) return [];
   return schema.value.parameters.slice(0, 3);
@@ -225,7 +339,7 @@ const formatConfigValue = (val: any, param: ParameterSchema) => {
   if (val === undefined || val === null) return "--";
 
   if (param.dataType === "bool") {
-    return val ? "True" : "False";
+    return val ? "是" : "否";
   }
 
   if (param.dataType === "enum" && param.options) {
@@ -236,7 +350,6 @@ const formatConfigValue = (val: any, param: ParameterSchema) => {
   }
 
   if (param.dataType === "file") {
-    // Just show the filename instead of full path
     if (typeof val === "string") {
       return val.split(/[\\/]/).pop() || val;
     }
@@ -245,33 +358,21 @@ const formatConfigValue = (val: any, param: ParameterSchema) => {
   return String(val);
 };
 
-// Port Data Type Colors (Light UI Theme Palette)
-const getPortColor = (type: string) => {
-  const mapping: Record<string, string> = {
-    Image: "#4D94FF", // Blue
-    Integer: "#00E676", // Green
-    Float: "#FFA726", // Orange
-    Boolean: "#FF4D4D", // Red
-    String: "#BA68C8", // Purple
-    Point: "#00BCD4", // Cyan
-  };
-  return mapping[type] || "#9CA3AF"; // Default Gray
+// ─── Port Helpers (delegated to registry) ──────
+const getColor = (type: string) => getPortColor(type);
+const getGlow = (type: string) => getPortGlowColor(type);
+const getLabel = (type: string) => getPortConfig(type).label;
+const getShapeCategoryClass = (type: string) => getShapeCategory(type);
+const checkCompatibility = (src: string, tgt: string) => isTypeCompatible(src, tgt);
+
+// ─── Port Connection Check ─────────────────────
+const isPortConnected = (handleId: string, handleType: 'source' | 'target') => {
+  return flowStore.edges.some(
+    (e) =>
+      (handleType === 'source' && e.source === props.id && e.sourceHandle === handleId) ||
+      (handleType === 'target' && e.target === props.id && e.targetHandle === handleId),
+  );
 };
-
-const toAlphaHex = (hex: string, alpha: number): string => {
-  const normalized = hex.replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return `rgba(77, 148, 255, ${alpha})`;
-  }
-
-  const value = Number.parseInt(normalized, 16);
-  const r = (value >> 16) & 255;
-  const g = (value >> 8) & 255;
-  const b = value & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
-const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type), 0.38);
 </script>
 
 <style scoped>
@@ -302,7 +403,6 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   background: rgba(0, 0, 0, 0.02);
   border-bottom: 1px solid var(--border-glass, rgba(0, 0, 0, 0.05));
   gap: 12px;
-  /* Re-apply radius to top to prevent header bg overflow */
   border-top-left-radius: 15px;
   border-top-right-radius: 15px;
 }
@@ -358,18 +458,18 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   display: flex;
   align-items: center;
   position: relative !important;
-  height: 24px;
+  height: 28px;
   overflow: visible;
 }
 
 .inputs .port-row {
   justify-content: flex-start;
-  padding-left: 16px;
+  padding-left: 18px;
 }
 
 .outputs .port-row {
   justify-content: flex-end;
-  padding-right: 16px;
+  padding-right: 18px;
 }
 
 .port-label {
@@ -378,17 +478,70 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   color: var(--text-muted, #64748b);
 }
 
-/* Port handles: compact visual core + larger click target */
+/* Port Tooltip */
+.port-tooltip {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+}
+
+.port-tooltip-left {
+  right: calc(100% + 16px);
+}
+
+.port-tooltip-right {
+  left: calc(100% + 16px);
+}
+
+.tooltip-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--dot-color, #9CA3AF);
+  flex-shrink: 0;
+}
+
+.tooltip-dot.shape-circle {
+  border-radius: 50%;
+}
+
+.tooltip-dot.shape-diamond {
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+.tooltip-dot.shape-square {
+  border-radius: 2px;
+}
+
+.tooltip-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Port Handles: 32x32 hit area with inline SVG */
 :deep(.vue-flow__handle.custom-handle) {
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  min-height: 24px !important;
-  display: block !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
   opacity: 1 !important;
   visibility: visible !important;
   position: absolute !important;
-  border-radius: 50% !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -396,93 +549,115 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   cursor: pointer;
   z-index: 999 !important;
   transition:
-    transform 0.14s ease,
-    filter 0.14s ease;
+    transform 0.16s ease,
+    opacity 0.16s ease,
+    filter 0.16s ease;
 }
 
-:deep(.vue-flow__handle.custom-handle::before) {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--port-color, #4d94ff);
-  border: 2px solid rgba(255, 255, 255, 0.96);
-  box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.18),
-    0 2px 7px rgba(15, 23, 42, 0.24);
+:deep(.vue-flow__handle.custom-handle .port-visual) {
+  width: 14px;
+  height: 14px;
+  display: block;
   transition:
-    transform 0.14s ease,
-    box-shadow 0.14s ease;
+    transform 0.16s ease,
+    filter 0.16s ease;
 }
 
-:deep(.vue-flow__handle.custom-handle::after) {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid var(--port-color, #4d94ff);
-  background: var(--port-glow, rgba(77, 148, 255, 0.24));
-  opacity: 0.24;
-  transform: scale(0.86);
+:deep(.vue-flow__handle.custom-handle .port-shape) {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+:deep(.vue-flow__handle.custom-handle .port-shape .shape-circle),
+:deep(.vue-flow__handle.custom-handle .port-shape .shape-diamond),
+:deep(.vue-flow__handle.custom-handle .port-shape .shape-square) {
+  display: none;
+  stroke: var(--port-color, #4d94ff);
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
   transition:
-    opacity 0.14s ease,
-    transform 0.14s ease,
-    border-color 0.14s ease,
-    background-color 0.14s ease;
+    fill 0.16s ease,
+    stroke 0.16s ease,
+    opacity 0.16s ease,
+    stroke-width 0.16s ease;
 }
 
-:deep(.vue-flow__handle.custom-handle:hover),
-:deep(.vue-flow__handle.custom-handle.connectionindicator) {
-  transform: scale(1.08);
+:deep(.vue-flow__handle.custom-handle .port-shape.shape-circle .shape-circle),
+:deep(.vue-flow__handle.custom-handle .port-shape.shape-diamond .shape-diamond),
+:deep(.vue-flow__handle.custom-handle .port-shape.shape-square .shape-square) {
+  display: block;
 }
 
-:deep(.vue-flow__handle.custom-handle:hover::before),
-:deep(.vue-flow__handle.custom-handle.connectionindicator::before),
-:deep(.vue-flow__handle.custom-handle.connecting::before) {
-  transform: translate(-50%, -50%) scale(1.14);
-  box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.22),
-    0 0 0 5px var(--port-glow, rgba(77, 148, 255, 0.24)),
-    0 3px 9px rgba(15, 23, 42, 0.24);
-}
-
-:deep(.vue-flow__handle.custom-handle:hover::after),
-:deep(.vue-flow__handle.custom-handle.connectionindicator::after),
-:deep(.vue-flow__handle.custom-handle.connecting::after) {
-  opacity: 0.7;
-  transform: scale(1);
-}
-
-:deep(.vue-flow__handle.custom-handle.valid::before),
-:deep(.vue-flow__handle.custom-handle.vue-flow__handle-valid::before) {
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.4),
-    0 0 0 5px rgba(16, 185, 129, 0.22),
-    0 3px 9px rgba(15, 23, 42, 0.24);
-}
-
-:deep(.vue-flow__handle.custom-handle.valid::after),
-:deep(.vue-flow__handle.custom-handle.vue-flow__handle-valid::after) {
-  border-color: rgba(16, 185, 129, 0.75);
-  background: rgba(16, 185, 129, 0.16);
+:deep(.vue-flow__handle.custom-handle.is-disconnected .port-shape > *) {
+  fill: transparent;
   opacity: 0.78;
 }
 
-/* Position overrides since parent padding messes with absolute handles */
+:deep(.vue-flow__handle.custom-handle.is-connected .port-shape > *) {
+  fill: var(--port-color, #4d94ff);
+  opacity: 1;
+  stroke-width: 1.2;
+}
+
+:deep(.vue-flow__handle.custom-handle:hover .port-visual) {
+  transform: scale(1.14);
+  filter: drop-shadow(0 0 5px var(--port-glow, rgba(77, 148, 255, 0.45)));
+}
+
+:deep(.vue-flow__handle.custom-handle.connecting .port-visual),
+:deep(.vue-flow__handle.custom-handle.connectionindicator .port-visual) {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 7px var(--port-glow, rgba(77, 148, 255, 0.5)));
+}
+
+:deep(.vue-flow__handle.custom-handle.valid .port-visual),
+:deep(.vue-flow__handle.custom-handle.vue-flow__handle-valid .port-visual) {
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
+}
+
+/* Compatibility highlights during drag */
+:deep(.vue-flow__handle.custom-handle.handle-compatible .port-visual) {
+  transform: scale(1.3);
+  filter: drop-shadow(0 0 9px rgba(16, 185, 129, 0.75));
+  animation: handle-compatible-pulse 1.1s ease-in-out infinite;
+}
+
+:deep(.vue-flow__handle.custom-handle.handle-compatible .port-shape > *) {
+  stroke: #10b981;
+}
+
+@keyframes handle-compatible-pulse {
+  0%,
+  100% {
+    transform: scale(1.2);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+:deep(.vue-flow__handle.custom-handle.handle-incompatible) {
+  pointer-events: none;
+  opacity: 0.15;
+  transform: scale(0.7);
+  filter: grayscale(1);
+}
+
+/* Position overrides */
 :deep(.inputs .vue-flow__handle.custom-handle) {
-  left: -14px !important;
+  left: -18px !important;
   right: auto !important;
 }
 
 :deep(.outputs .vue-flow__handle.custom-handle) {
-  right: -14px !important;
+  right: -18px !important;
   left: auto !important;
 }
 
+/* ════════════════════════════════════════════════
+   Node Content & Property Preview
+   ════════════════════════════════════════════════ */
 .node-content {
   padding: 0 16px 12px;
   display: flex;
@@ -529,8 +704,9 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   padding: 0 12px 12px;
 }
 
-/* ========== Execution Status Styles ========== */
-
+/* ════════════════════════════════════════════════
+   Execution Status Styles
+   ════════════════════════════════════════════════ */
 .status-indicator {
   position: absolute;
   top: -8px;
@@ -591,7 +767,7 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   75% { transform: translateX(4px); }
 }
 
-/* Running State - Cinnabar Pulse Animation */
+/* Running State */
 .operator-node.status-running {
   border-color: #E84855;
   animation: running-pulse 1.5s ease-in-out infinite;
@@ -613,7 +789,7 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   }
 }
 
-/* Success State - Green Border with Check Mark */
+/* Success State */
 .operator-node.status-success {
   border-color: #10B981;
   box-shadow: 
@@ -635,7 +811,7 @@ const getPortGlowColor = (type: string): string => toAlphaHex(getPortColor(type)
   }
 }
 
-/* Error State - Red Border with X Mark */
+/* Error State */
 .operator-node.status-error {
   border-color: #EF4444;
   box-shadow: 

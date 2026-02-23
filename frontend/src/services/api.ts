@@ -1,6 +1,30 @@
 import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const resolveApiBaseUrl = () => {
+  // Desktop WebView2 injects runtime base via window.__API_BASE_URL__ (for dynamic port).
+  // The injected value currently contains /api suffix, while endpoints also include /api.
+  // Normalize it to host root to avoid "/api/api/*" and fallback failures.
+  const w = window as any;
+  const runtimeBase =
+    typeof w.__API_BASE_URL__ === 'string' && w.__API_BASE_URL__.trim()
+      ? w.__API_BASE_URL__.trim()
+      : '';
+  if (runtimeBase) {
+    return runtimeBase.replace(/\/api\/?$/i, '');
+  }
+
+  const envBase =
+    typeof import.meta.env.VITE_API_BASE_URL === 'string'
+      ? import.meta.env.VITE_API_BASE_URL.trim()
+      : '';
+  if (envBase) {
+    return envBase.replace(/\/$/, '');
+  }
+
+  return 'http://localhost:5000';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

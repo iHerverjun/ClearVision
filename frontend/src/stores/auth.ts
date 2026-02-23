@@ -36,70 +36,76 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(username: string, password: string):Promise<boolean> {
     try {
-      // Step 1: Attempt login through WebView2 if available (hybrid app behavior)
+      // Always login through REST to obtain a valid backend session token.
+      // WebView2 bridge login messages are optional and should not be the source of truth.
       const w = window as any;
       const isWebViewBridgeReady = w.chrome && w.chrome.webview;
-      
-      if (isWebViewBridgeReady) {
-        // [FIX] C# backend currently does NOT implement AuthLogin response.
-        // Instead of waiting and freezing, we inject a local token immediately.
-        const mockUser = { id: username, username, roles: ['admin'] };
-        setAuthData('webview2_local_token_' + Date.now(), mockUser);
-        
-        // Optionally notify backend without expecting a response
-        webMessageBridge.sendMessage(BridgeMessageType.AuthLogin, { username }, false)
-          .catch(() => { /* ignore backend missing handler */ });
-          
-        return true;
-      } 
-      
-      // Step 2: Fallback to REST API Auth Login
+
       const res: any = await apiClient.post(ENDPOINTS.Auth.Login, { username, password });
       if (res && res.token) {
         setAuthData(res.token, res.user || { id: username, username });
+
+        if (isWebViewBridgeReady) {
+          webMessageBridge.sendMessage(BridgeMessageType.AuthLogin, { username }, false)
+            .catch(() => { /* optional notification; backend may ignore */ });
+        }
+
         return true;
       }
 
       return false;
       
     } catch (err: any) {
+      if (err?.response?.status === 401) {
+        return false;
+      }
+
       console.error('[AuthStore] Login failed:', err);
-      // Optional: re-throw error to let UI show specific message
-      throw new Error(err.response?.data?.message || err.message || 'Login failed');
+      throw new Error(err.response?.data?.message || err.message || '登录失败');
     }
   }
 
   async function logout() {
     try {
-      // Notify backend about logout 
       const w = window as any;
       const isWebViewBridgeReady = w.chrome && w.chrome.webview;
+      await apiClient.post(ENDPOINTS.Auth.Logout, {}).catch(() => {});
+
       if (isWebViewBridgeReady) {
-        await webMessageBridge.sendMessage(BridgeMessageType.AuthLogout, {}, false);
-      } else {
-        await apiClient.post(ENDPOINTS.Auth.Logout, {}).catch(() => {});
+        await webMessageBridge.sendMessage(BridgeMessageType.AuthLogout, {}, false)
+          .catch(() => {});
       }
     } finally {
-      // Always flush local state even on network error
       clearAuthData();
     }
   }
 
   async function checkAuth() {
-    // If we have token, we can conditionally check if valid
-    // For now we persist based on localStorage. We can optionally fetch user profile.
-    if (token.value) {
-      try {
-        const storedUser = localStorage.getItem('auth_user');
-        if (storedUser) {
-          user.value = JSON.parse(storedUser);
-        } else {
-          // fetch via API if needed
-          // const res = await apiClient.get(ENDPOINTS.Auth.Verify);
-        }
-      } catch (err) {
-        clearAuthData();
+    if (!token.value) {
+      return;
+    }
+
+    try {
+      const storedUser = localStorage.getItem('auth_user');
+      if (storedUser) {
+        user.value = JSON.parse(storedUser);
       }
+
+      // Validate local token with backend to avoid stale session after app restart.
+      const me: any = await apiClient.get(ENDPOINTS.Auth.Me);
+      const resolvedRole = typeof me?.role === 'string' ? me.role.toLowerCase() : undefined;
+
+      const normalizedUser: User = {
+        id: String(me?.userId ?? me?.id ?? user.value?.id ?? ''),
+        username: String(me?.username ?? user.value?.username ?? ''),
+        roles: resolvedRole ? [resolvedRole] : user.value?.roles,
+        permissions: user.value?.permissions,
+      };
+
+      user.value = normalizedUser;
+      localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
+    } catch (err) {
+      clearAuthData();
     }
   }
 

@@ -1,8 +1,8 @@
 <template>
   <aside class="w-80 bg-[var(--color-surface)] border-r border-[var(--color-border)] flex flex-col z-10 shadow-sm flex-shrink-0">
     <div class="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
-      <h2 class="text-sm font-bold text-[var(--color-text)] uppercase tracking-wider">AI Chat</h2>
-      <span class="bg-red-500/10 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold">BETA</span>
+      <h2 class="text-sm font-bold text-[var(--color-text)] uppercase tracking-wider">AI 对话</h2>
+      <span class="bg-red-500/10 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold">测试版</span>
     </div>
     
     <div class="flex-1 overflow-y-auto p-4 space-y-6 flex flex-col">
@@ -31,7 +31,7 @@
               <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                 <UserIcon class="text-gray-500 w-3.5 h-3.5" />
               </div>
-              <span class="text-xs font-bold text-[var(--color-text)]">User</span>
+              <span class="text-xs font-bold text-[var(--color-text)]">用户</span>
               <span class="text-[10px] text-[var(--color-text-muted)] mr-2">{{ new Date(msg.timestamp).toLocaleTimeString() }}</span>
             </div>
             <div class="bg-red-500 text-white p-3 rounded-lg rounded-tr-none text-sm leading-relaxed shadow-sm">
@@ -79,7 +79,7 @@
           @keyup.enter="handleSend"
           :disabled="aiStore.isGenerating"
           class="w-full pl-4 pr-10 py-3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm shadow-sm transition-all outline-none text-[var(--color-text)] disabled:opacity-50" 
-          placeholder="Ask AI to modify flow..." 
+          placeholder="让 AI 帮你生成或修改流程..." 
           type="text"
         />
         <button 
@@ -115,8 +115,8 @@ const sendQuickPrompt = (text: string) => {
 // Simple formatter for bold tags and newlines
 const formatMessage = (msg: string) => {
   return msg
-    .replace(/\ng/g, '<br/>')
-    .replace(/\*g/g, '<b>$1</b>');
+    .replace(/\n/g, "<br/>")
+    .replace(/\*(.*?)\*/g, "<b>$1</b>");
 };
 </script>
 
