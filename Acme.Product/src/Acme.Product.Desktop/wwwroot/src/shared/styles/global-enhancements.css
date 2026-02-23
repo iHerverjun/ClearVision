@@ -24,7 +24,7 @@
 .toolbar-divider {
     width: 1px;
     height: 24px;
-    background: var(--glass-border);
+    background: #e2e8f0;
     margin: 0 4px;
 }
 

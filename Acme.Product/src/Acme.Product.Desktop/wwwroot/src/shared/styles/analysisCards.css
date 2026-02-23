@@ -1,0 +1,507 @@
+/*
+ * 分析卡片 (Analysis Cards) 样式
+ * 设计参考：工业检测界面，要求紧凑、清晰、直观
+ */
+
+ .analysis-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+}
+
+/* ==================================
+ * 通用卡片外壳
+ * ================================== */
+.ac-card {
+    background-color: var(--bg-color);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    position: relative;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ac-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+}
+
+
+
+/* 折叠状态 */
+.ac-card.collapsed .ac-card-body {
+    display: none;
+}
+
+.ac-card-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px 8px 12px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    background-color: var(--bg-color);
+    cursor: pointer;
+}
+
+.ac-card-icon {
+    font-size: 16px;
+    margin-right: 8px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.ac-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    flex-grow: 1;
+}
+
+.ac-card-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.ac-card-toggle:hover {
+    background-color: var(--hover-color);
+    color: var(--text-color);
+}
+
+.ac-card-toggle svg {
+    transition: transform 0.2s ease;
+}
+
+.ac-card-body {
+    padding: 8px 12px 10px 12px;
+}
+
+/* ==================================
+ * 通用徽章 (Badge)
+ * ================================== */
+.ac-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.ac-badge-ok {
+    background-color: #f8fafc; /* slate-50 */
+    color: #10b981;            /* emerald */
+    border: 1px solid #e2e8f0;
+}
+
+.ac-badge-ng {
+    background-color: #f8fafc; /* slate-50 */
+    color: #e11d48;            /* rose */
+    border: 1px solid #e2e8f0;
+}
+
+/* ==================================
+ * 1. 测量卡片 (Measurement)
+ * ================================== */
+.ac-measurement-row {
+    margin-bottom: 16px;
+}
+
+.ac-measurement-row:last-child {
+    margin-bottom: 0;
+}
+
+.ac-measurement-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ac-measurement-icon {
+    font-size: 14px;
+    margin-right: 6px;
+    color: var(--text-secondary);
+}
+
+.ac-measurement-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-grow: 1;
+}
+
+.ac-measurement-value {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 8px;
+    padding-left: 20px;
+}
+
+.ac-measurement-value .ac-big-number {
+    font-family: 'Inter', 'Roboto Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.ac-measurement-value .ac-unit {
+    margin-left: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ac-measurement-value.ok .ac-big-number {
+    color: #10b981;
+}
+
+.ac-measurement-value.ng .ac-big-number {
+    color: #e11d48;
+}
+
+/* 范围条 */
+.ac-range-bar-container {
+    padding: 0 4px;
+}
+
+.ac-range-bar {
+    height: 4px;
+    background-color: var(--border-color);
+    border-radius: 2px;
+    position: relative;
+    margin: 8px 0;
+}
+
+.ac-range-zone {
+    position: absolute;
+    height: 100%;
+    top: 0;
+    border-radius: 2px;
+}
+
+.ac-range-zone.ok-zone {
+    left: 10%; /* 示例范围 */
+    width: 80%;
+    background-color: rgba(16, 185, 129, 0.2);
+}
+
+.ac-range-pointer {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-color);
+    border: 2px solid var(--bg-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    z-index: 2;
+}
+
+.ac-range-pointer.ok {
+    background-color: #10b981;
+}
+
+.ac-range-pointer.ng {
+    background-color: #e11d48;
+}
+
+.ac-range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+/* ==================================
+ * 2. OCR/条码卡片 (OCR/Code)
+ * ================================== */
+.ac-ocr-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ac-ocr-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ac-ocr-type-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ac-ocr-text-box {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.ac-ocr-text-box.ok {
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.ac-ocr-text-box.ng {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ac-ocr-text {
+    word-break: break-all;
+    color: var(--text-color);
+}
+
+.ac-ocr-check { color: #10b981; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+.ac-ocr-cross { color: #e11d48; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+
+.ac-ocr-confidence {
+    margin-top: 4px;
+}
+
+.ac-ocr-conf-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 11px;
+}
+
+.ac-progress-bar {
+    height: 6px;
+    background-color: var(--border-color);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.ac-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.ac-progress-fill.high { background-color: #10b981; }
+.ac-progress-fill.medium { background-color: #f59e0b; }
+.ac-progress-fill.low { background-color: #e11d48; }
+.ac-ocr-conf-value.high { color: #10b981; font-weight: bold;}
+.ac-ocr-conf-value.medium { color: #f59e0b; font-weight: bold;}
+.ac-ocr-conf-value.low { color: #e11d48; font-weight: bold;}
+
+
+.ac-ocr-chars {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ac-ocr-chars-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.ac-ocr-char-bars {
+    display: flex;
+    gap: 2px;
+}
+
+.ac-ocr-char-bar {
+    width: 6px;
+    height: 8px;
+    border-radius: 1px;
+}
+
+.ac-ocr-char-bar.good { background-color: #10b981; }
+.ac-ocr-char-bar.bad { background-color: #e11d48; }
+
+
+/* ==================================
+ * 3. 缺陷检测卡片 (Defect)
+ * ================================== */
+.ac-defect-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border-color);
+    margin-bottom: 8px;
+}
+
+.ac-defect-count-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ac-defect-count {
+    font-size: 18px;
+    font-weight: bold;
+    font-family: 'Inter', monospace;
+}
+
+.ac-defect-count.ok { color: var(--text-secondary); }
+.ac-defect-count.ng { color: #e11d48; }
+
+.ac-defect-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ac-defect-item {
+    display: flex;
+    align-items: center;
+    background-color: var(--hover-color);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.ac-defect-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.ac-defect-dot.ok { background-color: #10b981; }
+.ac-defect-dot.ng { background-color: #e11d48; }
+
+.ac-defect-name {
+    flex-grow: 1;
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.ac-defect-conf {
+    color: var(--text-secondary);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+}
+
+
+/* ==================================
+ * 4. 匹配卡片 (Match)
+ * ================================== */
+.ac-match-status-badge {
+    text-align: center;
+    padding: 6px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.ac-match-status-badge.matched {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--success-color, #10b981);
+}
+
+.ac-match-status-badge.unmatched {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--error-color, #ef4444);
+}
+
+.ac-match-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ac-match-score-row, .ac-match-position-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ac-match-score-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ac-match-score-value {
+    font-family: 'Inter', monospace;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.ac-match-score-value.high { color: #10b981; }
+.ac-match-score-value.medium { color: #f59e0b; }
+.ac-match-score-value.low { color: #e11d48; }
+
+.ac-match-position-val {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: var(--text-color);
+    background-color: var(--input-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+}
+
+/* ==================================
+ * 5. 通用数据卡片 (Generic)
+ * ================================== */
+.ac-generic-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border-color);
+    font-size: 12px;
+}
+
+.ac-generic-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.ac-generic-key {
+    color: var(--text-secondary);
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ac-generic-value {
+    color: var(--text-color);
+    text-align: right;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ac-bool-true { color: #10b981; }
+.ac-bool-false { color: #e11d48; }
+
+.ac-json-code {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+}

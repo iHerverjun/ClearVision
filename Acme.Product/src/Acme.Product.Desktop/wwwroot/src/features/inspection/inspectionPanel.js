@@ -8,6 +8,7 @@ import inspectionController, { getInspectionState } from './inspectionController
 import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
 import { getCurrentProject } from '../project/projectManager.js';
+import { AnalysisCardsPanel } from './analysisCardsPanel.js';
 
 // 检测统计状态
 const [getStats, setStats, subscribeStats] = createSignal({
@@ -43,8 +44,9 @@ class InspectionPanel {
         this.isContinuous = false;
         this.selectedRunMode = 'camera';
         
-        // 初始化UI
+        // 初始化 UI 和分析卡片面板
         this.initialize();
+        this.analysisCardsPanel = new AnalysisCardsPanel('analysis-cards-container');
         
         // 设置订阅
         this.setupSubscriptions();
@@ -59,37 +61,37 @@ class InspectionPanel {
         this.container.innerHTML = `
             <div class="inspection-panel">
                 <!-- 运行控制条 -->
-                <div class="inspection-section run-controls">
+                <div class="inspection-section run-controls cv-control-card">
                     <h4 class="section-title">运行控制</h4>
                     
                     <!-- 【第二优先级】运行模式选择 -->
                     <div class="run-mode-section" style="margin-bottom: 12px;">
-                        <label class="form-label" style="display: block; margin-bottom: 6px; font-size: 12px; color: #888;">运行模式</label>
-                        <select id="run-mode" class="form-select" style="width: 100%; padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #2a2a2a; color: #e0e0e0; font-size: 13px;">
+                        <label class="form-label" style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-secondary);">运行模式</label>
+                        <select id="run-mode" class="form-select cv-input" style="width: 100%; border-radius: 6px;">
                             <option value="camera">相机驱动 (Camera)</option>
                             <option value="flow">流程驱动 (PLC触发)</option>
                         </select>
-                        <small style="display: block; margin-top: 4px; font-size: 11px; color: #666;">
+                        <small style="display: block; margin-top: 4px; font-size: 11px; color: var(--text-secondary);">
                             <span id="run-mode-desc">相机驱动：由相机采集触发检测</span>
                         </small>
                     </div>
                     
                     <div class="control-buttons">
                         <button class="btn-inspection btn-run-single" id="btn-run-single" title="单次运行">
-                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20">
-                                <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon>
                             </svg>
                             <span>单次运行</span>
                         </button>
                         <button class="btn-inspection btn-run-continuous" id="btn-run-continuous" title="连续运行">
-                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20">
-                                <circle cx="12" cy="12" r="8" fill="currentColor"/>
+                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path>
                             </svg>
                             <span>连续运行</span>
                         </button>
                         <button class="btn-inspection btn-stop" id="btn-stop" title="停止" disabled>
-                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20">
-                                <rect x="6" y="6" width="12" height="12" fill="currentColor"/>
+                            <svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                             </svg>
                             <span>停止</span>
                         </button>
@@ -97,7 +99,7 @@ class InspectionPanel {
                 </div>
 
                 <!-- 实时计数器 (上移至此) -->
-                <div class="inspection-section counters-section">
+                <div class="inspection-section counters-section cv-control-card">
                     <h4 class="section-title">检测统计</h4>
                     <div class="counters-grid">
                         <div class="counter-item counter-ok">
@@ -115,6 +117,25 @@ class InspectionPanel {
                         <div class="counter-item counter-yield">
                             <span class="counter-value" id="counter-yield">0%</span>
                             <span class="counter-label">良率</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 耗时统计 (移至左侧) -->
+                <div class="inspection-section timing-section cv-control-card">
+                    <h4 class="section-title">耗时统计 (CYCLE TIME)</h4>
+                    <div class="timing-stats" id="timing-stats-panel">
+                        <div class="timing-item">
+                            <span class="timing-label">平均</span>
+                            <span class="timing-value" id="timing-avg">-- ms</span>
+                        </div>
+                        <div class="timing-item">
+                            <span class="timing-label">最小</span>
+                            <span class="timing-value" id="timing-min">-- ms</span>
+                        </div>
+                        <div class="timing-item">
+                            <span class="timing-label">最大</span>
+                            <span class="timing-value" id="timing-max">-- ms</span>
                         </div>
                     </div>
                 </div>
@@ -270,6 +291,11 @@ class InspectionPanel {
      * 处理检测结果
      */
     handleInspectionResult(result) {
+        // 更新卡片分析
+        if (this.analysisCardsPanel && result.outputData) {
+            this.analysisCardsPanel.updateCards(result.outputData, result.status, result.processingTimeMs);
+        }
+
         // 更新状态
         const status = result.status === 'OK' ? 'ok' : result.status === 'Error' ? 'error' : 'ng';
         const statusText = result.status === 'OK' ? '通过' : result.status === 'Error' ? '错误' : '不通过';
@@ -441,6 +467,7 @@ class InspectionPanel {
         setRecentResults([]);
         this.updateCounters();
         this.renderRecentResults();
+        if (this.analysisCardsPanel) this.analysisCardsPanel.clear();
 
         this.updateStatus('idle', '就绪');
     }

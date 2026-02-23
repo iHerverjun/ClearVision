@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,15 +18,16 @@
                     "src/shared/styles/settings.css",
                     "src/shared/styles/property-panel.css",
                     "src/shared/styles/property-panel-enhancements.css",
-                    "src/shared/styles/settings-overrides.css",
-                    "src/shared/styles/inspection.css",
-                    "src/shared/styles/results.css",
                     "src/shared/styles/project-view.css",
                     "src/shared/styles/global-enhancements.css",
+                    "src/shared/styles/settings-view-override.css",
                     "src/shared/styles/operator-library.css",
                     "src/features/settings/userManagement.css",
                     "src/shared/styles/ai-panel.css",
                     "src/features/calibration/calibrationWizard.css",
+                    "src/shared/styles/analysisCards.css",
+                    "src/shared/styles/inspection.css",
+                    "src/shared/styles/results.css",
                     "css/handEyeCalibWizard.css",
                 ];
 
@@ -63,6 +64,9 @@
                         </button>
                         <button class="nav-btn" data-view="ai">
                             AI
+                        </button>
+                        <button class="nav-btn" data-view="settings">
+                            设置
                         </button>
                     </nav>
                 </div>
@@ -215,7 +219,8 @@
                     <button
                         id="btn-settings"
                         class="btn btn-icon"
-                        data-tooltip="设置"
+                        data-tooltip="设置 (旧版)"
+                        style="display:none;"
                     >
                         <svg
                             viewBox="0 0 24 24"
@@ -291,36 +296,10 @@
                             id="inspection-results-panel"
                         >
                             <div class="panel">
-                                <!-- 耗时统计 (移至右侧顶部) -->
-                                <h3 class="panel-title">耗时统计</h3>
-                                <div
-                                    class="timing-stats"
-                                    id="timing-stats-panel"
-                                >
-                                    <div class="timing-item">
-                                        <span class="timing-label">平均</span>
-                                        <span
-                                            class="timing-value"
-                                            id="timing-avg"
-                                            >-- ms</span
-                                        >
-                                    </div>
-                                    <div class="timing-item">
-                                        <span class="timing-label">最小</span>
-                                        <span
-                                            class="timing-value"
-                                            id="timing-min"
-                                            >-- ms</span
-                                        >
-                                    </div>
-                                    <div class="timing-item">
-                                        <span class="timing-label">最大</span>
-                                        <span
-                                            class="timing-value"
-                                            id="timing-max"
-                                            >-- ms</span
-                                        >
-                                    </div>
+                                <!-- 分析卡片区 (新增) -->
+                                <h3 class="panel-title">ANALYSIS</h3>
+                                <div class="analysis-cards-container" id="analysis-cards-container">
+                                    <p class="empty-text">等待检测结果...</p>
                                 </div>
 
                                 <!-- 最近结果 (移至右侧底部) -->
@@ -328,7 +307,7 @@
                                     class="panel-title"
                                     style="margin-top: 24px"
                                 >
-                                    最近结果
+                                    RECENT HISTORY
                                 </h3>
                                 <div
                                     class="recent-results-grid"
@@ -738,6 +717,11 @@
                     <div class="ai-view-container hidden" id="ai-view">
                         <!-- 由 aiPanel.js 动态填充 -->
                     </div>
+
+                    <!-- 全屏设置视图（默认隐藏） -->
+                    <div class="settings-view-container hidden" id="settings-view">
+                        <!-- 由 settingsView.js 动态填充两栏布局 -->
+                    </div>
                 </section>
 
                 <!-- 右侧面板 -->
@@ -849,6 +833,10 @@
         <script
             type="module"
             src="src/features/ai/aiPanel.js"
+        ></script>
+        <script
+            type="module"
+            src="src/features/settings/settingsView.js"
         ></script>
         <script
             type="module"

@@ -10,15 +10,15 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 16px;
-    gap: 12px;
+    padding: 24px;
+    gap: 16px;
     background: var(--gradient-card);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-xl);
-    overflow: hidden;       /* 一页显示，不滚动 */
-    min-height: 0;          /* flex子项收缩的关键 */
+    overflow-y: auto;       /* 允许内容滚动，修复发瘟堆积 */
+    min-height: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -92,11 +92,10 @@
    -------------------------------------------------------------------------- */
 .results-dashboard {
     display: grid;
-    grid-template-columns: 180px 180px 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 12px;
-    flex: 1;           /* 占满剩余高度 */
-    min-height: 0;     /* 允许收缩 */
+    grid-template-columns: 200px 200px 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    flex-shrink: 0;
 }
 
 /* 去掉 left/right 容器层，让子元素直接参与 dashboard grid */
@@ -145,18 +144,15 @@
 .kpi-value.total { color: var(--paper-white); }
 .kpi-value.ok {
     color: var(--success-jade);
-    text-shadow: 0 0 12px rgba(46, 204, 113, 0.3);
 }
 .kpi-value.ng {
     color: var(--error-cinnabar);
-    text-shadow: 0 0 12px rgba(192, 57, 43, 0.3);
 }
 .kpi-value.yield {
     color: var(--gold-accent);
-    text-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
 }
 .kpi-value.time {
-    color: #3498db;
+    color: #3b82f6; /* Modern Blue */
     font-size: 18px;
 }
 
@@ -176,11 +172,11 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 12px;
+    padding: 16px;
     background: var(--ink-secondary);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
-    min-height: 0;
+    min-height: 220px;
     overflow: hidden;
 }
 
@@ -248,11 +244,11 @@
 .defect-distribution {
     grid-column: 2;
     grid-row: 2;
-    padding: 12px;
+    padding: 16px;
     background: var(--ink-secondary);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
-    min-height: 0;
+    min-height: 220px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -310,13 +306,13 @@
 .trend-chart-container {
     grid-column: 3;
     grid-row: 2;
-    padding: 12px;
+    padding: 16px;
     background: var(--ink-secondary);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    min-height: 220px;
     overflow: hidden;
 }
 
@@ -688,8 +684,8 @@
    Light Theme
    -------------------------------------------------------------------------- */
 [data-theme="light"] .results-view-container {
-    background: var(--gradient-card);
-    border-color: rgba(0, 0, 0, 0.06);
+    background: #f1f5f9;
+    border-color: #e2e8f0;
 }
 
 [data-theme="light"] .kpi-card,
@@ -698,44 +694,90 @@
 [data-theme="light"] .trend-chart-container,
 [data-theme="light"] .results-filters-bar,
 [data-theme="light"] .result-card {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+[data-theme="light"] .kpi-card:hover,
+[data-theme="light"] .result-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+    border-color: #cbd5e1;
 }
 
 [data-theme="light"] .filter-select {
-    background: rgba(0, 0, 0, 0.03);
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
 }
 
 [data-theme="light"] .time-range-selector {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .time-range-btn {
+    color: #64748b;
 }
 
 [data-theme="light"] .time-range-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: #f8fafc;
+    color: #0f172a;
 }
 
 [data-theme="light"] .time-range-btn.active {
+    background: var(--cinnabar);
     color: #fff;
+    box-shadow: 0 2px 4px rgba(231,76,60,0.2);
 }
 
 [data-theme="light"] .export-menu {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(0, 0, 0, 0.1);
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+
+[data-theme="light"] .export-menu-item {
+    color: #0f172a;
+}
+
+[data-theme="light"] .export-menu-item:hover {
+    background: #fef2f2;
+    color: var(--cinnabar);
 }
 
 [data-theme="light"] .defect-bar-track {
-    background: rgba(0, 0, 0, 0.05);
+    background: #e2e8f0;
 }
 
 [data-theme="light"] .yield-chart-bg {
-    stroke: rgba(0, 0, 0, 0.05);
+    fill: transparent !important;
+    stroke: #e2e8f0;
+}
+
+[data-theme="light"] .yield-chart-fill {
+    fill: transparent !important;
 }
 
 [data-theme="light"] .page-btn {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #64748b;
 }
+
+[data-theme="light"] .yield-percentage { color: #0f172a; }
+[data-theme="light"] .defect-bar-value { color: #0f172a; }
+[data-theme="light"] .kpi-value.total { color: #0f172a; }
+[data-theme="light"] .kpi-value.ok { color: #059669; }
+[data-theme="light"] .kpi-value.ng { color: #dc2626; }
+[data-theme="light"] .trend-chart-title,
+[data-theme="light"] .yield-chart-title,
+[data-theme="light"] .defect-distribution-title { color: #475569; }
+[data-theme="light"] .results-view-header h2 { color: #0f172a; }
+[data-theme="light"] .result-card-header,
+[data-theme="light"] .output-data-item .output-value,
+[data-theme="light"] .result-detail-header h3,
+[data-theme="light"] .detail-value { color: #1e293b; }
 
 /* --------------------------------------------------------------------------
    输出数据预览（卡片内）

@@ -97,7 +97,6 @@ import projectManager, {
     subscribeProject 
 } from './features/project/projectManager.js';
 import { ResultPanel } from './features/results/resultPanel.js';
-import settingsModal from './features/settings/settingsModal.js';
 import { AiGenerationDialog } from './features/ai-generation/aiGenerationDialog.js';
 
 // 全局状态
@@ -238,6 +237,7 @@ function switchView(view) {
     const resultsViewContainer = document.getElementById('results-view');
     const projectViewContainer = document.getElementById('project-view');
     const aiViewContainer = document.getElementById('ai-view');
+    const settingsViewContainer = document.getElementById('settings-view');
 
     // 隐藏所有视图
     flowEditor?.classList.add('hidden');
@@ -246,6 +246,7 @@ function switchView(view) {
     resultsViewContainer?.classList.add('hidden');
     projectViewContainer?.classList.add('hidden');
     aiViewContainer?.classList.add('hidden');
+    settingsViewContainer?.classList.add('hidden');
 
     // 获取侧边栏元素
     const leftSidebar = document.querySelector('.sidebar.left');
@@ -323,6 +324,15 @@ function switchView(view) {
                 aiPanel.activate();
             } else {
                 initializeAiPanel();
+            }
+            break;
+        case 'settings':
+            settingsViewContainer?.classList.remove('hidden');
+            console.log('[App] 切换到 设置 视图');
+            if (window.cvSettingsView) {
+                window.cvSettingsView.refresh();
+            } else if (typeof window.initializeSettingsView === 'function') {
+                window.initializeSettingsView();
             }
             break;
         default:
@@ -1254,15 +1264,6 @@ function initializeToolbar() {
                 console.error('[App] 运行检测失败:', error);
                 showToast('检测失败: ' + error.message, 'error');
             }
-        });
-    }
-    
-    // 设置按钮
-    const settingsBtn = document.getElementById('btn-settings');
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            console.log('[App] 打开设置');
-            settingsModal.open();
         });
     }
 

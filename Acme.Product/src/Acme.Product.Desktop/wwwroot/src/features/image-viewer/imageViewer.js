@@ -54,18 +54,20 @@ export class ImageViewerComponent {
                 <div class="viewer-toolbar">
 
                     <div class="toolbar-group">
-                        <button id="btn-zoom-in" class="cv-btn cv-btn-icon" title="放大">🔍+</button>
-                        <button id="btn-zoom-out" class="cv-btn cv-btn-icon" title="缩小">🔍-</button>
-                        <button id="btn-fit-window" class="cv-btn cv-btn-icon" title="适应窗口">↔️</button>
-                        <button id="btn-actual-size" class="cv-btn cv-btn-icon" title="实际大小">1:1</button>
+                        <button id="btn-zoom-in" class="cv-btn cv-btn-icon" title="放大">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                        </button>
+                        <button id="btn-zoom-out" class="cv-btn cv-btn-icon" title="缩小">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                        </button>
+                        <button id="btn-fit-window" class="cv-btn cv-btn-icon" title="适应窗口">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                        </button>
+                        <button id="btn-actual-size" class="cv-btn cv-btn-icon" title="实际大小" style="font-size: 13px; font-weight: 600;">1:1</button>
                     </div>
                     <div class="toolbar-divider"></div>
-                    <div class="toolbar-group">
-                        <button id="btn-clear-annotations" class="cv-btn cv-btn-secondary" title="清除标注">🗑️ 清除标注</button>
-                        <button id="btn-toggle-annotations" class="cv-btn cv-btn-secondary" title="显示/隐藏标注">👁️ 标注</button>
-                    </div>
                     <div class="toolbar-info">
-                        <span id="image-info">未加载图像</span>
+                        <span id="image-info"></span>
                         <span id="zoom-info">100%</span>
                     </div>
                 </div>
@@ -75,8 +77,8 @@ export class ImageViewerComponent {
                     <canvas id="${this.canvasId}"></canvas>
                     <div class="viewer-placeholder" id="${this.placeholderId}">
                         <div class="placeholder-content">
-                            <span class="placeholder-icon">📷</span>
-                            <p>等待检测图像</p>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                            <p style="color: var(--text-secondary); margin: 0; font-size: 14px;">等待检测图像</p>
                         </div>
                     </div>
                 </div>
@@ -111,15 +113,6 @@ export class ImageViewerComponent {
         
         this.container.querySelector('#btn-actual-size').addEventListener('click', () => {
             this.actualSize();
-        });
-
-        // 标注控制
-        this.container.querySelector('#btn-clear-annotations').addEventListener('click', () => {
-            this.clearAnnotations();
-        });
-        
-        this.container.querySelector('#btn-toggle-annotations').addEventListener('click', () => {
-            this.toggleAnnotations();
         });
     }
 
