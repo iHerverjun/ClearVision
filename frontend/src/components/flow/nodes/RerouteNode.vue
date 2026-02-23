@@ -14,7 +14,7 @@
       :position="LEFT_POSITION"
       class="reroute-handle reroute-handle-in"
       :connectable="true"
-      :connectable-start="true"
+      :connectable-start="false"
       :connectable-end="true"
     />
 
@@ -27,7 +27,7 @@
       class="reroute-handle reroute-handle-out"
       :connectable="true"
       :connectable-start="true"
-      :connectable-end="true"
+      :connectable-end="false"
     />
   </div>
 </template>

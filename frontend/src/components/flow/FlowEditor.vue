@@ -1,5 +1,5 @@
 <template>
-  <div class="flow-editor-container" :class="{ 'is-click-connecting': isClickConnecting }">
+  <div class="flow-editor-container" :class="{ 'is-connecting': isConnecting }">
     <VueFlow
       :id="FLOW_INSTANCE_ID"
       :nodes="nodes"
@@ -10,15 +10,13 @@
       :connection-radius="80"
       :connection-line-options="connectionLineOptions"
       :default-edge-options="defaultEdgeOptions"
-      :connect-on-click="true"
+      :connect-on-click="false"
       :auto-pan-on-connect="true"
       @nodes-change="handleNodesChange"
       @edges-change="handleEdgesChange"
       @connect="onConnect"
       @connect-start="onConnectStart"
       @connect-end="onConnectEnd"
-      @click-connect-start="onConnectStart"
-      @click-connect-end="onConnectEnd"
       @node-click="onNodeClick"
       @node-context-menu="onNodeContextMenu"
       @edge-context-menu="onEdgeContextMenu"
@@ -133,8 +131,7 @@ const emit = defineEmits<{
 const {
   applyNodeChanges,
   applyEdgeChanges,
-  endConnection,
-  connectionClickStartHandle,
+  connectionStartHandle,
   setCenter,
   getViewport,
   getSelectedEdges,
@@ -160,9 +157,7 @@ const edges = computed({
   set: (value) => flowStore.setEdges(value),
 });
 
-const isClickConnecting = computed(
-  () => connectionClickStartHandle.value !== null,
-);
+const isConnecting = computed(() => connectionStartHandle.value !== null);
 
 const resolvePreviewLineType = () => {
   if (flowStore.preferredEdgeStyle === 'smoothstep') {
@@ -410,11 +405,7 @@ const onEdgeDoubleClick = (event: {
   });
 };
 
-const onPaneClick = (event?: MouseEvent) => {
-  if (connectionClickStartHandle.value) {
-    endConnection(event, true);
-  }
-
+const onPaneClick = () => {
   flowStore.clearConnectingType();
   flowStore.selectNode(null);
 };
@@ -434,7 +425,7 @@ const toPathfindingProps = (props: unknown) => props as any;
   --vf-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.flow-editor-container.is-click-connecting
+.flow-editor-container.is-connecting
   :deep(.clearvision-flow .vue-flow__pane) {
   cursor: crosshair;
 }

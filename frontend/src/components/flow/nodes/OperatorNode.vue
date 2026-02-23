@@ -54,7 +54,7 @@
             },
           ]"
           :connectable="true"
-          :connectable-start="true"
+          :connectable-start="false"
           :connectable-end="true"
           :style="{
             '--port-color': getColor(port.type),
@@ -143,7 +143,7 @@
           ]"
           :connectable="true"
           :connectable-start="true"
-          :connectable-end="true"
+          :connectable-end="false"
           :style="{
             '--port-color': getColor(port.type),
             '--port-glow': getGlow(port.type),
