@@ -17,7 +17,7 @@ namespace Acme.Product.Infrastructure.AI;
 /// </summary>
 public class AIWorkflowService
 {
-    private readonly AIPromptBuilder _promptBuilder;
+    private readonly PromptBuilder _promptBuilder;
     private readonly AIGeneratedFlowParser _flowParser;
     private readonly FlowLinter _linter;
     private readonly DryRunService _dryRunService;
@@ -27,7 +27,7 @@ public class AIWorkflowService
     private readonly Microsoft.Extensions.Logging.ILogger<AIWorkflowService> _logger;
 
     public AIWorkflowService(
-        AIPromptBuilder promptBuilder,
+        PromptBuilder promptBuilder,
         AIGeneratedFlowParser flowParser,
         FlowLinter linter,
         DryRunService dryRunService,
@@ -66,14 +66,7 @@ public class AIWorkflowService
             // Step 1: 构建提示词
             var promptStart = stopwatch.ElapsedMilliseconds;
             activeVersion = await _promptVersionManager.GetActiveVersionAsync();
-            var prompt = _promptBuilder
-                .WithSystemPrompt(activeVersion.Content)
-                .WithOperatorLibrary()
-                .WithDesignRules()
-                .WithExamples()
-                .WithUserRequirement(userRequirement)
-                .WithOutputRequirements()
-                .Build();
+            var prompt = _promptBuilder.BuildSystemPrompt();
             telemetry.PromptBuildTimeMs = stopwatch.ElapsedMilliseconds - promptStart;
             _logger.LogDebug("提示词构建完成，耗时 {TimeMs}ms", telemetry.PromptBuildTimeMs);
 

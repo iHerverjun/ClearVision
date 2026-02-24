@@ -23,6 +23,8 @@ public class PromptBuilder
 
         sb.AppendLine(GetRoleDefinition());
         sb.AppendLine();
+        sb.AppendLine(GetDomainKnowledge());
+        sb.AppendLine();
         sb.AppendLine(GetOperatorCatalog());
         sb.AppendLine();
         sb.AppendLine(GetConnectionRules());
@@ -33,6 +35,86 @@ public class PromptBuilder
 
         return sb.ToString();
     }
+
+    private string GetDomainKnowledge() => """
+        # 领域知识与设计模式
+
+        ## ClearVision 平台概述
+        ClearVision 是一个面向工业制造的在线视觉检测平台。
+        主要服务行业：3C 电子（芯片/连接器/FPC）、汽车零部件（轴承/齿轮/密封件）、
+        食品包装（标签/日期/瓶盖）、半导体（晶圆/引线框架）、PCB/SMT（焊点/元件）。
+        平台通过节点式图形化编程（拖拽算子 + 连线）让工程师无需编码即可构建检测工作流。
+
+        ## 常见工作流设计模式
+
+        ### 模式 1：传统缺陷检测
+        适用场景：产品表面划痕/污点/缺损/多余物检测
+        典型流程：ImageAcquisition → Filtering(降噪) → Thresholding(分割) → BlobAnalysis(缺陷提取) → ResultJudgment(OK/NG) → ResultOutput
+        关键点：Blob的MinArea/MaxArea需要根据缺陷大小设定；如果背景不均匀优先用AdaptiveThreshold
+
+        ### 模式 2：AI 深度学习检测
+        适用场景：复杂纹理表面、传统算法难以分割的缺陷
+        典型流程：ImageAcquisition → ImageResize(适配模型输入尺寸) → DeepLearning → ConditionalBranch(缺陷数>0?) → ModbusCommunication(NG信号) / ResultOutput
+        关键点：DeepLearning前一般需要ImageResize到模型要求的尺寸(如640×640)；不要在DeepLearning后面再接Thresholding
+
+        ### 模式 3：尺寸测量
+        适用场景：零件孔径/间距/角度/轮廓尺寸的精密测量
+        典型流程：ImageAcquisition → Filtering → EdgeDetection → CircleMeasurement/LineMeasurement → Measurement(距离) → CoordinateTransform(像素→毫米) → ResultOutput
+        关键点：测量类算子一般需要先做边缘检测预处理；最终要用CoordinateTransform将像素值转为物理尺寸(mm)
+
+        ### 模式 4：条码/OCR识别
+        适用场景：产品追溯、包装信息读取
+        典型流程：ImageAcquisition → CodeRecognition/OcrRecognition → ConditionalBranch(内容匹配?) → DatabaseWrite/ModbusCommunication → ResultOutput
+
+        ### 模式 5：分拣/分级
+        适用场景：按检测结果发送不同信号
+        典型流程：ImageAcquisition → (检测算子) → ConditionalBranch → ModbusCommunication(OK信号) / ModbusCommunication(NG信号) → ResultOutput
+        关键点：ConditionalBranch的True/False两路分别连不同的通信算子
+
+        ### 模式 6：多工位循环检测
+        适用场景：同一产品多个位置检测、批量连续检测
+        典型流程：CycleCounter → ImageAcquisition → (检测算子) → DatabaseWrite → ResultOutput
+
+        ## 用户口语 → 算子映射速查
+
+        | 用户表述 | 应选算子 |
+        |---------|---------|
+        | "拍照/取图/抓图" | ImageAcquisition |
+        | "去噪/降噪/平滑/模糊" | Filtering 或 MedianBlur（椒盐噪声用MedianBlur） |
+        | "二值化/黑白/分割前景" | Thresholding（均匀光照）或 AdaptiveThreshold（不均匀光照） |
+        | "去毛刺/填孔/膨胀/腐蚀" | Morphology |
+        | "找边/提轮廓/Canny" | EdgeDetection |
+        | "找圆/圆孔/孔径" | CircleMeasurement |
+        | "找线/直线/角度" | LineMeasurement |
+        | "测距/量尺寸/长度" | Measurement |
+        | "转毫米/物理坐标" | CoordinateTransform |
+        | "AI检测/深度学习/YOLO" | DeepLearning |
+        | "扫码/二维码/条码" | CodeRecognition |
+        | "判断OK/NG/合格" | ResultJudgment 或 ConditionalBranch |
+        | "发PLC/通信/发信号" | 看品牌：西门子→SiemensS7Communication，三菱→MitsubishiMcCommunication，欧姆龙→OmronFinsCommunication，通用→ModbusCommunication |
+        | "存数据库/记录" | DatabaseWrite |
+        | "缩放/放大/缩小" | ImageResize |
+        | "裁剪/ROI" | ImageCrop 或 RoiManager |
+        | "颜色/偏色/色差" | ColorDetection |
+        | "标定/畸变校正" | CameraCalibration → Undistort |
+        | "模板定位/找图" | TemplateMatching 或 ShapeMatching（需要旋转不变时用ShapeMatching） |
+        | "对比度增强/直方图" | HistogramEqualization |
+
+        ## 反面模式（必须避免的错误设计）
+
+        1. **不要在 DeepLearning 后接 Thresholding**
+           AI 模型已输出检测结果和置信度，再做二值化没有意义
+        2. **测量算子不要直接连图像源**
+           CircleMeasurement/LineMeasurement 需要先经过 EdgeDetection 预处理才能得到清晰边缘
+        3. **需要物理尺寸的场景不要忘记 CoordinateTransform**
+           如果用户提到"毫米""微米"等物理单位，最终必须经过坐标转换
+        4. **通信算子不要串联使用**
+           如果需要同时发 OK/NG 信号，应该从 ConditionalBranch 的 True/False 各连一个通信算子（并联），不要串联
+        5. **缺陷检测流程不要遗漏 ResultOutput**
+           每个完整工作流都应以 ResultOutput 结尾，用于汇总和展示结果
+        6. **不要跳过预处理**
+           工业图像通常有噪声，直接做边缘检测或Blob分析会产生大量误检，应先 Filtering
+        """;
 
     private string GetRoleDefinition() => """
         # 角色定义
@@ -85,7 +167,11 @@ public class PromptBuilder
                     display_name = p.DisplayName,
                     type = p.DataType,
                     default_value = p.DefaultValue?.ToString(),
-                    required = p.IsRequired
+                    required = p.IsRequired,
+                    description = p.Description ?? "",
+                    min_value = p.MinValue?.ToString(),
+                    max_value = p.MaxValue?.ToString(),
+                    options = p.Options?.Select(o => new { label = o.Label, value = o.Value })
                 })
             }),
             new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
@@ -147,8 +233,14 @@ public class PromptBuilder
         }
         ```
 
+        ## 关于参数配置 (parameters)
+        - 根据用户的描述推断合理的参数值。如果描述中包含数量、尺寸、大小等信息，应转换为相应的数值
+        - 数值类型参数的 value 必须在对应算子信息的 `min_value` 到 `max_value` 之间
+        - 枚举(enum)类型参数的 value 必须是对应算子信息的 `options` 数组中列出的 `value` 之一
+        - 未在 user 提示中明确或无法推断的参数，如果它有 `default_value`，可以省略或填入默认值
+
         ## 关于 parametersNeedingReview
-        列出你无法从用户描述中确定具体值、需要用户手动配置的参数。
+        列出你无法从用户描述中确定明确值、必须由用户提供真实环境数据的参数。
         例如：文件路径、IP 地址、模型文件路径、特定尺寸阈值等。
 
         ## 关于 tempId
@@ -245,10 +337,10 @@ public class PromptBuilder
         {
           "explanation": "相机采集图像，高斯滤波降噪，Canny边缘检测，检测两个圆形孔，测量距离，坐标转换为物理尺寸，输出结果",
           "operators": [
-            {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera"}},
-            {"tempId": "op_2", "operatorType": "GaussianBlur", "displayName": "高斯滤波", "parameters": {"KernelSize": "5", "Sigma": "1.0"}},
-            {"tempId": "op_3", "operatorType": "EdgeDetection", "displayName": "边缘检测", "parameters": {"Threshold1": "50", "Threshold2": "150"}},
-            {"tempId": "op_4", "operatorType": "CircleMeasurement", "displayName": "圆孔检测", "parameters": {"MinRadius": "10", "MaxRadius": "100"}},
+            {"tempId": "op_1", "operatorType": "ImageAcquisition", "displayName": "相机采集", "parameters": {"sourceType": "camera", "exposureTime": "10000"}},
+            {"tempId": "op_2", "operatorType": "GaussianBlur", "displayName": "高斯滤波", "parameters": {"KernelSize": "5"}},
+            {"tempId": "op_3", "operatorType": "EdgeDetection", "displayName": "边缘检测", "parameters": {"Threshold1": "50", "Threshold2": "150", "ApertureSize": "3"}},
+            {"tempId": "op_4", "operatorType": "CircleMeasurement", "displayName": "圆孔检测", "parameters": {"MinRadius": "10", "MaxRadius": "100", "Method": "HoughCircle"}},
             {"tempId": "op_5", "operatorType": "Measurement", "displayName": "距离测量", "parameters": {"MeasureType": "PointToPoint"}},
             {"tempId": "op_6", "operatorType": "CoordinateTransform", "displayName": "坐标转换", "parameters": {"PixelSize": "0.02"}},
             {"tempId": "op_7", "operatorType": "ResultOutput", "displayName": "测量结果", "parameters": {}}

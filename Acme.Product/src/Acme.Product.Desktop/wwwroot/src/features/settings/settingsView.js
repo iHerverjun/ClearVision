@@ -198,6 +198,11 @@ class SettingsView {
                 panel.classList.remove('active');
             }
         });
+        
+        // 如果是切换到用户管理且是管理员，需要刷新表格
+        if (tabName === 'users' && this.isAdmin) {
+            this.refreshUserTable();
+        }
     }
 
     bindEvents() {
@@ -1169,35 +1174,7 @@ class SettingsView {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>
-                                    <div style="display:flex; align-items:center; gap:12px;">
-                                        <div style="width:32px; height:32px; background:#e0e7ff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#4338ca; font-weight:700; font-size:14px;">A</div>
-                                        <div class="font-bold">Admin</div>
-                                    </div>
-                                </td>
-                                <td><span class="type-badge badge-bool" style="background:#fef2f2; color:#b91c1c;">系统管理员</span></td>
-                                <td class="text-muted">2026-02-23 08:30:12</td>
-                                <td><span class="settings-status-badge status-connected"><span class="status-dot"></span> 正常</span></td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="display:flex; align-items:center; gap:12px;">
-                                        <div style="width:32px; height:32px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:700; font-size:14px;">O</div>
-                                        <div class="font-bold">Operator_01</div>
-                                    </div>
-                                </td>
-                                <td><span class="type-badge" style="background:#f1f5f9; color:#475569;">操作员</span></td>
-                                <td class="text-muted">2026-02-22 15:20:00</td>
-                                <td><span class="settings-status-badge status-connected"><span class="status-dot"></span> 正常</span></td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
+                            <!-- Loaded by JS -->
                         </tbody>
                     </table>
                 </div>
@@ -1228,16 +1205,206 @@ class SettingsView {
                     <button class="cv-btn settings-btn-danger">保存安全策略</button>
                 </div>
             </div>
+            
+            <!-- 模态框容器 -->
+            <div id="user-modal-container"></div>
         `;
     }
 
-    async loadUsers() {
+    async refreshUserTable() {
         if (!this.isAdmin) return;
+        const tbody = this.container.querySelector('#settings-user-table tbody');
+        if (!tbody) return;
+        
         try {
             this.users = await httpClient.get('/users');
+            
+            tbody.innerHTML = this.users.map(u => {
+                let roleColor = '#475569';
+                let roleBg = '#f1f5f9';
+                let roleName = '角色未知';
+                
+                if (u.role === 'Admin' || u.role === 0) {
+                    roleColor = '#b91c1c'; roleBg = '#fef2f2'; roleName = '系统管理员';
+                } else if (u.role === 'Engineer' || u.role === 1) {
+                    roleColor = '#1d4ed8'; roleBg = '#dbeafe'; roleName = '工程师';
+                } else if (u.role === 'Operator' || u.role === 2) {
+                    roleColor = '#475569'; roleBg = '#f1f5f9'; roleName = '操作员';
+                }
+
+                const initial = u.username.charAt(0).toUpperCase();
+                // 如果最后登录时间为空，显示"从未登录"，否则格式化
+                const lastLogin = u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : '从未登录';
+                
+                const statusHtml = u.isActive 
+                    ? '<span class="settings-status-badge status-connected"><span class="status-dot"></span> 正常</span>'
+                    : '<span class="settings-status-badge status-disconnected" style="color:#ef4444;"><span class="status-dot" style="background:#ef4444;"></span> 已禁用</span>';
+                
+                return `
+                    <tr>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div style="width:32px; height:32px; background:${roleBg}; border-radius:50%; display:flex; align-items:center; justify-content:center; color:${roleColor}; font-weight:700; font-size:14px;">${initial}</div>
+                                <div class="font-bold">${u.username}</div>
+                            </div>
+                        </td>
+                        <td><span class="type-badge" style="background:${roleBg}; color:${roleColor};">${roleName}</span></td>
+                        <td class="text-muted">${lastLogin}</td>
+                        <td>${statusHtml}</td>
+                        <td>
+                            <button class="action-icon-btn" data-action="edit" data-id="${u.id}" title="编辑用户"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg></button>
+                            ${u.username.toLowerCase() !== 'admin' ? `<button class="action-icon-btn" data-action="reset-pwd" data-id="${u.id}" title="重置密码"><svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4h2.35l2-2 2 2 2-2 2 2V10h-6.35zM7 14c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2z"/></svg></button>` : ''}
+                            ${u.username.toLowerCase() !== 'admin' ? `<button class="action-icon-btn" data-action="toggle-status" data-id="${u.id}" title="${u.isActive?'禁用':'启用'}"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></button>` : ''}
+                            ${u.username.toLowerCase() !== 'admin' ? `<button class="action-icon-btn" data-action="delete" data-id="${u.id}" title="删除用户" style="color:var(--cinnabar);"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         } catch (error) {
             console.error('[SettingsView] loadUsers err', error);
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--cinnabar);">加载失败: ${error.message}</td></tr>`;
         }
+    }
+
+    bindUserManagementEvents() {
+        const tab = this.container.querySelector('[data-section="users"]');
+        if (!tab) return;
+        
+        tab.addEventListener('click', async (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            
+            if (btn.id === 'btn-add-user') {
+                this.showUserModal('create', null);
+                return;
+            }
+            
+            const action = btn.dataset.action;
+            const id = btn.dataset.id;
+            if (!action || !id) return;
+            
+            const user = this.users.find(u => u.id === id);
+            if (!user) return;
+            
+            if (action === 'edit') {
+                this.showUserModal('edit', user);
+            } else if (action === 'delete') {
+                if (confirm(`确定要删除用户 ${user.username} 吗？`)) {
+                    try {
+                        await httpClient.delete(`/users/${id}`);
+                        showToast('用户已删除', 'success');
+                        this.refreshUserTable();
+                    } catch(err) {
+                        showToast('删除失败: ' + err.message, 'error');
+                    }
+                }
+            } else if (action === 'toggle-status') {
+                try {
+                    await httpClient.put(`/users/${id}`, {
+                        displayName: user.displayName,
+                        role: user.role,
+                        isActive: !user.isActive
+                    });
+                    showToast(`用户已${user.isActive?'禁用':'启用'}`, 'success');
+                    this.refreshUserTable();
+                } catch(err) {
+                    showToast('操作失败: ' + err.message, 'error');
+                }
+            } else if (action === 'reset-pwd') {
+                const newPwd = prompt(`请输入为 ${user.username} 重置的新密码 (至少6位):`);
+                if (newPwd) {
+                    try {
+                        await httpClient.post(`/users/${id}/reset-password`, { newPassword: newPwd });
+                        showToast('密码重置成功', 'success');
+                    } catch(err) {
+                        showToast('密码重置失败: ' + err.message, 'error');
+                    }
+                }
+            }
+        });
+    }
+
+    showUserModal(mode, user) {
+        const container = this.container.querySelector('#user-modal-container');
+        if (!container) return;
+        
+        const title = mode === 'create' ? '新增用户' : '编辑用户';
+        
+        let roleVal = user ? user.role : 2; // Default to Operator (2)
+        if (roleVal === 'Admin') roleVal = 0;
+        else if (roleVal === 'Engineer') roleVal = 1;
+        else if (roleVal === 'Operator') roleVal = 2;
+
+        container.innerHTML = `
+            <div class="cv-modal-overlay">
+                <div class="cv-modal">
+                    <div class="cv-modal-header">
+                        <div class="cv-modal-title">${title}</div>
+                        <button class="cv-modal-close" id="btn-close-usermodal">×</button>
+                    </div>
+                    <div class="cv-modal-body">
+                        <div class="settings-fieldset" style="margin-bottom:16px;">
+                            <label>用户名 (登录账号)</label>
+                            <input type="text" class="cv-input" id="modal-user-username" value="${user ? user.username : ''}" ${mode === 'edit' ? 'disabled' : ''}>
+                        </div>
+                        ${mode === 'create' ? `
+                        <div class="settings-fieldset" style="margin-bottom:16px;">
+                            <label>初始密码 (至少6位)</label>
+                            <input type="password" class="cv-input" id="modal-user-password">
+                        </div>
+                        ` : ''}
+                        <div class="settings-fieldset" style="margin-bottom:16px;">
+                            <label>显示名称 (可选)</label>
+                            <input type="text" class="cv-input" id="modal-user-displayname" value="${user?.displayName || ''}">
+                        </div>
+                        <div class="settings-fieldset" style="margin-bottom:16px;">
+                            <label>用户角色</label>
+                            <select class="cv-input" id="modal-user-role">
+                                <option value="0" ${roleVal === 0 ? 'selected' : ''}>系统管理员</option>
+                                <option value="1" ${roleVal === 1 ? 'selected' : ''}>工程师</option>
+                                <option value="2" ${roleVal === 2 ? 'selected' : ''}>操作员</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cv-modal-footer">
+                        <button class="cv-btn cv-btn-secondary" id="btn-cancel-usermodal">取消</button>
+                        <button class="cv-btn cv-btn-primary" id="btn-save-usermodal">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const overlay = container.querySelector('.cv-modal-overlay');
+        const closeModal = () => container.innerHTML = '';
+        
+        container.querySelector('#btn-close-usermodal').addEventListener('click', closeModal);
+        container.querySelector('#btn-cancel-usermodal').addEventListener('click', closeModal);
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+        container.querySelector('#btn-save-usermodal').addEventListener('click', async () => {
+            const displayName = container.querySelector('#modal-user-displayname').value;
+            const role = parseInt(container.querySelector('#modal-user-role').value, 10);
+            
+            try {
+                if (mode === 'create') {
+                    const username = container.querySelector('#modal-user-username').value;
+                    const password = container.querySelector('#modal-user-password').value;
+                    await httpClient.post('/users', { username, password, displayName, role });
+                    showToast('用户创建成功', 'success');
+                } else {
+                    await httpClient.put(`/users/${user.id}`, {
+                        displayName,
+                        role,
+                        isActive: user.isActive
+                    });
+                    showToast('用户信息已更新', 'success');
+                }
+                closeModal();
+                this.refreshUserTable();
+            } catch (err) {
+                showToast('保存失败: ' + err.message, 'error');
+            }
+        });
     }
 
     /**

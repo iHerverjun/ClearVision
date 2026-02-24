@@ -45,7 +45,10 @@ public class AiFlowValidator : IAiFlowValidator
         // 4. 校验输入端口不重复占用
         ValidateNoDuplicateInputs(generatedFlow, result);
 
-        // 5. 警告（不阻止生成，但记录）
+        // 5. 校验参数合法性（数值范围、枚举类型）
+        ValidateParameters(generatedFlow, result, operatorMetaMap);
+
+        // 6. 警告（不阻止生成，但记录）
         ValidateHasSourceAndOutput(generatedFlow, result, operatorMetaMap);
 
         return result;
@@ -245,6 +248,55 @@ public class AiFlowValidator : IAiFlowValidator
             {
                 result.AddError($"输入端口被重复连接：算子 {conn.TargetTempId} 的 {conn.TargetPortName} 端口" +
                                $"只能接收一条连线");
+            }
+        }
+    }
+
+    private void ValidateParameters(
+        AiGeneratedFlowJson flow,
+        AiValidationResult result,
+        Dictionary<string, OperatorMetadata> metaMap)
+    {
+        foreach (var op in flow.Operators)
+        {
+            if (!metaMap.TryGetValue(op.TempId, out var metadata) || op.Parameters == null)
+                continue;
+
+            foreach (var kvp in op.Parameters)
+            {
+                var paramName = kvp.Key;
+                var paramValueStr = kvp.Value?.ToString() ?? string.Empty;
+
+                var paramDef = metadata.Parameters.FirstOrDefault(p => p.Name == paramName);
+                if (paramDef == null)
+                {
+                    // 参数不存在，仅作为警告
+                    result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 生成了未知的参数 '{paramName}'");
+                    continue;
+                }
+
+                // 数值范围校验
+                if (double.TryParse(paramValueStr, out var numValue))
+                {
+                    if (paramDef.MinValue != null && double.TryParse(paramDef.MinValue.ToString(), out var minValue) && numValue < minValue)
+                    {
+                        result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 的参数 '{paramName}' 值为 {numValue}，小于最小值 {minValue}");
+                    }
+                    if (paramDef.MaxValue != null && double.TryParse(paramDef.MaxValue.ToString(), out var maxValue) && numValue > maxValue)
+                    {
+                        result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 的参数 '{paramName}' 值为 {numValue}，大于最大值 {maxValue}");
+                    }
+                }
+
+                // 枚举值校验
+                if (paramDef.DataType.Equals("enum", StringComparison.OrdinalIgnoreCase) && paramDef.Options != null && paramDef.Options.Count > 0)
+                {
+                    var validValues = paramDef.Options.Select(o => o.Value).ToList();
+                    if (!validValues.Contains(paramValueStr))
+                    {
+                        result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 的枚举参数 '{paramName}' 值为 '{paramValueStr}' 不合法，有效值为: {string.Join(", ", validValues)}");
+                    }
+                }
             }
         }
     }

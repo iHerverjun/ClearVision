@@ -13,6 +13,7 @@ namespace Acme.Product.Infrastructure.AI;
 /// AI 提示词构建器
 /// 生成包含完整算子库信息的提示词，帮助 LLM 生成正确的 ClearVision 流程
 /// </summary>
+[Obsolete("请改用新版的 PromptBuilder，旧版缺乏参数约束信息")]
 public class AIPromptBuilder
 {
     private readonly StringBuilder _prompt = new();

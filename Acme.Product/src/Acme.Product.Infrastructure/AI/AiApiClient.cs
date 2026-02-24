@@ -148,7 +148,30 @@ public class AiApiClient
             };
         }
 
-        var apiUrl = options.BaseUrl ?? "https://api.openai.com/v1/chat/completions";
+        var apiUrl = "https://api.openai.com/v1/chat/completions";
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+        {
+            apiUrl = options.BaseUrl.Trim();
+            // 如果用户填写的 URL 不包含完整的端点路径，自动补齐
+            if (!apiUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!apiUrl.EndsWith("/"))
+                {
+                    apiUrl += "/";
+                }
+
+                // 兼容有些用户只填到域名，有些填了 v1 的情况
+                // 通常 OpenAI 兼容协议都支持 /v1/chat/completions，如果已经有 v1 则不加
+                if (!apiUrl.Contains("/v1/", StringComparison.OrdinalIgnoreCase) &&
+                    !apiUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+                {
+                    apiUrl += "v1/";
+                }
+
+                apiUrl += "chat/completions";
+            }
+        }
+
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         request.Content = new StringContent(
