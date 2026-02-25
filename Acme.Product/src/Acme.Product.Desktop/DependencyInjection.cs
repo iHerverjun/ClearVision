@@ -162,6 +162,53 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, ImageDiffOperator>();
         services.AddSingleton<IOperatorExecutor, StatisticsOperator>();
 
+        // ==================== Phase 1: Operator Expansion ====================
+        services.AddSingleton<IOperatorExecutor, CaliperToolOperator>();
+        services.AddSingleton<IOperatorExecutor, WidthMeasurementOperator>();
+        services.AddSingleton<IOperatorExecutor, PointLineDistanceOperator>();
+        services.AddSingleton<IOperatorExecutor, LineLineDistanceOperator>();
+        services.AddSingleton<IOperatorExecutor, BoxNmsOperator>();
+        services.AddSingleton<IOperatorExecutor, BoxFilterOperator>();
+        services.AddSingleton<IOperatorExecutor, SharpnessEvaluationOperator>();
+        services.AddSingleton<IOperatorExecutor, PositionCorrectionOperator>();
+        services.AddSingleton<IOperatorExecutor, NPointCalibrationOperator>();
+        services.AddSingleton<IOperatorExecutor, CalibrationLoaderOperator>();
+        services.AddSingleton<IOperatorExecutor, UnitConvertOperator>();
+        services.AddSingleton<IOperatorExecutor, TimerStatisticsOperator>();
+
+        // ==================== Phase 2: Operator Expansion ====================
+        services.AddSingleton<IOperatorExecutor, ScriptOperator>();
+        services.AddSingleton<IOperatorExecutor, TriggerModuleOperator>();
+        services.AddSingleton<IOperatorExecutor, PointAlignmentOperator>();
+        services.AddSingleton<IOperatorExecutor, PointCorrectionOperator>();
+        services.AddSingleton<IOperatorExecutor, GapMeasurementOperator>();
+        services.AddSingleton<IOperatorExecutor, PolarUnwrapOperator>();
+        services.AddSingleton<IOperatorExecutor, ShadingCorrectionOperator>();
+        services.AddSingleton<IOperatorExecutor, FrameAveragingOperator>();
+        services.AddSingleton<IOperatorExecutor, AffineTransformOperator>();
+        services.AddSingleton<IOperatorExecutor, ColorMeasurementOperator>();
+        services.AddSingleton<IOperatorExecutor, SurfaceDefectDetectionOperator>();
+        services.AddSingleton<IOperatorExecutor, EdgePairDefectOperator>();
+        services.AddSingleton<IOperatorExecutor, RectangleDetectionOperator>();
+        services.AddSingleton<IOperatorExecutor, TranslationRotationCalibrationOperator>();
+
+        // ==================== Phase 3: Operator Expansion ====================
+        services.AddSingleton<IOperatorExecutor, CornerDetectionOperator>();
+        services.AddSingleton<IOperatorExecutor, EdgeIntersectionOperator>();
+        services.AddSingleton<IOperatorExecutor, ParallelLineFindOperator>();
+        services.AddSingleton<IOperatorExecutor, QuadrilateralFindOperator>();
+        services.AddSingleton<IOperatorExecutor, GeoMeasurementOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageStitchingOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageTilingOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageNormalizeOperator>();
+        services.AddSingleton<IOperatorExecutor, ImageComposeOperator>();
+        services.AddSingleton<IOperatorExecutor, CopyMakeBorderOperator>();
+        services.AddSingleton<IOperatorExecutor, TextSaveOperator>();
+        services.AddSingleton<IOperatorExecutor, PointSetToolOperator>();
+        services.AddSingleton<IOperatorExecutor, BlobLabelingOperator>();
+        services.AddSingleton<IOperatorExecutor, HistogramAnalysisOperator>();
+        services.AddSingleton<IOperatorExecutor, PixelStatisticsOperator>();
+
         // ==================== Sprint 4: AI 安全沙盒 ====================
         services.AddSingleton<FlowLinter>();
         services.AddScoped<Acme.Product.Infrastructure.AI.DryRun.DryRunService>();

@@ -115,6 +115,1364 @@ public class OperatorFactory : IOperatorFactory
         };
 
         // 滤波
+        // ==================== Phase 1 Operators ====================
+
+        _metadata[OperatorType.CaliperTool] = new OperatorMetadata
+        {
+            Type = OperatorType.CaliperTool,
+            DisplayName = "卡尺工具",
+            Description = "Detects edge pairs along a scan line and reports width.",
+            Category = "检测",
+            IconName = "caliper",
+            Keywords = new[] { "caliper", "edge pair", "width", "distance", "edge" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "SearchRegion", DisplayName = "Search Region", DataType = PortDataType.Rectangle, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Width", DisplayName = "Width", DataType = PortDataType.Float },
+                new() { Name = "EdgePairs", DisplayName = "Edge Pairs", DataType = PortDataType.PointList },
+                new() { Name = "PairCount", DisplayName = "Pair Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Direction", DisplayName = "Direction", DataType = "enum", DefaultValue = "Horizontal", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Horizontal", Value = "Horizontal" },
+                    new() { Label = "Vertical", Value = "Vertical" },
+                    new() { Label = "Custom", Value = "Custom" }
+                } },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = "double", DefaultValue = 0.0, MinValue = -180.0, MaxValue = 180.0 },
+                new() { Name = "Polarity", DisplayName = "Polarity", DataType = "enum", DefaultValue = "Both", Options = new List<ParameterOption>
+                {
+                    new() { Label = "DarkToLight", Value = "DarkToLight" },
+                    new() { Label = "LightToDark", Value = "LightToDark" },
+                    new() { Label = "Both", Value = "Both" }
+                } },
+                new() { Name = "EdgeThreshold", DisplayName = "Edge Threshold", DataType = "double", DefaultValue = 18.0, MinValue = 1.0, MaxValue = 255.0 },
+                new() { Name = "ExpectedCount", DisplayName = "Expected Count", DataType = "int", DefaultValue = 1, MinValue = 1, MaxValue = 100 },
+                new() { Name = "SubpixelAccuracy", DisplayName = "Subpixel Accuracy", DataType = "bool", DefaultValue = false }
+            }
+        };
+
+        _metadata[OperatorType.WidthMeasurement] = new OperatorMetadata
+        {
+            Type = OperatorType.WidthMeasurement,
+            DisplayName = "宽度测量",
+            Description = "Measures width between parallel edges or lines.",
+            Category = "检测",
+            IconName = "ruler",
+            Keywords = new[] { "width", "thickness", "gap", "distance" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Line1", DisplayName = "Line 1", DataType = PortDataType.LineData, IsRequired = false },
+                new() { Name = "Line2", DisplayName = "Line 2", DataType = PortDataType.LineData, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Width", DisplayName = "Width", DataType = PortDataType.Float },
+                new() { Name = "MinWidth", DisplayName = "Min Width", DataType = PortDataType.Float },
+                new() { Name = "MaxWidth", DisplayName = "Max Width", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "MeasureMode", DisplayName = "Measure Mode", DataType = "enum", DefaultValue = "AutoEdge", Options = new List<ParameterOption>
+                {
+                    new() { Label = "AutoEdge", Value = "AutoEdge" },
+                    new() { Label = "ManualLines", Value = "ManualLines" }
+                } },
+                new() { Name = "NumSamples", DisplayName = "Sample Count", DataType = "int", DefaultValue = 24, MinValue = 10, MaxValue = 100 },
+                new() { Name = "Direction", DisplayName = "Direction", DataType = "enum", DefaultValue = "Perpendicular", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Perpendicular", Value = "Perpendicular" },
+                    new() { Label = "Custom", Value = "Custom" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.PointLineDistance] = new OperatorMetadata
+        {
+            Type = OperatorType.PointLineDistance,
+            DisplayName = "点线距离",
+            Description = "Computes perpendicular distance from a point to a line.",
+            Category = "检测",
+            IconName = "distance",
+            Keywords = new[] { "point", "line", "distance", "perpendicular" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Point", DisplayName = "Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "Line", DisplayName = "Line", DataType = PortDataType.LineData, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float },
+                new() { Name = "FootPoint", DisplayName = "Foot Point", DataType = PortDataType.Point }
+            }
+        };
+
+        _metadata[OperatorType.LineLineDistance] = new OperatorMetadata
+        {
+            Type = OperatorType.LineLineDistance,
+            DisplayName = "线线距离",
+            Description = "Computes distance and angle between two lines.",
+            Category = "检测",
+            IconName = "parallel",
+            Keywords = new[] { "line distance", "angle", "parallel" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Line1", DisplayName = "Line 1", DataType = PortDataType.LineData, IsRequired = true },
+                new() { Name = "Line2", DisplayName = "Line 2", DataType = PortDataType.LineData, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
+                new() { Name = "Intersection", DisplayName = "Intersection", DataType = PortDataType.Point },
+                new() { Name = "IsParallel", DisplayName = "Is Parallel", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "ParallelThreshold", DisplayName = "Parallel Threshold", DataType = "double", DefaultValue = 2.0, MinValue = 0.0, MaxValue = 45.0 }
+            }
+        };
+
+        _metadata[OperatorType.BoxNms] = new OperatorMetadata
+        {
+            Type = OperatorType.BoxNms,
+            DisplayName = "候选框抑制",
+            Description = "Runs non-maximum suppression on detection boxes.",
+            Category = "数据处理",
+            IconName = "nms",
+            Keywords = new[] { "nms", "box", "iou", "suppression" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Detections", DisplayName = "Detections", DataType = PortDataType.DetectionList, IsRequired = true },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Detections", DisplayName = "Detections", DataType = PortDataType.DetectionList },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "IouThreshold", DisplayName = "IoU Threshold", DataType = "double", DefaultValue = 0.45, MinValue = 0.1, MaxValue = 1.0 },
+                new() { Name = "ScoreThreshold", DisplayName = "Score Threshold", DataType = "double", DefaultValue = 0.25, MinValue = 0.0, MaxValue = 1.0 },
+                new() { Name = "MaxDetections", DisplayName = "Max Detections", DataType = "int", DefaultValue = 100, MinValue = 1, MaxValue = 1000 }
+            }
+        };
+
+        _metadata[OperatorType.BoxFilter] = new OperatorMetadata
+        {
+            Type = OperatorType.BoxFilter,
+            DisplayName = "候选框筛选",
+            Description = "Filters detections by area, class, region, or score.",
+            Category = "数据处理",
+            IconName = "filter",
+            Keywords = new[] { "box filter", "class filter", "area filter", "score" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Detections", DisplayName = "Detections", DataType = PortDataType.DetectionList, IsRequired = true },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Detections", DisplayName = "Detections", DataType = PortDataType.DetectionList },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FilterMode", DisplayName = "Filter Mode", DataType = "enum", DefaultValue = "Area", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Area", Value = "Area" },
+                    new() { Label = "Class", Value = "Class" },
+                    new() { Label = "Region", Value = "Region" },
+                    new() { Label = "Score", Value = "Score" }
+                } },
+                new() { Name = "MinArea", DisplayName = "Min Area", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "MaxArea", DisplayName = "Max Area", DataType = "int", DefaultValue = 9999999, MinValue = 0 },
+                new() { Name = "TargetClasses", DisplayName = "Target Classes", DataType = "string", DefaultValue = "" },
+                new() { Name = "MinScore", DisplayName = "Min Score", DataType = "double", DefaultValue = 0.0, MinValue = 0.0, MaxValue = 1.0 },
+                new() { Name = "RegionX", DisplayName = "Region X", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RegionY", DisplayName = "Region Y", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RegionW", DisplayName = "Region Width", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RegionH", DisplayName = "Region Height", DataType = "int", DefaultValue = 0 }
+            }
+        };
+
+        _metadata[OperatorType.SharpnessEvaluation] = new OperatorMetadata
+        {
+            Type = OperatorType.SharpnessEvaluation,
+            DisplayName = "清晰度评估",
+            Description = "Evaluates focus quality of an image.",
+            Category = "检测",
+            IconName = "focus",
+            Keywords = new[] { "sharpness", "focus", "blur", "laplacian", "tenengrad" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Score", DisplayName = "Score", DataType = PortDataType.Float },
+                new() { Name = "IsSharp", DisplayName = "Is Sharp", DataType = PortDataType.Boolean },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "Laplacian", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Laplacian", Value = "Laplacian" },
+                    new() { Label = "Brenner", Value = "Brenner" },
+                    new() { Label = "Tenengrad", Value = "Tenengrad" },
+                    new() { Label = "SMD", Value = "SMD" }
+                } },
+                new() { Name = "Threshold", DisplayName = "Threshold", DataType = "double", DefaultValue = 100.0, MinValue = 0.0 },
+                new() { Name = "RoiX", DisplayName = "ROI X", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiY", DisplayName = "ROI Y", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiW", DisplayName = "ROI Width", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiH", DisplayName = "ROI Height", DataType = "int", DefaultValue = 0 }
+            }
+        };
+
+        _metadata[OperatorType.PositionCorrection] = new OperatorMetadata
+        {
+            Type = OperatorType.PositionCorrection,
+            DisplayName = "位置修正",
+            Description = "Corrects downstream ROI coordinates using reference/base offsets.",
+            Category = "定位",
+            IconName = "position",
+            Keywords = new[] { "position correction", "roi offset", "translation", "rotation" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "ReferencePoint", DisplayName = "Reference Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "BasePoint", DisplayName = "Base Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "RoiX", DisplayName = "ROI X", DataType = PortDataType.Integer, IsRequired = false },
+                new() { Name = "RoiY", DisplayName = "ROI Y", DataType = PortDataType.Integer, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "CorrectedX", DisplayName = "Corrected X", DataType = PortDataType.Integer },
+                new() { Name = "CorrectedY", DisplayName = "Corrected Y", DataType = PortDataType.Integer },
+                new() { Name = "OffsetX", DisplayName = "Offset X", DataType = PortDataType.Float },
+                new() { Name = "OffsetY", DisplayName = "Offset Y", DataType = PortDataType.Float },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "CorrectionMode", DisplayName = "Correction Mode", DataType = "enum", DefaultValue = "Translation", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Translation", Value = "Translation" },
+                    new() { Label = "TranslationRotation", Value = "TranslationRotation" }
+                } },
+                new() { Name = "ReferenceAngle", DisplayName = "Reference Angle", DataType = "double", DefaultValue = 0.0, MinValue = -360.0, MaxValue = 360.0 },
+                new() { Name = "CurrentAngle", DisplayName = "Current Angle", DataType = "double", DefaultValue = 0.0, MinValue = -360.0, MaxValue = 360.0 }
+            }
+        };
+
+        _metadata[OperatorType.NPointCalibration] = new OperatorMetadata
+        {
+            Type = OperatorType.NPointCalibration,
+            DisplayName = "N点标定",
+            Description = "Builds affine or perspective calibration from user point pairs.",
+            Category = "标定",
+            IconName = "n-point",
+            Keywords = new[] { "n-point", "affine", "perspective", "calibration" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "TransformMatrix", DisplayName = "Transform Matrix", DataType = PortDataType.Any },
+                new() { Name = "PixelSize", DisplayName = "Pixel Size", DataType = PortDataType.Float },
+                new() { Name = "ReprojectionError", DisplayName = "Reprojection Error", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "CalibrationMode", DisplayName = "Calibration Mode", DataType = "enum", DefaultValue = "Affine", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Affine", Value = "Affine" },
+                    new() { Label = "Perspective", Value = "Perspective" }
+                } },
+                new() { Name = "PointPairs", DisplayName = "Point Pairs", DataType = "string", DefaultValue = "", IsRequired = true },
+                new() { Name = "SavePath", DisplayName = "Save Path", DataType = "file", DefaultValue = "" }
+            }
+        };
+
+        _metadata[OperatorType.CalibrationLoader] = new OperatorMetadata
+        {
+            Type = OperatorType.CalibrationLoader,
+            DisplayName = "标定加载",
+            Description = "Loads calibration data from JSON/XML/YAML file.",
+            Category = "标定",
+            IconName = "file-open",
+            Keywords = new[] { "load calibration", "calibration file", "matrix" },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "TransformMatrix", DisplayName = "Transform Matrix", DataType = PortDataType.Any },
+                new() { Name = "CameraMatrix", DisplayName = "Camera Matrix", DataType = PortDataType.Any },
+                new() { Name = "DistCoeffs", DisplayName = "Dist Coeffs", DataType = PortDataType.Any },
+                new() { Name = "PixelSize", DisplayName = "Pixel Size", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FilePath", DisplayName = "File Path", DataType = "file", DefaultValue = "", IsRequired = true },
+                new() { Name = "FileFormat", DisplayName = "File Format", DataType = "enum", DefaultValue = "JSON", Options = new List<ParameterOption>
+                {
+                    new() { Label = "JSON", Value = "JSON" },
+                    new() { Label = "XML", Value = "XML" },
+                    new() { Label = "YAML", Value = "YAML" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.UnitConvert] = new OperatorMetadata
+        {
+            Type = OperatorType.UnitConvert,
+            DisplayName = "单位换算",
+            Description = "Converts value between pixel, mm, um and inch.",
+            Category = "数据处理",
+            IconName = "unit",
+            Keywords = new[] { "unit convert", "pixel to mm", "mm", "um", "inch" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Value", DisplayName = "Value", DataType = PortDataType.Float, IsRequired = true },
+                new() { Name = "PixelSize", DisplayName = "Pixel Size", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Result", DisplayName = "Result", DataType = PortDataType.Float },
+                new() { Name = "Unit", DisplayName = "Unit", DataType = PortDataType.String }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FromUnit", DisplayName = "From Unit", DataType = "enum", DefaultValue = "Pixel", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Pixel", Value = "Pixel" },
+                    new() { Label = "mm", Value = "mm" },
+                    new() { Label = "um", Value = "um" },
+                    new() { Label = "inch", Value = "inch" }
+                } },
+                new() { Name = "ToUnit", DisplayName = "To Unit", DataType = "enum", DefaultValue = "mm", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Pixel", Value = "Pixel" },
+                    new() { Label = "mm", Value = "mm" },
+                    new() { Label = "um", Value = "um" },
+                    new() { Label = "inch", Value = "inch" }
+                } },
+                new() { Name = "Scale", DisplayName = "Scale", DataType = "double", DefaultValue = 1.0, MinValue = 0.000000001, MaxValue = 1000000.0 },
+                new() { Name = "UseCalibration", DisplayName = "Use Calibration", DataType = "bool", DefaultValue = false }
+            }
+        };
+
+        _metadata[OperatorType.TimerStatistics] = new OperatorMetadata
+        {
+            Type = OperatorType.TimerStatistics,
+            DisplayName = "计时统计",
+            Description = "Measures elapsed and cycle time statistics.",
+            Category = "逻辑工具",
+            IconName = "timer",
+            Keywords = new[] { "timer", "elapsed", "cycle time", "ct", "statistics" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Trigger", DisplayName = "Trigger", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "ElapsedMs", DisplayName = "Elapsed (ms)", DataType = PortDataType.Float },
+                new() { Name = "TotalMs", DisplayName = "Total (ms)", DataType = PortDataType.Float },
+                new() { Name = "AverageMs", DisplayName = "Average (ms)", DataType = PortDataType.Float },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Mode", DisplayName = "Mode", DataType = "enum", DefaultValue = "SingleShot", Options = new List<ParameterOption>
+                {
+                    new() { Label = "SingleShot", Value = "SingleShot" },
+                    new() { Label = "Cumulative", Value = "Cumulative" }
+                } },
+                new() { Name = "ResetInterval", DisplayName = "Reset Interval", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 1000000 }
+            }
+        };
+
+
+
+
+        // ==================== Phase 2 Operators: Sprint 1 ====================
+
+        _metadata[OperatorType.ScriptOperator] = new OperatorMetadata
+        {
+            Type = OperatorType.ScriptOperator,
+            DisplayName = "脚本算子",
+            Description = "Runs user-defined expression or script snippet.",
+            Category = "逻辑工具",
+            IconName = "script",
+            Keywords = new[] { "script", "custom", "code", "expression", "formula" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Input1", DisplayName = "Input 1", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Input2", DisplayName = "Input 2", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Input3", DisplayName = "Input 3", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Input4", DisplayName = "Input 4", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Output1", DisplayName = "Output 1", DataType = PortDataType.Any },
+                new() { Name = "Output2", DisplayName = "Output 2", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "ScriptLanguage", DisplayName = "Script Language", DataType = "enum", DefaultValue = "CSharpExpression", Options = new List<ParameterOption>
+                {
+                    new() { Label = "CSharpExpression", Value = "CSharpExpression" },
+                    new() { Label = "CSharpScript", Value = "CSharpScript" }
+                } },
+                new() { Name = "Code", DisplayName = "Code", DataType = "string", DefaultValue = "Input1 + Input2" },
+                new() { Name = "Timeout", DisplayName = "Timeout (ms)", DataType = "int", DefaultValue = 5000, MinValue = 1, MaxValue = 120000 }
+            }
+        };
+
+        _metadata[OperatorType.TriggerModule] = new OperatorMetadata
+        {
+            Type = OperatorType.TriggerModule,
+            DisplayName = "触发模块",
+            Description = "Generates software, timer, or external triggers.",
+            Category = "逻辑工具",
+            IconName = "trigger",
+            Keywords = new[] { "trigger", "start", "timer", "external signal" },
+            InputPorts = new List<PortDefinition>(),
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Triggered", DisplayName = "Triggered", DataType = PortDataType.Boolean },
+                new() { Name = "Timestamp", DisplayName = "Timestamp", DataType = PortDataType.String },
+                new() { Name = "TriggerCount", DisplayName = "Trigger Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "TriggerMode", DisplayName = "Trigger Mode", DataType = "enum", DefaultValue = "Software", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Software", Value = "Software" },
+                    new() { Label = "Timer", Value = "Timer" },
+                    new() { Label = "ExternalSignal", Value = "ExternalSignal" }
+                } },
+                new() { Name = "Interval", DisplayName = "Interval (ms)", DataType = "int", DefaultValue = 1000, MinValue = 1, MaxValue = 3600000 },
+                new() { Name = "AutoRepeat", DisplayName = "Auto Repeat", DataType = "bool", DefaultValue = true }
+            }
+        };
+
+        _metadata[OperatorType.PointAlignment] = new OperatorMetadata
+        {
+            Type = OperatorType.PointAlignment,
+            DisplayName = "点位对齐",
+            Description = "Computes offset and distance between current and reference points.",
+            Category = "数据处理",
+            IconName = "align-point",
+            Keywords = new[] { "alignment", "offset", "reference point", "distance" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "CurrentPoint", DisplayName = "Current Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "ReferencePoint", DisplayName = "Reference Point", DataType = PortDataType.Point, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "OffsetX", DisplayName = "Offset X", DataType = PortDataType.Float },
+                new() { Name = "OffsetY", DisplayName = "Offset Y", DataType = PortDataType.Float },
+                new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "OutputUnit", DisplayName = "Output Unit", DataType = "enum", DefaultValue = "Pixel", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Pixel", Value = "Pixel" },
+                    new() { Label = "mm", Value = "mm" }
+                } },
+                new() { Name = "PixelSize", DisplayName = "Pixel Size", DataType = "double", DefaultValue = 1.0, MinValue = 0.000000001, MaxValue = 1000000.0 }
+            }
+        };
+
+        _metadata[OperatorType.PointCorrection] = new OperatorMetadata
+        {
+            Type = OperatorType.PointCorrection,
+            DisplayName = "点位修正",
+            Description = "Computes translation/rotation correction from detected to reference point.",
+            Category = "数据处理",
+            IconName = "point-correction",
+            Keywords = new[] { "correction", "compensation", "robot", "pick place" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "DetectedPoint", DisplayName = "Detected Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "DetectedAngle", DisplayName = "Detected Angle", DataType = PortDataType.Float, IsRequired = false },
+                new() { Name = "ReferencePoint", DisplayName = "Reference Point", DataType = PortDataType.Point, IsRequired = true },
+                new() { Name = "ReferenceAngle", DisplayName = "Reference Angle", DataType = PortDataType.Float, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "CorrectionX", DisplayName = "Correction X", DataType = PortDataType.Float },
+                new() { Name = "CorrectionY", DisplayName = "Correction Y", DataType = PortDataType.Float },
+                new() { Name = "CorrectionAngle", DisplayName = "Correction Angle", DataType = PortDataType.Float },
+                new() { Name = "TransformMatrix", DisplayName = "Transform Matrix", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "CorrectionMode", DisplayName = "Correction Mode", DataType = "enum", DefaultValue = "TranslationOnly", Options = new List<ParameterOption>
+                {
+                    new() { Label = "TranslationOnly", Value = "TranslationOnly" },
+                    new() { Label = "TranslationRotation", Value = "TranslationRotation" }
+                } },
+                new() { Name = "OutputUnit", DisplayName = "Output Unit", DataType = "enum", DefaultValue = "Pixel", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Pixel", Value = "Pixel" },
+                    new() { Label = "mm", Value = "mm" }
+                } },
+                new() { Name = "PixelSize", DisplayName = "Pixel Size", DataType = "double", DefaultValue = 1.0, MinValue = 0.000000001, MaxValue = 1000000.0 }
+            }
+        };
+
+        _metadata[OperatorType.GapMeasurement] = new OperatorMetadata
+        {
+            Type = OperatorType.GapMeasurement,
+            DisplayName = "间隙测量",
+            Description = "Measures spacing using points or image projection.",
+            Category = "检测",
+            IconName = "gap",
+            Keywords = new[] { "gap", "spacing", "pitch", "distance" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = false },
+                new() { Name = "Points", DisplayName = "Points", DataType = PortDataType.PointList, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Gaps", DisplayName = "Gaps", DataType = PortDataType.Any },
+                new() { Name = "MeanGap", DisplayName = "Mean Gap", DataType = PortDataType.Float },
+                new() { Name = "MinGap", DisplayName = "Min Gap", DataType = PortDataType.Float },
+                new() { Name = "MaxGap", DisplayName = "Max Gap", DataType = PortDataType.Float },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Direction", DisplayName = "Direction", DataType = "enum", DefaultValue = "Auto", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Horizontal", Value = "Horizontal" },
+                    new() { Label = "Vertical", Value = "Vertical" },
+                    new() { Label = "Auto", Value = "Auto" }
+                } },
+                new() { Name = "MinGap", DisplayName = "Min Gap", DataType = "double", DefaultValue = 0.0, MinValue = 0.0, MaxValue = 1000000.0 },
+                new() { Name = "MaxGap", DisplayName = "Max Gap", DataType = "double", DefaultValue = 0.0, MinValue = 0.0, MaxValue = 1000000.0 },
+                new() { Name = "ExpectedCount", DisplayName = "Expected Count", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 }
+            }
+        };
+
+        // ==================== Phase 2 Operators: Sprint 2 ====================
+
+        _metadata[OperatorType.PolarUnwrap] = new OperatorMetadata
+        {
+            Type = OperatorType.PolarUnwrap,
+            DisplayName = "极坐标展开",
+            Description = "Unwraps annular image regions into rectangular view.",
+            Category = "图像处理",
+            IconName = "polar",
+            Keywords = new[] { "polar", "unwrap", "ring", "annular" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Center", DisplayName = "Center", DataType = PortDataType.Point, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "CenterX", DisplayName = "Center X", DataType = "int", DefaultValue = 0 },
+                new() { Name = "CenterY", DisplayName = "Center Y", DataType = "int", DefaultValue = 0 },
+                new() { Name = "InnerRadius", DisplayName = "Inner Radius", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 100000 },
+                new() { Name = "OuterRadius", DisplayName = "Outer Radius", DataType = "int", DefaultValue = 100, MinValue = 1, MaxValue = 100000 },
+                new() { Name = "StartAngle", DisplayName = "Start Angle", DataType = "double", DefaultValue = 0.0, MinValue = -3600.0, MaxValue = 3600.0 },
+                new() { Name = "EndAngle", DisplayName = "End Angle", DataType = "double", DefaultValue = 360.0, MinValue = -3600.0, MaxValue = 3600.0 },
+                new() { Name = "OutputWidth", DisplayName = "Output Width", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 20000 }
+            }
+        };
+
+        _metadata[OperatorType.ShadingCorrection] = new OperatorMetadata
+        {
+            Type = OperatorType.ShadingCorrection,
+            DisplayName = "光照校正",
+            Description = "Corrects uneven illumination by background or model-based methods.",
+            Category = "预处理",
+            IconName = "shading",
+            Keywords = new[] { "shading", "flat field", "illumination", "background" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Background", DisplayName = "Background", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "GaussianModel", Options = new List<ParameterOption>
+                {
+                    new() { Label = "DivideByBackground", Value = "DivideByBackground" },
+                    new() { Label = "GaussianModel", Value = "GaussianModel" },
+                    new() { Label = "MorphologicalTopHat", Value = "MorphologicalTopHat" }
+                } },
+                new() { Name = "KernelSize", DisplayName = "Kernel Size", DataType = "int", DefaultValue = 51, MinValue = 3, MaxValue = 501 }
+            }
+        };
+
+        _metadata[OperatorType.FrameAveraging] = new OperatorMetadata
+        {
+            Type = OperatorType.FrameAveraging,
+            DisplayName = "帧平均",
+            Description = "Averages multi-frame input to reduce temporal noise.",
+            Category = "预处理",
+            IconName = "frame-average",
+            Keywords = new[] { "frame", "averaging", "multi-frame", "denoise" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "FrameCount", DisplayName = "Frame Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FrameCount", DisplayName = "Frame Count", DataType = "int", DefaultValue = 8, MinValue = 1, MaxValue = 64 },
+                new() { Name = "Mode", DisplayName = "Mode", DataType = "enum", DefaultValue = "Mean", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Mean", Value = "Mean" },
+                    new() { Label = "Median", Value = "Median" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.AffineTransform] = new OperatorMetadata
+        {
+            Type = OperatorType.AffineTransform,
+            DisplayName = "仿射变换",
+            Description = "Applies 2D affine transform using 3-point or rotate-scale-translate mode.",
+            Category = "图像处理",
+            IconName = "affine",
+            Keywords = new[] { "affine", "warp", "rotate", "scale", "translate" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "TransformMatrix", DisplayName = "Transform Matrix", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Mode", DisplayName = "Mode", DataType = "enum", DefaultValue = "RotateScaleTranslate", Options = new List<ParameterOption>
+                {
+                    new() { Label = "ThreePoint", Value = "ThreePoint" },
+                    new() { Label = "RotateScaleTranslate", Value = "RotateScaleTranslate" }
+                } },
+                new() { Name = "SrcPoints", DisplayName = "Source Points", DataType = "string", DefaultValue = "[[0,0],[100,0],[0,100]]" },
+                new() { Name = "DstPoints", DisplayName = "Destination Points", DataType = "string", DefaultValue = "[[0,0],[100,0],[0,100]]" },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = "double", DefaultValue = 0.0, MinValue = -3600.0, MaxValue = 3600.0 },
+                new() { Name = "Scale", DisplayName = "Scale", DataType = "double", DefaultValue = 1.0, MinValue = 0.001, MaxValue = 1000.0 },
+                new() { Name = "TranslateX", DisplayName = "Translate X", DataType = "double", DefaultValue = 0.0, MinValue = -100000.0, MaxValue = 100000.0 },
+                new() { Name = "TranslateY", DisplayName = "Translate Y", DataType = "double", DefaultValue = 0.0, MinValue = -100000.0, MaxValue = 100000.0 },
+                new() { Name = "OutputWidth", DisplayName = "Output Width", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "OutputHeight", DisplayName = "Output Height", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 }
+            }
+        };
+
+        _metadata[OperatorType.ColorMeasurement] = new OperatorMetadata
+        {
+            Type = OperatorType.ColorMeasurement,
+            DisplayName = "颜色测量",
+            Description = "Measures average Lab/HSV values and computes DeltaE.",
+            Category = "颜色处理",
+            IconName = "color-measure",
+            Keywords = new[] { "color", "deltaE", "lab", "hsv" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "ReferenceColor", DisplayName = "Reference Color", DataType = PortDataType.Any, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "L", DisplayName = "L", DataType = PortDataType.Float },
+                new() { Name = "A", DisplayName = "A", DataType = PortDataType.Float },
+                new() { Name = "B", DisplayName = "B", DataType = PortDataType.Float },
+                new() { Name = "H", DisplayName = "H", DataType = PortDataType.Float },
+                new() { Name = "S", DisplayName = "S", DataType = PortDataType.Float },
+                new() { Name = "V", DisplayName = "V", DataType = PortDataType.Float },
+                new() { Name = "DeltaE", DisplayName = "DeltaE", DataType = PortDataType.Float },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "ColorSpace", DisplayName = "Color Space", DataType = "enum", DefaultValue = "Lab", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Lab", Value = "Lab" },
+                    new() { Label = "HSV", Value = "HSV" }
+                } },
+                new() { Name = "RoiX", DisplayName = "ROI X", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiY", DisplayName = "ROI Y", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiW", DisplayName = "ROI W", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RoiH", DisplayName = "ROI H", DataType = "int", DefaultValue = 0 },
+                new() { Name = "RefL", DisplayName = "Ref L", DataType = "double", DefaultValue = 0.0 },
+                new() { Name = "RefA", DisplayName = "Ref A", DataType = "double", DefaultValue = 0.0 },
+                new() { Name = "RefB", DisplayName = "Ref B", DataType = "double", DefaultValue = 0.0 }
+            }
+        };
+
+        // ==================== Phase 2 Operators: Sprint 3 ====================
+
+        _metadata[OperatorType.SurfaceDefectDetection] = new OperatorMetadata
+        {
+            Type = OperatorType.SurfaceDefectDetection,
+            DisplayName = "表面缺陷检测",
+            Description = "Detects surface defects using gradient, reference diff, or local contrast.",
+            Category = "AI检测",
+            IconName = "surface-defect",
+            Keywords = new[] { "surface defect", "scratch", "stain", "traditional detection" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Reference", DisplayName = "Reference", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "DefectMask", DisplayName = "Defect Mask", DataType = PortDataType.Image },
+                new() { Name = "DefectCount", DisplayName = "Defect Count", DataType = PortDataType.Integer },
+                new() { Name = "DefectArea", DisplayName = "Defect Area", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "GradientMagnitude", Options = new List<ParameterOption>
+                {
+                    new() { Label = "GradientMagnitude", Value = "GradientMagnitude" },
+                    new() { Label = "ReferenceDiff", Value = "ReferenceDiff" },
+                    new() { Label = "LocalContrast", Value = "LocalContrast" }
+                } },
+                new() { Name = "Threshold", DisplayName = "Threshold", DataType = "double", DefaultValue = 35.0, MinValue = 0.0, MaxValue = 255.0 },
+                new() { Name = "MinArea", DisplayName = "Min Area", DataType = "int", DefaultValue = 20, MinValue = 0, MaxValue = 10000000 },
+                new() { Name = "MaxArea", DisplayName = "Max Area", DataType = "int", DefaultValue = 1000000, MinValue = 0, MaxValue = 10000000 },
+                new() { Name = "MorphCleanSize", DisplayName = "Morph Clean Size", DataType = "int", DefaultValue = 3, MinValue = 1, MaxValue = 301 }
+            }
+        };
+
+        _metadata[OperatorType.EdgePairDefect] = new OperatorMetadata
+        {
+            Type = OperatorType.EdgePairDefect,
+            DisplayName = "边缘对缺陷",
+            Description = "Checks edge-pair spacing deviations against expected width.",
+            Category = "AI检测",
+            IconName = "edge-pair-defect",
+            Keywords = new[] { "edge pair", "notch", "bump", "deviation" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Line1", DisplayName = "Line 1", DataType = PortDataType.LineData, IsRequired = false },
+                new() { Name = "Line2", DisplayName = "Line 2", DataType = PortDataType.LineData, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "DefectCount", DisplayName = "Defect Count", DataType = PortDataType.Integer },
+                new() { Name = "MaxDeviation", DisplayName = "Max Deviation", DataType = PortDataType.Float },
+                new() { Name = "Deviations", DisplayName = "Deviations", DataType = PortDataType.Any }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "ExpectedWidth", DisplayName = "Expected Width", DataType = "double", DefaultValue = 20.0, MinValue = 0.0, MaxValue = 100000.0 },
+                new() { Name = "Tolerance", DisplayName = "Tolerance", DataType = "double", DefaultValue = 2.0, MinValue = 0.0, MaxValue = 100000.0 },
+                new() { Name = "NumSamples", DisplayName = "Sample Count", DataType = "int", DefaultValue = 100, MinValue = 5, MaxValue = 5000 },
+                new() { Name = "EdgeMethod", DisplayName = "Edge Method", DataType = "enum", DefaultValue = "Canny", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Canny", Value = "Canny" },
+                    new() { Label = "Sobel", Value = "Sobel" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.RectangleDetection] = new OperatorMetadata
+        {
+            Type = OperatorType.RectangleDetection,
+            DisplayName = "矩形检测",
+            Description = "Detects rectangular/quadrilateral objects from contours.",
+            Category = "定位",
+            IconName = "rectangle",
+            Keywords = new[] { "rectangle", "quadrilateral", "box", "locate" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Rectangles", DisplayName = "Rectangles", DataType = PortDataType.Any },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer },
+                new() { Name = "Center", DisplayName = "Center", DataType = PortDataType.Point },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
+                new() { Name = "Width", DisplayName = "Width", DataType = PortDataType.Float },
+                new() { Name = "Height", DisplayName = "Height", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "MinArea", DisplayName = "Min Area", DataType = "int", DefaultValue = 100, MinValue = 0, MaxValue = 100000000 },
+                new() { Name = "MaxArea", DisplayName = "Max Area", DataType = "int", DefaultValue = 10000000, MinValue = 0, MaxValue = 100000000 },
+                new() { Name = "AngleTolerance", DisplayName = "Angle Tolerance", DataType = "double", DefaultValue = 15.0, MinValue = 0.0, MaxValue = 90.0 },
+                new() { Name = "ApproxEpsilon", DisplayName = "Approx Epsilon", DataType = "double", DefaultValue = 0.02, MinValue = 0.0001, MaxValue = 1000.0 }
+            }
+        };
+
+        _metadata[OperatorType.TranslationRotationCalibration] = new OperatorMetadata
+        {
+            Type = OperatorType.TranslationRotationCalibration,
+            DisplayName = "平移旋转标定",
+            Description = "Fits image-to-robot transform from calibration point pairs.",
+            Category = "标定",
+            IconName = "calibration",
+            Keywords = new[] { "calibration", "hand-eye", "translation", "rotation" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "TransformMatrix", DisplayName = "Transform Matrix", DataType = PortDataType.Any },
+                new() { Name = "RotationCenter", DisplayName = "Rotation Center", DataType = PortDataType.Point },
+                new() { Name = "CalibrationError", DisplayName = "Calibration Error", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "CalibrationPoints", DisplayName = "Calibration Points", DataType = "string", DefaultValue = "[]" },
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "LeastSquares", Options = new List<ParameterOption>
+                {
+                    new() { Label = "LeastSquares", Value = "LeastSquares" },
+                    new() { Label = "SVD", Value = "SVD" }
+                } },
+                new() { Name = "SavePath", DisplayName = "Save Path", DataType = "file", DefaultValue = "" }
+            }
+        };
+
+        // ==================== Phase 3 Operators ====================
+
+        _metadata[OperatorType.CornerDetection] = new OperatorMetadata
+        {
+            Type = OperatorType.CornerDetection,
+            DisplayName = "角点检测",
+            Description = "Detects corner points using Harris or Shi-Tomasi.",
+            Category = "定位",
+            IconName = "corner",
+            Keywords = new[] { "corner", "vertex", "harris", "shitomasi" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Corners", DisplayName = "Corners", DataType = PortDataType.PointList },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "ShiTomasi", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Harris", Value = "Harris" },
+                    new() { Label = "ShiTomasi", Value = "ShiTomasi" }
+                } },
+                new() { Name = "MaxCorners", DisplayName = "Max Corners", DataType = "int", DefaultValue = 100, MinValue = 1, MaxValue = 5000 },
+                new() { Name = "QualityLevel", DisplayName = "Quality Level", DataType = "double", DefaultValue = 0.01, MinValue = 0.000001, MaxValue = 1.0 },
+                new() { Name = "MinDistance", DisplayName = "Min Distance", DataType = "double", DefaultValue = 10.0, MinValue = 0.0, MaxValue = 10000.0 },
+                new() { Name = "BlockSize", DisplayName = "Block Size", DataType = "int", DefaultValue = 3, MinValue = 2, MaxValue = 31 }
+            }
+        };
+
+        _metadata[OperatorType.EdgeIntersection] = new OperatorMetadata
+        {
+            Type = OperatorType.EdgeIntersection,
+            DisplayName = "边线交点",
+            Description = "Computes line intersection and angle between two lines.",
+            Category = "定位",
+            IconName = "intersection",
+            Keywords = new[] { "intersection", "cross point", "line angle" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Line1", DisplayName = "Line 1", DataType = PortDataType.LineData, IsRequired = true },
+                new() { Name = "Line2", DisplayName = "Line 2", DataType = PortDataType.LineData, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Point", DisplayName = "Point", DataType = PortDataType.Point },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
+                new() { Name = "HasIntersection", DisplayName = "Has Intersection", DataType = PortDataType.Boolean }
+            }
+        };
+
+        _metadata[OperatorType.ParallelLineFind] = new OperatorMetadata
+        {
+            Type = OperatorType.ParallelLineFind,
+            DisplayName = "平行线查找",
+            Description = "Finds best pair of near-parallel lines in an image.",
+            Category = "定位",
+            IconName = "parallel",
+            Keywords = new[] { "parallel", "dual edge", "rails" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Line1", DisplayName = "Line 1", DataType = PortDataType.LineData },
+                new() { Name = "Line2", DisplayName = "Line 2", DataType = PortDataType.LineData },
+                new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
+                new() { Name = "PairCount", DisplayName = "Pair Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "AngleTolerance", DisplayName = "Angle Tolerance", DataType = "double", DefaultValue = 5.0, MinValue = 0.0, MaxValue = 45.0 },
+                new() { Name = "MinLength", DisplayName = "Min Length", DataType = "double", DefaultValue = 40.0, MinValue = 1.0, MaxValue = 100000.0 },
+                new() { Name = "MinDistance", DisplayName = "Min Distance", DataType = "double", DefaultValue = 2.0, MinValue = 0.0, MaxValue = 100000.0 },
+                new() { Name = "MaxDistance", DisplayName = "Max Distance", DataType = "double", DefaultValue = 200.0, MinValue = 0.0, MaxValue = 100000.0 }
+            }
+        };
+
+        _metadata[OperatorType.QuadrilateralFind] = new OperatorMetadata
+        {
+            Type = OperatorType.QuadrilateralFind,
+            DisplayName = "四边形查找",
+            Description = "Finds quadrilateral contours without right-angle constraints.",
+            Category = "定位",
+            IconName = "quadrilateral",
+            Keywords = new[] { "quadrilateral", "polygon", "trapezoid" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Vertices", DisplayName = "Vertices", DataType = PortDataType.PointList },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer },
+                new() { Name = "Area", DisplayName = "Area", DataType = PortDataType.Float },
+                new() { Name = "Center", DisplayName = "Center", DataType = PortDataType.Point }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "MinArea", DisplayName = "Min Area", DataType = "int", DefaultValue = 100, MinValue = 0, MaxValue = 100000000 },
+                new() { Name = "MaxArea", DisplayName = "Max Area", DataType = "int", DefaultValue = 10000000, MinValue = 0, MaxValue = 100000000 },
+                new() { Name = "ApproxEpsilon", DisplayName = "Approx Epsilon", DataType = "double", DefaultValue = 0.02, MinValue = 0.0001, MaxValue = 1000.0 },
+                new() { Name = "ConvexOnly", DisplayName = "Convex Only", DataType = "bool", DefaultValue = false }
+            }
+        };
+
+        _metadata[OperatorType.GeoMeasurement] = new OperatorMetadata
+        {
+            Type = OperatorType.GeoMeasurement,
+            DisplayName = "几何测量",
+            Description = "General geometry measurement between point/line/circle elements.",
+            Category = "检测",
+            IconName = "geometry",
+            Keywords = new[] { "geometry", "point-line", "line-circle", "circle-circle" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Element1", DisplayName = "Element 1", DataType = PortDataType.Any, IsRequired = true },
+                new() { Name = "Element2", DisplayName = "Element 2", DataType = PortDataType.Any, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float },
+                new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
+                new() { Name = "Intersection1", DisplayName = "Intersection 1", DataType = PortDataType.Point },
+                new() { Name = "Intersection2", DisplayName = "Intersection 2", DataType = PortDataType.Point },
+                new() { Name = "MeasureType", DisplayName = "Measure Type", DataType = PortDataType.String }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Element1Type", DisplayName = "Element1 Type", DataType = "enum", DefaultValue = "Auto", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Auto", Value = "Auto" },
+                    new() { Label = "Point", Value = "Point" },
+                    new() { Label = "Line", Value = "Line" },
+                    new() { Label = "Circle", Value = "Circle" }
+                } },
+                new() { Name = "Element2Type", DisplayName = "Element2 Type", DataType = "enum", DefaultValue = "Auto", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Auto", Value = "Auto" },
+                    new() { Label = "Point", Value = "Point" },
+                    new() { Label = "Line", Value = "Line" },
+                    new() { Label = "Circle", Value = "Circle" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.ImageStitching] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageStitching,
+            DisplayName = "图像拼接",
+            Description = "Stitches two images into a larger panorama-like output.",
+            Category = "图像处理",
+            IconName = "stitch",
+            Keywords = new[] { "stitch", "panorama", "merge image" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image1", DisplayName = "Image 1", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Image2", DisplayName = "Image 2", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "OverlapRatio", DisplayName = "Overlap Ratio", DataType = PortDataType.Float }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "FeatureBased", Options = new List<ParameterOption>
+                {
+                    new() { Label = "FeatureBased", Value = "FeatureBased" },
+                    new() { Label = "Manual", Value = "Manual" }
+                } },
+                new() { Name = "OverlapPercent", DisplayName = "Overlap Percent", DataType = "double", DefaultValue = 20.0, MinValue = 0.0, MaxValue = 90.0 },
+                new() { Name = "BlendMode", DisplayName = "Blend Mode", DataType = "enum", DefaultValue = "Linear", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Linear", Value = "Linear" },
+                    new() { Label = "MultiBand", Value = "MultiBand" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.ImageTiling] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageTiling,
+            DisplayName = "图像切片",
+            Description = "Splits an image into tiled regions with optional overlap.",
+            Category = "拆分组合",
+            IconName = "tile",
+            Keywords = new[] { "tile", "grid", "split image" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Tiles", DisplayName = "Tiles", DataType = PortDataType.Any },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer },
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Rows", DisplayName = "Rows", DataType = "int", DefaultValue = 2, MinValue = 1, MaxValue = 100 },
+                new() { Name = "Cols", DisplayName = "Cols", DataType = "int", DefaultValue = 2, MinValue = 1, MaxValue = 100 },
+                new() { Name = "Overlap", DisplayName = "Overlap", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "OutputMode", DisplayName = "Output Mode", DataType = "enum", DefaultValue = "Array", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Array", Value = "Array" },
+                    new() { Label = "Sequential", Value = "Sequential" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.ImageNormalize] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageNormalize,
+            DisplayName = "图像归一化",
+            Description = "Normalizes pixel distribution for robust downstream processing.",
+            Category = "预处理",
+            IconName = "normalize",
+            Keywords = new[] { "normalize", "minmax", "zscore", "equalize" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Method", DisplayName = "Method", DataType = "enum", DefaultValue = "MinMax", Options = new List<ParameterOption>
+                {
+                    new() { Label = "MinMax", Value = "MinMax" },
+                    new() { Label = "ZScore", Value = "ZScore" },
+                    new() { Label = "Histogram", Value = "Histogram" }
+                } },
+                new() { Name = "Alpha", DisplayName = "Alpha", DataType = "double", DefaultValue = 0.0 },
+                new() { Name = "Beta", DisplayName = "Beta", DataType = "double", DefaultValue = 255.0 }
+            }
+        };
+
+        _metadata[OperatorType.ImageCompose] = new OperatorMetadata
+        {
+            Type = OperatorType.ImageCompose,
+            DisplayName = "图像组合",
+            Description = "Composes multiple images by concat/grid/channel merge.",
+            Category = "拆分组合",
+            IconName = "compose",
+            Keywords = new[] { "compose", "concat", "grid", "merge channels" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image1", DisplayName = "Image 1", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Image2", DisplayName = "Image 2", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Image3", DisplayName = "Image 3", DataType = PortDataType.Image, IsRequired = false },
+                new() { Name = "Image4", DisplayName = "Image 4", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Mode", DisplayName = "Mode", DataType = "enum", DefaultValue = "Horizontal", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Horizontal", Value = "Horizontal" },
+                    new() { Label = "Vertical", Value = "Vertical" },
+                    new() { Label = "Grid", Value = "Grid" },
+                    new() { Label = "ChannelMerge", Value = "ChannelMerge" }
+                } },
+                new() { Name = "Padding", DisplayName = "Padding", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 1000 },
+                new() { Name = "BackgroundColor", DisplayName = "Background Color", DataType = "string", DefaultValue = "#000000" }
+            }
+        };
+
+        _metadata[OperatorType.CopyMakeBorder] = new OperatorMetadata
+        {
+            Type = OperatorType.CopyMakeBorder,
+            DisplayName = "边界填充",
+            Description = "Pads image border using OpenCV border policies.",
+            Category = "图像处理",
+            IconName = "border",
+            Keywords = new[] { "border", "pad", "copy make border" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Top", DisplayName = "Top", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "Bottom", DisplayName = "Bottom", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "Left", DisplayName = "Left", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "Right", DisplayName = "Right", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 10000 },
+                new() { Name = "BorderType", DisplayName = "Border Type", DataType = "enum", DefaultValue = "Constant", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Constant", Value = "Constant" },
+                    new() { Label = "Replicate", Value = "Replicate" },
+                    new() { Label = "Reflect", Value = "Reflect" },
+                    new() { Label = "Wrap", Value = "Wrap" }
+                } },
+                new() { Name = "Color", DisplayName = "Color", DataType = "string", DefaultValue = "#000000" }
+            }
+        };
+
+        _metadata[OperatorType.TextSave] = new OperatorMetadata
+        {
+            Type = OperatorType.TextSave,
+            DisplayName = "文本保存",
+            Description = "Saves text or structured data to text/csv/json file.",
+            Category = "逻辑工具",
+            IconName = "save-text",
+            Keywords = new[] { "save text", "export csv", "log", "json export" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Data", DisplayName = "Data", DataType = PortDataType.Any, IsRequired = false },
+                new() { Name = "Text", DisplayName = "Text", DataType = PortDataType.String, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "FilePath", DisplayName = "File Path", DataType = PortDataType.String },
+                new() { Name = "Success", DisplayName = "Success", DataType = PortDataType.Boolean }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "FilePath", DisplayName = "File Path", DataType = "file", DefaultValue = "output_{date}_{time}.txt" },
+                new() { Name = "Format", DisplayName = "Format", DataType = "enum", DefaultValue = "Text", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Text", Value = "Text" },
+                    new() { Label = "CSV", Value = "CSV" },
+                    new() { Label = "JSON", Value = "JSON" }
+                } },
+                new() { Name = "AppendMode", DisplayName = "Append Mode", DataType = "bool", DefaultValue = true },
+                new() { Name = "AddTimestamp", DisplayName = "Add Timestamp", DataType = "bool", DefaultValue = true },
+                new() { Name = "Encoding", DisplayName = "Encoding", DataType = "enum", DefaultValue = "UTF8", Options = new List<ParameterOption>
+                {
+                    new() { Label = "UTF8", Value = "UTF8" },
+                    new() { Label = "GBK", Value = "GBK" }
+                } }
+            }
+        };
+
+        _metadata[OperatorType.PointSetTool] = new OperatorMetadata
+        {
+            Type = OperatorType.PointSetTool,
+            DisplayName = "点集工具",
+            Description = "Merges/sorts/filters point lists and computes set properties.",
+            Category = "逻辑工具",
+            IconName = "point-set",
+            Keywords = new[] { "point set", "sort points", "convex hull", "bounding rect" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Points1", DisplayName = "Points 1", DataType = PortDataType.PointList, IsRequired = true },
+                new() { Name = "Points2", DisplayName = "Points 2", DataType = PortDataType.PointList, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Points", DisplayName = "Points", DataType = PortDataType.PointList },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer },
+                new() { Name = "Center", DisplayName = "Center", DataType = PortDataType.Point },
+                new() { Name = "BoundingBox", DisplayName = "Bounding Box", DataType = PortDataType.Rectangle }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Operation", DisplayName = "Operation", DataType = "enum", DefaultValue = "Merge", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Merge", Value = "Merge" },
+                    new() { Label = "Sort", Value = "Sort" },
+                    new() { Label = "Filter", Value = "Filter" },
+                    new() { Label = "ConvexHull", Value = "ConvexHull" },
+                    new() { Label = "BoundingRect", Value = "BoundingRect" }
+                } },
+                new() { Name = "SortBy", DisplayName = "Sort By", DataType = "enum", DefaultValue = "X", Options = new List<ParameterOption>
+                {
+                    new() { Label = "X", Value = "X" },
+                    new() { Label = "Y", Value = "Y" },
+                    new() { Label = "Distance", Value = "Distance" }
+                } },
+                new() { Name = "FilterMinX", DisplayName = "Filter Min X", DataType = "double", DefaultValue = -1e9 },
+                new() { Name = "FilterMinY", DisplayName = "Filter Min Y", DataType = "double", DefaultValue = -1e9 },
+                new() { Name = "FilterMaxX", DisplayName = "Filter Max X", DataType = "double", DefaultValue = 1e9 },
+                new() { Name = "FilterMaxY", DisplayName = "Filter Max Y", DataType = "double", DefaultValue = 1e9 }
+            }
+        };
+
+        _metadata[OperatorType.BlobLabeling] = new OperatorMetadata
+        {
+            Type = OperatorType.BlobLabeling,
+            DisplayName = "连通域标注",
+            Description = "Classifies connected blobs by geometric features and draws labels.",
+            Category = "定位",
+            IconName = "blob-label",
+            Keywords = new[] { "blob", "label", "classify connected component" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Blobs", DisplayName = "Blobs", DataType = PortDataType.Contour, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Labels", DisplayName = "Labels", DataType = PortDataType.Any },
+                new() { Name = "Count", DisplayName = "Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "LabelBy", DisplayName = "Label By", DataType = "enum", DefaultValue = "Area", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Area", Value = "Area" },
+                    new() { Label = "Circularity", Value = "Circularity" },
+                    new() { Label = "AspectRatio", Value = "AspectRatio" },
+                    new() { Label = "Position", Value = "Position" }
+                } },
+                new() { Name = "Thresholds", DisplayName = "Thresholds", DataType = "string", DefaultValue = "[]" },
+                new() { Name = "DrawLabels", DisplayName = "Draw Labels", DataType = "bool", DefaultValue = true }
+            }
+        };
+
+        _metadata[OperatorType.HistogramAnalysis] = new OperatorMetadata
+        {
+            Type = OperatorType.HistogramAnalysis,
+            DisplayName = "直方图分析",
+            Description = "Computes histogram and distribution statistics for selected channel.",
+            Category = "检测",
+            IconName = "histogram",
+            Keywords = new[] { "histogram", "distribution", "peak", "median" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image },
+                new() { Name = "Mean", DisplayName = "Mean", DataType = PortDataType.Float },
+                new() { Name = "StdDev", DisplayName = "StdDev", DataType = PortDataType.Float },
+                new() { Name = "Mode", DisplayName = "Mode", DataType = PortDataType.Integer },
+                new() { Name = "Median", DisplayName = "Median", DataType = PortDataType.Integer },
+                new() { Name = "Peak", DisplayName = "Peak", DataType = PortDataType.Integer },
+                new() { Name = "Valley", DisplayName = "Valley", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "Channel", DisplayName = "Channel", DataType = "enum", DefaultValue = "Gray", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Gray", Value = "Gray" },
+                    new() { Label = "R", Value = "R" },
+                    new() { Label = "G", Value = "G" },
+                    new() { Label = "B", Value = "B" }
+                } },
+                new() { Name = "BinCount", DisplayName = "Bin Count", DataType = "int", DefaultValue = 256, MinValue = 2, MaxValue = 1024 },
+                new() { Name = "RoiX", DisplayName = "ROI X", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiY", DisplayName = "ROI Y", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiW", DisplayName = "ROI W", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiH", DisplayName = "ROI H", DataType = "int", DefaultValue = 0, MinValue = 0 }
+            }
+        };
+
+        _metadata[OperatorType.PixelStatistics] = new OperatorMetadata
+        {
+            Type = OperatorType.PixelStatistics,
+            DisplayName = "像素统计",
+            Description = "Computes ROI/masked pixel-level statistics.",
+            Category = "检测",
+            IconName = "pixel-stats",
+            Keywords = new[] { "pixel statistics", "mean", "stddev", "min max", "non-zero" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "Mask", DisplayName = "Mask", DataType = PortDataType.Image, IsRequired = false }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Mean", DisplayName = "Mean", DataType = PortDataType.Float },
+                new() { Name = "StdDev", DisplayName = "StdDev", DataType = PortDataType.Float },
+                new() { Name = "Min", DisplayName = "Min", DataType = PortDataType.Integer },
+                new() { Name = "Max", DisplayName = "Max", DataType = PortDataType.Integer },
+                new() { Name = "Median", DisplayName = "Median", DataType = PortDataType.Integer },
+                new() { Name = "NonZeroCount", DisplayName = "NonZero Count", DataType = PortDataType.Integer }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "RoiX", DisplayName = "ROI X", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiY", DisplayName = "ROI Y", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiW", DisplayName = "ROI W", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "RoiH", DisplayName = "ROI H", DataType = "int", DefaultValue = 0, MinValue = 0 },
+                new() { Name = "Channel", DisplayName = "Channel", DataType = "enum", DefaultValue = "Gray", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Gray", Value = "Gray" },
+                    new() { Label = "R", Value = "R" },
+                    new() { Label = "G", Value = "G" },
+                    new() { Label = "B", Value = "B" },
+                    new() { Label = "All", Value = "All" }
+                } }
+            }
+        };
+
         _metadata[OperatorType.Filtering] = new OperatorMetadata
         {
             Type = OperatorType.Filtering,
@@ -2702,3 +4060,8 @@ public class OperatorFactory : IOperatorFactory
         };
     }
 }
+
+
+
+
+

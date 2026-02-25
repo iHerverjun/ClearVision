@@ -25,6 +25,12 @@ public class PromptBuilder
         sb.AppendLine();
         sb.AppendLine(GetDomainKnowledge());
         sb.AppendLine();
+        sb.AppendLine(GetPhase1OperatorExtensions());
+        sb.AppendLine();
+        sb.AppendLine(GetPhase2OperatorExtensions());
+        sb.AppendLine();
+        sb.AppendLine(GetPhase3OperatorExtensions());
+        sb.AppendLine();
         sb.AppendLine(GetOperatorCatalog());
         sb.AppendLine();
         sb.AppendLine(GetConnectionRules());
@@ -114,6 +120,87 @@ public class PromptBuilder
            每个完整工作流都应以 ResultOutput 结尾，用于汇总和展示结果
         6. **不要跳过预处理**
            工业图像通常有噪声，直接做边缘检测或Blob分析会产生大量误检，应先 Filtering
+        """;
+
+    private string GetPhase1OperatorExtensions() => """
+        # Phase 1 Operator Extensions
+        ## New workflow patterns
+        1. Precision width measurement:
+           ImageAcquisition -> Filtering -> CaliperTool -> WidthMeasurement -> UnitConvert -> ResultJudgment -> ResultOutput
+        2. AI post-processing:
+           ImageAcquisition -> DeepLearning -> BoxNms -> BoxFilter -> ResultJudgment -> ResultOutput
+        3. Image quality gate:
+           ImageAcquisition -> SharpnessEvaluation -> ConditionalBranch -> (continue or reject)
+        4. Position-first inspection:
+           ImageAcquisition -> ShapeMatching -> PositionCorrection -> follow-up inspection
+        5. Calibration-assisted metrology:
+           CalibrationLoader or NPointCalibration -> measurement operators -> UnitConvert -> ResultOutput
+        ## Phrase mapping additions
+        - "measure width/thickness/gap" => WidthMeasurement
+        - "caliper/find edge pair" => CaliperTool
+        - "point to line distance" => PointLineDistance
+        - "line to line distance/parallelism" => LineLineDistance
+        - "remove duplicate boxes / NMS" => BoxNms
+        - "filter detections by class/area/score" => BoxFilter
+        - "is image sharp / focus check / blur" => SharpnessEvaluation
+        - "correct ROI position / offset compensation" => PositionCorrection
+        - "N-point calibration / affine calibration" => NPointCalibration
+        - "load calibration file" => CalibrationLoader
+        - "pixel to mm / unit conversion" => UnitConvert
+        - "cycle time / elapsed statistics" => TimerStatistics
+        """;
+
+    private string GetPhase2OperatorExtensions() => """
+        # Phase 2 Operator Extensions
+        ## New workflow patterns
+        12. Robot vision guidance:
+            ImageAcquisition -> ShapeMatching -> PointAlignment/PointCorrection -> UnitConvert -> PlcCommunication -> ResultOutput
+        13. Annular part defect inspection:
+            ImageAcquisition -> CircleMeasurement(center) -> PolarUnwrap -> ShadingCorrection -> SurfaceDefectDetection -> ResultOutput
+        14. Traditional surface defect detection (non-AI):
+            ImageAcquisition -> ShadingCorrection -> SurfaceDefectDetection -> ResultJudgment -> ResultOutput
+        ## Phrase mapping additions
+        - "script / custom code / formula" => ScriptOperator
+        - "trigger / start / timer trigger" => TriggerModule
+        - "alignment / reference point offset" => PointAlignment
+        - "correction / compensation / send to robot" => PointCorrection
+        - "gap / pitch / lead spacing" => GapMeasurement
+        - "unwrap ring / bottle cap / bearing ring" => PolarUnwrap
+        - "uneven illumination / shading / flat field" => ShadingCorrection
+        - "multi-frame average / temporal denoise" => FrameAveraging
+        - "affine transform / rotate scale translate" => AffineTransform
+        - "color measurement / deltaE / Lab" => ColorMeasurement
+        - "surface defect / scratch / stain (traditional)" => SurfaceDefectDetection
+        - "edge-pair defect / notch / bump" => EdgePairDefect
+        - "rectangle / box / quadrilateral detection" => RectangleDetection
+        - "translation-rotation calibration / hand-eye calibration" => TranslationRotationCalibration
+        """;
+
+    private string GetPhase3OperatorExtensions() => """
+        # Phase 3 Operator Extensions
+        ## New workflow patterns
+        15. Large-area tiled inspection:
+            ImageAcquisition -> ImageTiling -> ForEach(per-tile inspection) -> ResultJudgment -> ResultOutput
+        16. Multi-view stitched inspection:
+            ImageAcquisition(Image1) + ImageAcquisition(Image2) -> ImageStitching -> inspection -> ResultOutput
+        17. Precision geometry chain:
+            ImageAcquisition -> positioning -> GeoMeasurement(point/line/circle) -> UnitConvert -> ResultOutput
+        ## Phrase mapping additions
+        - "corner / vertex / corner point" => CornerDetection
+        - "intersection / line crossing" => EdgeIntersection
+        - "parallel lines / dual edge rails" => ParallelLineFind
+        - "quadrilateral / polygon four-edge" => QuadrilateralFind
+        - "geometry measurement / line-circle / circle-circle" => GeoMeasurement
+        - "stitch / panorama / large image merge" => ImageStitching
+        - "tiling / split grid / image blocks" => ImageTiling
+        - "normalize image / standardize brightness" => ImageNormalize
+        - "compose images / concat / channel merge" => ImageCompose
+        - "pad border / expand image border" => CopyMakeBorder
+        - "save text / export csv / save json log" => TextSave
+        - "point set sort/filter/merge" => PointSetTool
+        - "blob labeling / classify connected components" => BlobLabeling
+        - "histogram / gray distribution" => HistogramAnalysis
+        - "pixel statistics / roi mean brightness" => PixelStatistics
         """;
 
     private string GetRoleDefinition() => """

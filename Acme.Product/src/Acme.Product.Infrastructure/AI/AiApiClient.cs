@@ -134,7 +134,7 @@ public class AiApiClient
         object requestBody;
         if (isReasonerModel)
         {
-            var reasonerMaxTokens = Math.Max(options.MaxTokens, 16384);
+            var reasonerMaxTokens = Math.Max(options.MaxTokens, 8192);
             requestBody = new
             {
                 model = options.Model,
