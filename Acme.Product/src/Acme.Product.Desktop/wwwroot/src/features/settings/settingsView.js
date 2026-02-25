@@ -7,7 +7,6 @@ class SettingsView {
         this.container = document.getElementById(containerId);
         
         this.config = null;
-        this.aiConfig = null;
         this.users = [];
         this.cameraBindings = [];
         
@@ -19,6 +18,7 @@ class SettingsView {
         this.aiModels = [];
         this.activeAiModelId = null;
         this.editingAiModelId = null;
+        this._pendingFormEdits = {}; // 暂存表单中的未保存修改
 
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
     }
@@ -43,14 +43,6 @@ class SettingsView {
             this.config = await httpClient.get('/settings');
             this.cameraBindings = this.config.cameras || [];
             
-            console.log('[SettingsView] Fetching AI config...');
-            try {
-                this.aiConfig = await httpClient.get('/ai/settings');
-            } catch (e) {
-                console.warn('[SettingsView] Failed to load AI config, using fallback:', e);
-                this.aiConfig = { provider: 'OpenAI', apiKey: '', model: '', baseUrl: '' };
-            }
-            
             if (this.isAdmin) {
                 console.log('[SettingsView] Fetching users list...');
                 this.users = await httpClient.get('/users');
@@ -61,7 +53,7 @@ class SettingsView {
             this.config = this.getDefaultConfig();
         }
         
-        this.initAiModels();
+        await this.loadAiModels();
         
         // 构建全屏两栏布局 DOM
         this.renderLayout();
@@ -75,40 +67,28 @@ class SettingsView {
         console.log('[SettingsView] === refresh() END ===');
     }
     
-    initAiModels() {
-        const stored = localStorage.getItem('cv_ai_models');
-        if (stored) {
-            try { this.aiModels = JSON.parse(stored); } catch(e) {}
+    async loadAiModels({ preserveEditingId = false } = {}) {
+        const previousEditingId = this.editingAiModelId;
+        try {
+            const models = await httpClient.get('/ai/models');
+            this.aiModels = models || [];
+        } catch (e) {
+            console.warn('[SettingsView] Failed to load AI models from backend:', e);
+            this.aiModels = [];
         }
         
-        // If empty or invalid, init from backend config
-        if (!this.aiModels || this.aiModels.length === 0) {
-            const defaultModel = {
-                id: 'model_' + Date.now(),
-                name: '系统默认模型',
-                provider: this.aiConfig?.provider || 'OpenAI',
-                apiKey: this.aiConfig?.apiKey || '',
-                model: this.aiConfig?.model || 'gpt-4o',
-                baseUrl: this.aiConfig?.baseUrl || '',
-                isActive: true
-            };
-            this.aiModels = [defaultModel];
-            this.activeAiModelId = defaultModel.id;
-        } else {
+        if (this.aiModels.length > 0) {
             const active = this.aiModels.find(m => m.isActive);
-            if (active) this.activeAiModelId = active.id;
-            else {
-                this.aiModels[0].isActive = true;
-                this.activeAiModelId = this.aiModels[0].id;
-            }
+            this.activeAiModelId = active ? active.id : this.aiModels[0].id;
+        } else {
+            this.activeAiModelId = null;
         }
-        
-        this.editingAiModelId = this.activeAiModelId;
-        this.saveAiModelsToStorage();
-    }
-    
-    saveAiModelsToStorage() {
-        localStorage.setItem('cv_ai_models', JSON.stringify(this.aiModels));
+        if (preserveEditingId && previousEditingId && this.aiModels.some(m => m.id === previousEditingId)) {
+            this.editingAiModelId = previousEditingId;
+        } else {
+            this.editingAiModelId = this.activeAiModelId;
+        }
+        this._pendingFormEdits = {};
     }
 
     /**
@@ -252,21 +232,27 @@ class SettingsView {
                     btn.textContent = input.type === 'password' ? '👁' : '🔒';
                 }
             } else if (btn.id === 'btn-add-llm') {
-                const newModel = {
-                    id: 'model_' + Date.now(),
-                    name: '新建模型',
-                    provider: 'OpenAI Compatible',
-                    apiKey: '',
-                    model: '',
-                    baseUrl: '',
-                    isActive: false
-                };
-                this.aiModels.push(newModel);
-                this.editingAiModelId = newModel.id;
-                this.saveAiModelsToStorage();
-                this.refreshAiTableAndForm();
+                try {
+                    const result = await httpClient.post('/ai/models', {
+                        name: '新建模型',
+                        provider: 'OpenAI Compatible',
+                        model: '',
+                        baseUrl: '',
+                        apiKey: '',
+                        timeoutMs: 120000
+                    });
+                    await this.loadAiModels();
+                    this.editingAiModelId = result.id;
+                    this._pendingFormEdits = {};
+                    this.refreshAiTableAndForm();
+                    showToast('模型已创建', 'success');
+                } catch (err) {
+                    showToast('创建模型失败: ' + err.message, 'error');
+                }
             } else if (btn.dataset.action === 'edit') {
+                // 切换编辑前先保存当前编辑（如果有未保存的修改）
                 this.editingAiModelId = btn.dataset.id;
+                this._pendingFormEdits = {};
                 this.refreshAiTableAndForm();
             } else if (btn.dataset.action === 'delete') {
                 if (this.aiModels.length <= 1) {
@@ -274,30 +260,40 @@ class SettingsView {
                     return;
                 }
                 const id = btn.dataset.id;
-                this.aiModels = this.aiModels.filter(m => m.id !== id);
-                if (this.editingAiModelId === id) this.editingAiModelId = this.aiModels[0].id;
-                if (this.activeAiModelId === id) {
-                    this.aiModels[0].isActive = true;
-                    this.activeAiModelId = this.aiModels[0].id;
+                try {
+                    await httpClient.delete(`/ai/models/${id}`);
+                    await this.loadAiModels();
+                    if (this.editingAiModelId === id) {
+                        this.editingAiModelId = this.aiModels[0]?.id;
+                        this._pendingFormEdits = {};
+                    }
+                    this.refreshAiTableAndForm();
+                    showToast('模型已删除', 'success');
+                } catch (err) {
+                    showToast('删除失败: ' + err.message, 'error');
                 }
-                this.saveAiModelsToStorage();
-                this.refreshAiTableAndForm();
             } else if (btn.dataset.action === 'activate') {
                 const id = btn.dataset.id;
-                this.aiModels.forEach(m => m.isActive = (m.id === id));
-                this.activeAiModelId = id;
-                this.saveAiModelsToStorage();
-                this.refreshAiTableAndForm();
+                try {
+                    await httpClient.post(`/ai/models/${id}/activate`, {});
+                    await this.loadAiModels();
+                    this.refreshAiTableAndForm();
+                    showToast('激活模型已切换', 'success');
+                } catch (err) {
+                    showToast('切换激活失败: ' + err.message, 'error');
+                }
             } else if (btn.id === 'btn-ai-test') {
+                const modelId = this.editingAiModelId;
+                if (!modelId) return;
                 const resultEl = aiTab.querySelector('#ai-test-result');
                 btn.disabled = true;
                 btn.textContent = '⏳ 测试中...';
                 if (resultEl) resultEl.textContent = '';
 
                 try {
-                    // Update current editing model first temporarily
-                    await this.saveAiConfig(true); 
-                    const result = await httpClient.post('/ai/test', {});
+                    // 先保存当前表单到后端，再测试（确保用的是最新配置）
+                    await this._saveCurrentForm();
+                    const result = await httpClient.post(`/ai/models/${modelId}/test`, {});
                     if (result.success) {
                         if (resultEl) { resultEl.textContent = '✅ ' + result.message; resultEl.style.color = '#4caf50'; }
                         showToast('AI 测试连接成功', 'success');
@@ -313,33 +309,59 @@ class SettingsView {
                     btn.textContent = '🔗 测试连接';
                 }
             } else if (btn.id === 'btn-ai-save') {
+                const modelId = this.editingAiModelId;
+                if (!modelId) return;
                 try {
-                    await this.saveAiConfig(false);
-                    showToast('模型设置已保存在后端', 'success');
+                    await this._saveCurrentForm();
+                    await httpClient.post(`/ai/models/${modelId}/activate`, {});
+                    await this.loadAiModels({ preserveEditingId: true });
+                    this.refreshAiTableAndForm();
+                    showToast('模型设置已保存', 'success');
                 } catch(err) {
                     showToast('保存失败: ' + err.message, 'error');
                 }
             }
         });
         
-        // Listen to form inputs changing
-        ['name', 'provider', 'model', 'baseurl', 'apikey'].forEach(f => {
+        // 监听表单输入变化（暂存到 _pendingFormEdits，不再实时写 localStorage）
+        ['name', 'provider', 'model', 'baseurl', 'apikey', 'timeout'].forEach(f => {
             aiTab.addEventListener('input', (e) => {
                 const el = e.target;
                 if(el && el.id === `cfg-ai-${f}`) {
-                    const m = this.aiModels.find(x => x.id === this.editingAiModelId);
-                    if (m) {
-                        const fieldMap = { 'name':'name', 'provider':'provider', 'model':'model', 'baseurl':'baseUrl', 'apikey':'apiKey'};
-                        m[fieldMap[f]] = el.value;
-                        this.saveAiModelsToStorage();
-                        // 局部刷新 table 确保实时看到名称改变
-                        this.refreshAiTableOnly();
+                    const fieldMap = { 'name':'name', 'provider':'provider', 'model':'model', 'baseurl':'baseUrl', 'apikey':'apiKey', 'timeout':'timeoutMs' };
+                    this._pendingFormEdits[fieldMap[f]] = el.value;
+                    // 名称变化时实时刷新表格行
+                    if (f === 'name') {
+                        const m = this.aiModels.find(x => x.id === this.editingAiModelId);
+                        if (m) { m.name = el.value; this.refreshAiTableOnly(); }
                     }
                 }
             });
         });
         
         setTimeout(() => this.refreshAiTableAndForm(), 0);
+    }
+
+    /** 将当前编辑表单的值保存到后端 */
+    async _saveCurrentForm() {
+        const modelId = this.editingAiModelId;
+        if (!modelId) return;
+        const aiTab = this.container.querySelector('[data-section="ai"]');
+        if (!aiTab) return;
+
+        const payload = {
+            name: aiTab.querySelector('#cfg-ai-name')?.value || '',
+            provider: aiTab.querySelector('#cfg-ai-provider')?.value || 'OpenAI Compatible',
+            model: aiTab.querySelector('#cfg-ai-model')?.value || '',
+            baseUrl: aiTab.querySelector('#cfg-ai-baseurl')?.value || '',
+            apiKey: aiTab.querySelector('#cfg-ai-apikey')?.value || '', // 空 → 后端保留原值
+            timeoutMs: parseInt(aiTab.querySelector('#cfg-ai-timeout')?.value || '120000', 10)
+        };
+
+        await httpClient.put(`/ai/models/${modelId}`, payload);
+        await this.loadAiModels({ preserveEditingId: true });
+        this._pendingFormEdits = {};
+        this.refreshAiTableOnly();
     }
     
     refreshAiTableOnly() {
@@ -381,7 +403,13 @@ class SettingsView {
         if (!formContainer) return;
         
         const m = this.aiModels.find(x => x.id === this.editingAiModelId);
-        if (!m) return;
+        if (!m) {
+            formContainer.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">请选择一个模型进行编辑</div>';
+            return;
+        }
+
+        // apiKey 不再从后端获取真实值，用 placeholder 提示
+        const apiKeyPlaceholder = m.hasApiKey ? '●●●●●●（已配置，留空则不修改）' : '请输入 API Key';
         
         formContainer.innerHTML = `
             <div style="display:flex; gap:16px; margin-bottom:16px;">
@@ -406,20 +434,20 @@ class SettingsView {
                  <label>API Endpoint (Host & Path)</label>
                  <div style="display:flex;">
                      <span style="padding:10px 12px; background:#f8fafc; border:1px solid #cbd5e1; border-right:none; border-radius:6px 0 0 6px; color:#64748b;">URL:</span>
-                     <input type="text" class="cv-input" id="cfg-ai-baseurl" value="${m.baseUrl || ''}" placeholder="如 https://api.deepseek.com/v1/chat/completions" style="border-radius:0 6px 6px 0;">
+                     <input type="text" class="cv-input" id="cfg-ai-baseurl" value="${m.baseUrl || ''}" placeholder="如 https://api.deepseek.com/v1" style="border-radius:0 6px 6px 0;">
                  </div>
              </div>
              <div style="display:flex; gap:16px;">
                  <div class="settings-fieldset" style="flex:2;">
                      <label>API Key</label>
                      <div class="input-with-suffix" style="position:relative;">
-                         <input type="password" class="cv-input" id="cfg-ai-apikey" value="${m.apiKey || ''}" style="padding-right:36px; font-family:monospace;">
+                         <input type="password" class="cv-input" id="cfg-ai-apikey" value="" placeholder="${apiKeyPlaceholder}" style="padding-right:36px; font-family:monospace;">
                          <button class="icon-action-btn" id="btn-toggle-apikey" style="position:absolute; right:10px; top:50%; transform:translateY(-50%);">👁</button>
                      </div>
                  </div>
                  <div class="settings-fieldset" style="flex:1;">
                      <label>请求超时 (ms)</label>
-                     <input type="number" class="cv-input" value="120000" disabled>
+                     <input type="number" class="cv-input" id="cfg-ai-timeout" value="${m.timeoutMs || 120000}">
                  </div>
              </div>
              <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
@@ -1407,26 +1435,7 @@ class SettingsView {
         });
     }
 
-    /**
-     * 保存 AI 配置
-     * @param {boolean} testMode If true, only pushes the currently edited form to backend for testing, without affecting active selection
-     */
-    async saveAiConfig(testMode = false) {
-        // Find which model we are saving. 
-        // If testing, push the currently edited one.
-        // If final saving, push the active one.
-        const modelToPush = testMode ? this.aiModels.find(m => m.id === this.editingAiModelId) : this.aiModels.find(m => m.isActive);
-        if (!modelToPush) return;
-
-        const aiPayload = {
-            provider: modelToPush.provider === 'Anthropic Claude' ? 'Anthropic' : (modelToPush.provider === 'OpenAI Compatible' ? 'OpenAI Compatible' : 'OpenAI'),
-            apiKey: modelToPush.apiKey,
-            model: modelToPush.model,
-            baseUrl: modelToPush.baseUrl
-        };
-        await httpClient.put('/ai/settings', aiPayload);
-        console.log('[SettingsView] AI config pushed to backend (testMode: ' + testMode + ')');
-    }
+    // saveAiConfig 已被 _saveCurrentForm() 替代，不再需要此方法
 
     collectCameraBindings() {
         const section = this.container.querySelector('[data-section="cameras"]');
@@ -1495,8 +1504,8 @@ class SettingsView {
                 activeCameraId: config.activeCameraId
             });
 
-            // 保存 AI 配置（独立存储）
-            await this.saveAiConfig();
+            // 保存 AI 配置（通过后端 API 保存当前编辑的模型）
+            await this._saveCurrentForm();
 
             console.log('[SettingsView] Config saved successfully');
             showToast('所有设置已生效并保存。', 'success');

@@ -16,7 +16,7 @@ public static class AiGenerationServiceExtensions
         services.Configure<AiGenerationOptions>(
             configuration.GetSection(AiGenerationOptions.SectionName));
 
-        // 注册运行时配置管理器（单例：启动时从 ai_config.json 加载，不存在则从 appsettings.json 迁移）
+        // 注册运行时配置管理器（单例：启动时从 ai_models.json 加载，必要时从 ai_config.json 迁移）
         services.AddSingleton<AiConfigStore>();
 
         // 注册 HttpClient

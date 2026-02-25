@@ -37,12 +37,18 @@ public class AiApiClient
         CancellationToken cancellationToken = default)
     {
         var currentOptions = options ?? _configStore.Get();
-        return currentOptions.Provider.ToLower().Replace(" ", "") switch
+        var providerKey = currentOptions.Provider.ToLowerInvariant();
+        if (providerKey.Contains("anthropic"))
         {
-            "anthropic" => await CallAnthropicAsync(systemPrompt, messages, currentOptions, cancellationToken),
-            "openai" or "openaicompatible" => await CallOpenAiAsync(systemPrompt, messages, currentOptions, cancellationToken),
-            _ => throw new InvalidOperationException($"不支持的 AI 提供商：{currentOptions.Provider}")
-        };
+            return await CallAnthropicAsync(systemPrompt, messages, currentOptions, cancellationToken);
+        }
+
+        if (providerKey.Contains("openai"))
+        {
+            return await CallOpenAiAsync(systemPrompt, messages, currentOptions, cancellationToken);
+        }
+
+        throw new InvalidOperationException($"不支持的 AI 提供商：{currentOptions.Provider}");
     }
 
     private async Task<AiCompletionResult> CallAnthropicAsync(

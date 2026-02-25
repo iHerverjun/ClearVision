@@ -12,7 +12,7 @@ export class ProjectView {
         this.currentTab = 'all'; // 'all' | 'recent'
         this.projects = [];
         this.filteredProjects = [];
-        this.viewMode = 'grid'; // 'grid' | 'list'
+        this.viewMode = 'list'; // 'list'
         this.sortBy = 'modifiedAt'; // 'name' | 'createdAt' | 'modifiedAt'
         this.sortOrder = 'desc'; // 'asc' | 'desc'
         
@@ -58,16 +58,8 @@ export class ProjectView {
             });
         });
         
-        // 视图切换按钮
-        const viewToggleBtns = this.container.querySelectorAll('.view-toggle-btn');
-        viewToggleBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                viewToggleBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.viewMode = btn.dataset.view;
-                this.renderProjects(document.getElementById('project-list'));
-            });
-        });
+        // 视图切换按钮逻辑已移除
+
         
         // 排序选择器
         const sortSelect = this.container.querySelector('.sort-select');
@@ -179,26 +171,13 @@ export class ProjectView {
             return;
         }
         
-        if (this.viewMode === 'list') {
-            container.innerHTML = this.renderListView();
-        } else {
-            container.innerHTML = this.renderGridView();
-        }
+        container.innerHTML = this.renderListView();
         
         // 绑定卡片事件
         this.bindCardEvents(container);
     }
     
-    /**
-     * 渲染网格视图
-     */
-    renderGridView() {
-        return `
-            <div class="projects-grid">
-                ${this.filteredProjects.map(project => this.createProjectCardGrid(project)).join('')}
-            </div>
-        `;
-    }
+
     
     /**
      * 渲染列表视图
@@ -210,44 +189,7 @@ export class ProjectView {
             </div>
         `;
     }
-    
-    /**
-     * 创建工程卡片（网格视图）
-     */
-    createProjectCardGrid(project) {
-        const createdDate = new Date(project.createdAt).toLocaleDateString('zh-CN');
-        const modifiedDate = new Date(project.modifiedAt).toLocaleDateString('zh-CN');
-        const status = project.status || 'ready';
-        const statusConfig = this.getStatusConfig(status);
-        
-        return `
-            <div class="project-card" data-id="${project.id}">
-                <div class="project-card-thumbnail">
-                    <div class="project-thumbnail-placeholder">
-                        <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
-                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                        </svg>
-                    </div>
-                    <span class="project-status-badge" style="background:${statusConfig.color};">${statusConfig.label}</span>
-                </div>
-                <div class="project-card-body">
-                    <div class="project-card-title">${this.escapeHtml(project.name)}</div>
-                    <div class="project-card-desc">${this.escapeHtml(project.description || '暂无描述')}</div>
-                </div>
-                <div class="project-card-footer">
-                    <div class="project-card-meta">
-                        <span>创建: ${createdDate}</span>
-                        <span>修改: ${modifiedDate}</span>
-                    </div>
-                    <div class="project-card-actions">
-                        <button class="cv-btn cv-btn-primary btn-open" title="打开工程">打开</button>
-                        <button class="cv-btn cv-btn-danger btn-delete" title="删除工程">删除</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
+
     /**
      * 创建工程卡片（列表视图）
      */
@@ -301,8 +243,8 @@ export class ProjectView {
      * 绑定卡片事件
      */
     bindCardEvents(container) {
-        // 同时选择网格卡片和列表行
-        const items = container.querySelectorAll('.project-card, .project-list-item');
+        // 选择列表行
+        const items = container.querySelectorAll('.project-list-item');
         items.forEach(card => {
             const projectId = card.dataset.id;
             
@@ -318,8 +260,7 @@ export class ProjectView {
             // 删除按钮
             card.querySelector('.btn-delete')?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const name = card.querySelector('.project-card-title')?.textContent 
-                          || card.querySelector('.project-list-title')?.textContent 
+                const name = card.querySelector('.project-list-title')?.textContent 
                           || '未知工程';
                 this.confirmDelete(projectId, name);
             });

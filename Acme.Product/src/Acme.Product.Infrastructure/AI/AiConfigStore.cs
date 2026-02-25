@@ -1,5 +1,5 @@
 // AiConfigStore.cs
-// AI 配置运行时管理（线程安全单例）
+// AI 配置运行时管理（多模型数组存储，线程安全单例）
 // 作者：蘅芜君
 
 using System.Text.Json;
@@ -9,129 +9,255 @@ using Microsoft.Extensions.Options;
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
-/// AI 配置的运行时存储。
-/// 启动时从 ai_config.json 加载（如不存在则从 appsettings.json 迁移），
-/// 更新后自动持久化。
+/// AI 模型配置的运行时存储。
+/// 支持多模型数组，持久化到 ai_models.json。
+/// 首次启动时自动从旧版 ai_config.json（单配置）迁移。
 /// </summary>
 public class AiConfigStore
 {
     private readonly Microsoft.Extensions.Logging.ILogger<AiConfigStore> _logger;
     private readonly object _lock = new();
-    private AiGenerationOptions _current;
-    private readonly string _configFilePath;
+    private List<AiModelConfig> _models;
+    private readonly string _modelsFilePath;
+    private readonly string _legacyConfigFilePath;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
     };
 
     public AiConfigStore(IOptions<AiGenerationOptions> initialOptions, Microsoft.Extensions.Logging.ILogger<AiConfigStore> logger)
     {
         _logger = logger;
-        _configFilePath = Path.Combine(AppContext.BaseDirectory, "ai_config.json");
+        _modelsFilePath = Path.Combine(AppContext.BaseDirectory, "ai_models.json");
+        _legacyConfigFilePath = Path.Combine(AppContext.BaseDirectory, "ai_config.json");
 
-        // 尝试从独立配置文件加载
-        if (File.Exists(_configFilePath))
+        _models = LoadOrMigrate(initialOptions.Value);
+    }
+
+    // ==================== 多模型 CRUD ====================
+
+    /// <summary>获取所有模型配置</summary>
+    public List<AiModelConfig> GetAll()
+    {
+        lock (_lock)
         {
-            try
-            {
-                var json = File.ReadAllText(_configFilePath);
-                _current = JsonSerializer.Deserialize<AiGenerationOptions>(json, _jsonOptions)
-                           ?? initialOptions.Value;
-                _logger.LogInformation("[AiConfigStore] 从 ai_config.json 加载配置成功, Provider={Provider}, Model={Model}",
-                    _current.Provider, _current.Model);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning("[AiConfigStore] 读取 ai_config.json 失败，使用 appsettings.json 配置。错误：{Message}", ex.Message);
-                _current = initialOptions.Value;
-            }
-        }
-        else
-        {
-            // 首次运行：从 appsettings.json 迁移
-            _current = initialOptions.Value;
-            _logger.LogInformation("[AiConfigStore] ai_config.json 不存在，从 appsettings.json 迁移初始配置");
-            try
-            {
-                Save();
-                _logger.LogInformation("[AiConfigStore] 初始配置已保存到 ai_config.json");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning("[AiConfigStore] 保存初始 ai_config.json 失败。错误：{Message}", ex.Message);
-            }
+            return _models.Select(CloneModel).ToList();
         }
     }
 
-    /// <summary>
-    /// 获取当前 AI 配置的快照
-    /// </summary>
+    /// <summary>根据 ID 获取指定模型</summary>
+    public AiModelConfig? GetById(string id)
+    {
+        lock (_lock)
+        {
+            var m = _models.FirstOrDefault(x => x.Id == id);
+            return m != null ? CloneModel(m) : null;
+        }
+    }
+
+    /// <summary>获取当前激活模型的配置（兼容老接口）</summary>
     public AiGenerationOptions Get()
     {
         lock (_lock)
         {
-            return new AiGenerationOptions
-            {
-                Provider = _current.Provider,
-                ApiKey = _current.ApiKey,
-                Model = _current.Model,
-                MaxRetries = _current.MaxRetries,
-                TimeoutSeconds = _current.TimeoutSeconds,
-                MaxTokens = _current.MaxTokens,
-                Temperature = _current.Temperature,
-                BaseUrl = _current.BaseUrl
-            };
+            var active = _models.FirstOrDefault(x => x.IsActive) ?? _models.FirstOrDefault();
+            if (active == null)
+                throw new InvalidOperationException("没有可用的 AI 模型配置");
+            return active.ToGenerationOptions();
         }
     }
 
-    /// <summary>
-    /// 更新 AI 配置并持久化
-    /// </summary>
-    public void Update(AiGenerationOptions newOptions)
+    /// <summary>添加新模型</summary>
+    public AiModelConfig Add(AiModelConfig model)
     {
         lock (_lock)
         {
-            _current = newOptions;
-        }
+            // 如果是第一个模型，自动激活
+            if (_models.Count == 0)
+                model.IsActive = true;
 
+            _models.Add(model);
+        }
         Save();
-        _logger.LogInformation("[AiConfigStore] AI 配置已更新, Provider={Provider}, Model={Model}, BaseUrl={BaseUrl}",
-            newOptions.Provider, newOptions.Model, newOptions.BaseUrl ?? "(default)");
+        _logger.LogInformation("[AiConfigStore] 新增模型: {Name} ({Id})", model.Name, model.Id);
+        return model;
     }
 
     /// <summary>
-    /// 获取脱敏后的配置（用于前端展示）
+    /// 更新指定模型。ApiKey 为 null 或空时保留原值。
     /// </summary>
-    public object GetMasked()
+    public AiModelConfig? Update(string id, AiModelConfig updated)
     {
-        var options = Get();
-        return new
+        lock (_lock)
         {
-            provider = options.Provider,
-            apiKey = MaskApiKey(options.ApiKey),
-            model = options.Model,
-            baseUrl = options.BaseUrl ?? "",
-            maxRetries = options.MaxRetries,
-            timeoutSeconds = options.TimeoutSeconds,
-            maxTokens = options.MaxTokens,
-            temperature = options.Temperature
-        };
+            var existing = _models.FirstOrDefault(x => x.Id == id);
+            if (existing == null)
+                return null;
+
+            existing.Name = updated.Name ?? existing.Name;
+            existing.Provider = updated.Provider ?? existing.Provider;
+            existing.Model = updated.Model ?? existing.Model;
+            existing.BaseUrl = updated.BaseUrl; // 允许清空
+            existing.TimeoutMs = updated.TimeoutMs > 0 ? updated.TimeoutMs : existing.TimeoutMs;
+
+            // ApiKey 为空/null 时保留原值（用户没修改密钥）
+            if (!string.IsNullOrEmpty(updated.ApiKey))
+            {
+                existing.ApiKey = updated.ApiKey;
+            }
+        }
+        Save();
+        _logger.LogInformation("[AiConfigStore] 更新模型: {Name} ({Id})", updated.Name ?? "", id);
+        return GetById(id);
     }
 
-    private static string MaskApiKey(string? key)
+    /// <summary>删除指定模型（不允许删除最后一个）</summary>
+    public bool Delete(string id)
     {
-        if (string.IsNullOrEmpty(key))
-            return "";
-        if (key.Length <= 8)
-            return "****";
-        return key[..4] + new string('*', key.Length - 8) + key[^4..];
+        lock (_lock)
+        {
+            if (_models.Count <= 1)
+                throw new InvalidOperationException("至少需保留一个模型配置");
+
+            var removed = _models.RemoveAll(x => x.Id == id);
+            if (removed == 0)
+                return false;
+
+            // 如果删除的是激活模型，自动激活第一个
+            if (!_models.Any(x => x.IsActive) && _models.Count > 0)
+            {
+                _models[0].IsActive = true;
+            }
+        }
+        Save();
+        _logger.LogInformation("[AiConfigStore] 删除模型: {Id}", id);
+        return true;
+    }
+
+    /// <summary>设置指定模型为激活状态</summary>
+    public bool SetActive(string id)
+    {
+        lock (_lock)
+        {
+            var target = _models.FirstOrDefault(x => x.Id == id);
+            if (target == null)
+                return false;
+
+            foreach (var m in _models)
+                m.IsActive = m.Id == id;
+        }
+        Save();
+        _logger.LogInformation("[AiConfigStore] 激活模型切换为: {Id}", id);
+        return true;
+    }
+
+    // ==================== 持久化与迁移 ====================
+
+    private List<AiModelConfig> LoadOrMigrate(AiGenerationOptions fallback)
+    {
+        // 优先从新格式文件加载
+        if (File.Exists(_modelsFilePath))
+        {
+            try
+            {
+                var json = File.ReadAllText(_modelsFilePath);
+                var models = JsonSerializer.Deserialize<List<AiModelConfig>>(json, _jsonOptions);
+                if (models != null && models.Count > 0)
+                {
+                    _logger.LogInformation("[AiConfigStore] 从 ai_models.json 加载 {Count} 个模型配置", models.Count);
+                    EnsureOneActive(models);
+                    return models;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("[AiConfigStore] 读取 ai_models.json 失败: {Message}", ex.Message);
+            }
+        }
+
+        // 尝试从旧版单配置迁移
+        if (File.Exists(_legacyConfigFilePath))
+        {
+            try
+            {
+                var json = File.ReadAllText(_legacyConfigFilePath);
+                var legacy = JsonSerializer.Deserialize<AiGenerationOptions>(json, _jsonOptions);
+                if (legacy != null)
+                {
+                    _logger.LogInformation("[AiConfigStore] 从旧版 ai_config.json 迁移配置");
+                    var migrated = new AiModelConfig
+                    {
+                        Id = "model_migrated",
+                        Name = "系统默认模型",
+                        Provider = legacy.Provider,
+                        ApiKey = legacy.ApiKey,
+                        Model = legacy.Model,
+                        BaseUrl = legacy.BaseUrl,
+                        TimeoutMs = legacy.TimeoutSeconds * 1000,
+                        IsActive = true
+                    };
+                    var models = new List<AiModelConfig> { migrated };
+                    _models = models;
+                    Save();
+                    return models;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("[AiConfigStore] 迁移旧配置失败: {Message}", ex.Message);
+            }
+        }
+
+        // 全部失败：用 appsettings.json 默认值创建
+        _logger.LogInformation("[AiConfigStore] 使用 appsettings.json 默认值初始化");
+        var defaultModel = new AiModelConfig
+        {
+            Id = "model_default",
+            Name = "系统默认模型",
+            Provider = fallback.Provider,
+            ApiKey = fallback.ApiKey,
+            Model = fallback.Model,
+            BaseUrl = fallback.BaseUrl,
+            TimeoutMs = fallback.TimeoutSeconds * 1000,
+            IsActive = true
+        };
+        var result = new List<AiModelConfig> { defaultModel };
+        _models = result;
+        Save();
+        return result;
+    }
+
+    private static void EnsureOneActive(List<AiModelConfig> models)
+    {
+        if (!models.Any(x => x.IsActive) && models.Count > 0)
+            models[0].IsActive = true;
     }
 
     private void Save()
     {
-        var json = JsonSerializer.Serialize(_current, _jsonOptions);
-        File.WriteAllText(_configFilePath, json);
+        try
+        {
+            var json = JsonSerializer.Serialize(_models, _jsonOptions);
+            File.WriteAllText(_modelsFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AiConfigStore] 持久化失败: {Message}", ex.Message);
+        }
     }
+
+    private static AiModelConfig CloneModel(AiModelConfig m) => new()
+    {
+        Id = m.Id,
+        Name = m.Name,
+        Provider = m.Provider,
+        ApiKey = m.ApiKey,
+        Model = m.Model,
+        BaseUrl = m.BaseUrl,
+        TimeoutMs = m.TimeoutMs,
+        IsActive = m.IsActive
+    };
 }

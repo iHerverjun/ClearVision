@@ -24,37 +24,7 @@
     align-items: center;
 }
 
-/* 视图切换按钮 */
-.view-toggle {
-    display: flex;
-    gap: 4px;
-    padding: 4px;
-    background: var(--ink-secondary);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-md);
-}
 
-.view-toggle-btn {
-    padding: 6px 12px;
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-sm);
-    color: var(--ink-gray);
-    cursor: pointer;
-    transition: all var(--duration-fast);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.view-toggle-btn:hover {
-    color: var(--paper-white);
-}
-
-.view-toggle-btn.active {
-    background: var(--gradient-cinnabar);
-    color: var(--paper-white);
-}
 
 /* 排序选择器 */
 .sort-select {
@@ -72,163 +42,7 @@
     border-color: var(--cinnabar);
 }
 
-/* 工程网格 */
-.projects-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-}
 
-/* 工程卡片 - 增强版 */
-.project-card {
-    background: var(--gradient-card);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    transition: all var(--duration-normal) var(--ease-ink);
-    position: relative;
-    animation: inkFadeIn var(--duration-slow) var(--ease-ink-smooth);
-}
-
-.project-card:hover {
-    transform: translateY(-6px) scale(1.02);
-    border-color: rgba(212, 175, 55, 0.3);
-    box-shadow: var(--shadow-float), 0 0 30px rgba(212, 175, 55, 0.15);
-}
-
-.project-card-thumbnail {
-    position: relative;
-    height: 160px;
-    background: var(--ink-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.project-thumbnail-placeholder {
-    color: var(--ink-gray);
-}
-
-.project-status-badge {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    padding: 4px 12px;
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    border-radius: var(--radius-full);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.project-status-badge.ready {
-    background: rgba(149, 165, 166, 0.2);
-    color: #95a5a6;
-}
-
-.project-status-badge.running {
-    background: rgba(52, 152, 219, 0.2);
-    color: #3498db;
-    animation: pulse-blue 2s infinite;
-}
-
-.project-status-badge.paused {
-    background: rgba(243, 156, 18, 0.2);
-    color: #f39c12;
-}
-
-.project-status-badge.completed {
-    background: rgba(46, 204, 113, 0.2);
-    color: #2ecc71;
-}
-
-/* 悬浮操作按钮 */
-.project-card-actions-hover {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    gap: 8px;
-    opacity: 0;
-    transition: all var(--duration-fast);
-}
-
-.project-card:hover .project-card-actions-hover {
-    opacity: 1;
-}
-
-.project-card-actions-hover .action-btn {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(13, 27, 42, 0.9);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-md);
-    color: var(--paper-white);
-    cursor: pointer;
-    transition: all var(--duration-fast);
-    backdrop-filter: blur(10px);
-}
-
-.project-card-actions-hover .action-btn:hover {
-    background: var(--cinnabar);
-    border-color: var(--cinnabar);
-    transform: scale(1.1);
-}
-
-/* 卡片内容 */
-.project-card-content {
-    padding: 16px;
-}
-
-.project-card-title {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--paper-white);
-    margin-bottom: 8px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.project-card-desc {
-    font-size: var(--font-size-sm);
-    color: var(--ink-gray);
-    margin-bottom: 12px;
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    min-height: 40px;
-}
-
-/* 卡片内容区域 */
-.project-card-body {
-    padding: 16px 16px 8px;
-}
-
-/* 卡片底部 */
-.project-card-footer {
-    padding: 0 16px 16px;
-}
-
-.project-card-meta {
-    display: flex;
-    gap: 16px;
-    font-size: var(--font-size-xs);
-    color: var(--ink-gray);
-}
-
-.project-card-meta .meta-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
 
 /* 工程列表视图 - 重构为结构化清单 */
 .projects-list {
@@ -427,16 +241,7 @@
 }
 
 /* 亮色模式适配 */
-[data-theme="light"] .project-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: var(--shadow-sm);
-}
 
-[data-theme="light"] .project-card:hover {
-    border-color: var(--gold-accent);
-    box-shadow: var(--shadow-md);
-}
 
 [data-theme="light"] .project-list-item {
     background: #ffffff;
@@ -449,12 +254,10 @@
     border-color: #cbd5e0;
 }
 
-[data-theme="light"] .project-card-title,
 [data-theme="light"] .project-list-title {
     color: #1a202c;
 }
 
-[data-theme="light"] .project-card-desc,
 [data-theme="light"] .project-list-desc {
     color: #718096;
 }

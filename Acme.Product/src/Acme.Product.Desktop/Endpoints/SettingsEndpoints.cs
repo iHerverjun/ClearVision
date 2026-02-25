@@ -48,43 +48,44 @@ public static class SettingsEndpoints
             return Results.Ok(defaultConfig);
         });
 
-        // ==================== AI 设置 API ====================
+        // ==================== AI 多模型管理 API ====================
 
-        // 获取当前 AI 配置（ApiKey 脱敏）
-        app.MapGet("/api/ai/settings", (AiConfigStore configStore) =>
+        // 获取所有模型（不含 ApiKey）
+        app.MapGet("/api/ai/models", (AiConfigStore configStore) =>
         {
-            return Results.Ok(configStore.GetMasked());
+            var models = configStore.GetAll();
+            var result = models.Select(m => new
+            {
+                m.Id,
+                m.Name,
+                m.Provider,
+                hasApiKey = !string.IsNullOrWhiteSpace(m.ApiKey), // 前端用此判断是否已配置密钥
+                m.Model,
+                baseUrl = m.BaseUrl ?? "",
+                m.TimeoutMs,
+                m.IsActive
+            });
+            return Results.Ok(result);
         });
 
-        // 更新 AI 配置
-        app.MapPut("/api/ai/settings", (AiSettingsUpdateRequest request, AiConfigStore configStore) =>
+        // 创建新模型
+        app.MapPost("/api/ai/models", (AiModelCreateRequest request, AiConfigStore configStore) =>
         {
             try
             {
-                var current = configStore.Get();
-
-                // 仅更新前端提交的字段
-                current.Provider = request.Provider ?? current.Provider;
-                current.Model = request.Model ?? current.Model;
-                current.BaseUrl = string.IsNullOrWhiteSpace(request.BaseUrl) ? null : request.BaseUrl;
-
-                // ApiKey：如果前端传来的值全是星号或为空，说明用户没修改，保留原值
-                if (!string.IsNullOrEmpty(request.ApiKey) && !request.ApiKey.Contains('*'))
+                var model = new AiModelConfig
                 {
-                    current.ApiKey = request.ApiKey;
-                }
-
-                if (request.MaxRetries.HasValue)
-                    current.MaxRetries = request.MaxRetries.Value;
-                if (request.TimeoutSeconds.HasValue)
-                    current.TimeoutSeconds = request.TimeoutSeconds.Value;
-                if (request.MaxTokens.HasValue)
-                    current.MaxTokens = request.MaxTokens.Value;
-                if (request.Temperature.HasValue)
-                    current.Temperature = request.Temperature.Value;
-
-                configStore.Update(current);
-                return Results.Ok(new { Message = "AI 配置已保存", Config = configStore.GetMasked() });
+                    Id = $"model_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                    Name = request.Name ?? "新建模型",
+                    Provider = request.Provider ?? "OpenAI Compatible",
+                    ApiKey = request.ApiKey ?? "",
+                    Model = request.Model ?? "",
+                    BaseUrl = string.IsNullOrWhiteSpace(request.BaseUrl) ? null : request.BaseUrl,
+                    TimeoutMs = request.TimeoutMs > 0 ? request.TimeoutMs : 120000,
+                    IsActive = false
+                };
+                configStore.Add(model);
+                return Results.Ok(new { Message = "模型已创建", model.Id });
             }
             catch (Exception ex)
             {
@@ -92,16 +93,76 @@ public static class SettingsEndpoints
             }
         });
 
-        // 测试 AI 连接
-        app.MapPost("/api/ai/test", async (AiConfigStore configStore, AiApiClient apiClient) =>
+        // 更新指定模型
+        app.MapPut("/api/ai/models/{id}", (string id, AiModelUpdateRequest request, AiConfigStore configStore) =>
         {
             try
             {
-                var options = configStore.Get();
+                var updated = new AiModelConfig
+                {
+                    Name = request.Name ?? "",
+                    Provider = request.Provider ?? "OpenAI Compatible",
+                    ApiKey = request.ApiKey ?? "", // 空字符串 → 保留原值（由 AiConfigStore.Update 处理）
+                    Model = request.Model ?? "",
+                    BaseUrl = request.BaseUrl,
+                    TimeoutMs = request.TimeoutMs
+                };
+                var result = configStore.Update(id, updated);
+                if (result == null)
+                    return Results.NotFound(new { Error = $"模型 {id} 不存在" });
+
+                return Results.Ok(new { Message = "模型已更新" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // 删除指定模型
+        app.MapDelete("/api/ai/models/{id}", (string id, AiConfigStore configStore) =>
+        {
+            try
+            {
+                var ok = configStore.Delete(id);
+                return ok
+                    ? Results.Ok(new { Message = "模型已删除" })
+                    : Results.NotFound(new { Error = $"模型 {id} 不存在" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        // 设为激活模型
+        app.MapPost("/api/ai/models/{id}/activate", (string id, AiConfigStore configStore) =>
+        {
+            var ok = configStore.SetActive(id);
+            return ok
+                ? Results.Ok(new { Message = "已切换激活模型" })
+                : Results.NotFound(new { Error = $"模型 {id} 不存在" });
+        });
+
+        // 测试指定模型的连接（使用该模型的真实 Key，不影响全局 active 状态）
+        app.MapPost("/api/ai/models/{id}/test", async (string id, AiConfigStore configStore, AiApiClient apiClient) =>
+        {
+            try
+            {
+                var model = configStore.GetById(id);
+                if (model == null)
+                    return Results.NotFound(new { Success = false, Message = $"模型 {id} 不存在" });
+
+                if (string.IsNullOrEmpty(model.ApiKey))
+                    return Results.Ok(new { Success = false, Message = "连接失败: 未配置 API Key" });
+
+                var options = model.ToGenerationOptions();
                 var response = await apiClient.CompleteAsync(
                     "You are a helpful assistant.",
-                    "Reply with exactly: OK",
+                    new List<ChatMessage> { new("user", "Reply with exactly: OK") },
+                    options,
                     CancellationToken.None);
+
                 return Results.Ok(new { Success = true, Message = "连接成功" });
             }
             catch (Exception ex)
@@ -155,17 +216,24 @@ public static class SettingsEndpoints
     }
 }
 
-/// <summary>
-/// AI 设置更新请求 DTO
-/// </summary>
-public class AiSettingsUpdateRequest
+/// <summary>创建模型请求</summary>
+public class AiModelCreateRequest
 {
+    public string? Name { get; set; }
     public string? Provider { get; set; }
     public string? ApiKey { get; set; }
     public string? Model { get; set; }
     public string? BaseUrl { get; set; }
-    public int? MaxRetries { get; set; }
-    public int? TimeoutSeconds { get; set; }
-    public int? MaxTokens { get; set; }
-    public double? Temperature { get; set; }
+    public int TimeoutMs { get; set; }
+}
+
+/// <summary>更新模型请求</summary>
+public class AiModelUpdateRequest
+{
+    public string? Name { get; set; }
+    public string? Provider { get; set; }
+    public string? ApiKey { get; set; }
+    public string? Model { get; set; }
+    public string? BaseUrl { get; set; }
+    public int TimeoutMs { get; set; }
 }
