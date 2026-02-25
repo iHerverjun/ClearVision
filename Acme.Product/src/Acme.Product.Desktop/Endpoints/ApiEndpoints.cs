@@ -10,11 +10,13 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Data;
+using Acme.Product.Infrastructure.AI;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using OpenCvSharp;
 
 namespace Acme.Product.Desktop.Endpoints;
 
@@ -71,6 +73,17 @@ public static class ApiEndpoints
         public double ScaleX { get; set; }
         public double ScaleY { get; set; }
         public string FileName { get; set; } = string.Empty;
+    }
+
+    public class OperatorPreviewRequest
+    {
+        public string ImageBase64 { get; set; } = string.Empty;
+        public Dictionary<string, object>? Parameters { get; set; }
+    }
+
+    public class OperatorParameterRecommendationRequest
+    {
+        public string ImageBase64 { get; set; } = string.Empty;
     }
 
     private static void MapProjectEndpoints(IEndpointRouteBuilder app)
@@ -328,6 +341,111 @@ public static class ApiEndpoints
             var metadata = factory.GetMetadata(type);
             return metadata != null ? Results.Ok(metadata) : Results.NotFound();
         });
+
+        // 获取流程模板列表
+        app.MapGet("/api/templates", async (
+            IFlowTemplateService templateService,
+            string? industry,
+            CancellationToken cancellationToken) =>
+        {
+            var templates = await templateService.GetTemplatesAsync(industry, cancellationToken);
+            return Results.Ok(templates);
+        });
+
+        // 获取单个流程模板详情
+        app.MapGet("/api/templates/{id:guid}", async (
+            Guid id,
+            IFlowTemplateService templateService,
+            CancellationToken cancellationToken) =>
+        {
+            var template = await templateService.GetTemplateAsync(id, cancellationToken);
+            return template != null ? Results.Ok(template) : Results.NotFound();
+        });
+
+        // 推荐算子参数
+        app.MapPost("/api/operators/{type}/recommend-parameters", (
+            Core.Enums.OperatorType type,
+            OperatorParameterRecommendationRequest request,
+            ParameterRecommender recommender) =>
+        {
+            if (!TryDecodeImage(request.ImageBase64, out var image, out var decodeError))
+            {
+                return Results.BadRequest(new { Error = decodeError });
+            }
+
+            using (image)
+            {
+                var parameters = recommender.Recommend(type, image);
+                return Results.Ok(new
+                {
+                    OperatorType = type.ToString(),
+                    Parameters = parameters
+                });
+            }
+        });
+
+        // 单算子调参预览
+        app.MapPost("/api/operators/{type}/preview", async (
+            Core.Enums.OperatorType type,
+            OperatorPreviewRequest request,
+            OperatorPreviewService previewService,
+            CancellationToken cancellationToken) =>
+        {
+            if (!TryDecodeImage(request.ImageBase64, out var image, out var decodeError))
+            {
+                return Results.BadRequest(new { Error = decodeError });
+            }
+
+            using (image)
+            {
+                var preview = await previewService.PreviewAsync(type, request.Parameters, image, cancellationToken);
+                return Results.Ok(preview);
+            }
+        });
+    }
+
+    private static bool TryDecodeImage(string? imageBase64, out Mat image, out string? errorMessage)
+    {
+        image = new Mat();
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(imageBase64))
+        {
+            errorMessage = "ImageBase64 is required.";
+            return false;
+        }
+
+        var payload = imageBase64.Trim();
+        var markerIndex = payload.IndexOf(',');
+        if (payload.StartsWith("data:", StringComparison.OrdinalIgnoreCase) && markerIndex >= 0)
+        {
+            payload = payload[(markerIndex + 1)..];
+        }
+
+        try
+        {
+            var bytes = Convert.FromBase64String(payload);
+            image = Cv2.ImDecode(bytes, ImreadModes.Color);
+
+            if (image.Empty())
+            {
+                image.Dispose();
+                errorMessage = "Image decoding failed.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (FormatException)
+        {
+            errorMessage = "ImageBase64 format is invalid.";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
     }
 
     private static void MapImageEndpoints(IEndpointRouteBuilder app)

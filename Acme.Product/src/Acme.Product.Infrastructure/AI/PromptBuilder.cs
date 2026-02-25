@@ -1,3 +1,7 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
 
 namespace Acme.Product.Infrastructure.AI;
@@ -8,6 +12,10 @@ namespace Acme.Product.Infrastructure.AI;
 public class PromptBuilder
 {
     private readonly IOperatorFactory _operatorFactory;
+    private static readonly JsonSerializerOptions _catalogJsonOptions = new()
+    {
+        WriteIndented = true
+    };
 
     public PromptBuilder(IOperatorFactory operatorFactory)
     {
@@ -17,9 +25,9 @@ public class PromptBuilder
     /// <summary>
     /// 构建完整的 System Prompt
     /// </summary>
-    public string BuildSystemPrompt()
+    public string BuildSystemPrompt(string? userDescription = null)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         sb.AppendLine(GetRoleDefinition());
         sb.AppendLine();
@@ -31,9 +39,11 @@ public class PromptBuilder
         sb.AppendLine();
         sb.AppendLine(GetPhase3OperatorExtensions());
         sb.AppendLine();
-        sb.AppendLine(GetOperatorCatalog());
+        sb.AppendLine(GetOperatorCatalog(userDescription));
         sb.AppendLine();
         sb.AppendLine(GetConnectionRules());
+        sb.AppendLine();
+        sb.AppendLine(GetParameterInferenceGuide());
         sb.AppendLine();
         sb.AppendLine(GetOutputFormatSpec());
         sb.AppendLine();
@@ -218,53 +228,274 @@ public class PromptBuilder
         5. 优先使用最简洁的算子组合完成任务
         """;
 
-    private string GetOperatorCatalog()
+    private string GetParameterInferenceGuide() => """
+        # 参数推理指南
+
+        1. 数值提取规则
+        - 用户明确给出的数值（如 "阈值100"、"间距0.5mm"）应优先映射到最相关参数。
+        - 如果用户同时给出目标值与容差（如 "0.5mm，偏差±0.05mm"），应分别映射到目标值参数和容差参数。
+        - 若同类参数有多个候选，优先选择名称语义最接近者，并在 parametersNeedingReview 中标记歧义项。
+
+        2. 单位与换算
+        - 当用户使用 mm/μm 等物理单位，而算子参数是像素时，不可臆造换算比例。
+        - 应提示用户提供标定信息（如 PixelSize、CalibrationFile、CoordinateTransform 配置）。
+        - 未具备标定前，可先保留物理值语义并在 parametersNeedingReview 中标记需要确认。
+
+        3. 行业常见默认值参考（仅作兜底）
+        - 3C/电子外观检测：Thresholding.UseOtsu=true，BlobAnalysis.MinArea 可从 20~100 起步。
+        - 包装/OCR/条码：CodeRecognition.MaxResults=1，适当先做去噪与对比度增强。
+        - 精密测量：优先补充标定算子（CoordinateTransform/NPointCalibration），避免直接输出物理尺寸结论。
+        - AI检测：优先检查 ModelPath、InputSize、Confidence 等关键参数是否待人工确认。
+        """;
+
+    private string GetOperatorCatalog(string? userDescription)
     {
         // 从 OperatorFactory 获取所有已注册算子的元数据，动态生成算子目录
-        // 这样当算子库更新时，Prompt 自动更新
-        var allMetadata = _operatorFactory.GetAllMetadata();
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("# 算子目录（你只能使用以下算子）");
+        // 当用户描述明确时，只注入高相关算子详情，并保留全量索引作为 fallback
+        var allMetadata = _operatorFactory
+            .GetAllMetadata()
+            .OrderBy(m => m.Type.ToString())
+            .ToList();
+
+        var relevantMetadata = string.IsNullOrWhiteSpace(userDescription)
+            ? allMetadata
+            : GetRelevantOperators(userDescription)
+                .OrderBy(m => m.Type.ToString())
+                .ToList();
+
+        var sb = new StringBuilder();
+
+        if (string.IsNullOrWhiteSpace(userDescription))
+        {
+            sb.AppendLine("# 算子目录（你只能使用以下算子）");
+        }
+        else
+        {
+            sb.AppendLine("# 优先算子目录（根据当前需求动态裁剪）");
+            sb.AppendLine("以下为当前需求高相关算子。");
+            sb.AppendLine("如果需要的算子不在列表中，仍可使用其他已注册算子。");
+        }
+
         sb.AppendLine();
         sb.AppendLine("```json");
-        sb.AppendLine(System.Text.Json.JsonSerializer.Serialize(
-            allMetadata.Select(m => new
+        sb.AppendLine(SerializeOperatorCatalog(relevantMetadata, includeFullDetails: true));
+        sb.AppendLine("```");
+
+        if (!string.IsNullOrWhiteSpace(userDescription))
+        {
+            sb.AppendLine();
+            sb.AppendLine("# 全量算子目录（fallback 索引）");
+            sb.AppendLine("当优先目录不满足需求时，可从以下全量索引选择其他已注册算子。");
+            sb.AppendLine();
+            sb.AppendLine("```json");
+            sb.AppendLine(SerializeOperatorCatalog(allMetadata, includeFullDetails: false));
+            sb.AppendLine("```");
+        }
+
+        return sb.ToString();
+    }
+
+    private List<OperatorMetadata> GetRelevantOperators(string userDescription)
+    {
+        var allMetadata = _operatorFactory.GetAllMetadata().ToList();
+        if (allMetadata.Count == 0 || string.IsNullOrWhiteSpace(userDescription))
+            return allMetadata;
+
+        var keywords = ExtractKeywords(userDescription);
+        var matched = allMetadata
+            .Where(metadata => IsRelevantByKeywords(metadata, keywords))
+            .ToList();
+
+        if (matched.Count < 8)
+        {
+            var categoryHints = keywords
+                .Select(GetCategoryHint)
+                .Where(hint => !string.IsNullOrWhiteSpace(hint))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (categoryHints.Count > 0)
+            {
+                matched.AddRange(allMetadata.Where(metadata =>
+                    categoryHints.Any(hint => ContainsIgnoreCase(metadata.Category, hint!))));
+            }
+        }
+
+        matched.AddRange(GetCoreOperators(allMetadata));
+
+        var distinct = matched
+            .GroupBy(metadata => metadata.Type)
+            .Select(group => group.First())
+            .ToList();
+
+        return distinct.Count > 0 ? distinct : allMetadata;
+    }
+
+    private static HashSet<string> ExtractKeywords(string description)
+    {
+        var normalized = description.ToLowerInvariant();
+        var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in Regex.Matches(normalized, @"[\p{L}\p{Nd}_]+"))
+        {
+            var token = match.Value.Trim();
+            if (token.Length >= 2)
+                keywords.Add(token);
+        }
+
+        AddIntentTokensIfMatched(keywords, normalized, ["测量", "尺寸", "宽度", "间距", "孔径", "公差", "精度", "mm", "um", "μm"], ["measurement", "gap", "distance", "width", "caliper"]);
+        AddIntentTokensIfMatched(keywords, normalized, ["缺陷", "划痕", "污点", "瑕疵", "检测", "NG"], ["defect", "blob", "threshold"]);
+        AddIntentTokensIfMatched(keywords, normalized, ["plc", "通信", "modbus", "s7", "三菱", "欧姆龙", "串口", "tcp"], ["communication", "modbus", "siemens", "mitsubishi", "omron"]);
+        AddIntentTokensIfMatched(keywords, normalized, ["ocr", "条码", "二维码", "扫码", "识别", "文字"], ["ocr", "code", "barcode", "recognition"]);
+        AddIntentTokensIfMatched(keywords, normalized, ["ai", "深度学习", "yolo", "模型", "推理"], ["ai", "deeplearning", "inference"]);
+        AddIntentTokensIfMatched(keywords, normalized, ["标定", "校准", "畸变", "坐标变换"], ["calibration", "undistort", "coordinate"]);
+
+        return keywords;
+    }
+
+    private static void AddIntentTokensIfMatched(
+        HashSet<string> keywords,
+        string normalizedDescription,
+        IEnumerable<string> triggers,
+        IEnumerable<string> tokensToAdd)
+    {
+        if (!triggers.Any(trigger => normalizedDescription.Contains(trigger, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        foreach (var token in tokensToAdd)
+            keywords.Add(token);
+    }
+
+    private static bool IsRelevantByKeywords(OperatorMetadata metadata, HashSet<string> keywords)
+    {
+        if (keywords.Count == 0)
+            return false;
+
+        if (keywords.Any(keyword =>
+                ContainsIgnoreCase(metadata.DisplayName, keyword) ||
+                ContainsIgnoreCase(metadata.Description, keyword) ||
+                ContainsIgnoreCase(metadata.Category, keyword)))
+        {
+            return true;
+        }
+
+        return metadata.Keywords != null &&
+               metadata.Keywords.Any(operatorKeyword =>
+                   keywords.Any(keyword => ContainsIgnoreCase(operatorKeyword, keyword)));
+    }
+
+    private static bool ContainsIgnoreCase(string? source, string keyword)
+    {
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(keyword))
+            return false;
+
+        return source.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? GetCategoryHint(string keyword)
+    {
+        if (keyword.Contains("measure", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("测量", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("尺寸", StringComparison.OrdinalIgnoreCase))
+        {
+            return "测量";
+        }
+
+        if (keyword.Contains("defect", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("缺陷", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("检测", StringComparison.OrdinalIgnoreCase))
+        {
+            return "检测";
+        }
+
+        if (keyword.Contains("communication", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("plc", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("通信", StringComparison.OrdinalIgnoreCase))
+        {
+            return "通信";
+        }
+
+        if (keyword.Contains("ocr", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("barcode", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("识别", StringComparison.OrdinalIgnoreCase))
+        {
+            return "识别";
+        }
+
+        if (keyword.Contains("calibration", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("标定", StringComparison.OrdinalIgnoreCase) ||
+            keyword.Contains("校准", StringComparison.OrdinalIgnoreCase))
+        {
+            return "标定";
+        }
+
+        return null;
+    }
+
+    private static List<OperatorMetadata> GetCoreOperators(IEnumerable<OperatorMetadata> allMetadata)
+    {
+        var coreTypes = new HashSet<OperatorType>
+        {
+            OperatorType.ImageAcquisition,
+            OperatorType.ResultOutput,
+            OperatorType.ResultJudgment,
+            OperatorType.ConditionalBranch
+        };
+
+        return allMetadata
+            .Where(metadata => coreTypes.Contains(metadata.Type))
+            .ToList();
+    }
+
+    private static string SerializeOperatorCatalog(IEnumerable<OperatorMetadata> metadata, bool includeFullDetails)
+    {
+        if (!includeFullDetails)
+        {
+            var fallbackCatalog = metadata.Select(m => new
             {
                 operator_id = m.Type.ToString(),
                 name = m.DisplayName,
-                category = m.Category,
-                description = m.Description,
-                keywords = m.Keywords ?? Array.Empty<string>(),
-                inputs = m.InputPorts.Select(p => new
-                {
-                    port_name = p.Name,
-                    display_name = p.DisplayName,
-                    data_type = p.DataType.ToString(),
-                    required = p.IsRequired
-                }),
-                outputs = m.OutputPorts.Select(p => new
-                {
-                    port_name = p.Name,
-                    display_name = p.DisplayName,
-                    data_type = p.DataType.ToString()
-                }),
-                parameters = m.Parameters.Select(p => new
-                {
-                    param_name = p.Name,
-                    display_name = p.DisplayName,
-                    type = p.DataType,
-                    default_value = p.DefaultValue?.ToString(),
-                    required = p.IsRequired,
-                    description = p.Description ?? "",
-                    min_value = p.MinValue?.ToString(),
-                    max_value = p.MaxValue?.ToString(),
-                    options = p.Options?.Select(o => new { label = o.Label, value = o.Value })
-                })
+                category = m.Category
+            });
+
+            return JsonSerializer.Serialize(fallbackCatalog, _catalogJsonOptions);
+        }
+
+        var detailedCatalog = metadata.Select(m => new
+        {
+            operator_id = m.Type.ToString(),
+            name = m.DisplayName,
+            category = m.Category,
+            description = m.Description,
+            keywords = m.Keywords ?? Array.Empty<string>(),
+            inputs = m.InputPorts.Select(p => new
+            {
+                port_name = p.Name,
+                display_name = p.DisplayName,
+                data_type = p.DataType.ToString(),
+                required = p.IsRequired
             }),
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
-        ));
-        sb.AppendLine("```");
-        return sb.ToString();
+            outputs = m.OutputPorts.Select(p => new
+            {
+                port_name = p.Name,
+                display_name = p.DisplayName,
+                data_type = p.DataType.ToString()
+            }),
+            parameters = m.Parameters.Select(p => new
+            {
+                param_name = p.Name,
+                display_name = p.DisplayName,
+                type = p.DataType,
+                default_value = p.DefaultValue?.ToString(),
+                required = p.IsRequired,
+                description = p.Description ?? string.Empty,
+                min_value = p.MinValue?.ToString(),
+                max_value = p.MaxValue?.ToString(),
+                options = p.Options?.Select(o => new { label = o.Label, value = o.Value })
+            })
+        });
+
+        return JsonSerializer.Serialize(detailedCatalog, _catalogJsonOptions);
     }
 
     private string GetConnectionRules() => """

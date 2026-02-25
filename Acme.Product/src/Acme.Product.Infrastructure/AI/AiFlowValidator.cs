@@ -1,6 +1,7 @@
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
+using System.Globalization;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -259,10 +260,22 @@ public class AiFlowValidator : IAiFlowValidator
     {
         foreach (var op in flow.Operators)
         {
-            if (!metaMap.TryGetValue(op.TempId, out var metadata) || op.Parameters == null)
+            if (!metaMap.TryGetValue(op.TempId, out var metadata))
                 continue;
 
-            foreach (var kvp in op.Parameters)
+            op.Parameters ??= new Dictionary<string, string>();
+            ApplyIntelligentDefaults(op, metadata, result);
+
+            foreach (var requiredParam in metadata.Parameters.Where(p => p.IsRequired))
+            {
+                if (!op.Parameters.ContainsKey(requiredParam.Name))
+                {
+                    result.AddWarning(
+                        $"算子 {op.TempId}({metadata.DisplayName}) 缺少必填参数 '{requiredParam.Name}'，且无可用默认值");
+                }
+            }
+
+            foreach (var kvp in op.Parameters.ToList())
             {
                 var paramName = kvp.Key;
                 var paramValueStr = kvp.Value?.ToString() ?? string.Empty;
@@ -275,16 +288,24 @@ public class AiFlowValidator : IAiFlowValidator
                     continue;
                 }
 
-                // 数值范围校验
-                if (double.TryParse(paramValueStr, out var numValue))
+                // 数值范围校验 + 自动 Clamp
+                if (TryParseDouble(paramValueStr, out var numValue))
                 {
-                    if (paramDef.MinValue != null && double.TryParse(paramDef.MinValue.ToString(), out var minValue) && numValue < minValue)
+                    var hasMin = TryParseDouble(paramDef.MinValue, out var minValue);
+                    var hasMax = TryParseDouble(paramDef.MaxValue, out var maxValue);
+
+                    var clamped = numValue;
+                    if (hasMin && clamped < minValue)
+                        clamped = minValue;
+                    if (hasMax && clamped > maxValue)
+                        clamped = maxValue;
+
+                    if (Math.Abs(clamped - numValue) > double.Epsilon)
                     {
-                        result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 的参数 '{paramName}' 值为 {numValue}，小于最小值 {minValue}");
-                    }
-                    if (paramDef.MaxValue != null && double.TryParse(paramDef.MaxValue.ToString(), out var maxValue) && numValue > maxValue)
-                    {
-                        result.AddWarning($"算子 {op.TempId}({metadata.DisplayName}) 的参数 '{paramName}' 值为 {numValue}，大于最大值 {maxValue}");
+                        var clampedValue = FormatNumericValue(clamped, paramDef.DataType);
+                        op.Parameters[paramName] = clampedValue;
+                        result.AddWarning(
+                            $"算子 {op.TempId}({metadata.DisplayName}) 的参数 '{paramName}' 值 {numValue} 超出范围，已自动调整为 {clampedValue}");
                     }
                 }
 
@@ -299,6 +320,71 @@ public class AiFlowValidator : IAiFlowValidator
                 }
             }
         }
+    }
+
+    private static void ApplyIntelligentDefaults(
+        AiGeneratedOperator op,
+        OperatorMetadata metadata,
+        AiValidationResult result)
+    {
+        foreach (var paramDef in metadata.Parameters.Where(p => p.IsRequired))
+        {
+            if (op.Parameters.ContainsKey(paramDef.Name) &&
+                !string.IsNullOrWhiteSpace(op.Parameters[paramDef.Name]))
+            {
+                continue;
+            }
+
+            var defaultValue = ConvertParameterValueToString(paramDef.DefaultValue);
+            if (string.IsNullOrWhiteSpace(defaultValue))
+                continue;
+
+            op.Parameters[paramDef.Name] = defaultValue;
+            result.AddWarning(
+                $"算子 {op.TempId}({metadata.DisplayName}) 的必填参数 '{paramDef.Name}' 缺失，已自动填充默认值 {defaultValue}");
+        }
+    }
+
+    private static string ConvertParameterValueToString(object? value)
+    {
+        if (value == null)
+            return string.Empty;
+
+        if (value is bool boolean)
+            return boolean ? "true" : "false";
+
+        return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static string FormatNumericValue(double value, string dataType)
+    {
+        if (dataType.Equals("int", StringComparison.OrdinalIgnoreCase) ||
+            dataType.Equals("integer", StringComparison.OrdinalIgnoreCase))
+        {
+            return Convert.ToInt32(Math.Round(value, MidpointRounding.AwayFromZero))
+                .ToString(CultureInfo.InvariantCulture);
+        }
+
+        return value.ToString("0.########", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryParseDouble(object? value, out double parsed)
+    {
+        if (value == null)
+        {
+            parsed = 0;
+            return false;
+        }
+
+        var text = value.ToString();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            parsed = 0;
+            return false;
+        }
+
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed) ||
+               double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out parsed);
     }
 
     private void ValidateHasSourceAndOutput(

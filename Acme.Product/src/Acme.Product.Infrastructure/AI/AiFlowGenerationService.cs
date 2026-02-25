@@ -14,6 +14,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 {
     private readonly AiApiClient _apiClient;
     private readonly PromptBuilder _promptBuilder;
+    private readonly IConversationalFlowService _conversationalFlowService;
     private readonly IAiFlowValidator _validator;
     private readonly AutoLayoutService _layoutService;
     private readonly IOperatorFactory _operatorFactory;
@@ -29,6 +30,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     public AiFlowGenerationService(
         AiApiClient apiClient,
         PromptBuilder promptBuilder,
+        IConversationalFlowService conversationalFlowService,
         IAiFlowValidator validator,
         AutoLayoutService layoutService,
         IOperatorFactory operatorFactory,
@@ -38,6 +40,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         _apiClient = apiClient;
         _promptBuilder = promptBuilder;
+        _conversationalFlowService = conversationalFlowService;
         _validator = validator;
         _layoutService = layoutService;
         _operatorFactory = operatorFactory;
@@ -53,8 +56,13 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         // 推送：构建提示词
         onProgress?.Invoke("正在分析需求并构建提示词...");
-        var systemPrompt = _promptBuilder.BuildSystemPrompt();
-        var userMessage = BuildUserMessage(request);
+        var conversationContext = _conversationalFlowService.PrepareContext(request);
+        var systemPrompt = _promptBuilder.BuildSystemPrompt(request.Description);
+        var userMessage = BuildUserMessage(
+            request,
+            conversationContext.ExistingFlowJson,
+            conversationContext.Intent,
+            conversationContext.PromptContext);
 
         // 读取当前配置快照
         var options = _configStore.Get();
@@ -143,6 +151,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                         _logger.LogWarning(ex, "DryRun 预演阶段异常，跳过覆盖率采集");
                     }
 
+                    _conversationalFlowService.RecordAssistantResponse(
+                        conversationContext.SessionId,
+                        generatedFlow.Explanation,
+                        JsonSerializer.Serialize(generatedFlow, _jsonOptions));
+
                     return new AiFlowGenerationResult
                     {
                         Success = true,
@@ -151,6 +164,8 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                         Reasoning = completionResult.Reasoning,
                         ParametersNeedingReview = generatedFlow.ParametersNeedingReview,
                         RetryCount = retryCount,
+                        SessionId = conversationContext.SessionId,
+                        DetectedIntent = conversationContext.Intent.ToString().ToUpperInvariant(),
                         DryRunResult = dryRunReport
                     };
                 }
@@ -189,7 +204,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         };
     }
 
-    private string BuildUserMessage(AiFlowGenerationRequest request)
+    private string BuildUserMessage(
+        AiFlowGenerationRequest request,
+        string? existingFlow,
+        ConversationIntent intent,
+        string promptContext)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"请根据以下描述生成工作流：");
@@ -200,6 +219,31 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         {
             sb.AppendLine();
             sb.AppendLine($"补充信息：{request.AdditionalContext}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(promptContext))
+        {
+            sb.AppendLine();
+            sb.AppendLine("会话上下文：");
+            sb.AppendLine(promptContext);
+        }
+
+        if (!string.IsNullOrWhiteSpace(existingFlow))
+        {
+            sb.AppendLine();
+            sb.AppendLine("以下是用户当前的工作流 JSON，请在此基础上处理：");
+            sb.AppendLine("```json");
+            sb.AppendLine(existingFlow);
+            sb.AppendLine("```");
+
+            if (intent == ConversationIntent.Modify)
+            {
+                sb.AppendLine("要求：仅增量修改用户明确提出的部分，未提及的节点与连线尽量保持不变。");
+            }
+            else if (intent == ConversationIntent.Explain)
+            {
+                sb.AppendLine("要求：保持 operators 与 connections 结构不变，重点完善 explanation 字段。");
+            }
         }
 
         sb.AppendLine();

@@ -4,6 +4,7 @@
  */
 
 import { showToast } from '../../shared/components/uiComponents.js';
+import TemplateSelector from './templateSelector.js';
 
 export class FlowEditorInteraction {
     constructor(flowCanvas) {
@@ -19,6 +20,7 @@ export class FlowEditorInteraction {
         this.history = [];
         this.historyIndex = -1;
         this.maxHistorySize = 50;
+        this.templateSelector = null;
 
         this.initialize();
     }
@@ -30,8 +32,54 @@ export class FlowEditorInteraction {
         this.bindKeyboardShortcuts();
         // 启用算子库拖拽
         this.enableOperatorLibraryDrag();
+        // 初始化流程模板选择器入口
+        this.initializeTemplateSelector();
         // 初始化历史记录
         this.saveState();
+    }
+
+    /**
+     * 初始化模板选择器
+     */
+    initializeTemplateSelector() {
+        this.templateSelector = new TemplateSelector(this.canvas);
+
+        const toolbar = document.querySelector('.toolbar-right');
+        if (!toolbar) return;
+
+        let templateButton = document.getElementById('btn-template-create');
+        if (!templateButton) {
+            templateButton = document.createElement('button');
+            templateButton.id = 'btn-template-create';
+            templateButton.className = 'btn btn-secondary btn-with-icon';
+            templateButton.innerHTML = `
+                <svg class="btn-icon-svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/>
+                </svg>
+                <span>从模板创建</span>
+            `;
+
+            const aiButton = document.getElementById('btn-ai-gen');
+            if (aiButton && aiButton.parentElement === toolbar) {
+                toolbar.insertBefore(templateButton, aiButton);
+            } else {
+                toolbar.appendChild(templateButton);
+            }
+        }
+
+        if (templateButton.dataset.boundTemplateSelector === 'true') {
+            return;
+        }
+
+        templateButton.dataset.boundTemplateSelector = 'true';
+        templateButton.addEventListener('click', async () => {
+            try {
+                await this.templateSelector.open();
+            } catch (error) {
+                console.error('[FlowEditorInteraction] 打开模板选择器失败:', error);
+                showToast(`打开模板选择器失败: ${error.message}`, 'error');
+            }
+        });
     }
 
     /**

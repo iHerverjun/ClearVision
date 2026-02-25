@@ -1,10 +1,23 @@
 import webMessageBridge from '../../core/messaging/webMessageBridge.js';
+import httpClient from '../../core/messaging/httpClient.js';
+import inspectionController from '../inspection/inspectionController.js';
+import PreviewPanel from './previewPanel.js';
 
 class PropertyPanel {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
         this.currentOperator = null;
         this.onChangeCallback = null;
+        this.previewPanel = null;
+        this.pendingRecommendation = null;
+        this.recommendedFieldNames = new Set();
+        this.recommendationSupportedOperators = new Set([
+            'Thresholding',
+            'Filtering',
+            'GaussianBlur',
+            'BlobAnalysis',
+            'SharpnessEvaluation'
+        ]);
         this.bindGlobalEvents();
     }
 
@@ -39,6 +52,10 @@ class PropertyPanel {
      * 设置算子
      */
     setOperator(operator) {
+        if (!operator || this.currentOperator?.id !== operator.id) {
+            this.pendingRecommendation = null;
+            this.recommendedFieldNames.clear();
+        }
         this.currentOperator = operator;
         this.render();
     }
@@ -47,6 +64,10 @@ class PropertyPanel {
      * 清空面板
      */
     clear() {
+        if (this.previewPanel) {
+            this.previewPanel.destroy();
+            this.previewPanel = null;
+        }
         this.currentOperator = null;
         this.container.innerHTML = '<p class="empty-text">选择一个算子查看属性</p>';
     }
@@ -63,6 +84,7 @@ class PropertyPanel {
         // 兼容 title (画布节点) 和 displayName (算子库)
         const title = this.currentOperator.title || this.currentOperator.displayName || this.currentOperator.type;
         const { type, parameters = [], iconPath, icon } = this.currentOperator;
+        const canRecommend = this.canRecommend(type);
         
         const iconHtml = iconPath 
             ? `<div class="property-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="${iconPath}"/></svg></div>`
@@ -74,6 +96,9 @@ class PropertyPanel {
                 <div class="header-text">
                     <h4>${title}</h4>
                     <span class="property-type">${type}</span>
+                </div>
+                <div class="property-header-actions">
+                    ${canRecommend ? `<button type="button" class="btn btn-secondary btn-recommend" id="btn-recommend">智能推荐</button>` : ''}
                 </div>
             </div>
             <div class="property-content">
@@ -111,6 +136,13 @@ class PropertyPanel {
             
             html += `
                 </div>
+                <div class="recommendation-actions ${this.pendingRecommendation ? '' : 'hidden'}" id="recommendation-actions">
+                    <span>已应用智能推荐参数</span>
+                    <div class="recommendation-buttons">
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-accept-recommendation">接受</button>
+                        <button type="button" class="btn btn-sm" id="btn-revert-recommendation">撤销</button>
+                    </div>
+                </div>
                 <div class="property-actions">
                     <button type="button" class="btn btn-primary" id="btn-apply">应用</button>
                     <button type="button" class="btn" id="btn-reset">重置</button>
@@ -119,12 +151,20 @@ class PropertyPanel {
             `;
         }
 
-        html += '</div>';
+        html += `
+                <div id="operator-preview-container"></div>
+            </div>
+        `;
         this.container.innerHTML = html;
 
         // 绑定事件
         this.bindEvents();
         this.initSliders();
+        this.initPreviewPanel();
+
+        if (this.pendingRecommendation) {
+            this._restoreRecommendationHighlights();
+        }
     }
     
     /**
@@ -385,6 +425,21 @@ class PropertyPanel {
      * 绑定事件
      */
     bindEvents() {
+        const recommendBtn = document.getElementById('btn-recommend');
+        if (recommendBtn) {
+            recommendBtn.addEventListener('click', () => this.recommendParameters());
+        }
+
+        const acceptBtn = document.getElementById('btn-accept-recommendation');
+        if (acceptBtn) {
+            acceptBtn.addEventListener('click', () => this.acceptRecommendation());
+        }
+
+        const revertBtn = document.getElementById('btn-revert-recommendation');
+        if (revertBtn) {
+            revertBtn.addEventListener('click', () => this.revertRecommendation());
+        }
+
         const form = document.getElementById('property-form');
         if (!form) return;
 
@@ -404,13 +459,7 @@ class PropertyPanel {
         const inputs = form.querySelectorAll('input, select');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
-                const values = this.getValues();
-                // 【关键修复】实时同步到当前算子对象
-                this.updateCurrentOperatorParams(values);
-                
-                if (this.onChangeCallback) {
-                    this.onChangeCallback(values);
-                }
+                this._notifyValueChanged();
             });
         });
 
@@ -459,6 +508,10 @@ class PropertyPanel {
         
         inputs.forEach(input => {
             const name = input.name;
+            if (!name || input.type === 'range') {
+                return;
+            }
+
             const type = input.dataset.type;
             
             switch (type) {
@@ -488,23 +541,337 @@ class PropertyPanel {
      * 应用更改
      */
     applyChanges() {
-        const values = this.getValues();
-        
-        if (this.currentOperator) {
-            // 更新算子参数
-            this.currentOperator.parameters.forEach(param => {
-                if (values[param.name] !== undefined) {
-                    param.value = values[param.name];
-                }
-            });
+        this._notifyValueChanged();
+
+        // 显示成功提示
+        this.showToast('参数已应用', 'success');
+    }
+
+    /**
+     * 初始化预览面板
+     */
+    initPreviewPanel() {
+        const container = this.container.querySelector('#operator-preview-container');
+        if (!container) {
+            if (this.previewPanel) {
+                this.previewPanel.destroy();
+                this.previewPanel = null;
+            }
+            return;
         }
+
+        if (this.previewPanel) {
+            this.previewPanel.destroy();
+        }
+
+        this.previewPanel = new PreviewPanel(container, {
+            getOperator: () => this.currentOperator,
+            getParameters: () => this.getValues(),
+            getInputImageBase64: () => this.resolveInputImageBase64(),
+            debounceMs: 500
+        });
+
+        this.previewPanel.scheduleAutoPreview();
+    }
+
+    /**
+     * 当前算子是否支持智能推荐
+     */
+    canRecommend(type) {
+        return this.recommendationSupportedOperators.has(type);
+    }
+
+    /**
+     * 参数变更后的统一通知
+     */
+    _notifyValueChanged() {
+        const values = this.getValues();
+        this.updateCurrentOperatorParams(values);
 
         if (this.onChangeCallback) {
             this.onChangeCallback(values);
         }
 
-        // 显示成功提示
-        this.showToast('参数已应用', 'success');
+        if (this.previewPanel) {
+            this.previewPanel.scheduleAutoPreview();
+        }
+
+        return values;
+    }
+
+    async recommendParameters() {
+        if (!this.currentOperator || !this.canRecommend(this.currentOperator.type)) {
+            return;
+        }
+
+        const recommendBtn = document.getElementById('btn-recommend');
+        if (recommendBtn) {
+            recommendBtn.disabled = true;
+            recommendBtn.textContent = '推荐中...';
+        }
+
+        try {
+            const imageBase64 = await this.resolveInputImageBase64();
+            if (!imageBase64) {
+                this.showToast('未找到可用输入图像，请先执行一次检测流程', 'warning');
+                return;
+            }
+
+            const response = await httpClient.post(
+                `/operators/${encodeURIComponent(this.currentOperator.type)}/recommend-parameters`,
+                { imageBase64 }
+            );
+
+            const recommended = response?.parameters || response?.Parameters || {};
+            if (Object.keys(recommended).length === 0) {
+                this.showToast('该算子暂无可推荐参数', 'info');
+                return;
+            }
+
+            const changedCount = this.applyRecommendedValues(recommended);
+            if (changedCount === 0) {
+                this.showToast('推荐结果与当前参数一致', 'info');
+                return;
+            }
+
+            this.showToast(`已应用 ${changedCount} 个推荐参数`, 'success');
+        } catch (error) {
+            console.error('[PropertyPanel] 参数推荐失败:', error);
+            this.showToast(`参数推荐失败: ${error.message}`, 'error');
+        } finally {
+            if (recommendBtn) {
+                recommendBtn.disabled = false;
+                recommendBtn.textContent = '智能推荐';
+            }
+        }
+    }
+
+    applyRecommendedValues(recommendedValues) {
+        const form = document.getElementById('property-form');
+        if (!form || !recommendedValues) return 0;
+
+        const previousValues = this.getValues();
+        const allInputs = Array.from(form.querySelectorAll('input[name], select[name]'));
+
+        this._clearRecommendationHighlights();
+        this.recommendedFieldNames.clear();
+
+        Object.entries(recommendedValues).forEach(([name, value]) => {
+            const input = allInputs.find(item =>
+                item.name && item.name.toLowerCase() === String(name).toLowerCase());
+            if (!input) return;
+
+            const oldValue = this._readInputValue(input);
+            this._writeInputValue(input, value);
+            const newValue = this._readInputValue(input);
+
+            if (JSON.stringify(oldValue) === JSON.stringify(newValue)) {
+                return;
+            }
+
+            this.recommendedFieldNames.add(input.name);
+            const group = input.closest('.form-group');
+            if (group) {
+                group.classList.add('param-recommended');
+            }
+        });
+
+        if (this.recommendedFieldNames.size === 0) {
+            return 0;
+        }
+
+        this.pendingRecommendation = {
+            previousValues,
+            fields: Array.from(this.recommendedFieldNames)
+        };
+        this._toggleRecommendationActions(true);
+        this._notifyValueChanged();
+
+        return this.recommendedFieldNames.size;
+    }
+
+    acceptRecommendation() {
+        this.pendingRecommendation = null;
+        this._clearRecommendationHighlights();
+        this._toggleRecommendationActions(false);
+        this.showToast('已接受推荐参数', 'success');
+    }
+
+    revertRecommendation() {
+        if (!this.pendingRecommendation?.previousValues) {
+            return;
+        }
+
+        this._applyValuesToForm(this.pendingRecommendation.previousValues);
+        this.pendingRecommendation = null;
+        this._clearRecommendationHighlights();
+        this._toggleRecommendationActions(false);
+        this._notifyValueChanged();
+        this.showToast('已撤销推荐参数', 'info');
+    }
+
+    _toggleRecommendationActions(visible) {
+        const actions = document.getElementById('recommendation-actions');
+        if (!actions) return;
+
+        actions.classList.toggle('hidden', !visible);
+    }
+
+    _clearRecommendationHighlights() {
+        this.container.querySelectorAll('.param-recommended').forEach(element => {
+            element.classList.remove('param-recommended');
+        });
+    }
+
+    _restoreRecommendationHighlights() {
+        const form = document.getElementById('property-form');
+        if (!form || this.recommendedFieldNames.size === 0) {
+            this._toggleRecommendationActions(false);
+            return;
+        }
+
+        const inputs = form.querySelectorAll('input[name], select[name]');
+        inputs.forEach(input => {
+            if (this.recommendedFieldNames.has(input.name)) {
+                const group = input.closest('.form-group');
+                if (group) {
+                    group.classList.add('param-recommended');
+                }
+            }
+        });
+
+        this._toggleRecommendationActions(true);
+    }
+
+    _readInputValue(input) {
+        const type = input.dataset.type;
+        if (type === 'boolean' || type === 'bool') {
+            return Boolean(input.checked);
+        }
+
+        if (type === 'int') {
+            const value = parseInt(input.value, 10);
+            return Number.isNaN(value) ? 0 : value;
+        }
+
+        if (type === 'double' || type === 'float') {
+            const value = parseFloat(input.value);
+            return Number.isNaN(value) ? 0 : value;
+        }
+
+        return input.value;
+    }
+
+    _writeInputValue(input, rawValue) {
+        const type = input.dataset.type;
+        if (type === 'boolean' || type === 'bool') {
+            input.checked = this._toBoolean(rawValue);
+            return;
+        }
+
+        if (type === 'int') {
+            input.value = `${parseInt(rawValue, 10) || 0}`;
+        } else if (type === 'double' || type === 'float') {
+            const parsed = parseFloat(rawValue);
+            input.value = `${Number.isNaN(parsed) ? 0 : parsed}`;
+        } else {
+            input.value = rawValue ?? '';
+        }
+
+        // 数值输入框存在滑块时，同步滑块值
+        const slider = input.parentElement?.querySelector('.param-slider');
+        if (slider) {
+            slider.value = input.value;
+        }
+
+        // 颜色选择器预览同步
+        if (input.type === 'color') {
+            const preview = input.parentElement?.querySelector('.color-preview-box');
+            const valueText = input.parentElement?.querySelector('.color-value');
+            if (preview) preview.style.backgroundColor = input.value;
+            if (valueText) valueText.textContent = input.value;
+        }
+    }
+
+    _applyValuesToForm(values) {
+        const form = document.getElementById('property-form');
+        if (!form) return;
+
+        const inputs = form.querySelectorAll('input[name], select[name]');
+        inputs.forEach(input => {
+            if (!Object.prototype.hasOwnProperty.call(values, input.name)) {
+                return;
+            }
+
+            this._writeInputValue(input, values[input.name]);
+        });
+    }
+
+    _toBoolean(value) {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        return String(value).toLowerCase() === 'true';
+    }
+
+    async resolveInputImageBase64() {
+        const inspectionResult = window._lastInspectionResult || inspectionController.getLastResult?.();
+        const fromResult = this.extractImageBase64(inspectionResult);
+        if (fromResult) {
+            return fromResult;
+        }
+
+        return null;
+    }
+
+    extractImageBase64(result) {
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        const candidateKeys = [
+            'outputImage',
+            'OutputImage',
+            'imageBase64',
+            'ImageBase64',
+            'resultImageBase64',
+            'ResultImageBase64',
+            'inputImage',
+            'InputImage'
+        ];
+
+        for (const key of candidateKeys) {
+            const value = result[key];
+            if (typeof value === 'string' && value.trim()) {
+                return this.normalizeBase64Image(value);
+            }
+        }
+
+        const outputData = result.outputData || result.OutputData;
+        if (outputData && typeof outputData === 'object') {
+            for (const value of Object.values(outputData)) {
+                if (typeof value === 'string' && (value.startsWith('data:image/') || value.length > 128)) {
+                    return this.normalizeBase64Image(value);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    normalizeBase64Image(imageValue) {
+        if (!imageValue || typeof imageValue !== 'string') {
+            return null;
+        }
+
+        const trimmed = imageValue.trim();
+        const commaIndex = trimmed.indexOf(',');
+        if (trimmed.startsWith('data:image/') && commaIndex > 0) {
+            return trimmed.substring(commaIndex + 1);
+        }
+
+        return trimmed;
     }
 
     /**
@@ -516,12 +883,10 @@ class PropertyPanel {
                 param.value = param.defaultValue;
             });
         }
-        
+        this.pendingRecommendation = null;
+        this.recommendedFieldNames.clear();
         this.render();
-        
-        if (this.onChangeCallback) {
-            this.onChangeCallback(this.getValues());
-        }
+        this._notifyValueChanged();
 
         this.showToast('参数已重置', 'info');
     }

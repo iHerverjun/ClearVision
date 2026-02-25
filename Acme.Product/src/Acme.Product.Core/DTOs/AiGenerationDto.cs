@@ -5,7 +5,9 @@ namespace Acme.Product.Core.DTOs;
 /// </summary>
 public record AiFlowGenerationRequest(
     string Description,
-    string? AdditionalContext = null
+    string? AdditionalContext = null,
+    string? SessionId = null,
+    string? ExistingFlowJson = null
 );
 
 /// <summary>
@@ -48,6 +50,16 @@ public class AiFlowGenerationResult
     /// 实际使用的 AI 重试次数
     /// </summary>
     public int RetryCount { get; set; }
+
+    /// <summary>
+    /// 会话 ID（用于多轮增量修改）
+    /// </summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>
+    /// 自动识别的会话意图（NEW / MODIFY / EXPLAIN）
+    /// </summary>
+    public string? DetectedIntent { get; set; }
 
     /// <summary>
     /// 沙盒空跑验证的结果（覆盖率等信息）

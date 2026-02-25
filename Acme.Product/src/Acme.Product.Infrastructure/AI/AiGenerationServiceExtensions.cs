@@ -28,6 +28,8 @@ public static class AiGenerationServiceExtensions
 
         // 注册核心组件
         services.AddScoped<PromptBuilder>();
+        services.AddSingleton<IConversationalFlowService, ConversationalFlowService>();
+        services.AddSingleton<IFlowTemplateService, FlowTemplateService>();
         services.AddScoped<IAiFlowValidator, AiFlowValidator>();
         services.AddScoped<AutoLayoutService>();
         services.AddScoped<IAiFlowGenerationService, AiFlowGenerationService>();

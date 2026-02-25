@@ -55,6 +55,8 @@ public static class DependencyInjection
         // 领域服务
         services.AddScoped<IFlowExecutionService, FlowExecutionService>();
         services.AddSingleton<IOperatorFactory, OperatorFactory>();
+        services.AddSingleton<ParameterRecommender>();
+        services.AddScoped<OperatorPreviewService>();
 
         // 算子执行器 - 基础算子
         services.AddSingleton<IOperatorExecutor, ImageAcquisitionOperator>();

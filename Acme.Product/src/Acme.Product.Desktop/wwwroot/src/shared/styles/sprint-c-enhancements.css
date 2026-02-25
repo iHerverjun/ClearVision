@@ -1,0 +1,409 @@
+/* ==========================================================================
+   Sprint C UI Enhancements
+   - AI multi-turn badges
+   - Template selector modal
+   - Property panel recommendation + preview
+   ========================================================================== */
+
+.ai-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-btn-secondary {
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--ai-border-light);
+    border-radius: 6px;
+    background: var(--ai-bg-card);
+    color: var(--ai-text-main);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.ai-btn-secondary:hover {
+    border-color: var(--ai-accent);
+    color: var(--ai-accent);
+}
+
+.ai-intent-tag {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.ai-intent-tag.intent-new {
+    background: rgba(16, 185, 129, 0.16);
+    color: #0f9f6e;
+}
+
+.ai-intent-tag.intent-modify {
+    background: rgba(59, 130, 246, 0.16);
+    color: #2563eb;
+}
+
+.ai-intent-tag.intent-explain {
+    background: rgba(245, 158, 11, 0.16);
+    color: #d97706;
+}
+
+/* Template Selector ------------------------------------------------------- */
+.template-selector-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.template-selector-dialog {
+    width: min(1100px, 100%);
+    max-height: min(840px, 92vh);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+    padding: 18px;
+}
+
+.template-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.template-selector-header h3 {
+    margin: 0;
+    color: #0f172a;
+}
+
+.template-selector-header p {
+    margin: 4px 0 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.template-selector-filters {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 10px;
+}
+
+.template-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.template-tag-btn {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.template-tag-btn.active {
+    border-color: var(--cinnabar);
+    background: rgba(231, 76, 60, 0.12);
+    color: var(--cinnabar);
+}
+
+.template-selector-body {
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.template-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.template-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.template-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.template-card-head h4 {
+    margin: 0;
+    font-size: 15px;
+    color: #0f172a;
+}
+
+.template-card-industry {
+    font-size: 11px;
+    color: #475569;
+    background: #e2e8f0;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.template-card-description {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+    min-height: 38px;
+}
+
+.template-card-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.template-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 24px;
+}
+
+.template-card-tag {
+    font-size: 11px;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.template-card-actions {
+    margin-top: auto;
+}
+
+.template-empty-state {
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    color: #64748b;
+    text-align: center;
+    padding: 28px;
+}
+
+/* Property Panel ---------------------------------------------------------- */
+.property-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-recommend {
+    white-space: nowrap;
+    background: #f8fafc;
+}
+
+.recommendation-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(231, 76, 60, 0.24);
+    border-radius: 8px;
+    background: rgba(231, 76, 60, 0.06);
+    color: #7f1d1d;
+    font-size: 12px;
+}
+
+.recommendation-actions.hidden {
+    display: none;
+}
+
+.recommendation-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.param-recommended {
+    border-radius: 6px;
+    background: rgba(250, 204, 21, 0.12);
+    outline: 1px solid rgba(245, 158, 11, 0.45);
+    padding: 6px;
+}
+
+/* Preview Panel ----------------------------------------------------------- */
+.operator-preview-panel {
+    margin-top: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.operator-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.operator-preview-toggle {
+    border: none;
+    background: transparent;
+    color: #0f172a;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.operator-preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.operator-preview-auto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    font-size: 12px;
+}
+
+.btn-preview-refresh {
+    padding: 4px 10px;
+}
+
+.operator-preview-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+}
+
+.operator-preview-panel.collapsed .operator-preview-body {
+    display: none;
+}
+
+.operator-preview-images {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.operator-preview-image-card {
+    position: relative;
+    min-height: 180px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.operator-preview-image-card .title {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    font-size: 11px;
+    color: #334155;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.operator-preview-image-card img {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    display: none;
+    background: #0f172a;
+}
+
+.operator-preview-image-card .placeholder {
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+    padding: 8px;
+}
+
+.operator-preview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.operator-preview-status {
+    font-size: 12px;
+    color: #334155;
+}
+
+.operator-preview-outputs {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.operator-preview-output-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 0;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+.operator-preview-output-item:last-child {
+    border-bottom: none;
+}
+
+.operator-preview-output-item .key {
+    color: #334155;
+}
+
+.operator-preview-output-item .value {
+    color: #0f172a;
+    font-family: var(--font-mono);
+    text-align: right;
+}
+
+@media (max-width: 980px) {
+    .template-selector-dialog {
+        max-height: 95vh;
+        padding: 14px;
+    }
+
+    .template-selector-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .operator-preview-images {
+        grid-template-columns: 1fr;
+    }
+}

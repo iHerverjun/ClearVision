@@ -431,11 +431,26 @@ public class WebMessageHandler
             using var doc = JsonDocument.Parse(messageJson);
             var payload = doc.RootElement.GetProperty("payload");
             var description = payload.GetProperty("description").GetString() ?? "";
+            var hint = payload.TryGetProperty("hint", out var hintElement)
+                ? hintElement.GetString()
+                : null;
+            var sessionId = payload.TryGetProperty("sessionId", out var sessionElement)
+                ? sessionElement.GetString()
+                : null;
+            var existingFlowJson = payload.TryGetProperty("existingFlowJson", out var flowElement)
+                ? flowElement.ValueKind == JsonValueKind.String
+                    ? flowElement.GetString()
+                    : flowElement.GetRawText()
+                : null;
 
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.GenerateFlowMessageHandler>();
 
-            var resultJson = await handler.HandleAsync(description,
+            var resultJson = await handler.HandleAsync(
+                description,
+                sessionId,
+                existingFlowJson,
+                hint,
                 onProgress: (type, payload) =>
                 {
                     // 在 UI 线程推送进度消息

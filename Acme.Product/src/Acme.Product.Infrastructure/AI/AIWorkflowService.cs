@@ -66,7 +66,7 @@ public class AIWorkflowService
             // Step 1: 构建提示词
             var promptStart = stopwatch.ElapsedMilliseconds;
             activeVersion = await _promptVersionManager.GetActiveVersionAsync();
-            var prompt = _promptBuilder.BuildSystemPrompt();
+            var prompt = _promptBuilder.BuildSystemPrompt(userRequirement);
             telemetry.PromptBuildTimeMs = stopwatch.ElapsedMilliseconds - promptStart;
             _logger.LogDebug("提示词构建完成，耗时 {TimeMs}ms", telemetry.PromptBuildTimeMs);
 

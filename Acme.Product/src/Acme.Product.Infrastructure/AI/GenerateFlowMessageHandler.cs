@@ -29,6 +29,9 @@ public class GenerateFlowMessageHandler
 
     public async Task<string> HandleAsync(
         string description,
+        string? sessionId = null,
+        string? existingFlowJson = null,
+        string? hint = null,
         Action<string, string>? onProgress = null,
         CancellationToken cancellationToken = default)
     {
@@ -41,7 +44,7 @@ public class GenerateFlowMessageHandler
                 JsonSerializer.Serialize(new { message = "正在连接 AI 服务...", phase = "connecting" }, _jsonOptions));
 
             var result = await _generationService.GenerateFlowAsync(
-                new AiFlowGenerationRequest(description),
+                new AiFlowGenerationRequest(description, hint, sessionId, existingFlowJson),
                 progressMsg => onProgress?.Invoke("GenerateFlowProgress",
                     JsonSerializer.Serialize(new { message = progressMsg }, _jsonOptions)),
                 cancellationToken);
@@ -53,7 +56,9 @@ public class GenerateFlowMessageHandler
                 ErrorMessage = result.ErrorMessage,
                 AiExplanation = result.AiExplanation,
                 Reasoning = result.Reasoning,
-                ParametersNeedingReview = result.ParametersNeedingReview
+                ParametersNeedingReview = result.ParametersNeedingReview,
+                SessionId = result.SessionId,
+                DetectedIntent = result.DetectedIntent
             };
 
             return JsonSerializer.Serialize(response, _jsonOptions);

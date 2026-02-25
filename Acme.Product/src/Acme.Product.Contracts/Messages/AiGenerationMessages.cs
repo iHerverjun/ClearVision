@@ -20,6 +20,16 @@ public record GenerateFlowRequestPayload
     /// 可选：用户选择的模板/场景类型提示
     /// </summary>
     public string? Hint { get; init; }
+
+    /// <summary>
+    /// 可选：会话ID，用于多轮对话上下文
+    /// </summary>
+    public string? SessionId { get; init; }
+
+    /// <summary>
+    /// 可选：当前流程 JSON（用于增量修改/解释）
+    /// </summary>
+    public string? ExistingFlowJson { get; init; }
 }
 
 /// <summary>
@@ -34,6 +44,8 @@ public record GenerateFlowResponse
     public string? AiExplanation { get; init; }
     public string? Reasoning { get; init; }
     public Dictionary<string, List<string>>? ParametersNeedingReview { get; init; }
+    public string? SessionId { get; init; }
+    public string? DetectedIntent { get; init; }
     public object? DryRunResult { get; init; }
 }
 

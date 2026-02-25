@@ -431,6 +431,7 @@ function initializeOperatorLibraryPanel() {
     }
     
     operatorLibraryPanel = new OperatorLibraryPanel('operator-library');
+    window.operatorLibraryPanel = operatorLibraryPanel;
     
     // 设置拖拽回调
     operatorLibraryPanel.onOperatorDragStart = (operatorData) => {

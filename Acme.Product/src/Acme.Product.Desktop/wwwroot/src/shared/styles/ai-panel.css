@@ -6,32 +6,41 @@
    ========================================================================== */
 
 :root {
-    /* AI Specific Variables mapped from global variables */
-    --ai-accent: var(--cinnabar);             /* Primary Action / Highlight */
-    --ai-accent-hover: var(--cinnabar-dark);
-    --ai-accent-glow: var(--cinnabar-glow);
+    /* AI Specific Variables mapped to Red/White Minimalist Tech (雅致红白科技风) */
+    --ai-accent: #E02020;             /* Elegant Tech Red */
+    --ai-accent-hover: #b91c1c;
+    --ai-accent-glow: rgba(224, 32, 32, 0.2);
     
-    --ai-bg-glass: var(--glass-panel);        /* Main panel background */
-    --ai-bg-card: var(--glass-card);          /* Inner cards */
-    --ai-bg-input: rgba(15, 23, 42, 0.3);     /* Darker input background for contrast */
+    --ai-bg-glass: rgba(255, 255, 255, 0.95);    /* Clean White Glass */
+    --ai-bg-card: #FFFFFF;                       /* Pure White */
+    --ai-bg-input: #F8FAFC;                      /* Subtle Slate for contrast */
+    --ai-bg-container: #F1F5F9;                  /* Light Gray background overall */
     
-    --ai-border: var(--glass-border);
-    --ai-border-light: var(--glass-border-light);
+    --ai-border: rgba(224, 32, 32, 0.2);         /* Red tinted subtle border */
+    --ai-border-light: rgba(224, 32, 32, 0.08);
     
-    --ai-shadow-card: var(--shadow-md);
-    --ai-shadow-float: var(--shadow-float);
+    --ai-shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
+    --ai-shadow-float: 0 8px 30px rgba(224, 32, 32, 0.08); /* Red tinted shadow */
     
-    --ai-text-main: var(--paper-white);
-    --ai-text-mute: var(--ink-gray);
+    --ai-text-main: #0F172A;                     /* Slate 900 for great readability */
+    --ai-text-mute: #64748B;                     /* Slate 500 for secondary text */
     
-    --ai-radius: var(--radius-lg);            /* 12px */
-    --ai-radius-sm: var(--radius-md);         /* 8px */
+    --ai-radius: 12px;
+    --ai-radius-sm: 8px;
     
-    --ai-transition: var(--ease-ink-smooth);
+    --ai-transition: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-[data-theme="light"] {
-    --ai-bg-input: rgba(241, 245, 249, 0.6);
+[data-theme="dark"] {
+    --ai-bg-glass: rgba(15, 23, 42, 0.95);
+    --ai-bg-card: #1E293B;
+    --ai-bg-input: #0F172A;
+    --ai-bg-container: #020617;
+    --ai-text-main: #F8FAFC;
+    --ai-text-mute: #94A3B8;
+    --ai-border: rgba(224, 32, 32, 0.3);
+    --ai-border-light: rgba(224, 32, 32, 0.15);
+    --ai-shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Base Container */
@@ -40,25 +49,28 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    /* Ensure opaque background to cover underlying dark canvas */
-    background: var(--ink-primary); 
+    /* Red-White Tech theme background */
+    background: var(--ai-bg-container); 
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(224, 32, 32, 0.03) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(224, 32, 32, 0.04) 0%, transparent 40%);
     color: var(--ai-text-main);
     overflow: hidden;
-    font-family: var(--font-display);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 /* Header - Minimalist, Glass */
 .ai-header {
-    height: var(--header-height);
+    height: 60px;
     padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--ai-border);
     background-color: var(--ai-bg-glass);
-    backdrop-filter: var(--glass-blur);
+    backdrop-filter: blur(12px);
     flex-shrink: 0;
-    z-index: var(--z-header);
+    z-index: 10;
 }
 
 .ai-title {
@@ -108,50 +120,50 @@
     background-color: var(--error-cinnabar);
 }
 
-/* Workspace - 3 Pane Layout */
+/* Workspace - 4 Pane Layout */
 .ai-workspace {
     display: flex;
     flex: 1;
     overflow: hidden;
     position: relative;
-    gap: 16px; /* Spacing between floating panels */
+    gap: 16px; /* Spacing between panels */
     padding: 16px;
-    background-image: 
-        radial-gradient(circle at 50% 0%, rgba(231, 76, 60, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(26, 58, 82, 0.05) 0%, transparent 40%);
 }
 
-/* Common Panel Styles for Left/Right */
-.ai-pane-left, .ai-pane-right {
+/* Common Panel Styles for Columns */
+.ai-pane-left, .ai-pane-center, .ai-pane-reasoning, .ai-pane-right {
     background-color: var(--ai-bg-glass);
-    backdrop-filter: var(--glass-blur);
+    backdrop-filter: blur(12px);
     border: 1px solid var(--ai-border);
     border-radius: var(--ai-radius);
     display: flex;
     flex-direction: column;
-    flex-shrink: 0;
     box-shadow: var(--ai-shadow-card);
-    transition: transform 0.3s var(--ease-ink);
+    transition: transform 0.3s var(--ai-transition);
 }
 
 .ai-pane-left {
+    width: 280px;
+    flex-shrink: 0;
+}
+
+/* Center Pane - Chat Interface (Narrower) */
+.ai-pane-center {
+    flex: 1; /* Automatically takes remaining space */
+    min-width: 300px;
+    max-width: 650px; /* Constrain width of chat visually */
+    margin: 0 auto; /* Center it if there's extra space */
+    position: relative;
+}
+
+.ai-pane-reasoning {
     width: 320px;
+    flex-shrink: 0;
 }
 
 .ai-pane-right {
-    width: 360px;
-}
-
-/* Center Pane - Immersive */
-.ai-pane-center {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: transparent; /* Transparent to show subtle workspace gradient */
-    position: relative;
-    min-width: 400px;
-    border-radius: var(--ai-radius);
-    overflow: hidden;
+    width: 250px;
+    flex-shrink: 0;
 }
 
 /* --- Left Pane: Input & History --- */
@@ -194,7 +206,7 @@
 .ai-btn-generate {
     width: 100%;
     height: 44px;
-    background: var(--gradient-cinnabar);
+    background: var(--ai-accent);
     color: white;
     border: none;
     border-radius: var(--ai-radius-sm);
@@ -208,13 +220,14 @@
     letter-spacing: 0.5px;
     position: relative;
     overflow: hidden;
-    transition: all 0.3s var(--ease-ink-bounce);
-    box-shadow: var(--neon-cinnabar);
+    transition: all 0.3s var(--ai-transition);
+    box-shadow: 0 4px 14px var(--ai-accent-glow);
 }
 
 .ai-btn-generate:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: var(--neon-cinnabar-strong);
+    box-shadow: 0 6px 20px rgba(224, 32, 32, 0.4);
+    background: var(--ai-accent-hover);
 }
 
 .ai-btn-generate:active:not(:disabled) {
@@ -322,8 +335,8 @@
 }
 
 .ai-history-item.active {
-    background-color: rgba(231, 76, 60, 0.08); /* Hint of cinnabar */
-    border-color: rgba(231, 76, 60, 0.3);
+    background-color: var(--ai-border-light);
+    border-color: var(--ai-border);
 }
 
 .ai-history-item.active::before {
@@ -384,11 +397,11 @@
 }
 
 .ai-avatar.user {
-    background: var(--gradient-cinnabar);
+    background: var(--ai-accent);
     color: white;
 }
 .ai-avatar.ai {
-    background: var(--ai-bg-card);
+    background: var(--ai-bg-container);
     color: var(--ai-accent);
     border: 1px solid var(--ai-border);
 }
@@ -435,10 +448,10 @@
 
 /* User Bubble Style */
 .ai-message.user .ai-bubble {
-    background: var(--gradient-cinnabar);
+    background: var(--ai-accent);
     color: white;
     border-top-right-radius: 2px;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--ai-shadow-card);
 }
 
 .ai-message.user {
@@ -579,9 +592,17 @@
 }
 
 .result-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-2px);
     box-shadow: var(--ai-shadow-float);
     border-color: var(--ai-accent);
+}
+
+.style-red-border {
+    border-color: var(--ai-border);
+    background: linear-gradient(to bottom right, var(--ai-bg-card), var(--ai-bg-glass));
+}
+.text-red {
+    color: var(--ai-accent) !important;
 }
 
 .result-card::after {
@@ -659,7 +680,7 @@
 }
 
 .btn-apply-flow {
-    background-color: var(--success-jade);
+    background-color: var(--ai-accent);
     color: white;
     border: none;
     border-radius: var(--ai-radius-sm);
@@ -667,7 +688,7 @@
     height: 44px;
     width: 100%;
     cursor: pointer;
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 4px 14px var(--ai-accent-glow);
     transition: all 0.2s;
     display: flex;
     align-items: center;
@@ -677,8 +698,34 @@
 
 .btn-apply-flow:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
-    background-color: #27ae60;
+    box-shadow: 0 6px 20px rgba(224, 32, 32, 0.4);
+    background-color: var(--ai-accent-hover);
+}
+
+/* Intent Tags */
+.intent-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    border: 1px solid;
+}
+.intent-new {
+    background: rgba(46, 204, 113, 0.1);
+    color: #27AE60;
+    border-color: rgba(46, 204, 113, 0.2);
+}
+.intent-modify {
+    background: rgba(243, 156, 18, 0.1);
+    color: #E67E22;
+    border-color: rgba(243, 156, 18, 0.2);
+}
+.intent-explain {
+    background: rgba(52, 152, 219, 0.1);
+    color: #2980B9;
+    border-color: rgba(52, 152, 219, 0.2);
 }
 
 /* Animations included from specific ai-panel needs, 
