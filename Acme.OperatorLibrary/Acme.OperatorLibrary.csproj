@@ -1,0 +1,63 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <PackageId>Acme.OperatorLibrary</PackageId>
+    <Version>1.0.1-local</Version>
+    <Authors>蘅芜君</Authors>
+    <Description>工业视觉算子库 - 包含 100+ 图像处理、测量、标定、通信算子 / Industrial Vision Operator Library</Description>
+    <PackageTags>opencv;machine-vision;operator;image-processing;measurement;calibration</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/HerverJun/ClearVision</RepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Acme.Product\src\Acme.Product.Contracts\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Contracts\bin\**;..\Acme.Product\src\Acme.Product.Contracts\obj\**"
+             Link="Acme.Product.Contracts\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Core\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Core\bin\**;..\Acme.Product\src\Acme.Product.Core\obj\**"
+             Link="Acme.Product.Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.PlcComm\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.PlcComm\bin\**;..\Acme.Product\src\Acme.PlcComm\obj\**"
+             Link="Acme.PlcComm\%(RecursiveDir)%(Filename)%(Extension)" />
+
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Operators\**\*.cs" Link="Operators\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\**\*.cs" Link="ImageProcessing\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Memory\MatPool.cs" Link="Memory\MatPool.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\OcrEngineProvider.cs" Link="Services\OcrEngineProvider.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\GpuAvailabilityChecker.cs" Link="Services\GpuAvailabilityChecker.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.17.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.17.0" />
+    <PackageReference Include="NModbus" Version="3.0.81" />
+    <PackageReference Include="OpenCvSharp4" Version="4.9.0.20240103" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.9.0.20240103" />
+    <PackageReference Include="PaddleOCRSharp" Version="4.4.0.1" />
+    <PackageReference Include="S7NetPlus" Version="0.20.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+</Project>

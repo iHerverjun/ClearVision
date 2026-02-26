@@ -224,8 +224,8 @@ public class GaussianBlurOperator : OperatorBase { ... }
 
 ### 3.1 创建打包项目
 
-- [ ] 在解决方案中新建 `Acme.OperatorLibrary/` 项目（Class Library）
-- [ ] 项目结构设计：
+- [x] 在解决方案中新建 `Acme.OperatorLibrary/` 项目（Class Library）
+- [x] 项目结构设计：
 
 ```
 Acme.OperatorLibrary/
@@ -240,10 +240,10 @@ Acme.OperatorLibrary/
 
 ### 3.2 源码共享策略（不复制、不抽离）
 
-- [ ] 用 MSBuild 的 `<Compile Include="..." Link="..." />` 文件链接方式，将 `Acme.Product.Infrastructure/Operators/` 中的源码链接到打包项目中
+- [x] 用 MSBuild 的 `<Compile Include="..." Link="..." />` 文件链接方式，将 `Acme.Product.Infrastructure/Operators/` 中的源码链接到打包项目中
 - [ ] 或使用 `Directory.Build.props` 实现共享编译
-- [ ] 确保 ClearVision 主项目和打包项目编译同一份源码
-- [ ] 示例 `.csproj` 配置：
+- [x] 确保 ClearVision 主项目和打包项目编译同一份源码
+- [x] 示例 `.csproj` 配置：
 
 ```xml
 <ItemGroup>
@@ -266,7 +266,7 @@ Acme.OperatorLibrary/
 
 ### 3.4 NuGet 统一单包配置
 
-- [ ] 配置 `.csproj` 的 NuGet 打包属性（**统一单包 `Acme.OperatorLibrary`**）：
+- [x] 配置 `.csproj` 的 NuGet 打包属性（**统一单包 `Acme.OperatorLibrary`**）：
 
 ```xml
 <PropertyGroup>
@@ -288,22 +288,22 @@ Acme.OperatorLibrary/
   - `Acme.OperatorLibrary.Communication` — 通信算子
   - `Acme.OperatorLibrary.FlowControl` — 流程控制算子
   - `Acme.OperatorLibrary.AI` — AI/深度学习算子
-- [ ] 编写包的 `README.md`（中英双语），包含快速使用示例
+- [x] 编写包的 `README.md`（中英双语），包含快速使用示例
 
 ### 3.5 本地 NuGet 源配置
 
-- [ ] 在解决方案中配置本地 NuGet 源（`nuget.config`）
-- [ ] 编写打包脚本：`dotnet pack` → 输出到 `./nupkg/`
-- [ ] 编写集成测试：在独立测试项目中引用 NuGet 包，验证算子可正常实例化和执行
+- [x] 在解决方案中配置本地 NuGet 源（`nuget.config`）
+- [x] 编写打包脚本：`dotnet pack` → 输出到 `./nupkg/`
+- [x] 编写集成测试：在独立测试项目中引用 NuGet 包，验证算子可正常实例化和执行
 
 ### 3.6 主项目隔离验证
 
 > [!CAUTION]
 > NuGet 打包项目**不得**加入 ClearVision 主项目的构建依赖链。确保 `dotnet build` 主项目时不会触发 NuGet 打包。
 
-- [ ] 确认 `Acme.OperatorLibrary.csproj` 不在主解决方案的默认构建配置中（或放在独立 `.sln` 中）
-- [ ] 验证主项目 `dotnet build` / `dotnet run` 行为完全不变
-- [ ] 验证主项目的 CI/CD 流水线不受打包项目影响
+- [x] 确认 `Acme.OperatorLibrary.csproj` 不在主解决方案的默认构建配置中（或放在独立 `.sln` 中）
+- [x] 验证主项目 `dotnet build` / `dotnet run` 行为完全不变
+- [x] 验证主项目的 CI/CD 流水线不受打包项目影响
 
 ---
 
@@ -349,8 +349,8 @@ Acme.OperatorLibrary/
 
 ### 4.3 CI 集成
 
-- [ ] 在 CI/CD 流水线中加入目录生成步骤
-- [ ] 提交前钩子（可选）：检测算子变更时自动重新生成目录
+- [x] 在 CI/CD 流水线中加入目录生成步骤
+- [x] 提交前钩子（可选）：检测算子变更时自动重新生成目录
 
 ---
 
@@ -399,8 +399,8 @@ Phase 3（NuGet 打包）────────┘
 |------|-----------|--------|----------|----------|
 | Phase 1 | 3-5 天 | 🔴 最高 | 无 | ✅ 已完成（118/118 算子标注） |
 | Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） | ✅ 已完成（118/118 文档补全，100%） |
-| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⬜ 未启动 |
-| Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ⏳ 编目已完成，CI 未集成 |
+| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.2/3.4/3.5/3.6 已推进，3.3 与命名空间收口待完成） |
+| Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ✅ 已完成（编目 + CI 目录生成 + 可选 pre-commit 自动刷新） |
 | Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ⬜ 未启动 |
 
 ---

@@ -1,0 +1,8 @@
+﻿bin/
+obj/
+**/bin/
+**/obj/
+*.nupkg
+*.snupkg
+nupkg/*
+!nupkg/.gitkeep

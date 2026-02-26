@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+changed_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+if [[ -z "${changed_files}" ]]; then
+  exit 0
+fi
+
+if ! echo "${changed_files}" | grep -Eq '^(Acme\.Product/src/Acme\.Product\.Infrastructure/Operators/|Acme\.Product/src/Acme\.Product\.Core/Attributes/|Acme\.Product/src/Acme\.Product\.Core/Enums/OperatorEnums\.cs|scripts/OperatorDocGenerator/)'; then
+  exit 0
+fi
+
+echo "[pre-commit] Operator-related changes detected. Regenerating operator catalog..."
+dotnet run --project scripts/OperatorDocGenerator/OperatorDocGenerator.csproj -- .
+git add docs/operators/catalog.json docs/operators/CATALOG.md
+echo "[pre-commit] Staged updated docs/operators/catalog.json and docs/operators/CATALOG.md"
