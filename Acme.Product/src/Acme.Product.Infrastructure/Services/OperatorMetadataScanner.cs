@@ -124,6 +124,8 @@ public class OperatorMetadataScanner
             Category = operatorMeta.Category,
             IconName = operatorMeta.IconName,
             Keywords = operatorMeta.Keywords,
+            Tags = operatorMeta.Tags,
+            Version = string.IsNullOrWhiteSpace(operatorMeta.Version) ? "1.0.0" : operatorMeta.Version.Trim(),
             InputPorts = operatorClrType
                 .GetCustomAttributes<InputPortAttribute>(inherit: false)
                 .Select(attr => new PortDefinition

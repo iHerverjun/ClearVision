@@ -85,6 +85,16 @@ public class OperatorMetadata
     public string[]? Keywords { get; set; }
 
     /// <summary>
+    /// 分类标签（功能域、算法类型、成熟度等）
+    /// </summary>
+    public string[]? Tags { get; set; }
+
+    /// <summary>
+    /// 算子版本号（SemVer）
+    /// </summary>
+    public string Version { get; set; } = "1.0.0";
+
+    /// <summary>
     /// 输入端口定义
     /// </summary>
     public List<PortDefinition> InputPorts { get; set; } = new();

@@ -14,4 +14,14 @@ public sealed class OperatorMetaAttribute : Attribute
     public string? IconName { get; set; }
 
     public string[]? Keywords { get; set; }
+
+    /// <summary>
+    /// Additional classification tags for quality/catalog indexing.
+    /// </summary>
+    public string[]? Tags { get; set; }
+
+    /// <summary>
+    /// Operator semantic version.
+    /// </summary>
+    public string Version { get; set; } = "1.0.0";
 }

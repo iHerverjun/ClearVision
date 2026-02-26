@@ -366,26 +366,43 @@ Acme.OperatorLibrary/
 
 ### 5.1 算子质量评分
 
-- [ ] 为每个算子定义质量维度：
+- [x] 为每个算子定义质量维度：
   - 文档完整性（Attribute 标注 + 算法文档）
   - 测试覆盖率
   - 参数校验完整性（`ValidateParameters` 实现质量）
   - 错误处理健壮性
-- [ ] 在 `catalog.json` 中为每个算子输出质量评分
+- [x] 在 `catalog.json` 中为每个算子输出质量评分
+
+> 交付物（2026-02-26）：
+> - 生成器质量评分实现：`scripts/OperatorDocGenerator/Program.cs`
+> - 输出字段：`catalog.json -> operators[*].quality`
+> - 评分可视化：`CATALOG.md` 增加 `质量评分 / Quality Score` 与每行 `质量 (Q)` 列
 
 ### 5.2 算子分类标签体系
 
-- [ ] 在 `[OperatorMeta]` 的 `Category` 之外增加 `Tags` 字段
-- [ ] 定义标签维度：
+- [x] 在 `[OperatorMeta]` 的 `Category` 之外增加 `Tags` 字段
+- [x] 定义标签维度：
   - 按功能域：测量 / 检测 / 定位 / 标定 / 通信 / 流程 / AI
   - 按算法类型：基于OpenCV / 自研 / 第三方SDK
   - 按成熟度：🟢稳定 / 🟡实验 / 🔴弃用
 
+> 交付物（2026-02-26）：
+> - 元数据字段扩展：`OperatorMetaAttribute.Tags`、`OperatorMetadata.Tags`
+> - 扫描与比对链路：`OperatorMetadataScanner` / `OperatorFactoryMetadataMerge`
+> - 目录输出：`catalog.json -> operators[*].tags`（按“功能域 + 算法类型 + 成熟度”统一输出）
+
 ### 5.3 变更追踪
 
-- [ ] 在 `[OperatorMeta]` 中增加 `Version` 字段（semver）
-- [ ] 算子源码变更时要求同步更新版本号
-- [ ] 生成 CHANGELOG：从算子版本历史自动汇总
+- [x] 在 `[OperatorMeta]` 中增加 `Version` 字段（semver）
+- [x] 算子源码变更时要求同步更新版本号
+- [x] 生成 CHANGELOG：从算子版本历史自动汇总
+
+> 交付物（2026-02-26）：
+> - 元数据字段扩展：`OperatorMetaAttribute.Version`、`OperatorMetadata.Version`
+> - 扫描与比对链路：`OperatorMetadataScanner` / `OperatorFactoryMetadataMerge` 已纳入 `Version`
+> - 目录输出：`catalog.json -> operators[*].version`
+> - 版本历史与变更汇总：`docs/operators/version-history.json`、`docs/operators/CHANGELOG.md`
+> - 版本门禁：`OperatorDocGenerator --enforce-version-bump`（检测“源码变更但版本未升级”并失败）
 
 ---
 
@@ -405,9 +422,9 @@ Phase 3（NuGet 打包）────────┘
 |------|-----------|--------|----------|----------|
 | Phase 1 | 3-5 天 | 🔴 最高 | 无 | ✅ 已完成（118/118 算子标注） |
 | Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） | ✅ 已完成（118/118 文档补全，100%） |
-| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.3/3.4/3.5/3.6 已完成，3.2 `Directory.Build.props` 方案未采用） |
+| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ✅ 已完成（3.2 为备选 `Directory.Build.props` 方案，未采用不影响交付） |
 | Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ✅ 已完成（编目 + CI 目录生成 + 可选 pre-commit 自动刷新） |
-| Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ⬜ 未启动 |
+| Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ✅ 已完成（5.1 质量评分 + 5.2 标签体系 + 5.3 版本追踪） |
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T20:19:47.3415373+08:00",
+  "generatedAt": "2026-02-26T21:20:16.0678789+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -228,6 +228,12 @@
       "displayName": "图像采集",
       "description": "从文件或相机采集图像",
       "category": "采集",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -324,6 +330,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 78,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=100"
+      },
       "docPath": "docs/operators/ImageAcquisition.md"
     },
     {
@@ -332,6 +347,12 @@
       "displayName": "Gaussian Blur",
       "description": "Apply Gaussian filtering to suppress image noise",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:基于OpenCV"
+      ],
       "algorithm": "Gaussian Blur (OpenCV)",
       "inputPorts": [
         {
@@ -416,6 +437,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/Filtering.md"
     },
     {
@@ -424,6 +454,12 @@
       "displayName": "Edge Detection",
       "description": "Detects edges with Canny and optional auto-thresholding.",
       "category": "特征提取",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -539,6 +575,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/EdgeDetection.md"
     },
     {
@@ -547,6 +592,12 @@
       "displayName": "二值化",
       "description": "全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -639,6 +690,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/Thresholding.md"
     },
     {
@@ -647,6 +707,12 @@
       "displayName": "Morphology (Legacy)",
       "description": "Legacy morphology node. Use Morphological Operation for new workflows.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -732,6 +798,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/Morphology.md"
     },
     {
@@ -740,6 +815,12 @@
       "displayName": "Blob分析",
       "description": "连通区域分析",
       "category": "特征提取",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -813,6 +894,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/BlobAnalysis.md"
     },
     {
@@ -821,6 +911,12 @@
       "displayName": "模板匹配",
       "description": "NCC/SQDiff 模板匹配，用于定位目标位置和缺失检测",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -906,6 +1002,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 96,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/TemplateMatching.md"
     },
     {
@@ -914,6 +1019,12 @@
       "displayName": "测量",
       "description": "两点/水平/垂直距离测量，支持图像坐标和 Point 输入两种模式，用于尺寸检测",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1019,6 +1130,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/Measurement.md"
     },
     {
@@ -1027,6 +1147,12 @@
       "displayName": "条码识别",
       "description": "一维码/二维码识别，支持 QR、Code128、DataMatrix 等多种码制",
       "category": "识别",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1111,6 +1237,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/CodeRecognition.md"
     },
     {
@@ -1119,6 +1254,12 @@
       "displayName": "深度学习",
       "description": "AI 深度学习推理，支持 YOLOv5/v6/v8/v11 等模型，用于缺陷检测和目标分类",
       "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1237,6 +1378,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/DeepLearning.md"
     },
     {
@@ -1245,6 +1395,12 @@
       "displayName": "结果输出",
       "description": "汇总检测结果并输出，支持 JSON/CSV/Text 格式，可选保存到文件",
       "category": "输出",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1317,6 +1473,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 79,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=35"
+      },
       "docPath": "docs/operators/ResultOutput.md"
     },
     {
@@ -1325,6 +1490,12 @@
       "displayName": "轮廓检测",
       "description": "查找图像轮廓，提取边缘点集和层次关系，供后续测量和拟合使用",
       "category": "特征提取",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1433,6 +1604,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ContourDetection.md"
     },
     {
@@ -1441,6 +1621,12 @@
       "displayName": "中值滤波",
       "description": "有效去除椒盐噪声同时保留边缘",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1471,6 +1657,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/MedianBlur.md"
     },
     {
@@ -1479,6 +1674,12 @@
       "displayName": "双边滤波",
       "description": "边缘保留的平滑滤波",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1531,6 +1732,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/BilateralFilter.md"
     },
     {
@@ -1539,6 +1749,12 @@
       "displayName": "图像缩放",
       "description": "调整图像尺寸",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1630,6 +1846,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageResize.md"
     },
     {
@@ -1638,6 +1863,12 @@
       "displayName": "图像裁剪",
       "description": "ROI区域提取",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1701,6 +1932,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageCrop.md"
     },
     {
@@ -1709,6 +1949,12 @@
       "displayName": "图像旋转",
       "description": "任意角度旋转",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -1783,6 +2029,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageRotate.md"
     },
     {
@@ -1791,6 +2046,12 @@
       "displayName": "透视变换",
       "description": "四边形透视校正",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2008,6 +2269,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/PerspectiveTransform.md"
     },
     {
@@ -2016,6 +2286,12 @@
       "displayName": "圆测量",
       "description": "霍夫变换检测圆形并测量半径与圆心坐标，适用于孔径检测和圆形定位",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2145,6 +2421,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/CircleMeasurement.md"
     },
     {
@@ -2153,6 +2438,12 @@
       "displayName": "直线测量",
       "description": "霍夫直线检测与测量",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2249,6 +2540,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/LineMeasurement.md"
     },
     {
@@ -2257,6 +2557,12 @@
       "displayName": "轮廓测量",
       "description": "轮廓分析与测量",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2347,6 +2653,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ContourMeasurement.md"
     },
     {
@@ -2355,6 +2670,12 @@
       "displayName": "角度测量",
       "description": "基于三点计算角度",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2466,6 +2787,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/AngleMeasurement.md"
     },
     {
@@ -2474,6 +2804,12 @@
       "displayName": "几何公差",
       "description": "角度偏差测量（仅角度模型，非完整GD&T公差带）",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2625,6 +2961,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/GeometricTolerance.md"
     },
     {
@@ -2633,6 +2978,12 @@
       "displayName": "Camera Calibration",
       "description": "Calibrates camera intrinsics from chessboard or circle grid images.",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2753,6 +3104,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/CameraCalibration.md"
     },
     {
@@ -2761,6 +3121,12 @@
       "displayName": "Undistort",
       "description": "Correct lens distortion using calibration data.",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2797,6 +3163,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 95,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
+      },
       "docPath": "docs/operators/Undistort.md"
     },
     {
@@ -2805,6 +3180,12 @@
       "displayName": "坐标转换",
       "description": "像素坐标到物理坐标转换",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -2892,6 +3273,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/CoordinateTransform.md"
     },
     {
@@ -2900,6 +3290,12 @@
       "displayName": "Modbus通信",
       "description": "工业设备Modbus RTU/TCP通信",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3039,6 +3435,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 98,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
+      },
       "docPath": "docs/operators/ModbusCommunication.md"
     },
     {
@@ -3047,6 +3452,12 @@
       "displayName": "TCP通信",
       "description": "TCP/IP网络通信",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3160,6 +3571,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 98,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
+      },
       "docPath": "docs/operators/TcpCommunication.md"
     },
     {
@@ -3168,6 +3588,12 @@
       "displayName": "数据库写入",
       "description": "检测结果存储到数据库",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3239,6 +3665,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/DatabaseWrite.md"
     },
     {
@@ -3247,6 +3682,12 @@
       "displayName": "条件分支",
       "description": "根据数值/字符串/布尔条件执行 True/False 两路分支，常用于 OK/NG 判定路由",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3326,6 +3767,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/ConditionalBranch.md"
     },
     {
@@ -3334,6 +3784,12 @@
       "displayName": "颜色空间转换",
       "description": "BGR/GRAY/HSV/Lab/YUV等颜色空间转换",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3389,6 +3845,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ColorConversion.md"
     },
     {
@@ -3397,6 +3862,12 @@
       "displayName": "自适应阈值",
       "description": "Mean和Gaussian自适应阈值",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3489,6 +3960,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/AdaptiveThreshold.md"
     },
     {
@@ -3497,6 +3977,12 @@
       "displayName": "直方图均衡化",
       "description": "全局均衡化和CLAHE自适应均衡化",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3558,6 +4044,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/HistogramEqualization.md"
     },
     {
@@ -3566,6 +4061,12 @@
       "displayName": "Geometric Fitting",
       "description": "Fits line, circle or ellipse from contour points.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3690,6 +4191,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/GeometricFitting.md"
     },
     {
@@ -3698,6 +4208,12 @@
       "displayName": "ROI管理器",
       "description": "矩形/圆形/多边形区域选择",
       "category": "辅助",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3855,6 +4371,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/RoiManager.md"
     },
     {
@@ -3863,6 +4388,12 @@
       "displayName": "Shape Matching",
       "description": "Rotation-robust template matching with pyramid coarse-to-fine search.",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -3971,6 +4502,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/ShapeMatching.md"
     },
     {
@@ -3979,6 +4519,12 @@
       "displayName": "Subpixel Edge Detection",
       "description": "Extracts subpixel edges using Steger or interpolation-based methods.",
       "category": "特征提取",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -4072,6 +4618,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/SubpixelEdgeDetection.md"
     },
     {
@@ -4080,6 +4635,12 @@
       "displayName": "颜色检测",
       "description": "基于 HSV/Lab 空间的颜色分析与分级",
       "category": "颜色处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -4226,6 +4787,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ColorDetection.md"
     },
     {
@@ -4234,6 +4804,12 @@
       "displayName": "串口通信",
       "description": "RS-232/485 串口数据收发",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -4401,6 +4977,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/SerialCommunication.md"
     },
     {
@@ -4409,6 +4994,12 @@
       "displayName": "西门子S7通信",
       "description": "西门子S7系列PLC读写通信（S7-200/300/400/1200/1500）",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -4693,6 +5284,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 80,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
+      },
       "docPath": "docs/operators/SiemensS7Communication.md"
     },
     {
@@ -4701,6 +5301,12 @@
       "displayName": "三菱MC通信",
       "description": "三菱MC协议PLC读写通信（FX5U/Q/iQ-R/iQ-F）",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -4930,6 +5536,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 80,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
+      },
       "docPath": "docs/operators/MitsubishiMcCommunication.md"
     },
     {
@@ -4938,6 +5553,12 @@
       "displayName": "欧姆龙FINS通信",
       "description": "欧姆龙FINS/TCP协议PLC读写通信（CP1H/CJ2M/NJ/NX）",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5167,6 +5788,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 80,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
+      },
       "docPath": "docs/operators/OmronFinsCommunication.md"
     },
     {
@@ -5175,6 +5805,12 @@
       "displayName": "结果判定",
       "description": "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5337,6 +5973,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 66,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
+      },
       "docPath": "docs/operators/ResultJudgment.md"
     },
     {
@@ -5345,6 +5990,12 @@
       "displayName": "CLAHE增强",
       "description": "自适应直方图均衡化，用于局部对比度增强",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5425,6 +6076,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ClaheEnhancement.md"
     },
     {
@@ -5433,6 +6093,12 @@
       "displayName": "Morphological Operation",
       "description": "Erode, Dilate, Open, Close, Gradient, TopHat, BlackHat.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5571,6 +6237,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/MorphologicalOperation.md"
     },
     {
@@ -5579,6 +6254,12 @@
       "displayName": "拉普拉斯锐化",
       "description": "基于拉普拉斯算子的边缘增强",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5631,6 +6312,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/LaplacianSharpen.md"
     },
     {
@@ -5639,6 +6329,12 @@
       "displayName": "图像加法",
       "description": "两幅图像叠加/合并",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5697,6 +6393,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageAdd.md"
     },
     {
@@ -5705,6 +6410,12 @@
       "displayName": "Image Subtract",
       "description": "Computes subtraction or absolute difference between two images.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5759,6 +6470,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 89,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageSubtract.md"
     },
     {
@@ -5767,6 +6487,12 @@
       "displayName": "图像融合",
       "description": "加权混合/透明叠加",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -5825,6 +6551,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageBlend.md"
     },
     {
@@ -5833,6 +6568,12 @@
       "displayName": "变量读取",
       "description": "从全局变量表读取值",
       "category": "变量",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -5907,6 +6648,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/VariableRead.md"
     },
     {
@@ -5915,6 +6665,12 @@
       "displayName": "变量写入",
       "description": "写入值到全局变量表",
       "category": "变量",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6007,6 +6763,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/VariableWrite.md"
     },
     {
@@ -6015,6 +6780,12 @@
       "displayName": "变量递增",
       "description": "计数器自增/自减，支持重置条件",
       "category": "变量",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -6123,6 +6894,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/VariableIncrement.md"
     },
     {
@@ -6131,6 +6911,12 @@
       "displayName": "异常捕获",
       "description": "Try-Catch 流程控制",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6201,6 +6987,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 75,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=90"
+      },
       "docPath": "docs/operators/TryCatch.md"
     },
     {
@@ -6209,6 +7004,12 @@
       "displayName": "循环计数器",
       "description": "获取当前循环次数和统计信息",
       "category": "变量",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -6280,6 +7081,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 66,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
+      },
       "docPath": "docs/operators/CycleCounter.md"
     },
     {
@@ -6288,6 +7098,12 @@
       "displayName": "AKAZE特征匹配",
       "description": "基于AKAZE特征的鲁棒模板匹配，对光照/旋转/缩放变化具有强鲁棒性",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6386,6 +7202,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/AkazeFeatureMatch.md"
     },
     {
@@ -6394,6 +7219,12 @@
       "displayName": "ORB特征匹配",
       "description": "基于ORB特征的快速模板匹配，适合实时应用",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6492,6 +7323,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/OrbFeatureMatch.md"
     },
     {
@@ -6500,6 +7340,12 @@
       "displayName": "梯度形状匹配",
       "description": "基于梯度方向的形状匹配，支持旋转不变性",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6604,6 +7450,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/GradientShapeMatch.md"
     },
     {
@@ -6612,6 +7467,12 @@
       "displayName": "金字塔形状匹配",
       "description": "多尺度金字塔形状匹配，速度快，适合大尺寸图像",
       "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6716,6 +7577,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/PyramidShapeMatch.md"
     },
     {
@@ -6724,6 +7594,12 @@
       "displayName": "双模态投票",
       "description": "结合深度学习和传统算法结果进行投票决策",
       "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6848,6 +7724,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/DualModalVoting.md"
     },
     {
@@ -6856,6 +7741,12 @@
       "displayName": "ForEach 循环",
       "description": "对集合中的每个元素执行子图",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -6928,6 +7819,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/ForEach.md"
     },
     {
@@ -6936,6 +7836,12 @@
       "displayName": "数组索引器",
       "description": "从列表中按索引或条件提取元素",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7002,6 +7908,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 79,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/ArrayIndexer.md"
     },
     {
@@ -7010,6 +7925,12 @@
       "displayName": "JSON 提取器",
       "description": "按 JSONPath 从字符串中提取字段",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7046,6 +7967,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/JsonExtractor.md"
     },
     {
@@ -7054,6 +7984,12 @@
       "displayName": "数值计算",
       "description": "支持加减乘除、取绝对值、开方等常用运算",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7141,6 +8077,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/MathOperation.md"
     },
     {
@@ -7149,6 +8094,12 @@
       "displayName": "逻辑门",
       "description": "布尔逻辑运算 (AND, OR, NOT, XOR...)",
       "category": "通用",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7210,6 +8161,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/LogicGate.md"
     },
     {
@@ -7218,6 +8178,12 @@
       "displayName": "Type Convert",
       "description": "Converts input data across String/Float/Integer/Boolean types.",
       "category": "通用",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7276,6 +8242,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/TypeConvert.md"
     },
     {
@@ -7284,6 +8259,12 @@
       "displayName": "HTTP 请求",
       "description": "调用外部 REST API",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7376,6 +8357,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/HttpRequest.md"
     },
     {
@@ -7384,6 +8374,12 @@
       "displayName": "MQTT 发布",
       "description": "向消息队列推送数据",
       "category": "通信",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:通信",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7447,6 +8443,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/MqttPublish.md"
     },
     {
@@ -7455,6 +8460,12 @@
       "displayName": "字符串格式化",
       "description": "按模板生成字符串",
       "category": "通用",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7491,6 +8502,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/StringFormat.md"
     },
     {
@@ -7499,6 +8519,12 @@
       "displayName": "图像保存",
       "description": "保存检测图像到本地硬盘",
       "category": "输出",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7557,6 +8583,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 83,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/ImageSave.md"
     },
     {
@@ -7565,6 +8600,12 @@
       "displayName": "OCR 识别",
       "description": "识别图像中的文本内容",
       "category": "识别",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7589,6 +8630,15 @@
         }
       ],
       "parameters": [],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/OcrRecognition.md"
     },
     {
@@ -7597,6 +8647,12 @@
       "displayName": "图像对比",
       "description": "分析两幅图像的差异",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7627,6 +8683,15 @@
         }
       ],
       "parameters": [],
+      "quality": {
+        "totalScore": 71,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageDiff.md"
     },
     {
@@ -7635,6 +8700,12 @@
       "displayName": "Statistics",
       "description": "Computes Mean/StdDev/Cpk statistics over rolling history.",
       "category": "通用",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7734,6 +8805,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/Statistics.md"
     },
     {
@@ -7742,6 +8822,12 @@
       "displayName": "数据聚合",
       "description": "将多路输入数据合并为列表，并提取极值与均值",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7819,6 +8905,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
+      },
       "docPath": "docs/operators/Aggregator.md"
     },
     {
@@ -7827,6 +8922,12 @@
       "displayName": "注释",
       "description": "在工作流中添加说明文本，不影响数据流，仅用于标注设计意图",
       "category": "辅助",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7863,6 +8964,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
+      },
       "docPath": "docs/operators/Comment.md"
     },
     {
@@ -7871,6 +8981,12 @@
       "displayName": "数值比较",
       "description": "比较两个数值的大小关系，输出布尔判定结果与差值",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -7986,6 +9102,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
+      },
       "docPath": "docs/operators/Comparator.md"
     },
     {
@@ -7994,6 +9119,12 @@
       "displayName": "延时",
       "description": "等待指定时间后继续执行，常用于通信前等待下位机就绪",
       "category": "流程控制",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8030,6 +9161,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
+      },
       "docPath": "docs/operators/Delay.md"
     },
     {
@@ -8038,6 +9178,12 @@
       "displayName": "卡尺工具",
       "description": "Detects edge pairs along a scan line and reports width.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8173,6 +9319,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/CaliperTool.md"
     },
     {
@@ -8181,6 +9336,12 @@
       "displayName": "宽度测量",
       "description": "Measures width between parallel edges or lines.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8281,6 +9442,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 96,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/WidthMeasurement.md"
     },
     {
@@ -8289,6 +9459,12 @@
       "displayName": "点线距离",
       "description": "Computes perpendicular distance from a point to a line.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8319,6 +9495,15 @@
         }
       ],
       "parameters": [],
+      "quality": {
+        "totalScore": 91,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=85"
+      },
       "docPath": "docs/operators/PointLineDistance.md"
     },
     {
@@ -8327,6 +9512,12 @@
       "displayName": "线线距离",
       "description": "Computes distance and angle between two lines.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8387,6 +9578,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 96,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/LineLineDistance.md"
     },
     {
@@ -8395,6 +9595,12 @@
       "displayName": "候选框抑制",
       "description": "Runs non-maximum suppression on detection boxes.",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8465,6 +9671,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/BoxNms.md"
     },
     {
@@ -8473,6 +9688,12 @@
       "displayName": "候选框过滤 (Bounding Box)",
       "description": "Filters detections by area, class, region, or score.",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8626,6 +9847,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/BoxFilter.md"
     },
     {
@@ -8634,6 +9864,12 @@
       "displayName": "清晰度评估",
       "description": "Evaluates focus quality of an image.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8748,6 +9984,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/SharpnessEvaluation.md"
     },
     {
@@ -8756,6 +10001,12 @@
       "displayName": "位置修正",
       "description": "Corrects downstream ROI coordinates using reference/base offsets.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8859,6 +10110,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/PositionCorrection.md"
     },
     {
@@ -8867,6 +10127,12 @@
       "displayName": "N点标定",
       "description": "Builds affine or perspective calibration from user point pairs.",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -8940,6 +10206,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/NPointCalibration.md"
     },
     {
@@ -8948,6 +10223,12 @@
       "displayName": "标定加载",
       "description": "Loads calibration data from JSON/XML/YAML file.",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -9013,6 +10294,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/CalibrationLoader.md"
     },
     {
@@ -9021,6 +10311,12 @@
       "displayName": "单位换算",
       "description": "Converts value between pixel, mm, um and inch.",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9130,6 +10426,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 96,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/UnitConvert.md"
     },
     {
@@ -9138,6 +10443,12 @@
       "displayName": "计时统计",
       "description": "Measures elapsed and cycle time statistics.",
       "category": "逻辑工具",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9206,6 +10517,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 84,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
+      },
       "docPath": "docs/operators/TimerStatistics.md"
     },
     {
@@ -9214,6 +10534,12 @@
       "displayName": "脚本算子",
       "description": "Runs user-defined expression or script snippet.",
       "category": "逻辑工具",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9299,6 +10625,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/ScriptOperator.md"
     },
     {
@@ -9307,6 +10642,12 @@
       "displayName": "触发模块",
       "description": "Generates software, timer, or external triggers.",
       "category": "逻辑工具",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [],
       "outputPorts": [
@@ -9377,6 +10718,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 84,
+        "level": "B",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 35,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
+      },
       "docPath": "docs/operators/TriggerModule.md"
     },
     {
@@ -9385,6 +10735,12 @@
       "displayName": "点位对齐",
       "description": "Computes offset and distance between current and reference points.",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9453,6 +10809,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/PointAlignment.md"
     },
     {
@@ -9461,6 +10826,12 @@
       "displayName": "点位修正",
       "description": "Computes translation/rotation correction from detected to reference point.",
       "category": "数据处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9567,6 +10938,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/PointCorrection.md"
     },
     {
@@ -9575,6 +10955,12 @@
       "displayName": "间隙测量",
       "description": "Measures spacing using points or image projection.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9687,6 +11073,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/GapMeasurement.md"
     },
     {
@@ -9695,6 +11090,12 @@
       "displayName": "极坐标展开",
       "description": "Unwraps annular image regions into rectangular view.",
       "category": "图像处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9797,6 +11198,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 96,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+      },
       "docPath": "docs/operators/PolarUnwrap.md"
     },
     {
@@ -9805,6 +11215,12 @@
       "displayName": "光照校正",
       "description": "Corrects uneven illumination by background or model-based methods.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9865,6 +11281,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ShadingCorrection.md"
     },
     {
@@ -9873,6 +11298,12 @@
       "displayName": "帧平均",
       "description": "Averages multi-frame input to reduce temporal noise.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -9929,6 +11360,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/FrameAveraging.md"
     },
     {
@@ -9937,6 +11377,12 @@
       "displayName": "仿射变换",
       "description": "Applies 2D affine transform using 3-point or rotate-scale-translate mode.",
       "category": "图像处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10070,6 +11516,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/AffineTransform.md"
     },
     {
@@ -10078,6 +11533,12 @@
       "displayName": "颜色测量",
       "description": "Measures average Lab/HSV values and computes DeltaE.",
       "category": "颜色处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10242,6 +11703,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ColorMeasurement.md"
     },
     {
@@ -10250,6 +11720,12 @@
       "displayName": "表面缺陷检测",
       "description": "Detects surface defects using gradient, reference diff, or local contrast.",
       "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10361,6 +11837,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/SurfaceDefectDetection.md"
     },
     {
@@ -10369,6 +11854,12 @@
       "displayName": "边缘对缺陷",
       "description": "Checks edge-pair spacing deviations against expected width.",
       "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:AI",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10471,6 +11962,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/EdgePairDefect.md"
     },
     {
@@ -10479,6 +11979,12 @@
       "displayName": "矩形检测",
       "description": "Detects rectangular/quadrilateral objects from contours.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10578,6 +12084,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/RectangleDetection.md"
     },
     {
@@ -10586,6 +12101,12 @@
       "displayName": "平移旋转标定",
       "description": "Fits image-to-robot transform from calibration point pairs.",
       "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:标定",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10659,6 +12180,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/TranslationRotationCalibration.md"
     },
     {
@@ -10667,6 +12197,12 @@
       "displayName": "角点检测",
       "description": "Detects corner points using Harris or Shi-Tomasi.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10762,6 +12298,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/CornerDetection.md"
     },
     {
@@ -10770,6 +12315,12 @@
       "displayName": "边线交点",
       "description": "Computes line intersection and angle between two lines.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10806,6 +12357,15 @@
         }
       ],
       "parameters": [],
+      "quality": {
+        "totalScore": 89,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
+      },
       "docPath": "docs/operators/EdgeIntersection.md"
     },
     {
@@ -10814,6 +12374,12 @@
       "displayName": "平行线查找",
       "description": "Finds best pair of near-parallel lines in an image.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -10907,6 +12473,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ParallelLineFind.md"
     },
     {
@@ -10915,6 +12490,12 @@
       "displayName": "四边形查找",
       "description": "Finds quadrilateral contours without right-angle constraints.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:定位",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11002,6 +12583,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/QuadrilateralFind.md"
     },
     {
@@ -11010,6 +12600,12 @@
       "displayName": "几何测量",
       "description": "General geometry measurement between point/line/circle elements.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:测量",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11115,6 +12711,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/GeoMeasurement.md"
     },
     {
@@ -11123,6 +12728,12 @@
       "displayName": "图像拼接",
       "description": "Stitches two images into a larger panorama-like output.",
       "category": "图像处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11205,6 +12816,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageStitching.md"
     },
     {
@@ -11213,6 +12833,12 @@
       "displayName": "图像切片",
       "description": "Splits an image into tiled regions with optional overlap.",
       "category": "拆分组合",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11297,6 +12923,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageTiling.md"
     },
     {
@@ -11305,6 +12940,12 @@
       "displayName": "图像归一化",
       "description": "Normalizes pixel distribution for robust downstream processing.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11370,6 +13011,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageNormalize.md"
     },
     {
@@ -11378,6 +13028,12 @@
       "displayName": "图像组合",
       "description": "Composes multiple images by concat/grid/channel merge.",
       "category": "拆分组合",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11465,6 +13121,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/ImageCompose.md"
     },
     {
@@ -11473,6 +13138,12 @@
       "displayName": "边界填充",
       "description": "Pads image border using OpenCV border policies.",
       "category": "图像处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11575,6 +13246,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/CopyMakeBorder.md"
     },
     {
@@ -11583,6 +13263,12 @@
       "displayName": "Text Save",
       "description": "Saves text or structured data to text/csv/json file.",
       "category": "逻辑工具",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:流程",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11691,6 +13377,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/TextSave.md"
     },
     {
@@ -11699,6 +13394,12 @@
       "displayName": "点集工具",
       "description": "Merges/sorts/filters point lists and computes set properties.",
       "category": "逻辑工具",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11842,6 +13543,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+      },
       "docPath": "docs/operators/PointSetTool.md"
     },
     {
@@ -11850,6 +13560,12 @@
       "displayName": "连通域标注",
       "description": "Classifies connected blobs by geometric features and draws labels.",
       "category": "定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -11937,6 +13653,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
       "docPath": "docs/operators/BlobLabeling.md"
     },
     {
@@ -11945,6 +13670,12 @@
       "displayName": "直方图分析",
       "description": "Computes histogram and distribution statistics for selected channel.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -12083,6 +13814,15 @@
           "options": null
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/HistogramAnalysis.md"
     },
     {
@@ -12091,6 +13831,12 @@
       "displayName": "像素统计",
       "description": "Computes ROI/masked pixel-level statistics.",
       "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -12222,6 +13968,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/PixelStatistics.md"
     },
     {
@@ -12230,6 +13985,12 @@
       "displayName": "均值滤波",
       "description": "Applies mean (box blur) filtering to smooth image noise.",
       "category": "预处理",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
       "algorithm": null,
       "inputPorts": [
         {
@@ -12292,6 +14053,15 @@
           ]
         }
       ],
+      "quality": {
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+      },
       "docPath": "docs/operators/MeanFilter.md"
     }
   ]

@@ -1,0 +1,1421 @@
+{
+  "generatedAt": "2026-02-26T21:18:11.8226262\u002B08:00",
+  "operators": [
+    {
+      "id": "AdaptiveThreshold",
+      "displayName": "\u81EA\u9002\u5E94\u9608\u503C",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "B455F311990410F7F056960F530EB99F7A3EC896B9375786ADAFB5D0D9A5A10F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "AffineTransform",
+      "displayName": "\u4EFF\u5C04\u53D8\u6362",
+      "category": "\u56FE\u50CF\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D15105FFF7E6F1219839DB9D02B0B71D4043829BEE2CB11405007B6363ED5460",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Aggregator",
+      "displayName": "\u6570\u636E\u805A\u5408",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "9D1FADF66DA780E3331A92F37C130AF49ED833620E9C74FD36FD1120A529FEBE",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "AkazeFeatureMatch",
+      "displayName": "AKAZE\u7279\u5F81\u5339\u914D",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7826C15D141A099EE6AA67178B1624CAEBBBDE1CEDA8BFEFAAEAEB6B414561B0",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "AngleMeasurement",
+      "displayName": "\u89D2\u5EA6\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "75B22BE2483A6034CD6E953B2A0F6523D8E77C9126ED7A657FCDCA192494705D",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ArrayIndexer",
+      "displayName": "\u6570\u7EC4\u7D22\u5F15\u5668",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A4ADD286E7D5DA8CA701B8ED85C37701F0FBDBE83FB92A4C6F93963E47502C03",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "BilateralFilter",
+      "displayName": "\u53CC\u8FB9\u6EE4\u6CE2",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8A67432D3AB088AE8EDA256D67CF1F2FF986854EEAD4797E7948B4A9642AF251",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "BlobAnalysis",
+      "displayName": "Blob\u5206\u6790",
+      "category": "\u7279\u5F81\u63D0\u53D6",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "399F00274DCDE76159F6F1ADD064C62776C954754BAA2A92430A6ABC2EF5400E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "BlobLabeling",
+      "displayName": "\u8FDE\u901A\u57DF\u6807\u6CE8",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "CB8C33825ABAF383896403521C7A057F791EAE79F3188ADC8429274F8745DED8",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "BoxFilter",
+      "displayName": "\u5019\u9009\u6846\u8FC7\u6EE4 (Bounding Box)",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "2E238D831FF041BD9B079B476A874BBC35580359EF16558EE09908671B1448CB",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "BoxNms",
+      "displayName": "\u5019\u9009\u6846\u6291\u5236",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C0B7D3338B2D835DEB758A6D831607385623D95847ECE7667BC6B8E76DA7FDE2",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CalibrationLoader",
+      "displayName": "\u6807\u5B9A\u52A0\u8F7D",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "1680B6462051D17D644B06F7902D7A0A3611CCB03290EF42C3912CA624AF913A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CaliperTool",
+      "displayName": "\u5361\u5C3A\u5DE5\u5177",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "18247D9E6FB3E480608B0D1D94D1D127D1DD775AA0AD800A073E929E2AEB1E58",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CameraCalibration",
+      "displayName": "Camera Calibration",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C892CA5A86D9E0BF1327587EED24947A9492F9C0292C1384489C991AC5DB523D",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CircleMeasurement",
+      "displayName": "\u5706\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D89303A4578FE630F32EC49CAE68BF49467ADC5E273BDE5633AD179B4B71B259",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ClaheEnhancement",
+      "displayName": "CLAHE\u589E\u5F3A",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "E6C58B4D7CFFC39CE5EF70F08A94E94BEBCCFF6D66FEE5E96946CE104B61288F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CodeRecognition",
+      "displayName": "\u6761\u7801\u8BC6\u522B",
+      "category": "\u8BC6\u522B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C49C5CAA3C71C77F8DDEDB02CDBD1AD89B25E381F6502606F81CF8A21243AC34",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ColorConversion",
+      "displayName": "\u989C\u8272\u7A7A\u95F4\u8F6C\u6362",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "04C479C515182C3421750ACB57C1BD7AED5AD50F8255B34DF074935A7E477090",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ColorDetection",
+      "displayName": "\u989C\u8272\u68C0\u6D4B",
+      "category": "\u989C\u8272\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "47E27D2BD6CFB151F4B1EA38001238E206CBB14CFB321C936AA75EBE702A169B",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ColorMeasurement",
+      "displayName": "\u989C\u8272\u6D4B\u91CF",
+      "category": "\u989C\u8272\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "970C6588B0A4BF82032E8F0E22DB97A321C078CCD31ED9DFB12D5115FE0980B3",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Comment",
+      "displayName": "\u6CE8\u91CA",
+      "category": "\u8F85\u52A9",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D088230EC428A7A632F5FA7169F9DCA27C13ADCAE6A8317A1BC9840A01EEC960",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Comparator",
+      "displayName": "\u6570\u503C\u6BD4\u8F83",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "B6B5D8E5A1374AB8EE5D6C63ACAA1FECD8C880583712D67D82BF52C185682DB8",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ConditionalBranch",
+      "displayName": "\u6761\u4EF6\u5206\u652F",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "29F6BE3DEEB227039C1D4954ACB28DAC0135416D761AB103E4C0B235D2BBCF13",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ContourDetection",
+      "displayName": "\u8F6E\u5ED3\u68C0\u6D4B",
+      "category": "\u7279\u5F81\u63D0\u53D6",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "62F866A1DD987A167725264D08E54FD6031E80937BC6EF9CCA560AADA06B973C",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ContourMeasurement",
+      "displayName": "\u8F6E\u5ED3\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "54B6127392FC35A8EEA1E24C133FEF67049F58C48F9067A40D25859A30EA1AC4",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CoordinateTransform",
+      "displayName": "\u5750\u6807\u8F6C\u6362",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "9A444692FBD464127E31B94DB780B1785AAC92EB5EFACCF4108FA44EAE6B069A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CopyMakeBorder",
+      "displayName": "\u8FB9\u754C\u586B\u5145",
+      "category": "\u56FE\u50CF\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D52A1162A333DEBCAFC973017F4E85BD2015F8BDBCEC9AF1CB16062BE9D9A07E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CornerDetection",
+      "displayName": "\u89D2\u70B9\u68C0\u6D4B",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8CB17BD12666A78F8E82A26352F81234A66EAAB36E53D4F901963CCC36554D72",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "CycleCounter",
+      "displayName": "\u5FAA\u73AF\u8BA1\u6570\u5668",
+      "category": "\u53D8\u91CF",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8938799BB9430404C24DD466A42C4D598F7A85A3A0D33A0B1D926176AC05E328",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "DatabaseWrite",
+      "displayName": "\u6570\u636E\u5E93\u5199\u5165",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "71703C60A3312A023AE24F17F9B1AB2C5C83FEB8603DBA797CE424E6F892545A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "DeepLearning",
+      "displayName": "\u6DF1\u5EA6\u5B66\u4E60",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "CB4801A379852AAFEACB1474CCCA395924CD3084FF291B04470E243383995BFE",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Delay",
+      "displayName": "\u5EF6\u65F6",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "AE3DCF902E63B18170F24A7D220FC84DBEAE986722C4AC9B3642F14DDE0A47CD",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "DualModalVoting",
+      "displayName": "\u53CC\u6A21\u6001\u6295\u7968",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "F7DA5BDB66C7F371770FF1D75308D36ECE1ECF0B5BF88BD0498873B59A9FE682",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "EdgeDetection",
+      "displayName": "Edge Detection",
+      "category": "\u7279\u5F81\u63D0\u53D6",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D8DB44452BC23E3EAB3C039864F667E68FEF54B29A67086DECC3FE383953FFCF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "EdgeIntersection",
+      "displayName": "\u8FB9\u7EBF\u4EA4\u70B9",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "49D076E880F29379C89AF0365AD5FD196FA9709B67809D9F0F81D898C13DE400",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "EdgePairDefect",
+      "displayName": "\u8FB9\u7F18\u5BF9\u7F3A\u9677",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "81CCA70F0BDE0AE1E309306203D906F2E649D77FBEA65915CA82B08CB0DB966A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Filtering",
+      "displayName": "Gaussian Blur",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "10556AD6D71EF2917D0E1032B2FA87FB6007039A570F7C1E21EF6AB2A633D085",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ForEach",
+      "displayName": "ForEach \u5FAA\u73AF",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "AC46932FE32B71BACA3DD494AD1E3EDAB2DD06E7678F6FF24AE3D93306BEB8F4",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "FrameAveraging",
+      "displayName": "\u5E27\u5E73\u5747",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "66F8737962643027A1CDFF97E84D19EF8C0E01040D8CEB4B63C18CDAAEE13C99",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "GapMeasurement",
+      "displayName": "\u95F4\u9699\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EC1A78180B573567E6CA4D337B43D80E2C4A89A5410F1468D7FDF685034A9E1A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "GeoMeasurement",
+      "displayName": "\u51E0\u4F55\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8F4ECDF2968D38D87C13737AB860B2823090A3E3A288E12B6FF4B1CF67CF5B43",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "GeometricFitting",
+      "displayName": "Geometric Fitting",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "911B9BC4CEF954D6CC3CDF2941C7E64672E7D192D44717AACD80C6E7BB5FCF73",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "GeometricTolerance",
+      "displayName": "\u51E0\u4F55\u516C\u5DEE",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "CC1399C0B8ADD7D4BD01B8F8B3688E287F1AE7C81B256816C6B04776A196FABF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "GradientShapeMatch",
+      "displayName": "\u68AF\u5EA6\u5F62\u72B6\u5339\u914D",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C4917CE7BE0AFBE55A230A7E19DFD3EABA5529B108C450C153452A5333B4F319",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "HistogramAnalysis",
+      "displayName": "\u76F4\u65B9\u56FE\u5206\u6790",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A33C328B07D89CC630ECCDDE417AFC8900505E9D5F4077C2E24466F056A4953E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "HistogramEqualization",
+      "displayName": "\u76F4\u65B9\u56FE\u5747\u8861\u5316",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4F533BE2BFD26A6CA14CC6897DCB525B7FA112B9885474A7D21ACAA8C72F59BC",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "HttpRequest",
+      "displayName": "HTTP \u8BF7\u6C42",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "5329BD29F5B3CC482AB5CEE7E05A7EC56CE2F54B03BF57B6B165E2B264EADE0C",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageAcquisition",
+      "displayName": "\u56FE\u50CF\u91C7\u96C6",
+      "category": "\u91C7\u96C6",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0B7EA0C62AEC3E9773570BE562013E5496AFB8AC5614F8061A56D137D07E5380",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageAdd",
+      "displayName": "\u56FE\u50CF\u52A0\u6CD5",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "68648F5303AB4112745415264030C409AFBFDEBE7604D6B3C117986D8DCCE4A8",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageBlend",
+      "displayName": "\u56FE\u50CF\u878D\u5408",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EFB0D9B90191F03D96E4ADA85B55B9C96C18DD5A001F01239A09BB1B548961E6",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageCompose",
+      "displayName": "\u56FE\u50CF\u7EC4\u5408",
+      "category": "\u62C6\u5206\u7EC4\u5408",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D087BD94D51F1FF3C2D3CB7F2C66113579460D3D6B9C957A83CD92727E042CC5",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageCrop",
+      "displayName": "\u56FE\u50CF\u88C1\u526A",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A83435868402F81BB3A81F1778184EF8BC6EB78B8838DE31A57A6EC7B043380C",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageDiff",
+      "displayName": "\u56FE\u50CF\u5BF9\u6BD4",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C891A8BB5072B130D3ED375DCC49462994A94546344811673C3CE5A820C741DA",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageNormalize",
+      "displayName": "\u56FE\u50CF\u5F52\u4E00\u5316",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4510C41220285D0A03497BE959AD6ADD5F7D9C7E7B2CB466094BA18FE46E42AF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageResize",
+      "displayName": "\u56FE\u50CF\u7F29\u653E",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "DD2E746E9FEDDD93CE9B0ADED60DBD53AEC98A432E1740F613A9BEE4662FDB5F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageRotate",
+      "displayName": "\u56FE\u50CF\u65CB\u8F6C",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "477E05F0F40599169C748012B72AD1BACBEE779AAF6C5A5103FEBF5619FF7163",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageSave",
+      "displayName": "\u56FE\u50CF\u4FDD\u5B58",
+      "category": "\u8F93\u51FA",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0AF22B8BF03DC018B6B0B18BBFCBF0FBCCFFBD5056DE2590C24C7060FD996C0E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageStitching",
+      "displayName": "\u56FE\u50CF\u62FC\u63A5",
+      "category": "\u56FE\u50CF\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "648EE37D0E052E5E9971B025D2CC3F2D31D386FEB5EE48380101ADBB60D48495",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageSubtract",
+      "displayName": "Image Subtract",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "01B4C5663412D80A4267F5E0E71CBAEC75DFE80F595335827DF5B94BA48250DE",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ImageTiling",
+      "displayName": "\u56FE\u50CF\u5207\u7247",
+      "category": "\u62C6\u5206\u7EC4\u5408",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "E5252D9D290F24A285D43FD74C1A7933815A7EC88D85EB1D45D5D45D2CD4A149",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "JsonExtractor",
+      "displayName": "JSON \u63D0\u53D6\u5668",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "F3C38D7AD62DF23003B3BBF82D7DA69BF34CD39F6752F21702ED4AB751AB731F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "LaplacianSharpen",
+      "displayName": "\u62C9\u666E\u62C9\u65AF\u9510\u5316",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7F718355AFC827EACB633C9920E2D674F008DE55ABCE1A3CE1E10C28EBA8379F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "LineLineDistance",
+      "displayName": "\u7EBF\u7EBF\u8DDD\u79BB",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C4197D651346CAA73BB77DE0107DE9F9BBB36F73A23D7E84F94C159DE9051682",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "LineMeasurement",
+      "displayName": "\u76F4\u7EBF\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "FB7CB0898D134E841D8CC032A4CD099A6D0CF06908BA3B1CBF5C096762469C42",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "LogicGate",
+      "displayName": "\u903B\u8F91\u95E8",
+      "category": "\u901A\u7528",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EC2FE73781FE1677AC3FC1489A3658B959884BFC9B97B0D44D925E70E57CFAB2",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MathOperation",
+      "displayName": "\u6570\u503C\u8BA1\u7B97",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "985B1E15562850381B861E9C561671758D5C93DA46A6F6BEBF92CDD5BB8195B6",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MeanFilter",
+      "displayName": "\u5747\u503C\u6EE4\u6CE2",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "ED740E08160685ECA09C86683F639BE765ABD9BDF4BDDB81ACE73DF9374E2B1A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Measurement",
+      "displayName": "\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4016CC586C1F2EB7E70383384CE2F6648E83047C1EC6B8A07A3DCE623EAE2FA0",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MedianBlur",
+      "displayName": "\u4E2D\u503C\u6EE4\u6CE2",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "2809B653B9756CD453348E6765BC5C9B7C5EEBB54CD1FD83FCAAC751FD1D7FC2",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MitsubishiMcCommunication",
+      "displayName": "\u4E09\u83F1MC\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "5CBB32DC2CED94683B3D8161677D15319377A3D441264DF79A9636CDC7DAED76",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ModbusCommunication",
+      "displayName": "Modbus\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EAC52E7749F10AE84BAC6F6E36A1659159B04E2B9723EEF84F71D4FA981AB7B5",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MorphologicalOperation",
+      "displayName": "Morphological Operation",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C4E6D9300B08DF6AE8F289F6D565770E487C11CAF3D97FB266E8C26A54DED379",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Morphology",
+      "displayName": "Morphology (Legacy)",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7D8DED82948386456B2D07E15CF317A6922BF66D8DC18F266FF8AE24631D7AA5",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MqttPublish",
+      "displayName": "MQTT \u53D1\u5E03",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7F475495E079327641A1FCE2ABC3F5EEFCFB5BEE83C931876D6B0DC6ABD730A4",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "NPointCalibration",
+      "displayName": "N\u70B9\u6807\u5B9A",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0B9DBE2431AED4E394FB43C609295377BF2BE0FDB0F34C1765504738F90BED0B",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "OcrRecognition",
+      "displayName": "OCR \u8BC6\u522B",
+      "category": "\u8BC6\u522B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7FC79F721D844F131496EDBE5D109C6C9DBF603E36354A285AE377221D0CBEED",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "OmronFinsCommunication",
+      "displayName": "\u6B27\u59C6\u9F99FINS\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "DC5EBDDA2BD2052A746CD020213E39D08BC77C1E382044A3A6DD7075AF9044FF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "OrbFeatureMatch",
+      "displayName": "ORB\u7279\u5F81\u5339\u914D",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "260BD860C2E178BA982E5C210204A5E035A1434E6022C9B9928C29E98B6B37D3",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ParallelLineFind",
+      "displayName": "\u5E73\u884C\u7EBF\u67E5\u627E",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "26F9114FF5A86543FF6C4E227C3C1869797ABB7FFD16FD1C05BF2922EED4E50D",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PerspectiveTransform",
+      "displayName": "\u900F\u89C6\u53D8\u6362",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "386962DF7E0B99ED842B57CA0CDAC79C293BAB1B1330AE739C1E920695656B6F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PixelStatistics",
+      "displayName": "\u50CF\u7D20\u7EDF\u8BA1",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4EB06D674A3D852B2A518B9871AC87309830D7DB6F9CA07058C129E00A1267D2",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PointAlignment",
+      "displayName": "\u70B9\u4F4D\u5BF9\u9F50",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "E4A8E6F775A9F809E10853CE8B2DE4787390337502624B68B9624F8874A91621",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PointCorrection",
+      "displayName": "\u70B9\u4F4D\u4FEE\u6B63",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8156177589543112EF3CD238E5962BBD1905B3EE2492E4CA8EE0C201A4A9E600",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PointLineDistance",
+      "displayName": "\u70B9\u7EBF\u8DDD\u79BB",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EB16F20EF164D47A083CD0EB9AB9E061142A40581F818A8961E3B35C0C94D7B4",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PointSetTool",
+      "displayName": "\u70B9\u96C6\u5DE5\u5177",
+      "category": "\u903B\u8F91\u5DE5\u5177",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "32673C56E0B943CA48F101EF5762FA28B76781C6DCEB98C546D965667F49A985",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PolarUnwrap",
+      "displayName": "\u6781\u5750\u6807\u5C55\u5F00",
+      "category": "\u56FE\u50CF\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "688C288F636E11EF13C2B1FEC2C455AB1D71ED0728E4976D1BB24B6FCCBA1A96",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PositionCorrection",
+      "displayName": "\u4F4D\u7F6E\u4FEE\u6B63",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A33AE687F32ADFE64D66131CD4D48CEB7D82DF8B2705648B262E37CAA6F9B947",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PyramidShapeMatch",
+      "displayName": "\u91D1\u5B57\u5854\u5F62\u72B6\u5339\u914D",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "9A881861B316F4E03C68D1A77D374AF42031545AE075BD43181B8591B13B5B1A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "QuadrilateralFind",
+      "displayName": "\u56DB\u8FB9\u5F62\u67E5\u627E",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "1CCDD43E1B392488AEDA53F264105428DA93B829481EE363B8A55E2E5A594223",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RectangleDetection",
+      "displayName": "\u77E9\u5F62\u68C0\u6D4B",
+      "category": "\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "FBC9E5DEC5C415F325EC257812BD2B44A1B80353BD2422E1CC55D028B9EA66A0",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ResultJudgment",
+      "displayName": "\u7ED3\u679C\u5224\u5B9A",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "53985764ED7FEA9927A7ED1FC17A3639912B7DE82F410A9B4C40AA2F5A594A1B",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ResultOutput",
+      "displayName": "\u7ED3\u679C\u8F93\u51FA",
+      "category": "\u8F93\u51FA",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "CD53E822B204C5241D9720211BEA60AD78231EB3142B581A16CA80741EA269BF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RoiManager",
+      "displayName": "ROI\u7BA1\u7406\u5668",
+      "category": "\u8F85\u52A9",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "FBE3ADDF8A6066F4C92A37A6F891EE978C05ECAC6453C5961F38958BA2607F4A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ScriptOperator",
+      "displayName": "\u811A\u672C\u7B97\u5B50",
+      "category": "\u903B\u8F91\u5DE5\u5177",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C36E4CDE7016DA5B2DAEEA9A4B00D3CAF3219DD3831B56D41EDDB5320C033331",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SerialCommunication",
+      "displayName": "\u4E32\u53E3\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0546620C981341DC4824F8A27F11B6CE778629D7A8EA3FDE6DBC1F2B7F3546D1",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ShadingCorrection",
+      "displayName": "\u5149\u7167\u6821\u6B63",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4A014AD67BA392B957BF1AB42459C384E47215BDB2377E0A92D953D88A56F244",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ShapeMatching",
+      "displayName": "Shape Matching",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "16DA32089F0130D6EF8303A4280A092190283556DAE371406808725C857556E6",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SharpnessEvaluation",
+      "displayName": "\u6E05\u6670\u5EA6\u8BC4\u4F30",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "3362EBCD01BBE7ACAF77574685709CEF2CC58F71EE2E5F7D216D680FFA3925EC",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SiemensS7Communication",
+      "displayName": "\u897F\u95E8\u5B50S7\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8AB237E586917FF2CDB13A06E9A26A71C871F92357959140977354FFB597392A",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Statistics",
+      "displayName": "Statistics",
+      "category": "\u901A\u7528",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "332ECE5D2E911629B488837733BFBB83B059AACE1248FFBD4FDBB08A648AE61E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "StringFormat",
+      "displayName": "\u5B57\u7B26\u4E32\u683C\u5F0F\u5316",
+      "category": "\u901A\u7528",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "2A4462CE9D5A62331FE5A59CD740468703B9A87A5662DF6D2BBF4FE72688004E",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SubpixelEdgeDetection",
+      "displayName": "Subpixel Edge Detection",
+      "category": "\u7279\u5F81\u63D0\u53D6",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8A332898321250910AAD0ED02CD45AE1DBAA678A7160F332B354D12EC3052EB9",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SurfaceDefectDetection",
+      "displayName": "\u8868\u9762\u7F3A\u9677\u68C0\u6D4B",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "02BD406438C728C5CE88008EECE9F410F0F0273D385C5C58EA2E102D66E8A456",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TcpCommunication",
+      "displayName": "TCP\u901A\u4FE1",
+      "category": "\u901A\u4FE1",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D0B361FA486B5E9A297D3C24C8CD595705FBA3CE4DFEB9E22AD522EEFCD6F27F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TemplateMatching",
+      "displayName": "\u6A21\u677F\u5339\u914D",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "19F60BB66DE8BF221C5602FB290C11A8AD862AABF21CA36B8BE4677D159F757F",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TextSave",
+      "displayName": "Text Save",
+      "category": "\u903B\u8F91\u5DE5\u5177",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "23E51E9AEF58FD58DDA425B65C51AC8E781EAEA66039111EB3181894184F2926",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Thresholding",
+      "displayName": "\u4E8C\u503C\u5316",
+      "category": "\u9884\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "F59A1E561D207B2281DF91B687DDA11996CE88BE96C8F36DDA59A6D763343D3D",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TimerStatistics",
+      "displayName": "\u8BA1\u65F6\u7EDF\u8BA1",
+      "category": "\u903B\u8F91\u5DE5\u5177",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "606B1D386D2B2E68CF41898D122E510EAFD9D6E6395C645996C85481345521F8",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TranslationRotationCalibration",
+      "displayName": "\u5E73\u79FB\u65CB\u8F6C\u6807\u5B9A",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "62D1609B1CCB01E4B274578A8896E618CA50F74908762C4EE4B9275D3247D21C",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TriggerModule",
+      "displayName": "\u89E6\u53D1\u6A21\u5757",
+      "category": "\u903B\u8F91\u5DE5\u5177",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8EBA52E49F78E0D4FA3B00F1325A200AF12F5FC3BDF1B0A1CD82E803824F85CE",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TryCatch",
+      "displayName": "\u5F02\u5E38\u6355\u83B7",
+      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "92086F4126B2DFC74C0CC36C9DFAD4B85DE951A668E6D95B4B4083A42A9AA1DF",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "TypeConvert",
+      "displayName": "Type Convert",
+      "category": "\u901A\u7528",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A92AC259F970BD9EDEDA2E701967166A7B67A5DC4FAC1C04A9307729F49345A1",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "Undistort",
+      "displayName": "Undistort",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "397F69EB0E6EC98C421A88A88B0E8626942AAA401E4D9A05E4C2C148FCADED94",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "UnitConvert",
+      "displayName": "\u5355\u4F4D\u6362\u7B97",
+      "category": "\u6570\u636E\u5904\u7406",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "FE7B780A43585D675760189F56913DC4F7A21E215227EF05FB1A11DC049AA4E4",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "VariableIncrement",
+      "displayName": "\u53D8\u91CF\u9012\u589E",
+      "category": "\u53D8\u91CF",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7F3E98C46BB3B521FDE8CF62B1D62CF3A66B10E367A3D0E455CCFE7B38EA45FB",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "VariableRead",
+      "displayName": "\u53D8\u91CF\u8BFB\u53D6",
+      "category": "\u53D8\u91CF",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "BBAB0B899754CE30856E0DD8F0611EF0CC0CA4BD1E907120218E0F86F3920746",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "VariableWrite",
+      "displayName": "\u53D8\u91CF\u5199\u5165",
+      "category": "\u53D8\u91CF",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "34636F7341BCE22D375F9A23878D151236E96788AA8C50D2EED96897EB6917A2",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "WidthMeasurement",
+      "displayName": "\u5BBD\u5EA6\u6D4B\u91CF",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "801058F2953AB1C3328BDE0C15720544CF61BB686DE994F4C623B0594C38C178",
+          "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    }
+  ]
+}

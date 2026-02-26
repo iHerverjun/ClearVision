@@ -118,6 +118,16 @@ internal static class OperatorFactoryMetadataMerge
             differences.Add(nameof(OperatorMetadata.Keywords));
         }
 
+        if (!StringArrayEqual(hardcoded.Tags, attribute.Tags))
+        {
+            differences.Add(nameof(OperatorMetadata.Tags));
+        }
+
+        if (!TextEqual(hardcoded.Version, attribute.Version))
+        {
+            differences.Add(nameof(OperatorMetadata.Version));
+        }
+
         if (!PortListEqual(hardcoded.InputPorts, attribute.InputPorts))
         {
             differences.Add(nameof(OperatorMetadata.InputPorts));
