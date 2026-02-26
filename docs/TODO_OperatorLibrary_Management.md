@@ -286,13 +286,14 @@ Acme.OperatorLibrary/
 </PropertyGroup>
 ```
 
-- [ ] 在包内通过命名空间区分模块：
+- [x] 在包内通过命名空间区分模块：
   - `Acme.OperatorLibrary.ImageProcessing` — 图像处理算子
   - `Acme.OperatorLibrary.Measurement` — 测量算子
   - `Acme.OperatorLibrary.Calibration` — 标定算子
   - `Acme.OperatorLibrary.Communication` — 通信算子
   - `Acme.OperatorLibrary.FlowControl` — 流程控制算子
   - `Acme.OperatorLibrary.AI` — AI/深度学习算子
+  - 已通过模块索引入口完成命名空间分层，算子实现源码保持原命名空间以确保主项目零行为变更
 - [x] 编写包的 `README.md`（中英双语），包含快速使用示例
 
 ### 3.5 本地 NuGet 源配置
@@ -404,7 +405,7 @@ Phase 3（NuGet 打包）────────┘
 |------|-----------|--------|----------|----------|
 | Phase 1 | 3-5 天 | 🔴 最高 | 无 | ✅ 已完成（118/118 算子标注） |
 | Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） | ✅ 已完成（118/118 文档补全，100%） |
-| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.2/3.3/3.4/3.5/3.6 已推进，命名空间分层收口待完成） |
+| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.3/3.4/3.5/3.6 已完成，3.2 `Directory.Build.props` 方案未采用） |
 | Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ✅ 已完成（编目 + CI 目录生成 + 可选 pre-commit 自动刷新） |
 | Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ⬜ 未启动 |
 

@@ -20,7 +20,7 @@ Industrial Vision Operator Library for ClearVision.
 
 2. Generated package output:
 
-- `./nupkg/Acme.OperatorLibrary.1.0.1-local.nupkg`
+- `./nupkg/Acme.OperatorLibrary.1.0.2-local.nupkg`
 
 3. Add local source in another project:
 
@@ -33,7 +33,7 @@ Industrial Vision Operator Library for ClearVision.
 4. Reference package:
 
 ```xml
-<PackageReference Include="Acme.OperatorLibrary" Version="1.0.1-local" />
+<PackageReference Include="Acme.OperatorLibrary" Version="1.0.2-local" />
 ```
 
 ## Notes
@@ -55,3 +55,16 @@ Industrial Vision Operator Library for ClearVision.
 - Generated reports:
   - `./analysis/dependency-report.md`
   - `./analysis/dependency-report.json`
+
+## Phase 3.4 Module Namespaces
+
+The package now exposes module-level namespace indexes:
+
+- `Acme.OperatorLibrary.ImageProcessing`
+- `Acme.OperatorLibrary.Measurement`
+- `Acme.OperatorLibrary.Calibration`
+- `Acme.OperatorLibrary.Communication`
+- `Acme.OperatorLibrary.FlowControl`
+- `Acme.OperatorLibrary.AI`
+
+Use `Operators.Types` in each namespace to get the grouped `OperatorType` list.
