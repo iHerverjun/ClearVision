@@ -182,6 +182,8 @@ class SettingsView {
         // 如果是切换到用户管理且是管理员，需要刷新表格
         if (tabName === 'users' && this.isAdmin) {
             this.refreshUserTable();
+        } else if (tabName === 'cameras') {
+            this.loadCameraBindings();
         }
     }
 
@@ -481,103 +483,217 @@ class SettingsView {
             });
         }
 
-        // 删除绑定
-        section.addEventListener('click', (e) => {
-            if (e.target.dataset.action === 'remove-binding') {
-                const id = e.target.dataset.id;
-                this.cameraBindings = this.cameraBindings.filter(b => b.id !== id);
-                this.refreshCameraTable();
+        const tbody = this.container.querySelector('#camera-bindings-table tbody');
+        if (tbody) {
+            tbody.addEventListener('click', (e) => {
+                const tr = e.target.closest('tr.camera-row');
+                if (!tr) return;
+
+                // 点击选中行，展示详情
+                this.selectCameraRow(tr);
+
+                // 删除按钮
+                const deleteBtn = e.target.closest('.action-icon-btn');
+                if (deleteBtn) {
+                    const id = tr.dataset.id;
+                    if (confirm('确定要删除此相机配置吗？')) {
+                        this.cameraBindings = this.cameraBindings.filter(b => b.id !== id);
+                        this.refreshCameraTable();
+                        showToast('已移除相机配置', 'success');
+                    }
+                }
+            });
+        }
+    }
+
+    async loadCameraBindings() {
+        const tbody = this.container.querySelector('#camera-bindings-table tbody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px;"><div class="cv-spinner" style="margin-right:8px; display:inline-block;"></div>正在加载相机配置...</td></tr>`;
+        }
+
+        try {
+            const bindings = await httpClient.get('/cameras/bindings');
+            this.cameraBindings = bindings || [];
+            this.refreshCameraTable();
+        } catch (error) {
+            console.error('Failed to load camera bindings:', error);
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color:var(--accent);">加载配置失败: ` + error.message + `</td></tr>`;
             }
-        });
+        }
     }
 
     async discoverCameras() {
-        const tbody = this.container.querySelector('#discovery-tbody');
-        const resultsDiv = this.container.querySelector('#discovery-results');
-        if (!tbody || !resultsDiv) {
-            showToast('组件未就绪 / 未实现完整的相机发现DOM。', 'warning');
-            return;
-        }
-
         showToast('正在搜索在线相机...', 'info');
-        resultsDiv.style.display = 'block';
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;">正在枚举设备...</td></tr>';
+        const discoverBtn = this.container.querySelector('#btn-discover-cameras');
+        if (discoverBtn) discoverBtn.disabled = true;
 
         try {
             const devices = await httpClient.get('/cameras/discover');
-            if (!devices || devices.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">未发现任何在线相机</td></tr>';
-                return;
+            
+            if (devices && devices.length > 0) {
+                showToast(`找到 ${devices.length} 个相机设备`, 'success');
+                this.showDiscoveryModal(devices);
+            } else {
+                showToast('未发现任何在线相机', 'warning');
             }
-
-            tbody.innerHTML = devices.map(d => `
-                <tr style="cursor: pointer;" class="discovery-row" data-sn="${d.cameraId}" data-man="${d.manufacturer}" data-model="${d.model}">
-                    <td><code>${d.cameraId}</code></td>
-                    <td>${d.manufacturer}</td>
-                    <td>${d.model}</td>
-                    <td>${d.connectionType}</td>
-                    <td><button class="cv-btn cv-btn-primary" style="padding:4px 8px;font-size:12px;">绑定</button></td>
-                </tr>
-            `).join('');
-
-            // 绑定点击事件
-            tbody.querySelectorAll('tr').forEach(row => {
-                row.onclick = () => {
-                    const sn = row.dataset.sn;
-                    const manufacturer = row.dataset.man;
-                    const model = row.dataset.model;
-
-                    // 检查是否已存在
-                    if (this.cameraBindings.find(b => b.serialNumber === sn)) {
-                        showToast('该相机已在绑定列表中', 'warning');
-                        return;
-                    }
-
-                    const displayName = prompt('请输入该相机的逻辑名称 (如: Top_Camera):', `Cam_${this.cameraBindings.length + 1}`);
-                    if (displayName) {
-                        this.cameraBindings.push({
-                            id: Math.random().toString(36).substr(2, 8),
-                            displayName: displayName,
-                            serialNumber: sn,
-                            manufacturer: manufacturer,
-                            modelName: model,
-                            isEnabled: true
-                        });
-                        this.refreshCameraTable();
-                        showToast(`已绑定: ${displayName}`, 'success');
-                    }
-                };
-            });
-
         } catch (error) {
             showToast('搜索相机失败: ' + error.message, 'error');
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--accent);">错误: ${error.message}</td></tr>`;
+        } finally {
+            if (discoverBtn) discoverBtn.disabled = false;
         }
+    }
+
+    showDiscoveryModal(devices) {
+        const contentDiv = document.createElement('div');
+        contentDiv.innerHTML = `
+            <div class="settings-card-table-wrapper" style="max-height: 400px; overflow-y: auto;">
+                <table class="settings-modern-table" style="margin: 0; width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>序列号 (IP)</th>
+                            <th>制造商</th>
+                            <th>型号</th>
+                            <th>驱动/协议</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${devices.map(d => `
+                            <tr>
+                                <td><code style="background:var(--panel-bg); padding:2px 6px; border-radius:4px; font-size:13px; font-family:var(--font-mono);">${d.cameraId}</code></td>
+                                <td>${d.manufacturer || '-'}</td>
+                                <td>${d.model || '-'}</td>
+                                <td>${d.connectionType || '-'}</td>
+                                <td>
+                                    <button class="cv-btn cv-btn-primary btn-bind-camera" 
+                                            data-sn="${d.cameraId}" 
+                                            data-man="${d.manufacturer}" 
+                                            data-model="${d.model}" 
+                                            style="padding:6px 12px; font-size:13px; border-radius:6px;">
+                                        添加绑定
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top:16px; font-size:13px; color:var(--text-muted);">
+                * 点击“添加绑定”可以将选中设备汇入到您的视觉工程工作区中。
+            </p>
+        `;
+
+        // 这里需要引入外面的全局方法或者之前 import 进来的 createModal
+        // 顶部的 import { showToast, createModal } from '../../shared/components/uiComponents.js'; 已经确保了可用
+        const modal = createModal({
+            title: '配置向导：发现在线相机',
+            content: contentDiv,
+            width: '720px'
+        });
+
+        // 绑定点击事件
+        const bindBtns = contentDiv.querySelectorAll('.btn-bind-camera');
+        bindBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const sn = btn.dataset.sn;
+                const manufacturer = btn.dataset.man;
+                const model = btn.dataset.model;
+
+                // 检查是否已存在
+                if (this.cameraBindings.find(b => b.serialNumber === sn)) {
+                    showToast('该相机已在绑定列表中，无需重复添加', 'warning');
+                    return;
+                }
+
+                const displayName = prompt('请输入该相机的逻辑命名 (如: Left_Camera_01):', `Cam_${this.cameraBindings.length + 1}`);
+                if (!displayName) return;
+
+                const newBinding = {
+                    id: Math.random().toString(36).substr(2, 8), // 模拟 GUID
+                    displayName: displayName,
+                    serialNumber: sn,
+                    manufacturer: manufacturer,
+                    modelName: model,
+                    ipAddress: sn, // 简单的演示赋值
+                    isEnabled: true
+                };
+
+                this.cameraBindings.push(newBinding);
+                this.refreshCameraTable();
+                showToast(`已成功绑定逻辑相机: ${displayName}`, 'success');
+                
+                // 置灰当前按钮，防止重复点击
+                btn.disabled = true;
+                btn.textContent = '已绑定';
+                btn.classList.add('settings-btn-light');
+                btn.classList.remove('cv-btn-primary');
+            });
+        });
     }
 
     refreshCameraTable() {
         const tbody = this.container.querySelector('#camera-bindings-table tbody');
         if (!tbody) return;
 
-        if (this.cameraBindings.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">暂无绑定配置，请点击“搜索相机”</td></tr>';
+        if (!this.cameraBindings || this.cameraBindings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:24px;">暂无绑定配置，请点击“搜索相机”以发现及更新</td></tr>';
             return;
         }
 
-        tbody.innerHTML = this.cameraBindings.map(b => `
-            <tr class="camera-row" data-id="${b.id}">
-                <td><input type="text" class="cv-input cam-display-name" value="${b.displayName}" style="width: 120px;"></td>
-                <td><code class="cam-sn">${b.serialNumber}</code></td>
-                <td>${b.manufacturer}</td>
-                <td>${b.modelName || '-'}</td>
+        tbody.innerHTML = this.cameraBindings.map((b, index) => {
+            const isConnected = b.isEnabled !== false; // 假设字段
+            const statusClass = isConnected ? 'status-connected' : 'status-error';
+            const statusDotClass = isConnected ? 'status-dot' : 'status-dot status-error';
+            const statusText = isConnected ? '已连接' : '已断开';
+            const bgClass = index === 0 ? '#fee2e2' : '#e0e7ff';
+            const fgClass = index === 0 ? 'var(--cinnabar)' : 'var(--primary)';
+
+            return `
+            <tr class="camera-row" data-id="${b.id}" style="cursor: pointer;">
                 <td>
-                    <span class="user-status ${b.isEnabled ? 'active' : 'inactive'}">${b.isEnabled ? '启用' : '禁用'}</span>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:32px; height:32px; background:${bgClass}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:${fgClass};">
+                            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zM12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z"/></svg>
+                        </div>
+                        <div>
+                            <div class="font-bold">${b.displayName || '未命名相机'}</div>
+                            <div class="text-muted" style="font-size:12px;">${b.serialNumber || '未知'}</div>
+                        </div>
+                    </div>
                 </td>
-                <td>
-                    <button class="user-btn delete-btn" data-action="remove-binding" data-id="${b.id}">删除</button>
-                </td>
+                <td><span class="font-mono">${b.ipAddress || '192.168.x.x'}</span></td>
+                <td>${b.manufacturer || '未知'}</td>
+                <td><span class="settings-status-badge ${statusClass}"><span class="${statusDotClass}"></span> ${statusText}</span></td>
+                <td><button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button></td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
+    }
+
+    selectCameraRow(tr) {
+        // 取消其他行高亮
+        const allRows = this.container.querySelectorAll('tr.camera-row');
+        allRows.forEach(r => r.style.backgroundColor = '');
+        
+        // 高亮当前行
+        tr.style.backgroundColor = 'var(--panel-bg)';
+
+        const id = tr.getAttribute('data-id');
+        const cam = this.cameraBindings.find(b => b.id === id);
+        
+        // 更新参数面板
+        if (cam) {
+            const nameEl = this.container.querySelector('#current-cam-name');
+            if (nameEl) nameEl.textContent = cam.displayName || '未命名相机';
+
+            // 更新输入框 (如果有)
+            const exposeInput = this.container.querySelector('input[type="number"]');
+            if(exposeInput) {
+               exposeInput.value = 5000;
+            }
+        }
     }
 
     // （演示用空壳。需要配合 Modal使用，这里只挂载入口）
@@ -959,11 +1075,11 @@ class SettingsView {
                 <div class="settings-actions">
                     <button class="cv-btn settings-btn-light" id="btn-discover-cameras">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                        刷新列表
+                        搜索相机
                     </button>
-                    <button class="cv-btn settings-btn-danger">
+                    <!-- <button class="cv-btn settings-btn-danger">
                         <span style="font-size:16px; margin-right:4px;">+</span> 添加相机
-                    </button>
+                    </button> -->
                 </div>
             </div>
 
@@ -980,23 +1096,8 @@ class SettingsView {
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Demo Row (will be overridden by refreshCameraTable if bindings exist) -->
-                            <tr class="camera-row">
-                                <td>
-                                    <div style="display:flex; align-items:center; gap:12px;">
-                                        <div style="width:32px; height:32px; background:#fee2e2; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--cinnabar);">
-                                            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zM12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z"/></svg>                                        </div>
-                                        <div>
-                                            <div class="font-bold">Top_Cam_01</div>
-                                            <div class="text-muted" style="font-size:12px;">主检测位 - 上方</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td><span class="font-mono">192.168.1.10</span></td>
-                                <td>GigE Vision</td>
-                                <td><span class="settings-status-badge status-connected"><span class="status-dot"></span> 已连接</span></td>
-                                <td><button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button></td>
-                            </tr>
+                            <!-- 加载后端数据 -->
+                            <tr><td colspan="5" style="text-align:center; padding: 24px;"><div class="cv-spinner" style="margin-right:8px; display:inline-block;"></div>正在加载相机配置...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1007,7 +1108,7 @@ class SettingsView {
                 <div class="settings-card-header" style="background:#ffffff; display:flex; justify-content:space-between;">
                     <div class="settings-header-left">
                         <svg viewBox="0 0 24 24" class="settings-header-icon" style="fill:#94a3b8;"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                        <span>参数配置: Top_Cam_01</span>
+                        <span>参数配置: <span id="current-cam-name">未选择相机</span></span>
                     </div>
                 </div>
                 <div class="settings-card-body">
@@ -1015,7 +1116,7 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>曝光时间 (Exposure Time)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="5000" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">µs</span>
                             </div>
                             <span class="settings-field-hint">范围: 10 - 1000000 µs</span>
@@ -1023,7 +1124,7 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>增益 (Gain)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" step="0.1" class="cv-input" value="1.0" style="padding-right:36px;">
+                                <input type="number" step="0.1" class="cv-input" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">dB</span>
                             </div>
                             <span class="settings-field-hint">范围: 0.0 - 24.0 dB</span>
@@ -1042,21 +1143,21 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>采集帧率 (Frame Rate)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="30" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">fps</span>
                             </div>
                         </div>
                         <div class="settings-fieldset">
                             <label>图像宽度 (Width)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="2448" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">px</span>
                             </div>
                         </div>
                         <div class="settings-fieldset">
                             <label>图像高度 (Height)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="2048" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">px</span>
                             </div>
                         </div>

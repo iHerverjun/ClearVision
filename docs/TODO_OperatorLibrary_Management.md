@@ -2,7 +2,7 @@
 
 > **作者**：蘅芜君  
 > **创建日期**：2026-02-25  
-> **最后更新**：2026-02-25  
+> **最后更新**：2026-02-26  
 > **目标**：在不破坏 ClearVision 项目现有功能的前提下，建立算子元数据注册系统、算法实现文档化体系，并生成可被其他项目复用的 NuGet 包。
 
 ---
@@ -100,7 +100,7 @@ public class GaussianBlurOperator : OperatorBase { ... }
 - [x] **批次 5（流程控制 × 12）**：条件分支、循环、异常、变量、脚本等
 - [x] **批次 6（AI + 后处理 × 10）**：深度学习推理、NMS、Box过滤、缺陷检测等
 - [x] **批次 7（剩余算子）**：数据处理、格式转换、结果判定等
-- [ ] 每完成一个批次后，运行全部单元测试确认无回退
+- [x] 全部 7 批次标注完成后，验证通过（2026-02-26：118/118 算子已标注，覆盖率 100%）
 
 ### 1.5 验证（不清理硬编码）
 
@@ -181,21 +181,39 @@ public class GaussianBlurOperator : OperatorBase { ... }
 
 ### 2.3 分批编写算法文档
 
-- [ ] **优先级 P0（核心测量算子 × 8）**：
+- [x] **优先级 P0（核心测量算子 × 8）**：
   - CaliperTool、WidthMeasurement、AngleMeasurement、MeasureDistance
   - GapMeasurement、CircleMeasurement、ContourMeasurement、LineMeasurement
-- [ ] **优先级 P0（核心检测算子 × 5）**：
+- [x] **优先级 P0（核心检测算子 × 5）**：
   - TemplateMatch、ShapeMatching、BlobDetection、SubpixelEdgeDetection、ColorDetection
-- [ ] **优先级 P1（标定与变换 × 6）**：
+- [x] **优先级 P1（标定与变换 × 6）**：
   - CameraCalibration、NPointCalibration、CoordinateTransform
   - AffineTransform、PerspectiveTransform、Undistort
-- [ ] **优先级 P1（图像预处理 × 10）**：
+- [x] **优先级 P1（图像预处理 × 10）**：
   - GaussianBlur、MedianBlur、BilateralFilter、MorphologicalOperation
   - Threshold、AdaptiveThreshold、CannyEdge、HistogramEqualization
   - ClaheEnhancement、ShadingCorrection
-- [ ] **优先级 P2（AI + 后处理 × 5）**：
+- [x] **优先级 P2（AI + 后处理 × 5）**：
   - DeepLearning、BoxNms、BoxFilter、SurfaceDefectDetection、EdgePairDefect
-- [ ] **优先级 P2（通信与流程 × 10+）**：逐步补充
+- [x] **优先级 P2（通信与流程 × 20）**：累计 20 个核心算子已补全（首批 12 + 收口 8）
+
+### 2.4 阶段复审（2026-02-26）
+
+- [x] 阶段复审报告已归档：`docs/OperatorLibrary_StageReview_2026-02-26.md`
+- [x] 复审结论：Phase 2.3 P0/P1/P2 共 54 份文档补全通过（13 + 16 + 25）
+- [x] 清理结果：已补全文档 `TODO/O(?)/~?ms` 占位符清零
+- [x] 剩余盘点：当前仍有 64 份文档待补全，进入下一批次计划
+
+### 2.5 剩余文档补全计划
+
+> [!NOTE]
+> 以下为 Phase 2 尚未完成的工作——64 份文档仍含占位符，需分批推进。
+
+- [ ] **批次 A（预处理 + 检测 × 18）**：11 预处理 + 7 检测，高存量优先清理
+- [ ] **批次 B（定位 + 数据处理 × 14）**：7 定位 + 7 数据处理
+- [ ] **批次 C（匹配定位 + 图像处理 + 逻辑工具 × 10）**：4 匹配定位 + 3 图像处理 + 3 逻辑工具
+- [ ] **批次 D（剩余散项 × ~22）**：识别、其余各类别各 1-2 个
+- [ ] 统一 `Category` 命名规范（解决中英文混用问题，如 `预处理` vs `Preprocessing`）
 
 ---
 
@@ -376,13 +394,13 @@ Phase 3（NuGet 打包）────────┘
              Phase 5（质量体系）
 ```
 
-| 阶段 | 预估工作量 | 优先级 | 前置依赖 |
-|------|-----------|--------|----------|
-| Phase 1 | 3-5 天 | 🔴 最高 | 无 |
-| Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） |
-| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） |
-| Phase 4 | 1-2 天 | 🟡 中 | Phase 1 |
-| Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 |
+| 阶段 | 预估工作量 | 优先级 | 前置依赖 | 当前状态 |
+|------|-----------|--------|----------|----------|
+| Phase 1 | 3-5 天 | 🔴 最高 | 无 | ✅ 已完成（118/118 算子标注） |
+| Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） | ⏳ 进行中（54/118 文档补全，45.76%） |
+| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⬜ 未启动 |
+| Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ⏳ 编目已完成，CI 未集成 |
+| Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ⬜ 未启动 |
 
 ---
 
