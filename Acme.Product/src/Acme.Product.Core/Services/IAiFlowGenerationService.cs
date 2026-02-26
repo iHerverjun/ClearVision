@@ -1,4 +1,5 @@
 using Acme.Product.Core.DTOs;
+using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Core.Services;
 
@@ -15,6 +16,7 @@ public interface IAiFlowGenerationService
     Task<AiFlowGenerationResult> GenerateFlowAsync(
         AiFlowGenerationRequest request,
         Action<string>? onProgress = null,
+        Action<AiStreamChunk>? onStreamChunk = null,
         CancellationToken cancellationToken = default);
 }
 

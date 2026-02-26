@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Collections.Generic;
 using System.Linq;
+using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -46,6 +47,31 @@ public class AiApiClient
         if (providerKey.Contains("openai"))
         {
             return await CallOpenAiAsync(systemPrompt, messages, currentOptions, cancellationToken);
+        }
+
+        throw new InvalidOperationException($"不支持的 AI 提供商：{currentOptions.Provider}");
+    }
+
+    /// <summary>
+    /// 流式调用 AI API 获取结果（支持思维链和正文的逐块推送）
+    /// </summary>
+    public async Task<AiCompletionResult> StreamCompleteAsync(
+        string systemPrompt,
+        List<ChatMessage> messages,
+        Action<AiStreamChunk> onChunk,
+        AiGenerationOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var currentOptions = options ?? _configStore.Get();
+        var providerKey = currentOptions.Provider.ToLowerInvariant();
+        if (providerKey.Contains("anthropic"))
+        {
+            return await StreamAnthropicAsync(systemPrompt, messages, currentOptions, onChunk, cancellationToken);
+        }
+
+        if (providerKey.Contains("openai"))
+        {
+            return await StreamOpenAiAsync(systemPrompt, messages, currentOptions, onChunk, cancellationToken);
         }
 
         throw new InvalidOperationException($"不支持的 AI 提供商：{currentOptions.Provider}");
@@ -111,6 +137,83 @@ public class AiApiClient
             Content = content ?? throw new InvalidOperationException("AI 返回了空响应"),
             Reasoning = reasoning
         };
+    }
+
+    private async Task<AiCompletionResult> StreamAnthropicAsync(
+        string systemPrompt,
+        List<ChatMessage> messages,
+        AiGenerationOptions options,
+        Action<AiStreamChunk> onChunk,
+        CancellationToken cancellationToken)
+    {
+        var requestBody = new
+        {
+            model = options.Model,
+            max_tokens = options.MaxTokens,
+            temperature = options.Temperature,
+            system = systemPrompt,
+            messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
+            stream = true
+        };
+
+        var apiUrl = options.BaseUrl ?? "https://api.anthropic.com/v1/messages";
+        var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
+        request.Headers.Add("x-api-key", options.ApiKey);
+        request.Headers.Add("anthropic-version", "2023-06-01");
+        request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
+
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+
+        var fullContent = new StringBuilder();
+        var fullReasoning = new StringBuilder();
+
+        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: "))
+                continue;
+
+            var dataStr = line["data: ".Length..].Trim();
+            if (dataStr == "[DONE]")
+                break;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(dataStr);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("type", out var typeEl))
+                    continue;
+
+                var type = typeEl.GetString();
+                if (type == "content_block_delta" && root.TryGetProperty("delta", out var deltaEl))
+                {
+                    var deltaType = deltaEl.GetProperty("type").GetString();
+                    if (deltaType == "thinking_delta" && deltaEl.TryGetProperty("thinking", out var thinkingEl))
+                    {
+                        var chunk = thinkingEl.GetString() ?? "";
+                        fullReasoning.Append(chunk);
+                        onChunk(new AiStreamChunk(AiStreamChunkType.Thinking, chunk));
+                    }
+                    else if (deltaType == "text_delta" && deltaEl.TryGetProperty("text", out var textEl))
+                    {
+                        var chunk = textEl.GetString() ?? "";
+                        fullContent.Append(chunk);
+                        onChunk(new AiStreamChunk(AiStreamChunkType.Content, chunk));
+                    }
+                }
+            }
+            catch (JsonException) { }
+        }
+
+        onChunk(new AiStreamChunk(AiStreamChunkType.Done, string.Empty));
+        return new AiCompletionResult { Content = fullContent.ToString(), Reasoning = fullReasoning.ToString() };
     }
 
     private async Task<AiCompletionResult> CallOpenAiAsync(
@@ -222,6 +325,104 @@ public class AiApiClient
             Content = content ?? throw new InvalidOperationException("AI 返回了空响应"),
             Reasoning = reasoning
         };
+    }
+
+    private async Task<AiCompletionResult> StreamOpenAiAsync(
+        string systemPrompt,
+        List<ChatMessage> messages,
+        AiGenerationOptions options,
+        Action<AiStreamChunk> onChunk,
+        CancellationToken cancellationToken)
+    {
+        var apiMessages = new List<object> { new { role = "system", content = systemPrompt } };
+        apiMessages.AddRange(messages.Select(m => new { role = m.Role, content = m.Content }));
+
+        var isReasonerModel = options.Model.Contains("reasoner", StringComparison.OrdinalIgnoreCase);
+        object requestBody;
+        if (isReasonerModel)
+        {
+            var reasonerMaxTokens = Math.Max(options.MaxTokens, 8192);
+            requestBody = new { model = options.Model, max_tokens = reasonerMaxTokens, messages = apiMessages, stream = true };
+        }
+        else
+        {
+            requestBody = new { model = options.Model, max_tokens = options.MaxTokens, temperature = options.Temperature, messages = apiMessages, response_format = new { type = "json_object" }, stream = true };
+        }
+
+        var apiUrl = "https://api.openai.com/v1/chat/completions";
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+        {
+            apiUrl = options.BaseUrl.Trim();
+            if (!apiUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!apiUrl.EndsWith("/"))
+                    apiUrl += "/";
+                if (!apiUrl.Contains("/v1/", StringComparison.OrdinalIgnoreCase) && !apiUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+                    apiUrl += "v1/";
+                apiUrl += "chat/completions";
+            }
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+
+        var timeoutSeconds = isReasonerModel ? Math.Max(options.TimeoutSeconds, 300) : options.TimeoutSeconds;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+
+        var fullContent = new StringBuilder();
+        var fullReasoning = new StringBuilder();
+
+        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: "))
+                continue;
+
+            var dataStr = line["data: ".Length..].Trim();
+            if (dataStr == "[DONE]")
+                break;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(dataStr);
+                if (!doc.RootElement.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                    continue;
+
+                var delta = choices[0].GetProperty("delta");
+
+                if (delta.TryGetProperty("reasoning_content", out var thinkingEl))
+                {
+                    var chunk = thinkingEl.GetString() ?? "";
+                    if (!string.IsNullOrEmpty(chunk))
+                    {
+                        fullReasoning.Append(chunk);
+                        onChunk(new AiStreamChunk(AiStreamChunkType.Thinking, chunk));
+                    }
+                }
+
+                if (delta.TryGetProperty("content", out var contentEl))
+                {
+                    var chunk = contentEl.GetString() ?? "";
+                    if (!string.IsNullOrEmpty(chunk))
+                    {
+                        fullContent.Append(chunk);
+                        onChunk(new AiStreamChunk(AiStreamChunkType.Content, chunk));
+                    }
+                }
+            }
+            catch (JsonException) { }
+        }
+
+        onChunk(new AiStreamChunk(AiStreamChunkType.Done, string.Empty));
+        return new AiCompletionResult { Content = fullContent.ToString(), Reasoning = fullReasoning.ToString() };
     }
 
     // 保留旧方法以兼容

@@ -46,6 +46,34 @@ public class GeometricToleranceOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithParallelLines_ShouldReportAngleOnlyModel()
+    {
+        var op = new Operator("测试", OperatorType.GeometricTolerance, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MeasureType", "Parallelism", "enum"));
+        op.AddParameter(TestHelpers.CreateParameter("Line1_X1", 10, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line1_Y1", 30, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line1_X2", 180, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line1_Y2", 30, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line2_X1", 20, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line2_Y1", 80, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line2_X2", 170, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("Line2_Y2", 80, "int"));
+
+        using var image = TestHelpers.CreateTestImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("MeasurementModel");
+        result.OutputData!["MeasurementModel"].Should().Be("AngleOnly");
+        result.OutputData.Should().ContainKey("AngularDeviationDeg");
+        result.OutputData.Should().ContainKey("LinearBand");
+
+        Convert.ToDouble(result.OutputData["Tolerance"]).Should().BeApproximately(0.0, 1e-6);
+        Convert.ToDouble(result.OutputData["AngularDeviationDeg"]).Should().BeApproximately(0.0, 1e-6);
+        Convert.ToDouble(result.OutputData["LinearBand"]).Should().BeApproximately(0.0, 1e-6);
+    }
+
+    [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
         var op = new Operator("测试", OperatorType.GeometricTolerance, 0, 0);

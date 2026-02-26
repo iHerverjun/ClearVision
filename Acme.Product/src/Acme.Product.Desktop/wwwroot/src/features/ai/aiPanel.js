@@ -49,121 +49,100 @@ export class AiPanel {
         this.sessionId = null;
         this.currentResult = null;
         this._clearResultPane();
-        this._addMessage('system', '已开始新对话。后续描述将按全新需求处理。');
+        const container = this.container.querySelector('#ai-chat-container');
+        if (container) container.innerHTML = '';
+        const progress = this.container.querySelector('#ai-progress-container');
+        if (progress) progress.innerHTML = '<div class="ai-empty-state" style="text-align:center;color:#999;font-size:14px;margin-top:40px;">等待输入指令...</div>';
+        this._addMessage('ai', '您好！我是您的视觉工程助手。已开始新对话。');
     }
 
     render() {
         this.container.innerHTML = `
-            <header class="ai-header">
-                <div class="ai-title">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                        <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/>
-                    </svg>
-                    <span>AI 智能工程助手</span>
-                </div>
-                <div class="ai-header-actions">
-                    <button class="ai-btn-secondary" id="ai-btn-new-session" title="清空会话上下文并开始新对话">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:4px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                        新对话
-                    </button>
-                    <div class="ai-status-indicator" id="ai-conn-status">
-                        <span class="status-dot connecting"></span>
-                        <span class="status-text">连接中...</span>
-                    </div>
-                </div>
-            </header>
-            
             <div class="ai-workspace">
-                <!-- 左侧：输入与历史 -->
                 <aside class="ai-pane-left">
-                    <div class="ai-input-section">
-                        <div class="ai-section-title">检测需求描述</div>
-                        <div class="ai-input-wrapper">
-                            <textarea class="ai-textarea" id="ai-input" 
-                                placeholder="请描述您的视觉检测需求...&#10;例如：使用500万像素相机拍摄产品表面，检测是否存在划痕和污渍，如果是NG品则自动剔除。"></textarea>
-                        </div>
-                        <button class="ai-btn-generate" id="ai-btn-gen">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
-                            生成工程方案
-                        </button>
-                        
-                        <div class="ai-examples">
-                            <div class="ai-section-title">快速示例</div>
-                            <div class="ai-example-tags">
-                                <span class="ai-tag" data-text="读取产品上的DataMatrix二维码，并将解码结果通过Modbus TCP协议写入PLC寄存器D100。">条码读取</span>
-                                <span class="ai-tag" data-text="检测金属零件表面的划痕缺陷。先进行高斯滤波去噪，然后使用Canny边缘检测，最后通过Blob分析计算划痕面积。">缺陷检测</span>
-                                <span class="ai-tag" data-text="测量两个圆形孔位的圆心距离。需要先进行相机标定，然后识别圆孔特征，计算像素距离。">孔距测量</span>
-                            </div>
+                    <div class="ai-pane-header">
+                        <span class="pane-icon">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                        </span>
+                        <span class="pane-title">CO-PILOT 对话</span>
+                        <span class="status-badge online">在线</span>
+                    </div>
+                    
+                    <div class="ai-chat-container" id="ai-chat-container">
+                        <div class="ai-message ai">
+                            <div class="ai-bubble">您好！我是您的视觉工程助手。请描述您想要检测的缺陷，我将为您构建流水线。</div>
                         </div>
                     </div>
                     
-                    <div class="ai-history-section">
-                        <div class="ai-section-title" style="margin-bottom: 8px;">历史记录</div>
-                        <div class="ai-history-list" id="ai-history-list">
-                            <div style="padding: 20px; text-align: center; color: var(--ai-text-mute); font-size: 12px;">暂无历史记录</div>
+                    <div class="ai-input-section">
+                        <div class="ai-input-box">
+                            <button class="icon-btn" title="附件">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 015 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 005 0V5c0-1.38-1.12-2.5-2.5-2.5S8 3.62 8 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+                            </button>
+                            <textarea class="ai-textarea" id="ai-input" placeholder="输入指令..."></textarea>
+                            <button class="ai-btn-send" id="ai-btn-gen">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                            </button>
+                        </div>
+                        <div class="ai-quick-examples">
+                            <div class="examples-header" id="examples-toggle">
+                                快捷示例 
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:middle;"><path d="M7 10l5 5 5-5z"/></svg>
+                            </div>
+                            <div class="ai-example-tags">
+                                <span class="ai-tag" data-text="读取产品上的DataMatrix二维码。">条码读取</span>
+                                <span class="ai-tag" data-text="检测金属零件表面的划痕缺陷。先进行高斯滤波去噪，然后使用Canny边缘检测，最后通过Blob分析计算划痕面积。">缺陷检测</span>
+                                <span class="ai-tag" data-text="测量两个圆形孔位的圆心距离。">孔距测量</span>
+                            </div>
                         </div>
                     </div>
                 </aside>
                 
-                <!-- 中间：对话链 (缩窄宽度以容纳4列) -->
                 <section class="ai-pane-center">
-                    <div class="ai-thinking-container" id="ai-chat-container">
-                        <div class="ai-message ai">
-                            <div class="ai-avatar ai">AI</div>
-                            <div class="ai-content">
-                                <div class="ai-bubble">你好！我是 ClearVision 智能助手。请在左侧描述您的检测需求，我将为您自动生成或修改视觉工程方案。</div>
-                            </div>
-                        </div>
+                    <div class="ai-pane-header">
+                        <span class="pane-icon ai-badge">AI</span>
+                        <span class="pane-title">工作流生成进度</span>
+                    </div>
+                    <div class="ai-progress-container" id="ai-progress-container">
+                        <div class="ai-empty-state">等待输入指令...</div>
                     </div>
                 </section>
                 
-                <!-- 独立列：推理过程 -->
-                <aside class="ai-pane-reasoning" id="ai-reasoning-pane" style="display:none;">
-                    <div class="ai-input-section" style="border-bottom: none; padding-bottom: 0;">
-                        <div class="ai-section-title">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:text-bottom; margin-right:4px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                            智能推理分析
+                <aside class="ai-pane-reasoning" id="ai-reasoning-pane">
+                    <div class="reasoning-card design-idea">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6A4.997 4.997 0 017 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/></svg>
+                            设计思路
                         </div>
+                        <div class="ai-explanation" id="ai-result-reasoning">--</div>
                     </div>
-                    <div class="ai-result-panel" style="flex:1; overflow:hidden; display:flex; flex-direction:column; padding-top:10px;">
-                        <div class="result-card style-red-border" style="margin-bottom: 12px; flex-shrink: 0;">
-                            <div class="card-title text-red">设计思路</div>
-                            <div class="ai-explanation" id="ai-result-reasoning" style="max-height: 200px; overflow-y: auto;">
-                                --
-                            </div>
+                    <div class="reasoning-card logic-deduction">
+                        <div class="card-title">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                            逻辑推演
                         </div>
-                        <div class="result-card" id="ai-thinking-card" style="flex: 1; display:flex; flex-direction:column; overflow:hidden;">
-                            <div class="card-title">逻辑推演</div>
-                            <div class="ai-explanation" id="ai-result-thinking" style="flex:1; overflow-y: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.6; font-family: 'JetBrains Mono', Consolas, monospace;"></div>
-                        </div>
+                        <div class="ai-explanation logic-json" id="ai-result-thinking"></div>
                     </div>
                 </aside>
 
-                <!-- 右侧：方案预览与行动 -->
-                <aside class="ai-pane-right" id="ai-result-pane" style="display:none;">
-                    <div class="ai-input-section" style="border-bottom: none; padding-bottom: 0;">
-                        <div class="ai-section-title">生成结果</div>
+                <aside class="ai-pane-right" id="ai-result-pane">
+                    <div class="result-card overview">
+                        <div class="card-title">方案概览</div>
+                        <div class="ai-explanation" id="ai-result-summary">--</div>
                     </div>
                     
-                    <div class="ai-result-panel" style="padding-top:10px;">
-                        <div class="result-card">
-                            <div class="card-title">方案概览</div>
-                            <div class="ai-explanation" id="ai-result-summary">--</div>
-                        </div>
-                        
-                        <div class="result-card" style="flex:1; display:flex; flex-direction:column;">
-                            <div class="card-title">包含算子</div>
-                            <div class="generated-ops-list" id="ai-result-ops" style="flex:1; overflow-y:auto; align-content: flex-start;"></div>
-                        </div>
-                        
-                        <div class="ai-actions">
-                            <button class="btn btn-primary btn-apply-flow" id="ai-btn-apply">
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                                </svg>
-                                应用到环境
-                            </button>
-                        </div>
+                    <div class="result-card ops-list">
+                        <div class="card-title">生成的算子清单</div>
+                        <div class="generated-ops-list" id="ai-result-ops"></div>
+                    </div>
+                    
+                    <div class="apply-container">
+                        <button class="btn-apply-flow" id="ai-btn-apply">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:6px;">
+                                <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                            </svg>
+                            应用到环境
+                        </button>
                     </div>
                 </aside>
             </div>
@@ -172,7 +151,8 @@ export class AiPanel {
         // 事件绑定
         this.container.querySelector('#ai-btn-gen').addEventListener('click', this._handleGenerate);
         this.container.querySelector('#ai-btn-apply').addEventListener('click', this._handleApplyFlow);
-        this.container.querySelector('#ai-btn-new-session').addEventListener('click', this._handleNewConversation);
+        const newSessionBtn = this.container.querySelector('#ai-btn-new-session');
+        if (newSessionBtn) newSessionBtn.addEventListener('click', this._handleNewConversation);
         
         this.container.querySelectorAll('.ai-tag').forEach(tag => {
             tag.addEventListener('click', () => {
@@ -180,13 +160,23 @@ export class AiPanel {
                 const input = this.container.querySelector('#ai-input');
                 input.value = text;
                 input.focus();
+                // 触发自动扩展
+                input.style.height = 'auto';
+                input.style.height = (input.scrollHeight) + 'px';
             });
         });
         
-        this.container.querySelector('#ai-input').addEventListener('keydown', (e) => {
+        const aiInput = this.container.querySelector('#ai-input');
+        aiInput.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {
                 this._handleGenerate();
             }
+        });
+        
+        // 自动扩展高度
+        aiInput.addEventListener('input', () => {
+            aiInput.style.height = 'auto';
+            aiInput.style.height = (aiInput.scrollHeight) + 'px';
         });
     }
     
@@ -205,6 +195,7 @@ export class AiPanel {
     
     _setupMessageListeners() {
         webMessageBridge.on('GenerateFlowProgress', (data) => this._updateProgress(data));
+        webMessageBridge.on('GenerateFlowStreamChunk', (data) => this._handleStreamChunk(data));
         webMessageBridge.on('AiFirewallBlocked', (data) => this._handleFirewallBlocked(data));
         webMessageBridge.on('GenerateFlowResult', (data) => this._handleResult(data));
     }
@@ -233,13 +224,19 @@ export class AiPanel {
         this._setGeneratingState(true);
         this._clearResultPane();
         
+        // Reset manual UI for streaming
+        const reasoningEl = this.container.querySelector('#ai-result-reasoning');
+        const thinkingEl = this.container.querySelector('#ai-result-thinking');
+        if (reasoningEl) reasoningEl.innerHTML = '';
+        if (thinkingEl) thinkingEl.innerHTML = '';
+
         this._addMessage('user', description);
         
         const thinkingId = 'thinking-' + Date.now();
         this._addThinkingChain(thinkingId);
         
         try {
-            this._updateThinkingStep(thinkingId, 'start', '正在连接 AI 助手...');
+            this._updateProgress('正在连接 AI 助手...');
             const existingFlowJson = this._getCurrentFlowJson();
             
             webMessageBridge.sendMessage("GenerateFlow", { 
@@ -249,35 +246,98 @@ export class AiPanel {
                     existingFlowJson
                 } 
             });
-            
+            input.value = ''; // 清空输入框
+            input.style.height = 'auto'; // 重置高度
         } catch (err) {
             this._handleError(err.message);
         }
     }
     
     _updateProgress(data) {
+        // Clear streaming placeholder when real text is streaming
+        if (data === "收到 AI 响应，正在解析 JSON 数据...") {
+             return;
+        }
+
         const msg = typeof data === 'string' ? data : (data.payload?.message || data.message);
+        const phase = typeof data === 'string' ? '' : (data.payload?.phase || data.phase || '');
+        const container = this.container.querySelector('#ai-progress-stepper');
+        if (msg && container) {
+            const step = document.createElement('div');
+            step.className = 'stepper-item active';
+            step.innerHTML = `
+                <div class="stepper-icon">
+                    <svg class="check-icon" viewBox="0 0 24 24" width="14" height="14" fill="white" style="display:none;"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+                    <div class="dot-icon"></div>
+                </div>
+                <div class="stepper-content">
+                    <div class="stepper-title">${msg}</div>
+                    <div class="stepper-bar-container"><div class="stepper-bar-progress"></div></div>
+                </div>
+            `;
+            const prevStep = container.querySelector('.stepper-item.active');
+            if (prevStep) {
+                prevStep.classList.remove('active');
+                prevStep.classList.add('completed');
+                prevStep.querySelector('.check-icon').style.display = 'block';
+                prevStep.querySelector('.dot-icon').style.display = 'none';
+                const bar = prevStep.querySelector('.stepper-bar-container');
+                if(bar) bar.style.display = 'none';
+            }
+            container.appendChild(step);
+            const progressWrapper = this.container.querySelector('#ai-progress-container');
+            if(progressWrapper) progressWrapper.scrollTop = progressWrapper.scrollHeight;
+            
+            // 流式提示：根据phase在右侧面板显示动态占位
+            this._showPhaseHint(msg, phase);
+        }
+    }
+    
+    _showPhaseHint(msg, phase) {
+        const reasoning = this.container.querySelector('#ai-result-reasoning');
+        const thinking = this.container.querySelector('#ai-result-thinking');
+        const summary = this.container.querySelector('#ai-result-summary');
         
-        if (msg) {
-            const lastChain = this.container.querySelector('.thinking-chain:last-child');
-            if (lastChain) {
-                const step = document.createElement('div');
-                step.className = 'thinking-step active';
-                step.innerHTML = `
-                    <div class="step-title">${msg}</div>
-                    <div class="step-content">...</div>
-                `;
-                
-                const prevStep = lastChain.querySelector('.thinking-step.active');
-                if (prevStep) {
-                    prevStep.classList.remove('active');
-                    prevStep.classList.add('completed');
-                    const content = prevStep.querySelector('.step-content');
-                    if (content.textContent === '...') content.textContent = '完成';
+        // 显示动态流式提示 (Only if not already populated with real text)
+        const shimmerHtml = `<span class="streaming-hint"><span class="shimmer-text">${msg}</span></span>`;
+        
+        if (phase === 'connecting' || msg.includes('连接')) {
+            if(reasoning && !reasoning.textContent) reasoning.innerHTML = shimmerHtml;
+            if(summary && !summary.textContent) summary.innerHTML = shimmerHtml;
+        } else if (msg.includes('分析') || msg.includes('提示词') || msg.includes('构建')) {
+            if(reasoning && !reasoning.textContent) reasoning.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在设计方案思路...</span></span>`;
+            if(thinking && !thinking.textContent) thinking.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在组织逻辑推演...</span></span>`;
+        } else if (msg.includes('生成') || msg.includes('模型')) {
+            if(summary && !summary.textContent) summary.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">方案生成中...</span></span>`;
+            // Keep reasoning shimmer if text hasn't streamed yet
+            if(thinking && !thinking.textContent) thinking.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在组织逻辑推演...</span></span>`;
+        }
+    }
+    
+    _handleStreamChunk(data) {
+        const payload = data.payload || data;
+        const chunkType = payload.chunkType; // 'thinking' or 'content'
+        const content = payload.content || '';
+        
+        if (!content) return;
+
+        if (chunkType === 'thinking') {
+            const thinkingEl = this.container.querySelector('#ai-result-thinking');
+            if (thinkingEl) {
+                // Clear shimmer if present
+                if (thinkingEl.querySelector('.streaming-hint')) {
+                    thinkingEl.innerHTML = '';
                 }
-                
-                lastChain.appendChild(step);
-                this._scrollToBottom();
+                thinkingEl.textContent += content;
+            }
+        } else if (chunkType === 'content') {
+            const reasoningEl = this.container.querySelector('#ai-result-reasoning');
+            if (reasoningEl) {
+                // Clear shimmer if present
+                if (reasoningEl.querySelector('.streaming-hint')) {
+                    reasoningEl.innerHTML = '';
+                }
+                reasoningEl.textContent += content;
             }
         }
     }
@@ -298,45 +358,28 @@ export class AiPanel {
 
     _handleResult(data) {
         this._setGeneratingState(false);
-        
         const payload = data.payload || data;
-        const sessionId = payload.sessionId || null;
-        this.sessionId = sessionId || this.sessionId;
-
-        const detectedIntent = this._normalizeIntent(
-            payload.detectedIntent ?? data.detectedIntent
-        );
+        this.sessionId = payload.sessionId || this.sessionId;
         
-        const lastChain = this.container.querySelector('.thinking-chain:last-child');
-        if (lastChain) {
-            const activeStep = lastChain.querySelector('.thinking-step.active');
+        const container = this.container.querySelector('#ai-progress-stepper');
+        if (container) {
+            const activeStep = container.querySelector('.stepper-item.active');
             if (activeStep) {
                 activeStep.classList.remove('active');
                 activeStep.classList.add('completed');
-                activeStep.querySelector('.step-content').textContent = payload.success ? '生成成功' : '生成失败';
+                activeStep.querySelector('.check-icon').style.display = 'block';
+                activeStep.querySelector('.dot-icon').style.display = 'none';
+                activeStep.querySelector('.stepper-title').innerHTML = (payload.success ? '生成成功' : '生成失败');
+                const bar = activeStep.querySelector('.stepper-bar-container');
+                if(bar) bar.style.display = 'none';
             }
         }
-        
         if (!payload.success) {
             this._addMessage('system', `❌ 生成失败: ${payload.errorMessage || '未知错误'}`);
             return;
         }
-        
         this.currentResult = payload;
         this._displayResult(payload);
-        
-        this._addMessage(
-            'ai', 
-            '工程方案已生成！请查看右侧推理过程与预览面板。您可以继续输入修改要求进行增量调整。',
-            { intent: detectedIntent }
-        );
-        
-        this._addToHistory({
-            desc: this.container.querySelector('#ai-input').value.trim(),
-            time: new Date(),
-            success: true,
-            opCount: payload.flow?.operators?.length || 0
-        });
     }
     
     _handleFirewallBlocked(data) {
@@ -361,35 +404,68 @@ export class AiPanel {
     }
     
     _displayResult(data) {
-        const resultPane = this.container.querySelector('#ai-result-pane');
-        const reasoningPane = this.container.querySelector('#ai-reasoning-pane');
-        resultPane.style.display = 'flex';
-        reasoningPane.style.display = 'flex';
-        
-        const ops = data.flow?.operators || [];
-        
-        this.container.querySelector('#ai-result-summary').textContent = 
-            `方案包含 ${ops.length} 个算子，${data.flow?.connections?.length || 0} 条连线。`;
-            
-        const opsContainer = this.container.querySelector('#ai-result-ops');
-        opsContainer.innerHTML = ops.map(op => `
-            <span class="op-tag">
-                <span class="op-tag-icon"></span>
-                ${op.name}
-            </span>
-        `).join('');
-        
-        this.container.querySelector('#ai-result-reasoning').textContent = 
-            data.aiExplanation || 'AI 未提供详细说明。';
-
-        const thinkingCard = this.container.querySelector('#ai-thinking-card');
-        const thinkingContent = this.container.querySelector('#ai-result-thinking');
-        if (data.reasoning && data.reasoning.trim()) {
-            thinkingCard.style.display = 'flex';
-            thinkingContent.textContent = data.reasoning;
-        } else {
-            thinkingCard.style.display = 'none';
+        // Stream chunk UI handles the text printing in real-time,
+        // but if there wasn't a stream (fallback), we ensure it sits here
+        const reasoningEl = this.container.querySelector('#ai-result-reasoning');
+        if (reasoningEl && !reasoningEl.textContent.trim()) {
+            this._typewriterEffect(reasoningEl, data.aiExplanation || '暂无详细思路。');
         }
+
+        const thinkingEl = this.container.querySelector('#ai-result-thinking');
+        if (thinkingEl && !thinkingEl.textContent.trim()) {
+            if (data.reasoning && data.reasoning.trim()) {
+                this._typewriterEffect(thinkingEl, data.reasoning, 8);
+            } else {
+                thinkingEl.textContent = '';
+            }
+        }
+
+        const ops = data.flow?.operators || [];
+        const connections = data.flow?.connections || [];
+        
+        // 方案概览数字动画
+        this.container.querySelector('#ai-result-summary').innerHTML = 
+            `该方案包含 <span class="result-count">${ops.length}</span> 个算子和 <span class="result-count">${connections.length}</span> 条连线。`;
+            
+        // 算子列表逐个淡入
+        const opsContainer = this.container.querySelector('#ai-result-ops');
+        opsContainer.innerHTML = '';
+        ops.forEach((op, i) => {
+            const item = document.createElement('div');
+            item.className = 'generated-op-item';
+            item.style.opacity = '0';
+            item.style.transform = 'translateX(12px)';
+            item.innerHTML = `
+                <div class="op-dot"></div>
+                <div class="op-name">${op.name}</div>
+            `;
+            opsContainer.appendChild(item);
+            setTimeout(() => {
+                item.style.transition = 'all 0.3s var(--ease-ink-smooth)';
+                item.style.opacity = '1';
+                item.style.transform = 'translateX(0)';
+            }, 80 * i);
+        });
+        
+        // 添加结果成功消息到聊天
+        this._addMessage('ai', `工程方案已生成！包含 ${ops.length} 个算子、${connections.length} 条连线。可继续输入修改指令。`);
+    }
+    
+    /**
+     * 打字机效果：每次追加 chunkSize 个字符
+     */
+    _typewriterEffect(el, text, chunkSize = 3) {
+        if (!el) return;
+        el.textContent = '';
+        let idx = 0;
+        const write = () => {
+            if (idx < text.length) {
+                el.textContent += text.slice(idx, idx + chunkSize);
+                idx += chunkSize;
+                requestAnimationFrame(write);
+            }
+        };
+        write();
     }
     
     _handleApplyFlow() {
@@ -417,60 +493,48 @@ export class AiPanel {
         };
         const safeText = escapeHtml(text);
         
-        let headerHtml = '';
-        if (options.intent) {
-            const label = this._getIntentLabel(options.intent);
-            const intentClass = options.intent.toLowerCase();
-            headerHtml = `<div class="intent-tag intent-${intentClass}">${label}</div>`;
+        if (role === 'ai') {
+            msg.innerHTML = `<div class="ai-bubble">${safeText}</div>`;
+        } else if (role === 'user') {
+            msg.innerHTML = `<div class="user-bubble">${safeText}</div>`;
+        } else {
+            msg.innerHTML = `<div class="system-bubble">${safeText}</div>`;
         }
         
-        msg.innerHTML = `
-            <div class="ai-avatar ${role}">${role === 'user' ? 'U' : 'AI'}</div>
-            <div class="ai-content">
-                ${headerHtml}
-                <div class="ai-bubble">${safeText}</div>
-            </div>
-        `;
         container.appendChild(msg);
         this._scrollToBottom();
         return msg;
     }
     
     _addThinkingChain(id) {
-        const container = this.container.querySelector('#ai-chat-container');
-        const msg = document.createElement('div');
-        msg.className = 'ai-message ai';
-        msg.style.alignItems = 'flex-start';
-        msg.innerHTML = `
-             <div class="ai-avatar ai">AI</div>
-             <div class="ai-content">
-                 <div class="thinking-chain" id="${id}"></div>
-             </div>
-        `;
-        container.appendChild(msg);
-        this._scrollToBottom();
+        const container = this.container.querySelector('#ai-progress-container');
+        if (container) container.innerHTML = `<div class="stepper-wrapper" id="ai-progress-stepper"></div>`;
     }
     
-    _updateThinkingStep(chainId, stepId, text) {} // Ignored
+    _updateThinkingStep(chainId, stepId, text) {}
     
     _setGeneratingState(busy) {
         this.isGenerating = busy;
         const btn = this.container.querySelector('#ai-btn-gen');
-        if(btn){
+        if(btn) {
             btn.disabled = busy;
-            btn.innerHTML = busy ? 
-                `<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>` : 
-                `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg> 生成工程方案`;
+            if(busy) {
+                btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg>`;
+            } else {
+                btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+            }
         }
         const input = this.container.querySelector('#ai-input');
         if(input) input.disabled = busy;
     }
     
     _clearResultPane() {
-        const r1 = this.container.querySelector('#ai-result-pane');
-        const r2 = this.container.querySelector('#ai-reasoning-pane');
-        if(r1) r1.style.display = 'none';
-        if(r2) r2.style.display = 'none';
+        const e1 = this.container.querySelector('#ai-result-reasoning'); if(e1) e1.textContent = '';
+        const e2 = this.container.querySelector('#ai-result-thinking'); if(e2) e2.textContent = '';
+        const e3 = this.container.querySelector('#ai-result-summary'); if(e3) e3.textContent = '';
+        const e4 = this.container.querySelector('#ai-result-ops'); if(e4) e4.innerHTML = '';
+        const progress = this.container.querySelector('#ai-progress-container');
+        if(progress) progress.innerHTML = '';
     }
     
     _scrollToBottom() {

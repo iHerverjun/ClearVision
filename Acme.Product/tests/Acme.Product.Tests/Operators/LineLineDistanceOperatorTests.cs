@@ -38,7 +38,36 @@ public class LineLineDistanceOperatorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.OutputData);
         Assert.True((bool)result.OutputData!["IsParallel"]);
+        Assert.False((bool)result.OutputData["HasIntersection"]);
+
+        var intersection = Assert.IsType<Position>(result.OutputData["Intersection"]);
+        Assert.True(double.IsNaN(intersection.X));
+        Assert.True(double.IsNaN(intersection.Y));
+
         Assert.Equal(10.0, Convert.ToDouble(result.OutputData["Distance"]), 2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithCrossingLines_ShouldReturnIntersection()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "ParallelThreshold", 2.0 } });
+        var inputs = new Dictionary<string, object>
+        {
+            { "Line1", new LineData(0, 0, 10, 10) },
+            { "Line2", new LineData(0, 10, 10, 0) }
+        };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.False((bool)result.OutputData!["IsParallel"]);
+        Assert.True((bool)result.OutputData["HasIntersection"]);
+
+        var intersection = Assert.IsType<Position>(result.OutputData["Intersection"]);
+        Assert.Equal(5.0, intersection.X, 3);
+        Assert.Equal(5.0, intersection.Y, 3);
+        Assert.Equal(0.0, Convert.ToDouble(result.OutputData["Distance"]), 6);
     }
 
     [Fact]

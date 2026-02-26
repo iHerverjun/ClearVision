@@ -1,39 +1,36 @@
-// CannyEdgeOperator.cs
-// Canny边缘检测算子
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// Canny边缘检测算子
-/// </summary>
 [OperatorMeta(
-    DisplayName = "边缘检测",
-    Description = "利用 Canny/Sobel 等算法检测图像边缘，用于尺寸测量和缺陷定位前的轮廓提取",
-    Category = "特征提取",
+    DisplayName = "Edge Detection",
+    Description = "Detects edges with Canny and optional auto-thresholding.",
+    Category = "Feature Extraction",
     IconName = "edge",
-    Keywords = new[] { "边缘", "轮廓提取", "Canny", "Sobel", "边界", "找边", "Edge", "Contour extraction" }
+    Keywords = new[] { "Edge", "Canny", "Contour", "Threshold" }
 )]
-[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
-[OutputPort("Image", "图像", PortDataType.Image)]
-[OutputPort("Edges", "边缘", PortDataType.Image)]
-[OperatorParam("Threshold1", "低阈值", "double", DefaultValue = 50.0, Min = 0.0, Max = 255.0)]
-[OperatorParam("Threshold2", "高阈值", "double", DefaultValue = 150.0, Min = 0.0, Max = 255.0)]
-[OperatorParam("EnableGaussianBlur", "启用高斯模糊", "bool", DefaultValue = true)]
-[OperatorParam("GaussianKernelSize", "高斯核大小", "int", DefaultValue = 5, Min = 3, Max = 15)]
-[OperatorParam("ApertureSize", "Sobel孔径", "enum", DefaultValue = "3", Options = new[] { "3|3", "5|5", "7|7" })]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Edges", "Edges", PortDataType.Image)]
+[OperatorParam("Threshold1", "Low Threshold", "double", DefaultValue = 50.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("Threshold2", "High Threshold", "double", DefaultValue = 150.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("AutoThreshold", "Auto Threshold", "bool", DefaultValue = false)]
+[OperatorParam("AutoThresholdSigma", "Auto Threshold Sigma", "double", DefaultValue = 0.33, Min = 0.01, Max = 1.0)]
+[OperatorParam("EnableGaussianBlur", "Enable Gaussian Blur", "bool", DefaultValue = true)]
+[OperatorParam("GaussianKernelSize", "Gaussian Kernel Size", "int", DefaultValue = 5, Min = 3, Max = 15)]
+[OperatorParam("ApertureSize", "Sobel Aperture Size", "enum", DefaultValue = "3", Options = new[] { "3|3", "5|5", "7|7" })]
 public class CannyEdgeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgeDetection;
 
-    public CannyEdgeOperator(ILogger<CannyEdgeOperator> logger) : base(logger) { }
+    public CannyEdgeOperator(ILogger<CannyEdgeOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
@@ -42,12 +39,13 @@ public class CannyEdgeOperator : OperatorBase
     {
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
         }
 
-        // 获取参数
         var threshold1 = GetDoubleParam(@operator, "Threshold1", 50.0, 0, 255);
         var threshold2 = GetDoubleParam(@operator, "Threshold2", 150.0, 0, 255);
+        var autoThreshold = GetBoolParam(@operator, "AutoThreshold", false);
+        var autoThresholdSigma = GetDoubleParam(@operator, "AutoThresholdSigma", 0.33, 0.01, 1.0);
         var enableGaussianBlur = GetBoolParam(@operator, "EnableGaussianBlur", true);
         var gaussianKernelSize = GetIntParam(@operator, "GaussianKernelSize", 5, 1, 31);
         var apertureSize = GetIntParam(@operator, "ApertureSize", 3, 3, 7);
@@ -56,24 +54,27 @@ public class CannyEdgeOperator : OperatorBase
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        // 确保输入为灰度图（Canny 标准流程要求单通道）
         using var gray = new Mat();
         if (src.Channels() > 1)
+        {
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
         else
+        {
             src.CopyTo(gray);
+        }
 
         using var processedSrc = new Mat();
-
-        // 可选的高斯模糊预处理（Canny算法标准建议）
         if (enableGaussianBlur)
         {
-            // 确保核大小为奇数
             if (gaussianKernelSize % 2 == 0)
+            {
                 gaussianKernelSize++;
+            }
+
             Cv2.GaussianBlur(gray, processedSrc, new Size(gaussianKernelSize, gaussianKernelSize), 1.0);
         }
         else
@@ -81,13 +82,26 @@ public class CannyEdgeOperator : OperatorBase
             gray.CopyTo(processedSrc);
         }
 
+        if (autoThreshold)
+        {
+            var median = ComputeMedianIntensity(processedSrc);
+            threshold1 = Math.Clamp((1.0 - autoThresholdSigma) * median, 0.0, 255.0);
+            threshold2 = Math.Clamp((1.0 + autoThresholdSigma) * median, 0.0, 255.0);
+            if (threshold2 <= threshold1)
+            {
+                threshold2 = Math.Min(255.0, threshold1 + 1.0);
+            }
+        }
+
         var dst = new Mat();
         Cv2.Canny(processedSrc, dst, threshold1, threshold2, apertureSize, l2Gradient);
 
-        // 保持 "Edges" 端口可用，同时避免将 OpenCvSharp.Mat 直接放入输出字典（会在后续 JSON 序列化阶段触发 DataPointer 错误）
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst, new Dictionary<string, object>
         {
-            { "Edges", dst.ToBytes(".png") }
+            { "Edges", dst.ToBytes(".png") },
+            { "Threshold1Used", threshold1 },
+            { "Threshold2Used", threshold2 },
+            { "AutoThreshold", autoThreshold }
         })));
     }
 
@@ -95,13 +109,60 @@ public class CannyEdgeOperator : OperatorBase
     {
         var threshold1 = GetDoubleParam(@operator, "Threshold1", 50.0);
         var threshold2 = GetDoubleParam(@operator, "Threshold2", 150.0);
+        var autoThresholdSigma = GetDoubleParam(@operator, "AutoThresholdSigma", 0.33);
 
         if (threshold1 < 0 || threshold1 > 255)
-            return ValidationResult.Invalid("阈值1必须在 0-255 之间");
+        {
+            return ValidationResult.Invalid("Threshold1 must be between 0 and 255.");
+        }
 
         if (threshold2 < 0 || threshold2 > 255)
-            return ValidationResult.Invalid("阈值2必须在 0-255 之间");
+        {
+            return ValidationResult.Invalid("Threshold2 must be between 0 and 255.");
+        }
+
+        if (autoThresholdSigma <= 0 || autoThresholdSigma > 1.0)
+        {
+            return ValidationResult.Invalid("AutoThresholdSigma must be in (0, 1].");
+        }
 
         return ValidationResult.Valid();
+    }
+
+    private static double ComputeMedianIntensity(Mat gray)
+    {
+        using var hist = new Mat();
+        Cv2.CalcHist(
+            new[] { gray },
+            new[] { 0 },
+            null,
+            hist,
+            1,
+            new[] { 256 },
+            new[] { new Rangef(0, 256) });
+
+        double total = 0;
+        for (var i = 0; i < 256; i++)
+        {
+            total += hist.At<float>(i);
+        }
+
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        var midpoint = total / 2.0;
+        double cumulative = 0;
+        for (var i = 0; i < 256; i++)
+        {
+            cumulative += hist.At<float>(i);
+            if (cumulative >= midpoint)
+            {
+                return i;
+            }
+        }
+
+        return 255;
     }
 }

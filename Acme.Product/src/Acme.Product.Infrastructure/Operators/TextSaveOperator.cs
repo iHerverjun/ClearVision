@@ -1,17 +1,18 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
-    DisplayName = "文本保存",
+    DisplayName = "Text Save",
     Description = "Saves text or structured data to text/csv/json file.",
-    Category = "逻辑工具",
+    Category = "Logic Tools",
     IconName = "save-text",
     Keywords = new[] { "save text", "export csv", "log", "json export" }
 )]
@@ -26,6 +27,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Encoding", "Encoding", "enum", DefaultValue = "UTF8", Options = new[] { "UTF8|UTF8", "GBK|GBK" })]
 public class TextSaveOperator : OperatorBase
 {
+    private static readonly ConcurrentDictionary<string, object> FileLocks = new(StringComparer.OrdinalIgnoreCase);
+
     public override OperatorType OperatorType => OperatorType.TextSave;
 
     public TextSaveOperator(ILogger<TextSaveOperator> logger) : base(logger)
@@ -45,7 +48,7 @@ public class TextSaveOperator : OperatorBase
 
         if (string.IsNullOrWhiteSpace(filePathTemplate))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("FilePath is required"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("FilePath is required."));
         }
 
         try
@@ -64,26 +67,17 @@ public class TextSaveOperator : OperatorBase
             }
 
             var encoding = ResolveEncoding(encodingName);
+            WriteContentThreadSafe(filePath, content + Environment.NewLine, appendMode, encoding);
 
-            if (appendMode)
-            {
-                File.AppendAllText(filePath, content + Environment.NewLine, encoding);
-            }
-            else
-            {
-                File.WriteAllText(filePath, content + Environment.NewLine, encoding);
-            }
-
-            var output = new Dictionary<string, object>
+            return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
                 { "FilePath", filePath },
                 { "Success", true }
-            };
-            return Task.FromResult(OperatorExecutionOutput.Success(output));
+            }));
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to save text");
+            Logger.LogError(ex, "Failed to save text.");
             return Task.FromResult(OperatorExecutionOutput.Failure($"Failed to save text: {ex.Message}"));
         }
     }
@@ -93,21 +87,21 @@ public class TextSaveOperator : OperatorBase
         var filePath = GetStringParam(@operator, "FilePath", string.Empty);
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            return ValidationResult.Invalid("FilePath cannot be empty");
+            return ValidationResult.Invalid("FilePath cannot be empty.");
         }
 
         var format = GetStringParam(@operator, "Format", "Text");
         var validFormats = new[] { "Text", "CSV", "JSON" };
         if (!validFormats.Contains(format, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid("Format must be Text, CSV or JSON");
+            return ValidationResult.Invalid("Format must be Text, CSV or JSON.");
         }
 
         var encoding = GetStringParam(@operator, "Encoding", "UTF8");
         var validEncodings = new[] { "UTF8", "GBK" };
         if (!validEncodings.Contains(encoding, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid("Encoding must be UTF8 or GBK");
+            return ValidationResult.Invalid("Encoding must be UTF8 or GBK.");
         }
 
         return ValidationResult.Valid();
@@ -115,15 +109,15 @@ public class TextSaveOperator : OperatorBase
 
     private static string ResolvePath(string template)
     {
-        return template
+        var resolved = template
             .Replace("{date}", DateTime.Now.ToString("yyyyMMdd"), StringComparison.OrdinalIgnoreCase)
             .Replace("{time}", DateTime.Now.ToString("HHmmss"), StringComparison.OrdinalIgnoreCase);
+        return Path.GetFullPath(resolved);
     }
 
     private static string BuildContent(string format, Dictionary<string, object>? inputs)
     {
         inputs ??= new Dictionary<string, object>();
-
         inputs.TryGetValue("Text", out var textObj);
         inputs.TryGetValue("Data", out var dataObj);
 
@@ -133,9 +127,7 @@ public class TextSaveOperator : OperatorBase
         switch (format.ToLowerInvariant())
         {
             case "json":
-                return JsonSerializer.Serialize(
-                    data ?? new { Text = text },
-                    new JsonSerializerOptions { WriteIndented = true });
+                return JsonSerializer.Serialize(data ?? new { Text = text }, new JsonSerializerOptions { WriteIndented = true });
 
             case "csv":
                 if (data is IEnumerable<object> enumerable && data is not string)
@@ -143,10 +135,9 @@ public class TextSaveOperator : OperatorBase
                     return string.Join(",", enumerable.Select(ToCsvCell));
                 }
 
-                if (data is System.Collections.IEnumerable legacy && data is not string)
+                if (data is System.Collections.IEnumerable legacyEnumerable && data is not string)
                 {
-                    var values = legacy.Cast<object?>().Select(ToCsvCell);
-                    return string.Join(",", values);
+                    return string.Join(",", legacyEnumerable.Cast<object?>().Select(ToCsvCell));
                 }
 
                 return ToCsvCell(data ?? text);
@@ -188,5 +179,20 @@ public class TextSaveOperator : OperatorBase
 
         return Encoding.UTF8;
     }
-}
 
+    private static void WriteContentThreadSafe(string filePath, string content, bool appendMode, Encoding encoding)
+    {
+        var fileLock = FileLocks.GetOrAdd(filePath, _ => new object());
+        lock (fileLock)
+        {
+            if (appendMode)
+            {
+                File.AppendAllText(filePath, content, encoding);
+            }
+            else
+            {
+                File.WriteAllText(filePath, content, encoding);
+            }
+        }
+    }
+}

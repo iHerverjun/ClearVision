@@ -233,6 +233,7 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "Distance", DisplayName = "Distance", DataType = PortDataType.Float },
                 new() { Name = "Angle", DisplayName = "Angle", DataType = PortDataType.Float },
                 new() { Name = "Intersection", DisplayName = "Intersection", DataType = PortDataType.Point },
+                new() { Name = "HasIntersection", DisplayName = "Has Intersection", DataType = PortDataType.Boolean },
                 new() { Name = "IsParallel", DisplayName = "Is Parallel", DataType = PortDataType.Boolean }
             },
             Parameters = new List<ParameterDefinition>
@@ -1527,6 +1528,8 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "Threshold1", DisplayName = "低阈值", DataType = "double", DefaultValue = 50.0, MinValue = 0.0, MaxValue = 255.0 },
                 new() { Name = "Threshold2", DisplayName = "高阈值", DataType = "double", DefaultValue = 150.0, MinValue = 0.0, MaxValue = 255.0 },
+                new() { Name = "AutoThreshold", DisplayName = "Auto Threshold", DataType = "bool", DefaultValue = false },
+                new() { Name = "AutoThresholdSigma", DisplayName = "Auto Threshold Sigma", DataType = "double", DefaultValue = 0.33, MinValue = 0.01, MaxValue = 1.0 },
                 new() { Name = "EnableGaussianBlur", DisplayName = "启用高斯模糊", DataType = "bool", DefaultValue = true },
                 new() { Name = "GaussianKernelSize", DisplayName = "高斯核大小", DataType = "int", DefaultValue = 5, MinValue = 3, MaxValue = 15 },
                 new() { Name = "ApertureSize", DisplayName = "Sobel孔径", DataType = "enum", DefaultValue = "3", Options = new List<ParameterOption>
@@ -1833,6 +1836,37 @@ public class OperatorFactory : IOperatorFactory
             Parameters = new List<ParameterDefinition>
             {
                 new() { Name = "KernelSize", DisplayName = "核大小", DataType = "int", DefaultValue = 5, MinValue = 1, MaxValue = 31 }
+            }
+        };
+
+        // 2. 均值滤波 (MeanFilter = 215)
+        _metadata[OperatorType.MeanFilter] = new OperatorMetadata
+        {
+            Type = OperatorType.MeanFilter,
+            DisplayName = "均值滤波",
+            Description = "Applies mean (box blur) filtering to smooth image noise.",
+            Category = "预处理",
+            IconName = "filter",
+            Keywords = new[] { "mean filter", "box blur", "box filter", "smooth", "denoise" },
+            InputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image, IsRequired = true }
+            },
+            OutputPorts = new List<PortDefinition>
+            {
+                new() { Name = "Image", DisplayName = "Image", DataType = PortDataType.Image }
+            },
+            Parameters = new List<ParameterDefinition>
+            {
+                new() { Name = "KernelSize", DisplayName = "Kernel Size", DataType = "int", DefaultValue = 5, MinValue = 1, MaxValue = 63 },
+                new() { Name = "BorderType", DisplayName = "Border Type", DataType = "enum", DefaultValue = "4", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Constant", Value = "0" },
+                    new() { Label = "Replicate", Value = "1" },
+                    new() { Label = "Reflect", Value = "2" },
+                    new() { Label = "Wrap", Value = "3" },
+                    new() { Label = "Default", Value = "4" }
+                } }
             }
         };
 
@@ -2149,10 +2183,10 @@ public class OperatorFactory : IOperatorFactory
         {
             Type = OperatorType.GeometricTolerance,
             DisplayName = "几何公差",
-            Description = "平行度/垂直度测量",
+            Description = "角度偏差测量（仅角度模型，非完整GD&T公差带）",
             Category = "检测",
             IconName = "geometric-tolerance",
-            Keywords = new[] { "公差", "平行度", "垂直度", "GD&T", "Tolerance", "Parallelism", "Perpendicularity" },
+            Keywords = new[] { "公差", "平行度", "垂直度", "GD&T", "Tolerance", "Parallelism", "Perpendicularity", "AngleOnly" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "输入图像", DataType = PortDataType.Image, IsRequired = true }
@@ -2160,7 +2194,10 @@ public class OperatorFactory : IOperatorFactory
             OutputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "结果图像", DataType = PortDataType.Image },
-                new() { Name = "Tolerance", DisplayName = "公差值", DataType = PortDataType.Float }
+                new() { Name = "Tolerance", DisplayName = "角度偏差", DataType = PortDataType.Float },
+                new() { Name = "AngularDeviationDeg", DisplayName = "角度偏差(度)", DataType = PortDataType.Float },
+                new() { Name = "LinearBand", DisplayName = "线性跳动带(像素)", DataType = PortDataType.Float },
+                new() { Name = "MeasurementModel", DisplayName = "测量模型", DataType = PortDataType.String }
             },
             Parameters = new List<ParameterDefinition>
             {
@@ -2550,7 +2587,18 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "MinArea", DisplayName = "最小轮廓面积", DataType = "int",
                     DefaultValue = 100, MinValue = 0 },
                 new() { Name = "MinPoints", DisplayName = "最少拟合点数", DataType = "int",
-                    DefaultValue = 5, MinValue = 3, MaxValue = 10000 }
+                    DefaultValue = 5, MinValue = 3, MaxValue = 10000 },
+                new() { Name = "RobustMethod", DisplayName = "Robust Method", DataType = "enum", DefaultValue = "LeastSquares",
+                    Options = new List<ParameterOption>
+                    {
+                        new() { Label = "LeastSquares", Value = "LeastSquares" },
+                        new() { Label = "Ransac", Value = "Ransac" }
+                    }
+                },
+                new() { Name = "RansacIterations", DisplayName = "Ransac Iterations", DataType = "int",
+                    DefaultValue = 200, MinValue = 10, MaxValue = 5000 },
+                new() { Name = "RansacInlierThreshold", DisplayName = "Ransac Inlier Threshold", DataType = "double",
+                    DefaultValue = 2.0, MinValue = 0.1, MaxValue = 50.0 }
             }
         };
 
@@ -2666,9 +2714,12 @@ public class OperatorFactory : IOperatorFactory
                     Options = new List<ParameterOption>
                     {
                         new() { Label = "梯度插值", Value = "GradientInterp" },
-                        new() { Label = "高斯拟合", Value = "GaussianFit" }
+                        new() { Label = "高斯拟合", Value = "GaussianFit" },
+                        new() { Label = "Steger", Value = "Steger" }
                     }
-                }
+                },
+                new() { Name = "EdgeThreshold", DisplayName = "Edge Threshold", DataType = "double",
+                    DefaultValue = 25.0, MinValue = 0.0, MaxValue = 255.0 }
             }
         };
 
@@ -3933,7 +3984,9 @@ public class OperatorFactory : IOperatorFactory
             Parameters = new List<ParameterDefinition>
             {
                 new() { Name = "USL", DisplayName = "规格上限", DataType = "double", DefaultValue = "", Description = "Upper Specification Limit，留空则不计算 CPK" },
-                new() { Name = "LSL", DisplayName = "规格下限", DataType = "double", DefaultValue = "", Description = "Lower Specification Limit，留空则不计算 CPK" }
+                new() { Name = "LSL", DisplayName = "规格下限", DataType = "double", DefaultValue = "", Description = "Lower Specification Limit，留空则不计算 CPK" },
+                new() { Name = "WindowSize", DisplayName = "Window Size", DataType = "int", DefaultValue = 1000, MinValue = 2, MaxValue = 50000 },
+                new() { Name = "Reset", DisplayName = "Reset", DataType = "bool", DefaultValue = false }
             }
         };
 

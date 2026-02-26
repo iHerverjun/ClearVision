@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using OpenCvSharp;
+using System.Linq;
 
 namespace Acme.Product.Desktop.Endpoints;
 
@@ -324,7 +325,9 @@ public static class ApiEndpoints
         // 获取算子库
         app.MapGet("/api/operators/library", (IOperatorFactory factory) =>
         {
-            var metadata = factory.GetAllMetadata();
+            var metadata = factory
+                .GetAllMetadata()
+                .Where(m => m.Type != OperatorType.Morphology);
             return Results.Ok(metadata);
         });
 

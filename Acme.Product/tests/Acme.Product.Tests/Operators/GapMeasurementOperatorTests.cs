@@ -4,6 +4,7 @@ using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 using Xunit;
 
 namespace Acme.Product.Tests.Operators;
@@ -70,6 +71,38 @@ public class GapMeasurementOperatorTests
         var validation = sut.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithOutlierDominatedProjection_ShouldKeepRegularGapPeaks()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "ExpectedCount", 2 }
+        });
+
+        using var profileImage = new Mat(60, 200, MatType.CV_8UC1, Scalar.Black);
+
+        // Regular weak peaks that should still be detected.
+        Cv2.Line(profileImage, new Point(30, 0), new Point(30, 59), new Scalar(30), 1);
+        Cv2.Line(profileImage, new Point(70, 0), new Point(70, 59), new Scalar(30), 1);
+        Cv2.Line(profileImage, new Point(110, 0), new Point(110, 59), new Scalar(30), 1);
+
+        // A wide bright outlier simulating highlight/scratch.
+        Cv2.Rectangle(profileImage, new Rect(160, 0, 20, 60), new Scalar(255), -1);
+
+        using var image = new ImageWrapper(profileImage.Clone());
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { { "Image", image } });
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+
+        var gaps = Assert.IsType<List<double>>(result.OutputData!["Gaps"]);
+        Assert.Equal(2, gaps.Count);
+        Assert.InRange(gaps[0], 35.0, 45.0);
+        Assert.InRange(gaps[1], 35.0, 45.0);
     }
 
     private static GapMeasurementOperator CreateSut()

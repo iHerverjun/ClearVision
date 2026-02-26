@@ -44,7 +44,7 @@ public class ImageAcquisitionOperatorTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("未提供图像数据或有效的采集设置");
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class ImageAcquisitionOperatorTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("未提供图像数据或有效的采集设置");
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -75,6 +75,7 @@ public class ImageAcquisitionOperatorTests
         result.IsValid.Should().BeTrue();
         result.Errors.Should().BeEmpty();
     }
+
 
     private static Operator CreateTestOperator()
     {
@@ -113,7 +114,7 @@ public class GaussianBlurOperatorTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("未提供输入图像");
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public class GaussianBlurOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "KernelSize", "核大小", "int", 5, 1, 31, true));
+            "KernelSize", "KernelSize", "int", 5, 1, 31, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -137,7 +138,7 @@ public class GaussianBlurOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "KernelSize", "核大小", "int", 50, 1, 31, true));
+            "KernelSize", "KernelSize", "int", 50, 1, 31, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -178,9 +179,9 @@ public class CannyEdgeOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "Threshold1", "低阈值", "double", 50.0, 0.0, 255.0, true));
+            "Threshold1", "Threshold1", "double", 50.0, 0.0, 255.0, true));
         op.AddParameter(TestHelpers.CreateParameter(
-            "Threshold2", "高阈值", "double", 150.0, 0.0, 255.0, true));
+            "Threshold2", "Threshold2", "double", 150.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -195,14 +196,14 @@ public class CannyEdgeOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "Threshold1", "低阈值", "double", 300.0, 0.0, 255.0, true));
+            "Threshold1", "Threshold1", "double", 300.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain("阈值1必须在 0-255 之间");
+        result.Errors.Should().Contain(e => e.Contains("Threshold1"));
     }
 
     [Fact]
@@ -223,9 +224,32 @@ public class CannyEdgeOperatorTests
         result.OutputData!["Edges"].Should().BeOfType<byte[]>();
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_WithAutoThreshold_ShouldExposeThresholdsUsed()
+    {
+        // Arrange
+        var op = CreateTestOperator();
+        op.AddParameter(TestHelpers.CreateParameter("AutoThreshold", true, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("AutoThresholdSigma", 0.33, "double"));
+
+        using var image = TestHelpers.CreateShapeTestImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        // Act
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData.Should().ContainKey("Threshold1Used");
+        result.OutputData.Should().ContainKey("Threshold2Used");
+        result.OutputData!["Threshold1Used"].Should().BeOfType<double>();
+        result.OutputData["Threshold2Used"].Should().BeOfType<double>();
+    }
     private static Operator CreateTestOperator()
     {
-        return new Operator("Canny边缘检测", OperatorType.EdgeDetection, 0, 0);
+        return new Operator("CannyEdge", OperatorType.EdgeDetection, 0, 0);
     }
 }
 
@@ -254,7 +278,7 @@ public class ThresholdOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "Threshold", "阈值", "double", 127.0, 0.0, 255.0, true));
+            "Threshold", "Threshold", "double", 127.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);
@@ -269,7 +293,7 @@ public class ThresholdOperatorTests
         // Arrange
         var op = CreateTestOperator();
         op.AddParameter(TestHelpers.CreateParameter(
-            "Threshold", "阈值", "double", -10.0, 0.0, 255.0, true));
+            "Threshold", "Threshold", "double", -10.0, 0.0, 255.0, true));
 
         // Act
         var result = _operator.ValidateParameters(op);

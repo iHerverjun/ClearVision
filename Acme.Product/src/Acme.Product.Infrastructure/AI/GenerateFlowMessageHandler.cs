@@ -32,7 +32,7 @@ public class GenerateFlowMessageHandler
         string? sessionId = null,
         string? existingFlowJson = null,
         string? hint = null,
-        Action<string, string>? onProgress = null,
+        Action<string, string>? onMessage = null, // "GenerateFlowProgress", "GenerateFlowStreamChunk"
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("收到 AI 生成请求：{Description}", description);
@@ -40,13 +40,15 @@ public class GenerateFlowMessageHandler
         try
         {
             // 推送开始消息
-            onProgress?.Invoke("GenerateFlowProgress",
+            onMessage?.Invoke("GenerateFlowProgress",
                 JsonSerializer.Serialize(new { message = "正在连接 AI 服务...", phase = "connecting" }, _jsonOptions));
 
             var result = await _generationService.GenerateFlowAsync(
                 new AiFlowGenerationRequest(description, hint, sessionId, existingFlowJson),
-                progressMsg => onProgress?.Invoke("GenerateFlowProgress",
+                progressMsg => onMessage?.Invoke("GenerateFlowProgress",
                     JsonSerializer.Serialize(new { message = progressMsg }, _jsonOptions)),
+                chunk => onMessage?.Invoke("GenerateFlowStreamChunk",
+                    JsonSerializer.Serialize(new GenerateFlowStreamChunk { ChunkType = chunk.ChunkType, Content = chunk.Content }, _jsonOptions)),
                 cancellationToken);
 
             var response = new GenerateFlowResponse

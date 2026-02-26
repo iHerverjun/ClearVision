@@ -1,123 +1,70 @@
-// UndistortOperator.cs
-// 畸变校正算子 - 基于标定数据校正图像畸变
-// 作者：蘅芜君
-
+using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-using System.Text.Json;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 畸变校正算子 - 基于标定数据校正图像畸变
-/// </summary>
 [OperatorMeta(
-    DisplayName = "畸变校正",
-    Description = "基于标定数据校正图像畸变",
-    Category = "标定",
+    DisplayName = "Undistort",
+    Description = "Correct lens distortion using calibration data.",
+    Category = "Calibration",
     IconName = "undistort",
-    Keywords = new[] { "畸变", "校正", "矫正", "去畸变", "Undistort", "Distortion", "Correct" }
+    Keywords = new[] { "Undistort", "Distortion", "Calibration" }
 )]
-[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
-[InputPort("CalibrationData", "标定数据", PortDataType.String, IsRequired = false)]
-[OutputPort("Image", "校正图像", PortDataType.Image)]
-[OperatorParam("CalibrationFile", "标定文件路径", "file", DefaultValue = "")]
+[InputPort("Image", "Input Image", PortDataType.Image, IsRequired = true)]
+[InputPort("CalibrationData", "Calibration Data", PortDataType.String, IsRequired = false)]
+[OutputPort("Image", "Undistorted Image", PortDataType.Image)]
+[OperatorParam("CalibrationFile", "Calibration File", "file", DefaultValue = "")]
 public class UndistortOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Undistort;
 
-    public UndistortOperator(ILogger<UndistortOperator> logger) : base(logger) { }
+    public UndistortOperator(ILogger<UndistortOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
+        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
         }
 
-        // 获取标定数据
-        string calibrationData = "";
-        if (inputs != null && inputs.TryGetValue("CalibrationData", out var calObj) && calObj is string calStr)
+        if (!TryResolveCalibrationData(@operator, inputs, out var calibrationData))
         {
-            calibrationData = calStr;
+            return Task.FromResult(OperatorExecutionOutput.Failure("Calibration data is required."));
         }
 
-        // 如果没有从输入端口获取，尝试从参数获取文件路径
-        var calibrationFile = GetStringParam(@operator, "CalibrationFile", "");
-        if (string.IsNullOrEmpty(calibrationData) && !string.IsNullOrEmpty(calibrationFile) && File.Exists(calibrationFile))
+        if (!TryParseCalibrationData(calibrationData!, out var cameraMatrix, out var distCoeffs, out var parseError))
         {
-            calibrationData = File.ReadAllText(calibrationFile);
-        }
-
-        if (string.IsNullOrEmpty(calibrationData))
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供标定数据"));
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Invalid calibration data: {parseError}"));
         }
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        // 解析标定数据
-        CalibrationInfo? calInfo = null;
-        try
-        {
-            calInfo = JsonSerializer.Deserialize<CalibrationInfo>(calibrationData);
-        }
-        catch { }
-
-        if (calInfo == null)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("标定数据格式无效"));
-        }
-
-        // 创建相机矩阵和畸变系数（简化处理，实际应从完整标定数据获取）
-        var cameraMatrix = new double[,]
-        {
-            { src.Width * 0.8, 0, src.Width / 2.0 },
-            { 0, src.Width * 0.8, src.Height / 2.0 },
-            { 0, 0, 1 }
-        };
-
-        var distCoeffs = new double[] { 0, 0, 0, 0, 0 }; // 无畸变系数时保持不变
-
-        // 如果标定数据包含相机矩阵和畸变系数，使用它们
-        if (calInfo.CameraMatrix != null && calInfo.CameraMatrix.Length == 9)
-        {
-            cameraMatrix = new double[,]
-            {
-                { calInfo.CameraMatrix[0], calInfo.CameraMatrix[1], calInfo.CameraMatrix[2] },
-                { calInfo.CameraMatrix[3], calInfo.CameraMatrix[4], calInfo.CameraMatrix[5] },
-                { calInfo.CameraMatrix[6], calInfo.CameraMatrix[7], calInfo.CameraMatrix[8] }
-            };
-        }
-
-        if (calInfo.DistCoeffs != null)
-        {
-            distCoeffs = calInfo.DistCoeffs;
-        }
-
-        // 执行畸变校正
         var dst = new Mat();
         using var cameraMat = new Mat(3, 3, MatType.CV_64FC1, cameraMatrix);
-        using var distMat = new Mat(distCoeffs.Length, 1, MatType.CV_64FC1, distCoeffs);
+        using var distMat = distCoeffs.Length > 0
+            ? new Mat(1, distCoeffs.Length, MatType.CV_64FC1, distCoeffs)
+            : new Mat();
 
         Cv2.Undistort(src, dst, cameraMat, distMat);
 
-        // P0: 使用ImageWrapper实现零拷贝输出
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst, new Dictionary<string, object>
         {
             { "Applied", true },
-            { "Message", "畸变校正已应用" }
+            { "Message", "Undistortion applied using provided calibration data." }
         })));
     }
 
@@ -126,11 +73,164 @@ public class UndistortOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private class CalibrationInfo
+    private bool TryResolveCalibrationData(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        out string? calibrationData)
     {
-        public double[]? CameraMatrix { get; set; }
-        public double[]? DistCoeffs { get; set; }
-        public int ImageWidth { get; set; }
-        public int ImageHeight { get; set; }
+        calibrationData = null;
+        if (inputs != null &&
+            inputs.TryGetValue("CalibrationData", out var calibrationObj) &&
+            calibrationObj is string calibrationText &&
+            !string.IsNullOrWhiteSpace(calibrationText))
+        {
+            calibrationData = calibrationText;
+            return true;
+        }
+
+        var calibrationFile = GetStringParam(@operator, "CalibrationFile", "");
+        if (!string.IsNullOrWhiteSpace(calibrationFile) && File.Exists(calibrationFile))
+        {
+            calibrationData = File.ReadAllText(calibrationFile);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseCalibrationData(
+        string calibrationData,
+        out double[,] cameraMatrix,
+        out double[] distCoeffs,
+        out string? error)
+    {
+        cameraMatrix = new double[3, 3];
+        distCoeffs = Array.Empty<double>();
+        error = null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(calibrationData);
+            var root = doc.RootElement;
+
+            if (!TryParseCameraMatrix(root, out cameraMatrix))
+            {
+                error = "CameraMatrix is missing or has unsupported format.";
+                return false;
+            }
+
+            distCoeffs = TryParseDistCoeffs(root);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryParseCameraMatrix(JsonElement root, out double[,] cameraMatrix)
+    {
+        cameraMatrix = new double[3, 3];
+        if (!root.TryGetProperty("CameraMatrix", out var matrixElement))
+        {
+            return false;
+        }
+
+        if (matrixElement.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        var length = matrixElement.GetArrayLength();
+        if (length == 9)
+        {
+            var index = 0;
+            foreach (var value in matrixElement.EnumerateArray())
+            {
+                if (!TryReadNumber(value, out var number))
+                {
+                    return false;
+                }
+
+                cameraMatrix[index / 3, index % 3] = number;
+                index++;
+            }
+
+            return true;
+        }
+
+        if (length == 3)
+        {
+            var rowIndex = 0;
+            foreach (var row in matrixElement.EnumerateArray())
+            {
+                if (row.ValueKind != JsonValueKind.Array || row.GetArrayLength() != 3)
+                {
+                    return false;
+                }
+
+                var colIndex = 0;
+                foreach (var value in row.EnumerateArray())
+                {
+                    if (!TryReadNumber(value, out var number))
+                    {
+                        return false;
+                    }
+
+                    cameraMatrix[rowIndex, colIndex++] = number;
+                }
+
+                rowIndex++;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static double[] TryParseDistCoeffs(JsonElement root)
+    {
+        if (!root.TryGetProperty("DistCoeffs", out var distElement) || distElement.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<double>();
+        }
+
+        var values = new List<double>();
+        foreach (var item in distElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var nested in item.EnumerateArray())
+                {
+                    if (TryReadNumber(nested, out var nestedValue))
+                    {
+                        values.Add(nestedValue);
+                    }
+                }
+            }
+            else if (TryReadNumber(item, out var value))
+            {
+                values.Add(value);
+            }
+        }
+
+        return values.ToArray();
+    }
+
+    private static bool TryReadNumber(JsonElement element, out double value)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number:
+                value = element.GetDouble();
+                return true;
+            case JsonValueKind.String:
+                return double.TryParse(element.GetString(), out value);
+            default:
+                value = 0;
+                return false;
+        }
     }
 }

@@ -49,6 +49,7 @@ public record GenerateFlowResponse
     public object? DryRunResult { get; init; }
 }
 
+
 /// <summary>
 /// 后端 → 前端：AI 生成进度更新（流式反馈）
 /// </summary>
@@ -57,4 +58,34 @@ public record GenerateFlowProgress
     public string Type => "GenerateFlowProgress";
     public string Stage { get; init; } = string.Empty;  // "calling_ai" | "validating" | "layouting"
     public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// 后端 → 前端：AI 实时流式分块输出数据
+/// </summary>
+public record GenerateFlowStreamChunk
+{
+    public string Type => "GenerateFlowStreamChunk";
+
+    /// <summary>
+    /// 数据块类型: "thinking" | "content" | "done"
+    /// </summary>
+    public string ChunkType { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 数据块文本内容
+    /// </summary>
+    public string Content { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// 内部流式块传递模型
+/// </summary>
+public record AiStreamChunk(string ChunkType, string Content);
+
+public static class AiStreamChunkType
+{
+    public const string Thinking = "thinking";
+    public const string Content = "content";
+    public const string Done = "done";
 }

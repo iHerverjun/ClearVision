@@ -275,27 +275,141 @@ public class GapMeasurementOperator : OperatorBase
             return result;
         }
 
-        var mean = profile.Average();
-        var std = Math.Sqrt(profile.Sum(v => (v - mean) * (v - mean)) / profile.Count);
-        var threshold = mean + std * 0.5;
-
-        for (var i = 1; i < profile.Count - 1; i++)
+        var smoothed = SmoothProfile(profile, radius: 2);
+        var median = ComputeMedian(smoothed);
+        var absDeviation = smoothed.Select(v => Math.Abs(v - median)).ToArray();
+        var mad = ComputeMedian(absDeviation);
+        var robustSigma = mad * 1.4826;
+        var threshold = ComputeRobustThreshold(smoothed, median, robustSigma);
+        if (double.IsPositiveInfinity(threshold))
         {
-            if (profile[i] < threshold)
+            return result;
+        }
+
+        var minPeakDistance = Math.Max(6, profile.Count / 150);
+        var minProminence = Math.Max(1.0, robustSigma * 0.5);
+
+        for (var i = 1; i < smoothed.Length - 1; i++)
+        {
+            var value = smoothed[i];
+            if (value < threshold)
             {
                 continue;
             }
 
-            if (profile[i] >= profile[i - 1] && profile[i] >= profile[i + 1])
+            var left = smoothed[i - 1];
+            var right = smoothed[i + 1];
+            var isLocalMaximum = (value > left && value >= right) || (value >= left && value > right);
+            if (!isLocalMaximum)
             {
-                if (result.Count == 0 || i - result[^1] > 3)
-                {
-                    result.Add(i);
-                }
+                continue;
             }
+
+            var prominence = value - (left + right) * 0.5;
+            if (prominence < minProminence)
+            {
+                continue;
+            }
+
+            if (result.Count > 0 && i - result[^1] <= minPeakDistance)
+            {
+                if (smoothed[result[^1]] < value)
+                {
+                    result[^1] = i;
+                }
+
+                continue;
+            }
+
+            result.Add(i);
         }
 
         return result;
+    }
+
+    private static double[] SmoothProfile(IReadOnlyList<double> profile, int radius)
+    {
+        var smoothed = new double[profile.Count];
+        if (profile.Count == 0)
+        {
+            return smoothed;
+        }
+
+        for (var i = 0; i < profile.Count; i++)
+        {
+            var start = Math.Max(0, i - radius);
+            var end = Math.Min(profile.Count - 1, i + radius);
+            var sum = 0.0;
+            var count = 0;
+
+            for (var j = start; j <= end; j++)
+            {
+                sum += profile[j];
+                count++;
+            }
+
+            smoothed[i] = count > 0 ? sum / count : profile[i];
+        }
+
+        return smoothed;
+    }
+
+    private static double ComputeRobustThreshold(IReadOnlyList<double> values, double median, double robustSigma)
+    {
+        if (values.Count == 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        if (robustSigma > 1e-6)
+        {
+            return median + robustSigma * 2.0;
+        }
+
+        var positive = values.Where(v => v > median + 1e-6).OrderBy(v => v).ToArray();
+        if (positive.Length == 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        var lowerDecile = ComputePercentile(positive, 0.1);
+        return Math.Max(median + 1.0, lowerDecile * 0.9);
+    }
+
+    private static double ComputeMedian(IReadOnlyList<double> values)
+    {
+        if (values.Count == 0)
+        {
+            return 0.0;
+        }
+
+        var sorted = values.OrderBy(v => v).ToArray();
+        return ComputePercentile(sorted, 0.5);
+    }
+
+    private static double ComputePercentile(IReadOnlyList<double> sortedValues, double percentile)
+    {
+        if (sortedValues.Count == 0)
+        {
+            return 0.0;
+        }
+
+        if (sortedValues.Count == 1)
+        {
+            return sortedValues[0];
+        }
+
+        var p = Math.Clamp(percentile, 0.0, 1.0);
+        var position = p * (sortedValues.Count - 1);
+        var lowerIndex = (int)Math.Floor(position);
+        var upperIndex = (int)Math.Ceiling(position);
+        if (lowerIndex == upperIndex)
+        {
+            return sortedValues[lowerIndex];
+        }
+
+        var ratio = position - lowerIndex;
+        return sortedValues[lowerIndex] * (1 - ratio) + sortedValues[upperIndex] * ratio;
     }
 
     private static void DrawProjectionFeatures(Mat image, IReadOnlyList<int> positions, bool horizontal)

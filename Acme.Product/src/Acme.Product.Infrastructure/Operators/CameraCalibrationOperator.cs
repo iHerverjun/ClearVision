@@ -1,49 +1,43 @@
-// CameraCalibrationOperator.cs
-// 相机标定算子 - 棋盘格// 功能实现圆点标定
-// 作者：蘅芜君
-
+using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-using System.Text.Json;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 相机标定算子 - 棋盘格/圆点标定
-/// </summary>
 [OperatorMeta(
-    DisplayName = "相机标定",
-    Description = "棋盘格/圆点标定",
-    Category = "标定",
+    DisplayName = "Camera Calibration",
+    Description = "Calibrates camera intrinsics from chessboard or circle grid images.",
+    Category = "Calibration",
     IconName = "calibration",
-    Keywords = new[] { "标定", "棋盘格", "内参", "畸变", "Calibration", "Chessboard", "Intrinsic" }
+    Keywords = new[] { "Calibration", "Chessboard", "Intrinsic", "Distortion" }
 )]
-[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
-[OutputPort("Image", "结果图像", PortDataType.Image)]
-[OutputPort("CalibrationData", "标定数据", PortDataType.String)]
-[OperatorParam("PatternType", "标定板类型", "enum", DefaultValue = "Chessboard", Options = new[] { "Chessboard|棋盘格", "CircleGrid|圆点格" })]
-[OperatorParam("BoardWidth", "棋盘格宽度", "int", DefaultValue = 9, Min = 2, Max = 30)]
-[OperatorParam("BoardHeight", "棋盘格高度", "int", DefaultValue = 6, Min = 2, Max = 30)]
-[OperatorParam("SquareSize", "方格尺寸(mm)", "double", DefaultValue = 25.0, Min = 0.1, Max = 1000.0)]
-[OperatorParam("Mode", "模式", "enum", DefaultValue = "SingleImage", Options = new[] { "SingleImage|单图检测", "FolderCalibration|文件夹标定" })]
-[OperatorParam("ImageFolder", "标定图片文件夹", "string", DefaultValue = "")]
-[OperatorParam("CalibrationOutputPath", "标定结果保存路径", "string", DefaultValue = "calibration_result.json")]
+[InputPort("Image", "Input Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Result Image", PortDataType.Image)]
+[OutputPort("CalibrationData", "Calibration Data", PortDataType.String)]
+[OperatorParam("PatternType", "Pattern Type", "enum", DefaultValue = "Chessboard", Options = new[] { "Chessboard|Chessboard", "CircleGrid|CircleGrid" })]
+[OperatorParam("BoardWidth", "Board Width", "int", DefaultValue = 9, Min = 2, Max = 30)]
+[OperatorParam("BoardHeight", "Board Height", "int", DefaultValue = 6, Min = 2, Max = 30)]
+[OperatorParam("SquareSize", "Square Size(mm)", "double", DefaultValue = 25.0, Min = 0.1, Max = 1000.0)]
+[OperatorParam("Mode", "Mode", "enum", DefaultValue = "SingleImage", Options = new[] { "SingleImage|SingleImage", "FolderCalibration|FolderCalibration" })]
+[OperatorParam("ImageFolder", "Image Folder", "string", DefaultValue = "")]
+[OperatorParam("CalibrationOutputPath", "Calibration Output Path", "string", DefaultValue = "calibration_result.json")]
 public class CameraCalibrationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CameraCalibration;
 
-    public CameraCalibrationOperator(ILogger<CameraCalibrationOperator> logger) : base(logger) { }
+    public CameraCalibrationOperator(ILogger<CameraCalibrationOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 获取参数
         var patternType = GetStringParam(@operator, "PatternType", "Chessboard");
         var boardWidth = GetIntParam(@operator, "BoardWidth", 9, 2, 30);
         var boardHeight = GetIntParam(@operator, "BoardHeight", 6, 2, 30);
@@ -53,92 +47,88 @@ public class CameraCalibrationOperator : OperatorBase
         var calibrationOutputPath = GetStringParam(@operator, "CalibrationOutputPath", "calibration_result.json");
 
         var patternSize = new Size(boardWidth, boardHeight);
-
-        if (mode == "FolderCalibration")
+        if (mode.Equals("FolderCalibration", StringComparison.OrdinalIgnoreCase))
         {
             return ExecuteFolderCalibration(patternType, patternSize, squareSize, imageFolder, calibrationOutputPath, cancellationToken);
         }
-        else
-        {
-            return ExecuteSingleImageCalibration(@operator, inputs, patternType, patternSize, squareSize, cancellationToken);
-        }
+
+        return ExecuteSingleImageCalibration(inputs, patternType, patternSize, squareSize);
     }
 
     private Task<OperatorExecutionOutput> ExecuteSingleImageCalibration(
-        Operator @operator,
         Dictionary<string, object>? inputs,
         string patternType,
         Size patternSize,
-        double squareSize,
-        CancellationToken cancellationToken)
+        double squareSize)
     {
-        if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
+        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
         }
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        // 创建结果图像
         var resultImage = src.Clone();
-
-        // 转换为灰度图
         using var gray = new Mat();
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-
-        // 查找角点
-        Point2f[]? corners = null;
-        bool found = false;
-
-        if (patternType == "Chessboard")
+        if (src.Channels() == 1)
         {
-            found = Cv2.FindChessboardCorners(gray, patternSize, out corners,
-                ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck);
+            src.CopyTo(gray);
         }
-        else if (patternType == "CircleGrid")
+        else
         {
-            found = Cv2.FindCirclesGrid(gray, patternSize, out corners,
-                FindCirclesGridFlags.SymmetricGrid);
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         }
 
-        if (!found || corners == null || corners.Length == 0)
+        if (!TryFindCalibrationCorners(gray, patternType, patternSize, out var corners) || corners.Length == 0)
         {
-            // 未找到标定板，返回原始图像
-            var additionalData = new Dictionary<string, object>
+            var notFoundData = new Dictionary<string, object>
             {
                 { "CalibrationData", "" },
                 { "Found", false },
-                { "Message", "未检测到标定板" }
+                { "Message", "Calibration pattern was not detected." }
             };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(src.Clone(), additionalData)));
+            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, notFoundData)));
         }
 
-        // 精细化角点位置
-        if (patternType == "Chessboard")
+        if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
         {
-            Cv2.CornerSubPix(gray, corners, new Size(11, 11), new Size(-1, -1),
+            Cv2.CornerSubPix(
+                gray,
+                corners,
+                new Size(11, 11),
+                new Size(-1, -1),
                 new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
         }
 
-        // 绘制角点
-        Cv2.DrawChessboardCorners(resultImage, patternSize, corners, found);
+        Cv2.DrawChessboardCorners(resultImage, patternSize, corners, true);
 
-        // 准备世界坐标系中的3D点
-        var objectPoints = new List<Point3f>();
-        for (int i = 0; i < patternSize.Height; i++)
-        {
-            for (int j = 0; j < patternSize.Width; j++)
-            {
-                objectPoints.Add(new Point3f(j * (float)squareSize, i * (float)squareSize, 0));
-            }
-        }
+        var objectPoints = CreateObjectPoints(patternSize, squareSize);
+        using var objectMat = Mat.FromArray(objectPoints);
+        using var imageMat = Mat.FromArray(corners);
+        var objectPointMats = new List<Mat> { objectMat };
+        var imagePointMats = new List<Mat> { imageMat };
 
-        // 创建标定数据结构
-        var calibrationData = new
+        using var cameraMatrix = new Mat();
+        using var distCoeffs = new Mat();
+        var reprojError = Cv2.CalibrateCamera(
+            objectPointMats,
+            imagePointMats,
+            gray.Size(),
+            cameraMatrix,
+            distCoeffs,
+            out var rvecs,
+            out var tvecs,
+            CalibrationFlags.None,
+            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 50, 1e-6));
+
+        DisposeMatArray(rvecs);
+        DisposeMatArray(tvecs);
+
+        var payload = new CalibrationPayload
         {
             PatternType = patternType,
             BoardWidth = patternSize.Width,
@@ -146,28 +136,36 @@ public class CameraCalibrationOperator : OperatorBase
             SquareSize = squareSize,
             ImageWidth = src.Width,
             ImageHeight = src.Height,
-            Corners = corners.Select(c => new { X = c.X, Y = c.Y }).ToArray(),
-            ObjectPoints = objectPoints.Select(p => new { X = p.X, Y = p.Y, Z = p.Z }).ToArray(),
+            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
+            DistCoeffs = FlattenMat(distCoeffs),
+            ReprojectionError = reprojError,
+            ImageCount = 1,
+            FailedFiles = new List<string>(),
             Found = true,
+            Corners = corners.Select(c => new Point2Payload(c.X, c.Y)).ToList(),
+            ObjectPoints = objectPoints.Select(p => new Point3Payload(p.X, p.Y, p.Z)).ToList(),
             Timestamp = DateTime.UtcNow
         };
 
-        var calibrationJson = JsonSerializer.Serialize(calibrationData, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-
-        // 显示信息
-        Cv2.PutText(resultImage, $"Corners: {corners.Length}", new Point(10, 30),
-            HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 255, 0), 2);
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        Cv2.PutText(
+            resultImage,
+            $"Corners: {corners.Length}, Err: {reprojError:F4}",
+            new Point(10, 30),
+            HersheyFonts.HersheySimplex,
+            0.7,
+            new Scalar(0, 255, 0),
+            2);
 
         var outputData = new Dictionary<string, object>
         {
-            { "CalibrationData", calibrationJson },
+            { "CalibrationData", json },
             { "Found", true },
             { "CornerCount", corners.Length },
-            { "Message", $"检测到 {corners.Length} 个角点" }
+            { "ReprojectionError", reprojError },
+            { "Message", $"Calibration succeeded with {corners.Length} corners." }
         };
+
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, outputData)));
     }
 
@@ -179,12 +177,11 @@ public class CameraCalibrationOperator : OperatorBase
         string outputPath,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(imageFolder) || !Directory.Exists(imageFolder))
+        if (string.IsNullOrWhiteSpace(imageFolder) || !Directory.Exists(imageFolder))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("标定图片文件夹不存在"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("ImageFolder does not exist."));
         }
 
-        // 获取图片文件
         var imageFiles = Directory.GetFiles(imageFolder, "*.png")
             .Concat(Directory.GetFiles(imageFolder, "*.jpg"))
             .Concat(Directory.GetFiles(imageFolder, "*.jpeg"))
@@ -193,19 +190,17 @@ public class CameraCalibrationOperator : OperatorBase
 
         if (imageFiles.Length == 0)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("文件夹中没有找到图片文件"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("No calibration image was found in folder."));
         }
 
         var objectPoints = new List<Mat>();
         var imagePoints = new List<Mat>();
-        Size imageSize = default;
-        int successCount = 0;
         var failedFiles = new List<string>();
+        Size imageSize = default;
 
         foreach (var file in imageFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             try
             {
                 using var img = Cv2.ImRead(file, ImreadModes.Grayscale);
@@ -216,84 +211,62 @@ public class CameraCalibrationOperator : OperatorBase
                 }
 
                 if (imageSize == default)
+                {
                     imageSize = img.Size();
-
-                Point2f[]? corners = null;
-                bool found = false;
-
-                if (patternType == "Chessboard")
-                {
-                    found = Cv2.FindChessboardCorners(img, patternSize, out corners,
-                        ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck);
-                }
-                else if (patternType == "CircleGrid")
-                {
-                    found = Cv2.FindCirclesGrid(img, patternSize, out corners,
-                        FindCirclesGridFlags.SymmetricGrid);
                 }
 
-                if (found && corners != null && corners.Length > 0)
-                {
-                    // 精细化角点
-                    if (patternType == "Chessboard")
-                    {
-                        Cv2.CornerSubPix(img, corners, new Size(11, 11), new Size(-1, -1),
-                            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
-                    }
-
-                    imagePoints.Add(Mat.FromArray(corners));
-
-                    // 构建世界坐标
-                    var objPts = new Point3f[patternSize.Width * patternSize.Height];
-                    for (int j = 0; j < patternSize.Height; j++)
-                        for (int i = 0; i < patternSize.Width; i++)
-                            objPts[j * patternSize.Width + i] = new Point3f(i * (float)squareSize, j * (float)squareSize, 0);
-                    objectPoints.Add(Mat.FromArray(objPts));
-
-                    successCount++;
-                }
-                else
+                if (!TryFindCalibrationCorners(img, patternType, patternSize, out var corners) || corners.Length == 0)
                 {
                     failedFiles.Add(Path.GetFileName(file));
+                    continue;
                 }
+
+                if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+                {
+                    Cv2.CornerSubPix(
+                        img,
+                        corners,
+                        new Size(11, 11),
+                        new Size(-1, -1),
+                        new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
+                }
+
+                objectPoints.Add(Mat.FromArray(CreateObjectPoints(patternSize, squareSize)));
+                imagePoints.Add(Mat.FromArray(corners));
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "处理文件 {File} 时出错", file);
+                Logger.LogWarning(ex, "Failed to process calibration image {File}.", file);
                 failedFiles.Add(Path.GetFileName(file));
             }
         }
 
         if (objectPoints.Count < 3)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"成功检测的标定板图片不足，只有 {objectPoints.Count} 张，需要至少 3 张"));
+            DisposeMatList(objectPoints);
+            DisposeMatList(imagePoints);
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Need at least 3 valid images, got {objectPoints.Count}."));
         }
 
-        // 执行标定
         using var cameraMatrix = new Mat();
         using var distCoeffs = new Mat();
-        Mat[]? rvecs = null;
-        Mat[]? tvecs = null;
-
         var reprojError = Cv2.CalibrateCamera(
-            objectPoints, imagePoints, imageSize,
-            cameraMatrix, distCoeffs,
-            out rvecs, out tvecs,
+            objectPoints,
+            imagePoints,
+            imageSize,
+            cameraMatrix,
+            distCoeffs,
+            out var rvecs,
+            out var tvecs,
             CalibrationFlags.None,
-            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 1e-6));
+            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 50, 1e-6));
 
-        // 释放临时Mat数组
-        if (rvecs != null)
-        {
-            foreach (var rvec in rvecs) rvec?.Dispose();
-        }
-        if (tvecs != null)
-        {
-            foreach (var tvec in tvecs) tvec?.Dispose();
-        }
+        DisposeMatArray(rvecs);
+        DisposeMatArray(tvecs);
+        DisposeMatList(objectPoints);
+        DisposeMatList(imagePoints);
 
-        // 构建标定结果数据
-        var calibData = new CalibrationResult
+        var payload = new CalibrationPayload
         {
             PatternType = patternType,
             BoardWidth = patternSize.Width,
@@ -301,53 +274,47 @@ public class CameraCalibrationOperator : OperatorBase
             SquareSize = squareSize,
             ImageWidth = imageSize.Width,
             ImageHeight = imageSize.Height,
-            CameraMatrix = new double[,]
-            {
-                { cameraMatrix.At<double>(0, 0), cameraMatrix.At<double>(0, 1), cameraMatrix.At<double>(0, 2) },
-                { cameraMatrix.At<double>(1, 0), cameraMatrix.At<double>(1, 1), cameraMatrix.At<double>(1, 2) },
-                { cameraMatrix.At<double>(2, 0), cameraMatrix.At<double>(2, 1), cameraMatrix.At<double>(2, 2) }
-            },
-            DistCoeffs = Enumerable.Range(0, distCoeffs.Cols)
-                .Select(i => distCoeffs.At<double>(0, i))
-                .ToArray(),
+            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
+            DistCoeffs = FlattenMat(distCoeffs),
             ReprojectionError = reprojError,
-            ImageCount = successCount,
+            ImageCount = imageFiles.Length - failedFiles.Count,
             FailedFiles = failedFiles,
+            Found = true,
             Timestamp = DateTime.UtcNow
         };
 
-        // 保存 JSON
-        var json = JsonSerializer.Serialize(calibData, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
         try
         {
             File.WriteAllText(outputPath, json);
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "保存标定结果到 {Path} 失败", outputPath);
+            Logger.LogWarning(ex, "Failed to save calibration file to {Path}.", outputPath);
         }
 
-        // 创建结果图像（使用最后一张成功处理的图片作为背景）
-        using var lastImg = Cv2.ImRead(imageFiles.Last(), ImreadModes.Color);
-        var resultImage = lastImg.Clone();
+        using var previewBase = Cv2.ImRead(imageFiles.First(), ImreadModes.Color);
+        var resultImage = previewBase.Empty()
+            ? new Mat(imageSize.Height, imageSize.Width, MatType.CV_8UC3, Scalar.Black)
+            : previewBase.Clone();
 
-        // 显示标定结果信息
-        var info = $"Images: {successCount}/{imageFiles.Length}, Error: {reprojError:F4}";
-        Cv2.PutText(resultImage, info, new Point(10, 30),
-            HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 255, 0), 2);
+        Cv2.PutText(
+            resultImage,
+            $"Images: {payload.ImageCount}/{imageFiles.Length}, Err: {reprojError:F4}",
+            new Point(10, 30),
+            HersheyFonts.HersheySimplex,
+            0.7,
+            new Scalar(0, 255, 0),
+            2);
 
         var additionalData = new Dictionary<string, object>
         {
             { "CalibrationData", json },
             { "ReprojectionError", reprojError },
-            { "ImageCount", successCount },
+            { "ImageCount", payload.ImageCount },
             { "TotalImages", imageFiles.Length },
             { "OutputPath", outputPath },
-            { "Message", $"标定完成，使用了 {successCount}/{imageFiles.Length} 张图片，重投影误差: {reprojError:F4}" }
+            { "Message", $"Calibration completed with {payload.ImageCount}/{imageFiles.Length} images." }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
@@ -362,38 +329,134 @@ public class CameraCalibrationOperator : OperatorBase
 
         if (boardWidth < 2 || boardWidth > 30)
         {
-            return ValidationResult.Invalid("棋盘格宽度必须在 2-30 之间");
-        }
-        if (boardHeight < 2 || boardHeight > 30)
-        {
-            return ValidationResult.Invalid("棋盘格高度必须在 2-30 之间");
-        }
-        if (squareSize <= 0 || squareSize > 1000)
-        {
-            return ValidationResult.Invalid("方格尺寸必须在 0-1000 mm 之间");
+            return ValidationResult.Invalid("BoardWidth must be between 2 and 30.");
         }
 
-        if (mode != "SingleImage" && mode != "FolderCalibration")
+        if (boardHeight < 2 || boardHeight > 30)
         {
-            return ValidationResult.Invalid("模式必须是 SingleImage 或 FolderCalibration");
+            return ValidationResult.Invalid("BoardHeight must be between 2 and 30.");
+        }
+
+        if (squareSize <= 0 || squareSize > 1000)
+        {
+            return ValidationResult.Invalid("SquareSize must be between 0 and 1000 mm.");
+        }
+
+        if (!mode.Equals("SingleImage", StringComparison.OrdinalIgnoreCase) &&
+            !mode.Equals("FolderCalibration", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("Mode must be SingleImage or FolderCalibration.");
         }
 
         return ValidationResult.Valid();
     }
 
-    private class CalibrationResult
+    private static bool TryFindCalibrationCorners(Mat gray, string patternType, Size patternSize, out Point2f[] corners)
     {
-        public string PatternType { get; set; } = "";
+        corners = Array.Empty<Point2f>();
+        if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+        {
+            return Cv2.FindChessboardCorners(
+                gray,
+                patternSize,
+                out corners,
+                ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck);
+        }
+
+        if (patternType.Equals("CircleGrid", StringComparison.OrdinalIgnoreCase))
+        {
+            return Cv2.FindCirclesGrid(gray, patternSize, out corners, FindCirclesGridFlags.SymmetricGrid);
+        }
+
+        return false;
+    }
+
+    private static Point3f[] CreateObjectPoints(Size patternSize, double squareSize)
+    {
+        var points = new Point3f[patternSize.Width * patternSize.Height];
+        var index = 0;
+        for (var y = 0; y < patternSize.Height; y++)
+        {
+            for (var x = 0; x < patternSize.Width; x++)
+            {
+                points[index++] = new Point3f((float)(x * squareSize), (float)(y * squareSize), 0f);
+            }
+        }
+
+        return points;
+    }
+
+    private static double[][] ToJaggedMatrix3x3(Mat cameraMatrix)
+    {
+        return new[]
+        {
+            new[] { cameraMatrix.At<double>(0, 0), cameraMatrix.At<double>(0, 1), cameraMatrix.At<double>(0, 2) },
+            new[] { cameraMatrix.At<double>(1, 0), cameraMatrix.At<double>(1, 1), cameraMatrix.At<double>(1, 2) },
+            new[] { cameraMatrix.At<double>(2, 0), cameraMatrix.At<double>(2, 1), cameraMatrix.At<double>(2, 2) }
+        };
+    }
+
+    private static double[] FlattenMat(Mat mat)
+    {
+        if (mat.Empty())
+        {
+            return Array.Empty<double>();
+        }
+
+        var result = new double[mat.Rows * mat.Cols];
+        var index = 0;
+        for (var r = 0; r < mat.Rows; r++)
+        {
+            for (var c = 0; c < mat.Cols; c++)
+            {
+                result[index++] = mat.At<double>(r, c);
+            }
+        }
+
+        return result;
+    }
+
+    private static void DisposeMatList(IEnumerable<Mat> mats)
+    {
+        foreach (var mat in mats)
+        {
+            mat.Dispose();
+        }
+    }
+
+    private static void DisposeMatArray(Mat[]? mats)
+    {
+        if (mats == null)
+        {
+            return;
+        }
+
+        foreach (var mat in mats)
+        {
+            mat?.Dispose();
+        }
+    }
+
+    private sealed class CalibrationPayload
+    {
+        public string PatternType { get; set; } = string.Empty;
         public int BoardWidth { get; set; }
         public int BoardHeight { get; set; }
         public double SquareSize { get; set; }
         public int ImageWidth { get; set; }
         public int ImageHeight { get; set; }
-        public double[,] CameraMatrix { get; set; } = new double[3, 3];
+        public double[][] CameraMatrix { get; set; } = Array.Empty<double[]>();
         public double[] DistCoeffs { get; set; } = Array.Empty<double>();
         public double ReprojectionError { get; set; }
         public int ImageCount { get; set; }
         public List<string> FailedFiles { get; set; } = new();
+        public bool Found { get; set; }
+        public List<Point2Payload>? Corners { get; set; }
+        public List<Point3Payload>? ObjectPoints { get; set; }
         public DateTime Timestamp { get; set; }
     }
+
+    private readonly record struct Point2Payload(double X, double Y);
+
+    private readonly record struct Point3Payload(double X, double Y, double Z);
 }

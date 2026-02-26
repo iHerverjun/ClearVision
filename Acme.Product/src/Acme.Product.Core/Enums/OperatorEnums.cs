@@ -629,7 +629,12 @@ public enum OperatorType
     /// <summary>
     /// Pixel statistics
     /// </summary>
-    PixelStatistics = 214
+    PixelStatistics = 214,
+
+    /// <summary>
+    /// Mean filter (box blur)
+    /// </summary>
+    MeanFilter = 215
 }
 
 /// <summary>

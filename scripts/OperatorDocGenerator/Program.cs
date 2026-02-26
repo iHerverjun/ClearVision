@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -9,6 +11,7 @@ using Acme.Product.Infrastructure.Operators;
 var repoRoot = ResolveRepoRoot(args);
 var overwrite = args.Any(arg => string.Equals(arg, "--overwrite", StringComparison.OrdinalIgnoreCase));
 var docsRoot = Path.Combine(repoRoot, "docs", "operators");
+var generatedAt = DateTimeOffset.Now;
 
 Directory.CreateDirectory(docsRoot);
 
@@ -38,27 +41,125 @@ var candidates = typeof(OperatorBase).Assembly
     .OrderBy(x => x.OperatorType!.Value.ToString(), StringComparer.Ordinal)
     .ToList();
 
-var generated = 0;
-var skipped = 0;
+var (generated, skipped) = GenerateOperatorDocuments(candidates, docsRoot, overwrite);
+GenerateCatalogJson(candidates, docsRoot, generatedAt);
+GenerateCatalogMarkdown(candidates, docsRoot, generatedAt);
 
-foreach (var item in candidates)
-{
-    var fileName = $"{item.OperatorType}.md";
-    var filePath = Path.Combine(docsRoot, fileName);
-    if (File.Exists(filePath) && !overwrite)
-    {
-        skipped++;
-        continue;
-    }
-
-    File.WriteAllText(filePath, BuildDocument(item), new UTF8Encoding(false));
-    generated++;
-}
-
-Console.WriteLine(
-    $"repoRoot={repoRoot} docsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
+Console.WriteLine($"repoRoot={repoRoot} docsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
+Console.WriteLine($"catalogJson={Path.Combine(docsRoot, "catalog.json")} catalogMarkdown={Path.Combine(docsRoot, "CATALOG.md")}");
 
 return 0;
+
+static (int generated, int skipped) GenerateOperatorDocuments(IReadOnlyList<OperatorDocModel> candidates, string docsRoot, bool overwrite)
+{
+    var generated = 0;
+    var skipped = 0;
+
+    foreach (var item in candidates)
+    {
+        var fileName = $"{item.OperatorType}.md";
+        var filePath = Path.Combine(docsRoot, fileName);
+        if (File.Exists(filePath) && !overwrite)
+        {
+            skipped++;
+            continue;
+        }
+
+        File.WriteAllText(filePath, BuildDocument(item), new UTF8Encoding(false));
+        generated++;
+    }
+
+    return (generated, skipped);
+}
+
+static void GenerateCatalogJson(IReadOnlyList<OperatorDocModel> candidates, string docsRoot, DateTimeOffset generatedAt)
+{
+    var operators = candidates
+        .Select(ToCatalogOperator)
+        .OrderBy(item => item.Type)
+        .ToList();
+
+    var categories = operators
+        .GroupBy(item => NormalizeCategory(item.Category))
+        .OrderBy(group => group.Key, StringComparer.Ordinal)
+        .ToDictionary(
+            group => group.Key,
+            group => new CatalogCategorySummary
+            {
+                Count = group.Count(),
+                Operators = group
+                    .Select(op => op.Id)
+                    .OrderBy(id => id, StringComparer.Ordinal)
+                    .ToList()
+            },
+            StringComparer.Ordinal);
+
+    var model = new CatalogDocument
+    {
+        GeneratedAt = generatedAt.ToString("o", CultureInfo.InvariantCulture),
+        TotalCount = operators.Count,
+        Categories = categories,
+        Operators = operators
+    };
+
+    var options = new JsonSerializerOptions
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    var json = JsonSerializer.Serialize(model, options);
+    File.WriteAllText(Path.Combine(docsRoot, "catalog.json"), json + Environment.NewLine, new UTF8Encoding(false));
+}
+
+static void GenerateCatalogMarkdown(IReadOnlyList<OperatorDocModel> candidates, string docsRoot, DateTimeOffset generatedAt)
+{
+    var operators = candidates
+        .Select(ToCatalogOperator)
+        .OrderBy(item => item.Type)
+        .ToList();
+
+    var grouped = operators
+        .GroupBy(item => NormalizeCategory(item.Category))
+        .OrderBy(group => group.Key, StringComparer.Ordinal)
+        .ToList();
+
+    var sb = new StringBuilder();
+    sb.AppendLine("# 算子目录 / Operator Catalog");
+    sb.AppendLine();
+    sb.AppendLine($"> 生成时间 / Generated At: `{generatedAt:yyyy-MM-dd HH:mm:ss zzz}`");
+    sb.AppendLine($"> 算子总数 / Total Operators: **{operators.Count}**");
+    sb.AppendLine();
+    sb.AppendLine("## 分类统计 / Category Summary");
+    sb.AppendLine("| 分类 (Category) | 数量 (Count) | 占比 (Ratio) |");
+    sb.AppendLine("|------|------:|------:|");
+    foreach (var categoryGroup in grouped)
+    {
+        var ratio = operators.Count == 0 ? 0 : categoryGroup.Count() * 100.0 / operators.Count;
+        sb.AppendLine($"| {EscapeCell(categoryGroup.Key)} | {categoryGroup.Count()} | {ratio.ToString("0.0", CultureInfo.InvariantCulture)}% |");
+    }
+
+    sb.AppendLine();
+    sb.AppendLine("## 分类索引 / Grouped Index");
+    foreach (var categoryGroup in grouped)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"### {categoryGroup.Key} ({categoryGroup.Count()})");
+        sb.AppendLine("| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 算法 (Algorithm) | 文档 |");
+        sb.AppendLine("|------|------|------:|------:|------:|------|------|");
+
+        foreach (var op in categoryGroup.OrderBy(item => item.Id, StringComparer.Ordinal))
+        {
+            var algorithm = string.IsNullOrWhiteSpace(op.Algorithm) ? "-" : EscapeCell(op.Algorithm!);
+            var linkPath = $"./{op.Id}.md";
+            sb.AppendLine(
+                $"| `OperatorType.{op.Id}` | {EscapeCell(op.DisplayName)} | {op.InputPorts.Count} | {op.OutputPorts.Count} | {op.Parameters.Count} | {algorithm} | [{op.Id}]({linkPath}) |");
+        }
+    }
+
+    File.WriteAllText(Path.Combine(docsRoot, "CATALOG.md"), sb.ToString(), new UTF8Encoding(false));
+}
 
 static string ResolveRepoRoot(string[] args)
 {
@@ -213,6 +314,126 @@ static string BuildDocument(OperatorDocModel item)
     return sb.ToString();
 }
 
+static CatalogOperator ToCatalogOperator(OperatorDocModel item)
+{
+    var id = item.OperatorType!.Value.ToString();
+
+    var inputPorts = item.Inputs
+        .Select(port => new CatalogPort
+        {
+            Name = port.Name,
+            DisplayName = port.DisplayName,
+            DataType = port.DataType.ToString(),
+            IsRequired = port.IsRequired
+        })
+        .ToList();
+
+    var outputPorts = item.Outputs
+        .Select(port => new CatalogPort
+        {
+            Name = port.Name,
+            DisplayName = port.DisplayName,
+            DataType = port.DataType.ToString(),
+            IsRequired = null
+        })
+        .ToList();
+
+    var parameters = item.Parameters
+        .Select(parameter => new CatalogParameter
+        {
+            Name = parameter.Name,
+            DisplayName = parameter.DisplayName,
+            DataType = parameter.DataType,
+            Description = parameter.Description,
+            DefaultValue = NormalizeParameterValue(parameter.DefaultValue),
+            Min = NormalizeParameterValue(parameter.Min),
+            Max = NormalizeParameterValue(parameter.Max),
+            IsRequired = parameter.IsRequired,
+            Options = ParseParameterOptions(parameter.Options)
+        })
+        .ToList();
+
+    return new CatalogOperator
+    {
+        Id = id,
+        Type = (int)item.OperatorType.Value,
+        DisplayName = item.Meta.DisplayName,
+        Description = item.Meta.Description,
+        Category = NormalizeCategory(item.Meta.Category),
+        Algorithm = item.Algo?.Name,
+        InputPorts = inputPorts,
+        OutputPorts = outputPorts,
+        Parameters = parameters,
+        DocPath = $"docs/operators/{id}.md"
+    };
+}
+
+static string NormalizeCategory(string? category)
+{
+    return string.IsNullOrWhiteSpace(category) ? "未分类" : category.Trim();
+}
+
+static List<CatalogParameterOption>? ParseParameterOptions(string[]? options)
+{
+    if (options == null || options.Length == 0)
+    {
+        return null;
+    }
+
+    var parsed = new List<CatalogParameterOption>(options.Length);
+    foreach (var option in options)
+    {
+        if (string.IsNullOrWhiteSpace(option))
+        {
+            continue;
+        }
+
+        var parts = option.Split('|', 2, StringSplitOptions.TrimEntries);
+        var value = parts[0];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            continue;
+        }
+
+        var label = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])
+            ? parts[1]
+            : value;
+
+        parsed.Add(new CatalogParameterOption
+        {
+            Value = value,
+            Label = label
+        });
+    }
+
+    return parsed.Count == 0 ? null : parsed;
+}
+
+static string? NormalizeParameterValue(object? value)
+{
+    if (value == null)
+    {
+        return null;
+    }
+
+    if (value is string text)
+    {
+        return text;
+    }
+
+    if (value is bool b)
+    {
+        return b ? "true" : "false";
+    }
+
+    if (value is IFormattable formattable)
+    {
+        return formattable.ToString(null, CultureInfo.InvariantCulture);
+    }
+
+    return Convert.ToString(value, CultureInfo.InvariantCulture);
+}
+
 static string BuildRange(object? min, object? max)
 {
     var minText = FormatValue(min);
@@ -265,3 +486,83 @@ internal sealed record OperatorDocModel(
     OutputPortAttribute[] Outputs,
     OperatorParamAttribute[] Parameters,
     OperatorType? OperatorType);
+
+internal sealed class CatalogDocument
+{
+    public string GeneratedAt { get; set; } = string.Empty;
+
+    public int TotalCount { get; set; }
+
+    public Dictionary<string, CatalogCategorySummary> Categories { get; set; } = new(StringComparer.Ordinal);
+
+    public List<CatalogOperator> Operators { get; set; } = new();
+}
+
+internal sealed class CatalogCategorySummary
+{
+    public int Count { get; set; }
+
+    public List<string> Operators { get; set; } = new();
+}
+
+internal sealed class CatalogOperator
+{
+    public string Id { get; set; } = string.Empty;
+
+    public int Type { get; set; }
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string Category { get; set; } = string.Empty;
+
+    public string? Algorithm { get; set; }
+
+    public List<CatalogPort> InputPorts { get; set; } = new();
+
+    public List<CatalogPort> OutputPorts { get; set; } = new();
+
+    public List<CatalogParameter> Parameters { get; set; } = new();
+
+    public string DocPath { get; set; } = string.Empty;
+}
+
+internal sealed class CatalogPort
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string DataType { get; set; } = string.Empty;
+
+    public bool? IsRequired { get; set; }
+}
+
+internal sealed class CatalogParameter
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string DataType { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string? DefaultValue { get; set; }
+
+    public string? Min { get; set; }
+
+    public string? Max { get; set; }
+
+    public bool IsRequired { get; set; }
+
+    public List<CatalogParameterOption>? Options { get; set; }
+}
+
+internal sealed class CatalogParameterOption
+{
+    public string Value { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+}

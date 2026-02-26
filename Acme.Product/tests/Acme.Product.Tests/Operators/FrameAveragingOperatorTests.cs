@@ -52,6 +52,62 @@ public class FrameAveragingOperatorTests
         Assert.False(validation.IsValid);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_MedianMode_GrayFrames_ShouldReturnMedianValue()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FrameCount", 3 },
+            { "Mode", "Median" }
+        });
+
+        using var frame1 = CreateGrayImage(10);
+        using var frame2 = CreateGrayImage(200);
+        using var frame3 = CreateGrayImage(100);
+
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame1));
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame2));
+        var third = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame3));
+
+        Assert.True(third.IsSuccess);
+        Assert.NotNull(third.OutputData);
+
+        using var output = Assert.IsType<ImageWrapper>(third.OutputData!["Image"]);
+        using var resultMat = output.GetMat();
+        Assert.Equal(100, resultMat.At<byte>(0, 0));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MedianMode_ColorFrames_ShouldUseMedianInsteadOfMean()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FrameCount", 3 },
+            { "Mode", "Median" }
+        });
+
+        using var frame1 = CreateSolidImage(0);
+        using var frame2 = CreateSolidImage(0);
+        using var frame3 = CreateSolidImage(255);
+
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame1));
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame2));
+        var third = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame3));
+
+        Assert.True(third.IsSuccess);
+        Assert.NotNull(third.OutputData);
+
+        using var output = Assert.IsType<ImageWrapper>(third.OutputData!["Image"]);
+        using var resultMat = output.GetMat();
+        var pixel = resultMat.At<Vec3b>(0, 0);
+
+        Assert.Equal(0, pixel.Item0);
+        Assert.Equal(0, pixel.Item1);
+        Assert.Equal(0, pixel.Item2);
+    }
+
     private static FrameAveragingOperator CreateSut()
     {
         return new FrameAveragingOperator(Substitute.For<ILogger<FrameAveragingOperator>>());
@@ -75,6 +131,12 @@ public class FrameAveragingOperatorTests
     private static ImageWrapper CreateSolidImage(byte value)
     {
         var mat = new Mat(80, 80, MatType.CV_8UC3, new Scalar(value, value, value));
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateGrayImage(byte value)
+    {
+        var mat = new Mat(80, 80, MatType.CV_8UC1, new Scalar(value));
         return new ImageWrapper(mat);
     }
 }

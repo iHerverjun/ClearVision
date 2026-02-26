@@ -451,7 +451,7 @@ public class WebMessageHandler
                 sessionId,
                 existingFlowJson,
                 hint,
-                onProgress: (type, payload) =>
+                onMessage: (type, payload) =>
                 {
                     // 在 UI 线程推送进度消息
                     var progressJson = JsonSerializer.Serialize(new

@@ -65,6 +65,41 @@ public class TextSaveOperatorTests
         Assert.False(sut.ValidateParameters(op).IsValid);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ConcurrentAppend_ShouldNotLoseLines()
+    {
+        var sut = CreateSut();
+        var path = Path.Combine(Path.GetTempPath(), $"cv_textsave_parallel_{Guid.NewGuid():N}.txt");
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FilePath", path },
+            { "Format", "Text" },
+            { "AppendMode", true },
+            { "AddTimestamp", false },
+            { "Encoding", "UTF8" }
+        });
+
+        try
+        {
+            var tasks = Enumerable.Range(0, 20)
+                .Select(i => sut.ExecuteAsync(op, new Dictionary<string, object> { { "Text", $"line-{i}" } }))
+                .ToArray();
+
+            var results = await Task.WhenAll(tasks);
+            Assert.All(results, r => Assert.True(r.IsSuccess));
+
+            var lines = File.ReadAllLines(path);
+            Assert.Equal(20, lines.Length);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     private static TextSaveOperator CreateSut()
     {
         return new TextSaveOperator(Substitute.For<ILogger<TextSaveOperator>>());
@@ -84,4 +119,3 @@ public class TextSaveOperatorTests
         return op;
     }
 }
-

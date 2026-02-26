@@ -23,10 +23,13 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Distance", "Distance", PortDataType.Float)]
 [OutputPort("Angle", "Angle", PortDataType.Float)]
 [OutputPort("Intersection", "Intersection", PortDataType.Point)]
+[OutputPort("HasIntersection", "Has Intersection", PortDataType.Boolean)]
 [OutputPort("IsParallel", "Is Parallel", PortDataType.Boolean)]
 [OperatorParam("ParallelThreshold", "Parallel Threshold", "double", DefaultValue = 2.0, Min = 0.0, Max = 45.0)]
 public class LineLineDistanceOperator : OperatorBase
 {
+    private static readonly Position NoIntersection = new(double.NaN, double.NaN);
+
     public override OperatorType OperatorType => OperatorType.LineLineDistance;
 
     public LineLineDistanceOperator(ILogger<LineLineDistanceOperator> logger) : base(logger)
@@ -73,8 +76,9 @@ public class LineLineDistanceOperator : OperatorBase
         var angleDeg = Math.Acos(cosTheta) * 180.0 / Math.PI;
 
         var isParallel = angleDeg <= parallelThreshold;
-
-        var intersection = SolveIntersection(line1, line2, out var hasIntersection);
+        var hasGeometricIntersection = TrySolveIntersection(line1, line2, out var geometricIntersection);
+        var hasIntersection = !isParallel && hasGeometricIntersection;
+        var intersection = hasIntersection ? geometricIntersection : NoIntersection;
 
         double distance;
         if (isParallel)
@@ -82,11 +86,6 @@ public class LineLineDistanceOperator : OperatorBase
             var midX = (line1.StartX + line1.EndX) / 2.0;
             var midY = (line1.StartY + line1.EndY) / 2.0;
             distance = DistancePointToLine(midX, midY, line2);
-
-            if (!hasIntersection)
-            {
-                intersection = new Position((line1.MidX + line2.MidX) / 2.0, (line1.MidY + line2.MidY) / 2.0);
-            }
         }
         else
         {
@@ -98,6 +97,7 @@ public class LineLineDistanceOperator : OperatorBase
             { "Distance", distance },
             { "Angle", angleDeg },
             { "Intersection", intersection },
+            { "HasIntersection", hasIntersection },
             { "IsParallel", isParallel }
         };
 
@@ -115,7 +115,7 @@ public class LineLineDistanceOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static Position SolveIntersection(LineData l1, LineData l2, out bool hasIntersection)
+    private static bool TrySolveIntersection(LineData l1, LineData l2, out Position intersection)
     {
         var x1 = l1.StartX;
         var y1 = l1.StartY;
@@ -130,8 +130,8 @@ public class LineLineDistanceOperator : OperatorBase
         var denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
         if (Math.Abs(denom) < 1e-9)
         {
-            hasIntersection = false;
-            return new Position((l1.MidX + l2.MidX) / 2.0, (l1.MidY + l2.MidY) / 2.0);
+            intersection = NoIntersection;
+            return false;
         }
 
         var det1 = x1 * y2 - y1 * x2;
@@ -139,8 +139,8 @@ public class LineLineDistanceOperator : OperatorBase
 
         var px = (det1 * (x3 - x4) - (x1 - x2) * det2) / denom;
         var py = (det1 * (y3 - y4) - (y1 - y2) * det2) / denom;
-        hasIntersection = true;
-        return new Position(px, py);
+        intersection = new Position(px, py);
+        return true;
     }
 
     private static double DistancePointToLine(double px, double py, LineData line)

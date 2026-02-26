@@ -1,17 +1,17 @@
-# 候选框筛选 / BoxFilter
+# 均值滤波 / MeanFilter
 
 ## 基本信息 / Basic Info
 | 项目 (Field) | 值 (Value) |
 |------|------|
-| 类名 (Class) | `BoundingBoxFilterOperator` |
-| 枚举值 (Enum) | `OperatorType.BoxFilter` |
-| 分类 (Category) | 数据处理 |
+| 类名 (Class) | `MeanFilterOperator` |
+| 枚举值 (Enum) | `OperatorType.MeanFilter` |
+| 分类 (Category) | 预处理 |
 | 成熟度 (Maturity) | 稳定 Stable |
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Filters detections by area, class, region, or score.。
-> English: Filters detections by area, class, region, or score..
+> 中文：Applies mean (box blur) filtering to smooth image noise.。
+> English: Applies mean (box blur) filtering to smooth image noise..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -23,29 +23,19 @@
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
-| `FilterMode` | `enum` | Area | - | - |
-| `MinArea` | `int` | 0 | >= 0 | - |
-| `MaxArea` | `int` | 9999999 | >= 0 | - |
-| `TargetClasses` | `string` | "" | - | - |
-| `MinScore` | `double` | 0 | [0, 1] | - |
-| `RegionX` | `int` | 0 | - | - |
-| `RegionY` | `int` | 0 | - | - |
-| `RegionW` | `int` | 0 | - | - |
-| `RegionH` | `int` | 0 | - | - |
+| `KernelSize` | `int` | 5 | [1, 63] | - |
+| `BorderType` | `enum` | 4 | - | - |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Detections` | Detections | `DetectionList` | Yes | - |
-| `Image` | Image | `Image` | No | - |
+| `Image` | Image | `Image` | Yes | - |
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Detections` | Detections | `DetectionList` | - |
 | `Image` | Image | `Image` | - |
-| `Count` | Count | `Integer` | - |
 
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |

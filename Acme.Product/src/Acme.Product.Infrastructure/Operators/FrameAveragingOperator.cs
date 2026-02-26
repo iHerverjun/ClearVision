@@ -52,6 +52,19 @@ public class FrameAveragingOperator : OperatorBase
         List<Mat> snapshot;
         lock (_syncRoot)
         {
+            if (_frames.Count > 0)
+            {
+                var reference = _frames.Peek();
+                if (reference.Rows != src.Rows || reference.Cols != src.Cols || reference.Type() != src.Type())
+                {
+                    while (_frames.Count > 0)
+                    {
+                        var stale = _frames.Dequeue();
+                        stale.Dispose();
+                    }
+                }
+            }
+
             _frames.Enqueue(src.Clone());
             while (_frames.Count > frameCount)
             {
@@ -110,8 +123,17 @@ public class FrameAveragingOperator : OperatorBase
             throw new InvalidOperationException("No frames available for averaging");
         }
 
+        EnsureSameShapeAndType(frames);
+
         var channelCount = frames[0].Channels();
-        var accumType = channelCount == 1 ? MatType.CV_32FC1 : MatType.CV_32FC3;
+        var accumType = channelCount switch
+        {
+            1 => MatType.CV_32FC1,
+            2 => MatType.CV_32FC2,
+            3 => MatType.CV_32FC3,
+            4 => MatType.CV_32FC4,
+            _ => throw new InvalidOperationException($"Unsupported channel count for frame averaging: {channelCount}")
+        };
 
         using var accum = new Mat(frames[0].Rows, frames[0].Cols, accumType, Scalar.All(0));
         using var noMask = new Mat();
@@ -135,32 +157,60 @@ public class FrameAveragingOperator : OperatorBase
             throw new InvalidOperationException("No frames available for averaging");
         }
 
-        if (frames[0].Channels() > 1)
-        {
-            // Fallback to mean for color frames to keep runtime bounded.
-            return ComputeMean(frames);
-        }
+        EnsureSameShapeAndType(frames);
 
         var rows = frames[0].Rows;
-        var cols = frames[0].Cols;
-        var result = new Mat(rows, cols, MatType.CV_8UC1);
-        var buffer = new byte[frames.Count];
+        var channels = frames[0].Channels();
 
-        for (var y = 0; y < rows; y++)
+        using var stacked = BuildTemporalStack(frames);
+        using var sorted = new Mat();
+        Cv2.Sort(stacked, sorted, SortFlags.EveryColumn | SortFlags.Ascending);
+
+        var medianIndex = frames.Count / 2;
+        using var medianRow = sorted.Row(medianIndex);
+        using var medianFlat = medianRow.Clone();
+        using var medianReshaped = medianFlat.Reshape(channels, rows);
+        return medianReshaped.Clone();
+    }
+
+    private static Mat BuildTemporalStack(IReadOnlyList<Mat> frames)
+    {
+        var flattened = new Mat[frames.Count];
+
+        try
         {
-            for (var x = 0; x < cols; x++)
+            for (var i = 0; i < frames.Count; i++)
             {
-                for (var i = 0; i < frames.Count; i++)
-                {
-                    buffer[i] = frames[i].At<byte>(y, x);
-                }
+                using var reshaped = frames[i].Reshape(1, 1);
+                flattened[i] = reshaped.Clone();
+            }
 
-                Array.Sort(buffer);
-                var median = buffer[buffer.Length / 2];
-                result.Set(y, x, median);
+            var stacked = new Mat();
+            Cv2.VConcat(flattened, stacked);
+            return stacked;
+        }
+        finally
+        {
+            foreach (var mat in flattened)
+            {
+                mat?.Dispose();
             }
         }
+    }
 
-        return result;
+    private static void EnsureSameShapeAndType(IReadOnlyList<Mat> frames)
+    {
+        var reference = frames[0];
+        var rows = reference.Rows;
+        var cols = reference.Cols;
+        var type = reference.Type();
+
+        for (var i = 1; i < frames.Count; i++)
+        {
+            if (frames[i].Rows != rows || frames[i].Cols != cols || frames[i].Type() != type)
+            {
+                throw new InvalidOperationException("All frames must have the same size and type");
+            }
+        }
     }
 }

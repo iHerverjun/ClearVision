@@ -8,13 +8,13 @@ using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
-public class BoxFilterOperatorTests
+public class BoundingBoxFilterOperatorTests
 {
-    private readonly BoxFilterOperator _operator;
+    private readonly BoundingBoxFilterOperator _operator;
 
-    public BoxFilterOperatorTests()
+    public BoundingBoxFilterOperatorTests()
     {
-        _operator = new BoxFilterOperator(Substitute.For<ILogger<BoxFilterOperator>>());
+        _operator = new BoundingBoxFilterOperator(Substitute.For<ILogger<BoundingBoxFilterOperator>>());
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class BoxFilterOperatorTests
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
-        var op = new Operator("BoxFilter", OperatorType.BoxFilter, 0, 0);
+        var op = new Operator("BoundingBoxFilter", OperatorType.BoxFilter, 0, 0);
 
         if (parameters != null)
         {

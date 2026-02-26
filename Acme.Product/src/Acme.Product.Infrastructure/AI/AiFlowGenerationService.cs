@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Acme.Product.Core.Entities;
 using Acme.Product.Infrastructure.AI.DryRun;
+using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -52,6 +53,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     public async Task<AiFlowGenerationResult> GenerateFlowAsync(
         AiFlowGenerationRequest request,
         Action<string>? onProgress = null,
+        Action<AiStreamChunk>? onStreamChunk = null,
         CancellationToken cancellationToken = default)
     {
         // 推送：构建提示词
@@ -90,14 +92,15 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!)));
                 }
 
-                // 调用 API（不再单独传 options，由 AiApiClient 从 AiConfigStore 读取）
-                var completionResult = await _apiClient.CompleteAsync(
+                // 调用 API (使用流式接口)
+                var completionResult = await _apiClient.StreamCompleteAsync(
                     systemPrompt,
                     messages,
+                    chunk => onStreamChunk?.Invoke(chunk),
                     null,
                     cancellationToken);
                 var rawResponse = completionResult.Content;
-                _logger.LogDebug("AI 原始响应：{Response}", rawResponse);
+                _logger.LogDebug("AI 原始响应长度：{Length}", rawResponse.Length);
                 if (!string.IsNullOrEmpty(completionResult.Reasoning))
                 {
                     _logger.LogDebug("AI 思维链：{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");

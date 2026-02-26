@@ -1,33 +1,29 @@
-// GeometricFittingOperator.cs
-// 最小二乘圆拟合 (Kasa 方法)
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 几何拟合算子 - 直线/圆/椭圆拟合
-/// </summary>
 [OperatorMeta(
-    DisplayName = "几何拟合",
-    Description = "从轮廓点拟合直线、圆或椭圆",
-    Category = "测量",
+    DisplayName = "Geometric Fitting",
+    Description = "Fits line, circle or ellipse from contour points.",
+    Category = "Measurement",
     IconName = "fit",
-    Keywords = new[] { "拟合", "直线拟合", "圆拟合", "椭圆", "最小二乘", "Fit", "Line fit", "Circle fit" }
+    Keywords = new[] { "fit", "line fit", "circle fit", "ellipse fit", "ransac" }
 )]
-[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
-[OutputPort("Image", "结果图像", PortDataType.Image)]
-[OutputPort("FitResult", "拟合结果", PortDataType.Any)]
-[OperatorParam("FitType", "拟合类型", "enum", DefaultValue = "Circle", Options = new[] { "Line|直线", "Circle|圆", "Ellipse|椭圆" })]
-[OperatorParam("Threshold", "二值化阈值", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
-[OperatorParam("MinArea", "最小轮廓面积", "int", DefaultValue = 100, Min = 0)]
-[OperatorParam("MinPoints", "最少拟合点数", "int", DefaultValue = 5, Min = 3, Max = 10000)]
+[InputPort("Image", "Input Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Result Image", PortDataType.Image)]
+[OutputPort("FitResult", "Fit Result", PortDataType.Any)]
+[OperatorParam("FitType", "Fit Type", "enum", DefaultValue = "Circle", Options = new[] { "Line|Line", "Circle|Circle", "Ellipse|Ellipse" })]
+[OperatorParam("Threshold", "Binary Threshold", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("MinArea", "Min Contour Area", "int", DefaultValue = 100, Min = 0)]
+[OperatorParam("MinPoints", "Min Points", "int", DefaultValue = 5, Min = 3, Max = 10000)]
+[OperatorParam("RobustMethod", "Robust Method", "enum", DefaultValue = "LeastSquares", Options = new[] { "LeastSquares|LeastSquares", "Ransac|Ransac" })]
+[OperatorParam("RansacIterations", "Ransac Iterations", "int", DefaultValue = 200, Min = 10, Max = 5000)]
+[OperatorParam("RansacInlierThreshold", "Ransac Inlier Threshold", "double", DefaultValue = 2.0, Min = 0.1, Max = 100.0)]
 public class GeometricFittingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeometricFitting;
@@ -41,54 +37,52 @@ public class GeometricFittingOperator : OperatorBase
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 1. 获取图像输入
         if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
         }
 
-        // 2. 获取参数
         var fitType = GetStringParam(@operator, "FitType", "Circle");
         var threshold = GetDoubleParam(@operator, "Threshold", 127.0, min: 0, max: 255);
         var minArea = GetIntParam(@operator, "MinArea", 100, min: 0);
         var minPoints = GetIntParam(@operator, "MinPoints", 5, min: 3, max: 10000);
+        var robustMethod = GetStringParam(@operator, "RobustMethod", "LeastSquares");
+        var ransacIterations = GetIntParam(@operator, "RansacIterations", 200, min: 10, max: 5000);
+        var ransacInlierThreshold = GetDoubleParam(@operator, "RansacInlierThreshold", 2.0, min: 0.1, max: 100.0);
+        var useRansac = robustMethod.Equals("Ransac", StringComparison.OrdinalIgnoreCase);
 
-        // 3. 获取 Mat
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        // 创建结果图像
         var resultImage = src.Clone();
 
-        // 4. 核心算法 - 灰度 → 二值化 → 查找轮廓
         using var gray = new Mat();
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
 
         using var binary = new Mat();
         Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
 
-        // 查找轮廓
-        Cv2.FindContours(binary, out var contours, out _,
-            RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-        // 过滤面积
-        var validContours = contours
-            .Where(c => Cv2.ContourArea(c) >= minArea)
-            .ToList();
-
+        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+        var validContours = contours.Where(c => Cv2.ContourArea(c) >= minArea).ToList();
         if (validContours.Count == 0)
         {
             var noContourData = new Dictionary<string, object>
             {
-                { "FitResult", new { Success = false, Message = "未找到符合条件的轮廓" } }
+                { "FitResult", new { Success = false, Message = "No valid contour found." } }
             };
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, noContourData)));
         }
 
-        // 合并所有轮廓点
         var allPoints = validContours
             .SelectMany(c => c)
             .Select(p => new Point2f(p.X, p.Y))
@@ -98,32 +92,34 @@ public class GeometricFittingOperator : OperatorBase
         {
             var insufficientData = new Dictionary<string, object>
             {
-                { "FitResult", new { Success = false, Message = $"点数不足，需要至少 {minPoints} 个点，实际 {allPoints.Length} 个" } }
+                { "FitResult", new { Success = false, Message = $"Insufficient points. Need {minPoints}, got {allPoints.Length}." } }
             };
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, insufficientData)));
         }
 
-        // 5. 根据拟合类型执行不同算法
-        var fitResult = new Dictionary<string, object> { { "Success", true } };
-
-        switch (fitType)
+        var fitResult = new Dictionary<string, object>
         {
-            case "Line":
-                FitLine(allPoints, resultImage, fitResult);
+            { "Success", true },
+            { "RobustMethod", useRansac ? "Ransac" : "LeastSquares" }
+        };
+
+        switch (fitType.ToLowerInvariant())
+        {
+            case "line":
+                FitLine(allPoints, resultImage, fitResult, useRansac, ransacIterations, ransacInlierThreshold);
                 break;
-            case "Circle":
-                FitCircle(allPoints, resultImage, fitResult, minPoints);
+            case "circle":
+                FitCircle(allPoints, resultImage, fitResult, useRansac, ransacIterations, ransacInlierThreshold);
                 break;
-            case "Ellipse":
-                FitEllipse(allPoints, resultImage, fitResult, minPoints);
+            case "ellipse":
+                FitEllipse(allPoints, resultImage, fitResult);
                 break;
             default:
-                FitCircle(allPoints, resultImage, fitResult, minPoints);
+                FitCircle(allPoints, resultImage, fitResult, useRansac, ransacIterations, ransacInlierThreshold);
                 break;
         }
 
-        // 绘制轮廓
-        for (int i = 0; i < validContours.Count; i++)
+        for (var i = 0; i < validContours.Count; i++)
         {
             Cv2.DrawContours(resultImage, validContours, i, new Scalar(255, 0, 0), 1);
         }
@@ -139,25 +135,49 @@ public class GeometricFittingOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
     }
 
-    private void FitLine(Point2f[] points, Mat resultImage, Dictionary<string, object> fitResult)
+    private void FitLine(
+        Point2f[] points,
+        Mat resultImage,
+        Dictionary<string, object> fitResult,
+        bool useRansac,
+        int ransacIterations,
+        double inlierThreshold)
     {
-        // 使用 OpenCV FitLine
-        var lineParams = Cv2.FitLine(points, DistanceTypes.L2, 0, 0.01, 0.01);
+        var fitPoints = points;
+        if (useRansac &&
+            TryEstimateLineInliersRansac(points, ransacIterations, inlierThreshold, out var lineInliers) &&
+            lineInliers.Length >= 2)
+        {
+            fitPoints = lineInliers;
+            fitResult["InlierCount"] = lineInliers.Length;
+            fitResult["InlierRatio"] = (double)lineInliers.Length / points.Length;
+        }
 
+        var lineParams = Cv2.FitLine(fitPoints, DistanceTypes.L2, 0, 0.01, 0.01);
         var vx = lineParams.Vx;
         var vy = lineParams.Vy;
         var x0 = lineParams.X1;
         var y0 = lineParams.Y1;
 
-        // 计算直线两个端点用于绘制
-        var leftY = (int)(y0 - x0 * vy / vx);
-        var rightY = (int)(y0 + (resultImage.Width - x0) * vy / vx);
+        Point p1;
+        Point p2;
+        if (Math.Abs(vx) < 1e-6)
+        {
+            var x = (int)Math.Round(x0);
+            p1 = new Point(x, 0);
+            p2 = new Point(x, resultImage.Height - 1);
+        }
+        else
+        {
+            var leftY = (int)Math.Round(y0 - ((x0 * vy) / vx));
+            var rightY = (int)Math.Round(y0 + (((resultImage.Width - x0) * vy) / vx));
+            p1 = new Point(0, leftY);
+            p2 = new Point(resultImage.Width - 1, rightY);
+        }
 
-        Cv2.Line(resultImage, new Point(0, leftY), new Point(resultImage.Width, rightY), new Scalar(0, 255, 0), 2);
+        Cv2.Line(resultImage, p1, p2, new Scalar(0, 255, 0), 2);
 
-        // 计算角度
         var angle = Math.Atan2(vy, vx) * 180 / Math.PI;
-
         fitResult["LineVx"] = vx;
         fitResult["LineVy"] = vy;
         fitResult["LineX0"] = x0;
@@ -165,15 +185,29 @@ public class GeometricFittingOperator : OperatorBase
         fitResult["Angle"] = angle;
     }
 
-    private void FitCircle(Point2f[] points, Mat resultImage, Dictionary<string, object> fitResult, int minPoints)
+    private void FitCircle(
+        Point2f[] points,
+        Mat resultImage,
+        Dictionary<string, object> fitResult,
+        bool useRansac,
+        int ransacIterations,
+        double inlierThreshold)
     {
-        // 使用最小二乘圆拟合
-        var (cx, cy, r) = FitCircleLeastSquares(points);
+        var fitPoints = points;
+        if (useRansac &&
+            TryEstimateCircleInliersRansac(points, ransacIterations, inlierThreshold, out var circleInliers) &&
+            circleInliers.Length >= 3)
+        {
+            fitPoints = circleInliers;
+            fitResult["InlierCount"] = circleInliers.Length;
+            fitResult["InlierRatio"] = (double)circleInliers.Length / points.Length;
+        }
 
+        var (cx, cy, r) = FitCircleLeastSquares(fitPoints);
         if (r > 0)
         {
-            var center = new Point((int)cx, (int)cy);
-            Cv2.Circle(resultImage, center, (int)r, new Scalar(0, 255, 0), 2);
+            var center = new Point((int)Math.Round(cx), (int)Math.Round(cy));
+            Cv2.Circle(resultImage, center, (int)Math.Round(r), new Scalar(0, 255, 0), 2);
             Cv2.Circle(resultImage, center, 3, new Scalar(0, 0, 255), -1);
 
             fitResult["CenterX"] = cx;
@@ -183,24 +217,25 @@ public class GeometricFittingOperator : OperatorBase
         else
         {
             fitResult["Success"] = false;
-            fitResult["Message"] = "圆拟合失败";
+            fitResult["Message"] = "Circle fit failed.";
         }
     }
 
-    private void FitEllipse(Point2f[] points, Mat resultImage, Dictionary<string, object> fitResult, int minPoints)
+    private static void FitEllipse(
+        Point2f[] points,
+        Mat resultImage,
+        Dictionary<string, object> fitResult)
     {
-        // 椭圆拟合需要至少5个点
         if (points.Length < 5)
         {
             fitResult["Success"] = false;
-            fitResult["Message"] = "椭圆拟合需要至少5个点";
+            fitResult["Message"] = "Ellipse fit needs at least 5 points.";
             return;
         }
 
         try
         {
             var rotatedRect = Cv2.FitEllipse(points);
-
             Cv2.Ellipse(resultImage, rotatedRect, new Scalar(0, 255, 0), 2);
             Cv2.Circle(resultImage, (Point)rotatedRect.Center, 3, new Scalar(0, 0, 255), -1);
 
@@ -211,43 +246,230 @@ public class GeometricFittingOperator : OperatorBase
             fitResult["Angle"] = rotatedRect.Angle;
         }
         catch
-               {
+        {
             fitResult["Success"] = false;
-            fitResult["Message"] = "椭圆拟合失败";
+            fitResult["Message"] = "Ellipse fit failed.";
         }
     }
 
-    /// <summary>
-    /// 最小二乘圆拟合 (Kasa 方法)
-    /// </summary>
-    private (double cx, double cy, double r) FitCircleLeastSquares(Point2f[] points)
+    private static bool TryEstimateLineInliersRansac(
+        Point2f[] points,
+        int iterations,
+        double threshold,
+        out Point2f[] inliers)
     {
-        int n = points.Length;
-        double sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0, sumXY = 0;
-        double sumX3 = 0, sumY3 = 0, sumX2Y = 0, sumXY2 = 0;
-
-        for (int i = 0; i < n; i++)
+        inliers = Array.Empty<Point2f>();
+        if (points.Length < 2)
         {
-            double x = points[i].X, y = points[i].Y;
-            sumX += x; sumY += y;
-            sumX2 += x * x; sumY2 += y * y; sumXY += x * y;
-            sumX3 += x * x * x; sumY3 += y * y * y;
-            sumX2Y += x * x * y; sumXY2 += x * y * y;
+            return false;
         }
 
-        double A = n * sumX2 - sumX * sumX;
-        double B = n * sumXY - sumX * sumY;
-        double C = n * sumY2 - sumY * sumY;
-        double D = 0.5 * (n * sumX3 + n * sumXY2 - sumX * sumX2 - sumX * sumY2);
-        double E = 0.5 * (n * sumX2Y + n * sumY3 - sumY * sumX2 - sumY * sumY2);
+        var random = new Random(points.Length * 397 + iterations);
+        var bestInlierIndices = Array.Empty<int>();
 
-        double det = A * C - B * B;
-        if (Math.Abs(det) < 1e-10) return (0, 0, 0);
+        for (var i = 0; i < iterations; i++)
+        {
+            var idx1 = random.Next(points.Length);
+            var idx2 = random.Next(points.Length);
+            if (idx1 == idx2)
+            {
+                continue;
+            }
 
-        double cx = (D * C - B * E) / det;
-        double cy = (A * E - B * D) / det;
-        double r = Math.Sqrt(sumX2 / n - 2 * cx * sumX / n + cx * cx
-                           + sumY2 / n - 2 * cy * sumY / n + cy * cy);
+            if (!TryCreateLineModel(points[idx1], points[idx2], out var model))
+            {
+                continue;
+            }
+
+            var current = new List<int>();
+            for (var p = 0; p < points.Length; p++)
+            {
+                if (DistancePointToLine(points[p], model) <= threshold)
+                {
+                    current.Add(p);
+                }
+            }
+
+            if (current.Count > bestInlierIndices.Length)
+            {
+                bestInlierIndices = current.ToArray();
+            }
+        }
+
+        if (bestInlierIndices.Length < 2)
+        {
+            return false;
+        }
+
+        inliers = bestInlierIndices.Select(index => points[index]).ToArray();
+        return true;
+    }
+
+    private static bool TryEstimateCircleInliersRansac(
+        Point2f[] points,
+        int iterations,
+        double threshold,
+        out Point2f[] inliers)
+    {
+        inliers = Array.Empty<Point2f>();
+        if (points.Length < 3)
+        {
+            return false;
+        }
+
+        var random = new Random((points.Length * 733) + iterations);
+        var bestInlierIndices = Array.Empty<int>();
+
+        for (var i = 0; i < iterations; i++)
+        {
+            if (!TryPickDistinctIndices(random, points.Length, out var i1, out var i2, out var i3))
+            {
+                continue;
+            }
+
+            if (!TryCreateCircleModel(points[i1], points[i2], points[i3], out var model))
+            {
+                continue;
+            }
+
+            var current = new List<int>();
+            for (var p = 0; p < points.Length; p++)
+            {
+                var d = Math.Sqrt(Math.Pow(points[p].X - model.CenterX, 2) + Math.Pow(points[p].Y - model.CenterY, 2));
+                if (Math.Abs(d - model.Radius) <= threshold)
+                {
+                    current.Add(p);
+                }
+            }
+
+            if (current.Count > bestInlierIndices.Length)
+            {
+                bestInlierIndices = current.ToArray();
+            }
+        }
+
+        if (bestInlierIndices.Length < 3)
+        {
+            return false;
+        }
+
+        inliers = bestInlierIndices.Select(index => points[index]).ToArray();
+        return true;
+    }
+
+    private static bool TryPickDistinctIndices(Random random, int upperExclusive, out int i1, out int i2, out int i3)
+    {
+        i1 = random.Next(upperExclusive);
+        i2 = random.Next(upperExclusive);
+        i3 = random.Next(upperExclusive);
+        if (i1 == i2 || i1 == i3 || i2 == i3)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryCreateLineModel(Point2f p1, Point2f p2, out LineModel model)
+    {
+        model = default;
+        var dx = p2.X - p1.X;
+        var dy = p2.Y - p1.Y;
+        var norm = Math.Sqrt((dx * dx) + (dy * dy));
+        if (norm < 1e-6)
+        {
+            return false;
+        }
+
+        // Ax + By + C = 0
+        var a = dy / norm;
+        var b = -dx / norm;
+        var c = ((dx * p1.Y) - (dy * p1.X)) / norm;
+        model = new LineModel(a, b, c);
+        return true;
+    }
+
+    private static double DistancePointToLine(Point2f point, LineModel line)
+    {
+        return Math.Abs((line.A * point.X) + (line.B * point.Y) + line.C);
+    }
+
+    private static bool TryCreateCircleModel(Point2f p1, Point2f p2, Point2f p3, out CircleModel model)
+    {
+        model = default;
+        var x1 = p1.X;
+        var y1 = p1.Y;
+        var x2 = p2.X;
+        var y2 = p2.Y;
+        var x3 = p3.X;
+        var y3 = p3.Y;
+
+        var a = x1 * (y2 - y3) - (y1 * (x2 - x3)) + (x2 * y3) - (x3 * y2);
+        if (Math.Abs(a) < 1e-6)
+        {
+            return false;
+        }
+
+        var x1Sq = (x1 * x1) + (y1 * y1);
+        var x2Sq = (x2 * x2) + (y2 * y2);
+        var x3Sq = (x3 * x3) + (y3 * y3);
+
+        var cx = (x1Sq * (y3 - y2) + x2Sq * (y1 - y3) + x3Sq * (y2 - y1)) / (2 * a);
+        var cy = (x1Sq * (x2 - x3) + x2Sq * (x3 - x1) + x3Sq * (x1 - x2)) / (2 * a);
+        var r = Math.Sqrt(Math.Pow(x1 - cx, 2) + Math.Pow(y1 - cy, 2));
+        if (double.IsNaN(r) || r <= 0)
+        {
+            return false;
+        }
+
+        model = new CircleModel(cx, cy, r);
+        return true;
+    }
+
+    private static (double cx, double cy, double r) FitCircleLeastSquares(Point2f[] points)
+    {
+        var n = points.Length;
+        double sumX = 0;
+        double sumY = 0;
+        double sumX2 = 0;
+        double sumY2 = 0;
+        double sumXY = 0;
+        double sumX3 = 0;
+        double sumY3 = 0;
+        double sumX2Y = 0;
+        double sumXY2 = 0;
+
+        for (var i = 0; i < n; i++)
+        {
+            var x = points[i].X;
+            var y = points[i].Y;
+            sumX += x;
+            sumY += y;
+            sumX2 += x * x;
+            sumY2 += y * y;
+            sumXY += x * y;
+            sumX3 += x * x * x;
+            sumY3 += y * y * y;
+            sumX2Y += x * x * y;
+            sumXY2 += x * y * y;
+        }
+
+        var a = (n * sumX2) - (sumX * sumX);
+        var b = (n * sumXY) - (sumX * sumY);
+        var c = (n * sumY2) - (sumY * sumY);
+        var d = 0.5 * ((n * sumX3) + (n * sumXY2) - (sumX * sumX2) - (sumX * sumY2));
+        var e = 0.5 * ((n * sumX2Y) + (n * sumY3) - (sumY * sumX2) - (sumY * sumY2));
+
+        var det = (a * c) - (b * b);
+        if (Math.Abs(det) < 1e-10)
+        {
+            return (0, 0, 0);
+        }
+
+        var cx = ((d * c) - (b * e)) / det;
+        var cy = ((a * e) - (b * d)) / det;
+        var r = Math.Sqrt((sumX2 / n) - ((2 * cx * sumX) / n) + (cx * cx)
+                          + (sumY2 / n) - ((2 * cy * sumY) / n) + (cy * cy));
         return (cx, cy, r);
     }
 
@@ -255,21 +477,52 @@ public class GeometricFittingOperator : OperatorBase
     {
         var threshold = GetDoubleParam(@operator, "Threshold", 127.0);
         if (threshold < 0 || threshold > 255)
-            return ValidationResult.Invalid("二值化阈值必须在 0-255 之间");
+        {
+            return ValidationResult.Invalid("Threshold must be between 0 and 255.");
+        }
 
         var minArea = GetIntParam(@operator, "MinArea", 100);
         if (minArea < 0)
-            return ValidationResult.Invalid("最小轮廓面积不能为负数");
+        {
+            return ValidationResult.Invalid("MinArea must be non-negative.");
+        }
 
         var minPoints = GetIntParam(@operator, "MinPoints", 5);
         if (minPoints < 3)
-            return ValidationResult.Invalid("最少拟合点数不能少于 3");
+        {
+            return ValidationResult.Invalid("MinPoints must be at least 3.");
+        }
 
         var fitType = GetStringParam(@operator, "FitType", "Circle");
         var validTypes = new[] { "Line", "Circle", "Ellipse" };
-        if (!validTypes.Contains(fitType))
-            return ValidationResult.Invalid($"拟合类型必须是: {string.Join(", ", validTypes)}");
+        if (!validTypes.Contains(fitType, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid($"FitType must be one of: {string.Join(", ", validTypes)}");
+        }
+
+        var robustMethod = GetStringParam(@operator, "RobustMethod", "LeastSquares");
+        var validRobustMethods = new[] { "LeastSquares", "Ransac" };
+        if (!validRobustMethods.Contains(robustMethod, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid($"RobustMethod must be one of: {string.Join(", ", validRobustMethods)}");
+        }
+
+        var iterations = GetIntParam(@operator, "RansacIterations", 200);
+        if (iterations < 10 || iterations > 5000)
+        {
+            return ValidationResult.Invalid("RansacIterations must be between 10 and 5000.");
+        }
+
+        var inlierThreshold = GetDoubleParam(@operator, "RansacInlierThreshold", 2.0);
+        if (inlierThreshold <= 0 || inlierThreshold > 100.0)
+        {
+            return ValidationResult.Invalid("RansacInlierThreshold must be in (0, 100].");
+        }
 
         return ValidationResult.Valid();
     }
+
+    private readonly record struct LineModel(double A, double B, double C);
+
+    private readonly record struct CircleModel(double CenterX, double CenterY, double Radius);
 }

@@ -74,6 +74,7 @@ public static class DependencyInjection
         // Phase 1 新增算子
         services.AddSingleton<IOperatorExecutor, MedianBlurOperator>();
         services.AddSingleton<IOperatorExecutor, BilateralFilterOperator>();
+        services.AddSingleton<IOperatorExecutor, MeanFilterOperator>();
         services.AddSingleton<IOperatorExecutor, ImageResizeOperator>();
         services.AddSingleton<IOperatorExecutor, ImageCropOperator>();
         services.AddSingleton<IOperatorExecutor, ImageRotateOperator>();
@@ -170,7 +171,7 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, PointLineDistanceOperator>();
         services.AddSingleton<IOperatorExecutor, LineLineDistanceOperator>();
         services.AddSingleton<IOperatorExecutor, BoxNmsOperator>();
-        services.AddSingleton<IOperatorExecutor, BoxFilterOperator>();
+        services.AddSingleton<IOperatorExecutor, BoundingBoxFilterOperator>();
         services.AddSingleton<IOperatorExecutor, SharpnessEvaluationOperator>();
         services.AddSingleton<IOperatorExecutor, PositionCorrectionOperator>();
         services.AddSingleton<IOperatorExecutor, NPointCalibrationOperator>();

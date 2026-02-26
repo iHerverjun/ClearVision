@@ -119,8 +119,8 @@ public class GaussianBlurOperator : OperatorBase { ... }
 
 ### 2.1 设计文档模板
 
-- [ ] 在项目根目录创建 `docs/operators/` 目录
-- [ ] 设计统一的算子文档模板 `docs/operators/_TEMPLATE.md`，结构如下：
+- [x] 在项目根目录创建 `docs/operators/` 目录
+- [x] 设计统一的算子文档模板 `docs/operators/_TEMPLATE.md`，结构如下：
 
 ```markdown
 # {算子中文名} / {Operator English Name}
@@ -175,8 +175,8 @@ public class GaussianBlurOperator : OperatorBase { ... }
 
 ### 2.2 自动生成文档骨架
 
-- [ ] 编写文档生成脚本（C# 控制台工具 或 PowerShell），从 Attribute 元数据自动生成每个算子的文档骨架
-- [ ] 自动填充：基本信息、参数表、端口表
+- [x] 编写文档生成脚本（C# 控制台工具 或 PowerShell），从 Attribute 元数据自动生成每个算子的文档骨架（`scripts/OperatorDocGenerator`）
+- [x] 自动填充：基本信息、参数表、端口表
 - [ ] 人工补充：算法原理、实现策略、性能特征、适用场景
 
 ### 2.3 分批编写算法文档
@@ -294,8 +294,8 @@ Acme.OperatorLibrary/
 
 ### 4.1 JSON 目录生成
 
-- [ ] 编写工具/脚本，扫描所有算子 Attribute，生成 `docs/operators/catalog.json`
-- [ ] 格式示例：
+- [x] 编写工具/脚本，扫描所有算子 Attribute，生成 `docs/operators/catalog.json`
+- [x] 格式示例：
 
 ```json
 {
@@ -323,7 +323,7 @@ Acme.OperatorLibrary/
 
 ### 4.2 Markdown 目录生成
 
-- [ ] 自动生成 `docs/operators/CATALOG.md`，包含：
+- [x] 自动生成 `docs/operators/CATALOG.md`，包含：
   - 按分类分组的算子列表（含端口数、参数数）
   - 各分类统计图表
   - 链接到每个算子的详细文档

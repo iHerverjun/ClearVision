@@ -15,11 +15,11 @@ namespace Acme.Product.Infrastructure.Operators;
 /// Filters detection boxes by area/class/region/score.
 /// </summary>
 [OperatorMeta(
-    DisplayName = "候选框筛选",
+    DisplayName = "候选框过滤 (Bounding Box)",
     Description = "Filters detections by area, class, region, or score.",
     Category = "数据处理",
     IconName = "filter",
-    Keywords = new[] { "box filter", "class filter", "area filter", "score" }
+    Keywords = new[] { "bounding box filter", "detection filter", "class filter", "area filter", "score" }
 )]
 [InputPort("Detections", "Detections", PortDataType.DetectionList, IsRequired = true)]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
@@ -35,11 +35,11 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("RegionY", "Region Y", "int", DefaultValue = 0)]
 [OperatorParam("RegionW", "Region Width", "int", DefaultValue = 0)]
 [OperatorParam("RegionH", "Region Height", "int", DefaultValue = 0)]
-public class BoxFilterOperator : OperatorBase
+public class BoundingBoxFilterOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BoxFilter;
 
-    public BoxFilterOperator(ILogger<BoxFilterOperator> logger) : base(logger)
+    public BoundingBoxFilterOperator(ILogger<BoundingBoxFilterOperator> logger) : base(logger)
     {
     }
 

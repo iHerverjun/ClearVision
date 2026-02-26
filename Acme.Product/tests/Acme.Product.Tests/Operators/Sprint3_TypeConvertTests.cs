@@ -1,7 +1,3 @@
-// Sprint3_TypeConvertTests.cs
-// Sprint 3 Task 3.3 TypeConvert 算子单元测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -12,9 +8,6 @@ using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
-/// <summary>
-/// Sprint 3 Task 3.3: TypeConvert 算子单元测试
-/// </summary>
 public class Sprint3_TypeConvertTests
 {
     private readonly ILogger<TypeConvertOperator> _loggerMock;
@@ -114,12 +107,23 @@ public class Sprint3_TypeConvertTests
         Assert.False(result.IsSuccess);
     }
 
-    private Operator CreateOperator(Dictionary<string, object>? parameters = null)
+    [Fact]
+    public async Task TypeConvert_InputPortKey_ShouldBeSupported()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "TargetType", "Integer" } });
+        var inputs = new Dictionary<string, object> { { "Input", "42" } };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42, result.OutputData!["Output"]);
+    }
+
+    private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator(Guid.NewGuid(), "TestTypeConvert", OperatorType.TypeConvert, 0, 0);
-
-        op.AddParameter(new Parameter(
-            Guid.NewGuid(), "Format", "格式", "字符串格式", "string", "", isRequired: false));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "Format", "Format", "Output format", "string", "", isRequired: false));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "TargetType", "TargetType", "Target type", "string", "String", isRequired: false));
 
         if (parameters != null)
         {
