@@ -256,13 +256,18 @@ Acme.OperatorLibrary/
 
 ### 3.3 处理依赖差异
 
-- [ ] 分析算子对 ClearVision 项目特有类型的依赖：
+- [x] 分析算子对 ClearVision 项目特有类型的依赖：
   - `OperatorBase`（基类） → 在 NuGet 包中提供轻量替代基类
   - `ImageWrapper`（内存管理） → 在 NuGet 包中提供简化版本
   - `Operator` / `OperatorExecutionOutput`（实体） → 在 Core 包中定义接口
   - `OperatorMetadata` / `PortDefinition`（元数据） → 在 Core 包中定义
-- [ ] 为 NuGet 包创建适配层/抽象层，使算子代码无需修改即可在两个上下文编译
-- [ ] 使用 `#if` 条件编译或接口隔离有分歧的依赖
+- [x] 为 NuGet 包创建适配层/抽象层，使算子代码无需修改即可在两个上下文编译
+- [x] 使用 `#if` 条件编译或接口隔离有分歧的依赖
+
+> 交付物（2026-02-26）：
+> - 依赖分析脚本：`Acme.OperatorLibrary/analyze-deps.ps1`
+> - 分析报告：`Acme.OperatorLibrary/analysis/dependency-report.md`、`Acme.OperatorLibrary/analysis/dependency-report.json`
+> - 抽象与适配层：`Acme.OperatorLibrary/src/Acme.OperatorLibrary.Abstractions/`
 
 ### 3.4 NuGet 统一单包配置
 
@@ -399,7 +404,7 @@ Phase 3（NuGet 打包）────────┘
 |------|-----------|--------|----------|----------|
 | Phase 1 | 3-5 天 | 🔴 最高 | 无 | ✅ 已完成（118/118 算子标注） |
 | Phase 2 | 5-8 天（持续） | 🔴 最高 | 无（可与 Phase 1 并行） | ✅ 已完成（118/118 文档补全，100%） |
-| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.2/3.4/3.5/3.6 已推进，3.3 与命名空间收口待完成） |
+| Phase 3 | 2-3 天 | 🟡 高 | Phase 1（Attribute + Core 抽象） | ⏳ 进行中（3.1/3.2/3.3/3.4/3.5/3.6 已推进，命名空间分层收口待完成） |
 | Phase 4 | 1-2 天 | 🟡 中 | Phase 1 | ✅ 已完成（编目 + CI 目录生成 + 可选 pre-commit 自动刷新） |
 | Phase 5 | 2-3 天 | 🟢 低 | Phase 1 + Phase 2 | ⬜ 未启动 |
 

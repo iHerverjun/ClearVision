@@ -40,3 +40,18 @@ Industrial Vision Operator Library for ClearVision.
 
 - This project is intentionally isolated from `Acme.Product.sln` default build graph.
 - It does not change runtime behavior of the ClearVision main application.
+
+## Phase 3.3 Compatibility Work
+
+- Build profile constant: `ACME_OPERATORLIB_PACKAGE`
+- Host-agnostic contracts/models: `Acme.OperatorLibrary/src/Acme.OperatorLibrary.Abstractions/*`
+- Core adapters (guarded by `#if ACME_OPERATORLIB_PACKAGE`): `Acme.OperatorLibrary/src/Acme.OperatorLibrary.Abstractions/Adapters/CoreTypeAdapters.cs`
+- Dependency analysis script:
+
+```powershell
+./analyze-deps.ps1
+```
+
+- Generated reports:
+  - `./analysis/dependency-report.md`
+  - `./analysis/dependency-report.json`
