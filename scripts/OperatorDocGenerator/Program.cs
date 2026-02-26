@@ -672,8 +672,15 @@ static VersionTrackingResult GenerateVersionTrackingArtifacts(
         }
         else
         {
-            historyEntry.DisplayName = op.DisplayName;
-            historyEntry.Category = op.Category;
+            if (!string.Equals(historyEntry.DisplayName, op.DisplayName, StringComparison.Ordinal))
+            {
+                historyEntry.DisplayName = op.DisplayName;
+            }
+
+            if (!string.Equals(historyEntry.Category, op.Category, StringComparison.Ordinal))
+            {
+                historyEntry.Category = op.Category;
+            }
         }
 
         var latest = historyEntry.Records.LastOrDefault();
@@ -711,16 +718,30 @@ static VersionTrackingResult GenerateVersionTrackingArtifacts(
         }
     }
 
+    var historyGeneratedAt = string.IsNullOrWhiteSpace(historyDocument.GeneratedAt)
+        ? recordedAt
+        : historyDocument.GeneratedAt;
+
     var mergedHistory = new OperatorVersionHistoryDocument
     {
-        GeneratedAt = recordedAt,
+        GeneratedAt = historyGeneratedAt,
         Operators = historyById.Values
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToList()
     };
 
+    var changelogGeneratedAt = generatedAt;
+    if (DateTimeOffset.TryParse(
+            historyGeneratedAt,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var parsedGeneratedAt))
+    {
+        changelogGeneratedAt = parsedGeneratedAt;
+    }
+
     SaveVersionHistory(historyPath, mergedHistory);
-    File.WriteAllText(changelogPath, BuildVersionChangelogMarkdown(operators, mergedHistory, generatedAt), new UTF8Encoding(false));
+    File.WriteAllText(changelogPath, BuildVersionChangelogMarkdown(operators, mergedHistory, changelogGeneratedAt), new UTF8Encoding(false));
 
     return new VersionTrackingResult(violations);
 }
