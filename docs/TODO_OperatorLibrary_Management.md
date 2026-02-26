@@ -241,7 +241,7 @@ Acme.OperatorLibrary/
 ### 3.2 源码共享策略（不复制、不抽离）
 
 - [x] 用 MSBuild 的 `<Compile Include="..." Link="..." />` 文件链接方式，将 `Acme.Product.Infrastructure/Operators/` 中的源码链接到打包项目中
-- [ ] 或使用 `Directory.Build.props` 实现共享编译
+- [x] 已评估 `Directory.Build.props` 共享编译方案（作为备选未采用，保留现有 `<Compile Include=... Link=... />` 实现）
 - [x] 确保 ClearVision 主项目和打包项目编译同一份源码
 - [x] 示例 `.csproj` 配置：
 
