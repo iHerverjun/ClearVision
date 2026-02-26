@@ -1,11 +1,11 @@
-﻿# 数据库写入 / DatabaseWrite
+# 数据库写入 / DatabaseWrite
 
 ## 基本信息 / Basic Info
 | 项目 (Field) | 值 (Value) |
 |------|------|
 | 类名 (Class) | `DatabaseWriteOperator` |
 | 枚举值 (Enum) | `OperatorType.DatabaseWrite` |
-| 分类 (Category) | 数据 |
+| 分类 (Category) | 数据处理 |
 | 成熟度 (Maturity) | 稳定 Stable |
 | 作者 (Author) | 蔺苇君 |
 

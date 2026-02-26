@@ -5,7 +5,7 @@
 |------|------|
 | 类名 (Class) | `ConditionalBranchOperator` |
 | 枚举值 (Enum) | `OperatorType.ConditionalBranch` |
-| 分类 (Category) | 控制 |
+| 分类 (Category) | 流程控制 |
 | 成熟度 (Maturity) | 稳定 Stable |
 | 作者 (Author) | 蘅芜君 |
 

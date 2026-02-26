@@ -214,7 +214,7 @@ static string BuildDocument(OperatorDocModel item)
     sb.AppendLine("|------|------|");
     sb.AppendLine($"| 类名 (Class) | `{className}` |");
     sb.AppendLine($"| 枚举值 (Enum) | `OperatorType.{item.OperatorType}` |");
-    sb.AppendLine($"| 分类 (Category) | {EscapeCell(item.Meta.Category)} |");
+    sb.AppendLine($"| 分类 (Category) | {EscapeCell(NormalizeCategory(item.Meta.Category))} |");
     sb.AppendLine("| 成熟度 (Maturity) | 稳定 Stable |");
     sb.AppendLine("| 作者 (Author) | 蘅芜君 |");
     sb.AppendLine();
@@ -370,7 +370,27 @@ static CatalogOperator ToCatalogOperator(OperatorDocModel item)
 
 static string NormalizeCategory(string? category)
 {
-    return string.IsNullOrWhiteSpace(category) ? "未分类" : category.Trim();
+    if (string.IsNullOrWhiteSpace(category))
+    {
+        return "未分类";
+    }
+
+    return category.Trim() switch
+    {
+        "Preprocessing" => "预处理",
+        "Filtering" => "预处理",
+        "Calibration" => "标定",
+        "Feature Extraction" => "特征提取",
+        "General" => "通用",
+        "Logic Tools" => "逻辑工具",
+        "Matching" => "匹配定位",
+        "Measurement" => "检测",
+        "测量" => "检测",
+        "控制" => "流程控制",
+        "逻辑控制" => "流程控制",
+        "数据" => "数据处理",
+        _ => category.Trim()
+    };
 }
 
 static List<CatalogParameterOption>? ParseParameterOptions(string[]? options)

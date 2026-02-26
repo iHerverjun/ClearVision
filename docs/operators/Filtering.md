@@ -5,7 +5,7 @@
 |------|------|
 | 类名 (Class) | `GaussianBlurOperator` |
 | 枚举值 (Enum) | `OperatorType.Filtering` |
-| 分类 (Category) | Filtering |
+| 分类 (Category) | 预处理 |
 | 成熟度 (Maturity) | 稳定 Stable |
 | 作者 (Author) | 蘅芜君 |
 

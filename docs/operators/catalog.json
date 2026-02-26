@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T16:43:42.9379123+08:00",
+  "generatedAt": "2026-02-26T19:50:08.5204216+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -11,66 +11,14 @@
         "SurfaceDefectDetection"
       ]
     },
-    "Calibration": {
-      "count": 2,
-      "operators": [
-        "CameraCalibration",
-        "Undistort"
-      ]
-    },
-    "Feature Extraction": {
-      "count": 2,
-      "operators": [
-        "EdgeDetection",
-        "SubpixelEdgeDetection"
-      ]
-    },
-    "Filtering": {
-      "count": 1,
-      "operators": [
-        "Filtering"
-      ]
-    },
-    "General": {
-      "count": 2,
-      "operators": [
-        "Statistics",
-        "TypeConvert"
-      ]
-    },
-    "Logic Tools": {
-      "count": 1,
-      "operators": [
-        "TextSave"
-      ]
-    },
-    "Matching": {
-      "count": 1,
-      "operators": [
-        "ShapeMatching"
-      ]
-    },
-    "Measurement": {
-      "count": 1,
-      "operators": [
-        "GeometricFitting"
-      ]
-    },
-    "Preprocessing": {
-      "count": 3,
-      "operators": [
-        "ImageSubtract",
-        "MorphologicalOperation",
-        "Morphology"
-      ]
-    },
     "匹配定位": {
-      "count": 5,
+      "count": 6,
       "operators": [
         "AkazeFeatureMatch",
         "GradientShapeMatch",
         "OrbFeatureMatch",
         "PyramidShapeMatch",
+        "ShapeMatching",
         "TemplateMatching"
       ]
     },
@@ -111,25 +59,14 @@
         "ImageTiling"
       ]
     },
-    "控制": {
-      "count": 1,
-      "operators": [
-        "ConditionalBranch"
-      ]
-    },
-    "数据": {
-      "count": 1,
-      "operators": [
-        "DatabaseWrite"
-      ]
-    },
     "数据处理": {
-      "count": 9,
+      "count": 10,
       "operators": [
         "Aggregator",
         "ArrayIndexer",
         "BoxFilter",
         "BoxNms",
+        "DatabaseWrite",
         "JsonExtractor",
         "MathOperation",
         "PointAlignment",
@@ -138,16 +75,18 @@
       ]
     },
     "标定": {
-      "count": 4,
+      "count": 6,
       "operators": [
         "CalibrationLoader",
+        "CameraCalibration",
         "CoordinateTransform",
         "NPointCalibration",
-        "TranslationRotationCalibration"
+        "TranslationRotationCalibration",
+        "Undistort"
       ]
     },
     "检测": {
-      "count": 15,
+      "count": 16,
       "operators": [
         "AngleMeasurement",
         "CaliperTool",
@@ -155,6 +94,7 @@
         "ContourMeasurement",
         "GapMeasurement",
         "GeoMeasurement",
+        "GeometricFitting",
         "GeometricTolerance",
         "HistogramAnalysis",
         "LineLineDistance",
@@ -167,8 +107,10 @@
       ]
     },
     "流程控制": {
-      "count": 4,
+      "count": 6,
       "operators": [
+        "Comparator",
+        "ConditionalBranch",
         "Delay",
         "ForEach",
         "ResultJudgment",
@@ -176,10 +118,12 @@
       ]
     },
     "特征提取": {
-      "count": 2,
+      "count": 4,
       "operators": [
         "BlobAnalysis",
-        "ContourDetection"
+        "ContourDetection",
+        "EdgeDetection",
+        "SubpixelEdgeDetection"
       ]
     },
     "识别": {
@@ -217,25 +161,22 @@
       ]
     },
     "通用": {
-      "count": 2,
+      "count": 4,
       "operators": [
         "LogicGate",
-        "StringFormat"
+        "Statistics",
+        "StringFormat",
+        "TypeConvert"
       ]
     },
     "逻辑工具": {
-      "count": 4,
+      "count": 5,
       "operators": [
         "PointSetTool",
         "ScriptOperator",
+        "TextSave",
         "TimerStatistics",
         "TriggerModule"
-      ]
-    },
-    "逻辑控制": {
-      "count": 1,
-      "operators": [
-        "Comparator"
       ]
     },
     "采集": {
@@ -245,12 +186,13 @@
       ]
     },
     "预处理": {
-      "count": 19,
+      "count": 23,
       "operators": [
         "AdaptiveThreshold",
         "BilateralFilter",
         "ClaheEnhancement",
         "ColorConversion",
+        "Filtering",
         "FrameAveraging",
         "HistogramEqualization",
         "ImageAdd",
@@ -260,9 +202,12 @@
         "ImageNormalize",
         "ImageResize",
         "ImageRotate",
+        "ImageSubtract",
         "LaplacianSharpen",
         "MeanFilter",
         "MedianBlur",
+        "MorphologicalOperation",
+        "Morphology",
         "PerspectiveTransform",
         "ShadingCorrection",
         "Thresholding"
@@ -386,7 +331,7 @@
       "type": 2,
       "displayName": "Gaussian Blur",
       "description": "Apply Gaussian filtering to suppress image noise",
-      "category": "Filtering",
+      "category": "预处理",
       "algorithm": "Gaussian Blur (OpenCV)",
       "inputPorts": [
         {
@@ -478,7 +423,7 @@
       "type": 3,
       "displayName": "Edge Detection",
       "description": "Detects edges with Canny and optional auto-thresholding.",
-      "category": "Feature Extraction",
+      "category": "特征提取",
       "algorithm": null,
       "inputPorts": [
         {
@@ -701,7 +646,7 @@
       "type": 5,
       "displayName": "Morphology (Legacy)",
       "description": "Legacy morphology node. Use Morphological Operation for new workflows.",
-      "category": "Preprocessing",
+      "category": "预处理",
       "algorithm": null,
       "inputPorts": [
         {
@@ -2687,7 +2632,7 @@
       "type": 24,
       "displayName": "Camera Calibration",
       "description": "Calibrates camera intrinsics from chessboard or circle grid images.",
-      "category": "Calibration",
+      "category": "标定",
       "algorithm": null,
       "inputPorts": [
         {
@@ -2815,7 +2760,7 @@
       "type": 25,
       "displayName": "Undistort",
       "description": "Correct lens distortion using calibration data.",
-      "category": "Calibration",
+      "category": "标定",
       "algorithm": null,
       "inputPorts": [
         {
@@ -3222,7 +3167,7 @@
       "type": 29,
       "displayName": "数据库写入",
       "description": "检测结果存储到数据库",
-      "category": "数据",
+      "category": "数据处理",
       "algorithm": null,
       "inputPorts": [
         {
@@ -3301,7 +3246,7 @@
       "type": 30,
       "displayName": "条件分支",
       "description": "根据数值/字符串/布尔条件执行 True/False 两路分支，常用于 OK/NG 判定路由",
-      "category": "控制",
+      "category": "流程控制",
       "algorithm": null,
       "inputPorts": [
         {
@@ -3620,7 +3565,7 @@
       "type": 41,
       "displayName": "Geometric Fitting",
       "description": "Fits line, circle or ellipse from contour points.",
-      "category": "Measurement",
+      "category": "检测",
       "algorithm": null,
       "inputPorts": [
         {
@@ -3917,7 +3862,7 @@
       "type": 43,
       "displayName": "Shape Matching",
       "description": "Rotation-robust template matching with pyramid coarse-to-fine search.",
-      "category": "Matching",
+      "category": "匹配定位",
       "algorithm": null,
       "inputPorts": [
         {
@@ -4033,7 +3978,7 @@
       "type": 44,
       "displayName": "Subpixel Edge Detection",
       "description": "Extracts subpixel edges using Steger or interpolation-based methods.",
-      "category": "Feature Extraction",
+      "category": "特征提取",
       "algorithm": null,
       "inputPorts": [
         {
@@ -5487,7 +5432,7 @@
       "type": 72,
       "displayName": "Morphological Operation",
       "description": "Erode, Dilate, Open, Close, Gradient, TopHat, BlackHat.",
-      "category": "Preprocessing",
+      "category": "预处理",
       "algorithm": null,
       "inputPorts": [
         {
@@ -5759,7 +5704,7 @@
       "type": 77,
       "displayName": "Image Subtract",
       "description": "Computes subtraction or absolute difference between two images.",
-      "category": "Preprocessing",
+      "category": "预处理",
       "algorithm": null,
       "inputPorts": [
         {
@@ -7272,7 +7217,7 @@
       "type": 112,
       "displayName": "Type Convert",
       "description": "Converts input data across String/Float/Integer/Boolean types.",
-      "category": "General",
+      "category": "通用",
       "algorithm": null,
       "inputPorts": [
         {
@@ -7689,7 +7634,7 @@
       "type": 119,
       "displayName": "Statistics",
       "description": "Computes Mean/StdDev/Cpk statistics over rolling history.",
-      "category": "General",
+      "category": "通用",
       "algorithm": null,
       "inputPorts": [
         {
@@ -7925,7 +7870,7 @@
       "type": 122,
       "displayName": "数值比较",
       "description": "比较两个数值的大小关系，输出布尔判定结果与差值",
-      "category": "逻辑控制",
+      "category": "流程控制",
       "algorithm": null,
       "inputPorts": [
         {
@@ -11637,7 +11582,7 @@
       "type": 210,
       "displayName": "Text Save",
       "description": "Saves text or structured data to text/csv/json file.",
-      "category": "Logic Tools",
+      "category": "逻辑工具",
       "algorithm": null,
       "inputPorts": [
         {
