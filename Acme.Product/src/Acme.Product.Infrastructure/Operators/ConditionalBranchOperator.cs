@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -16,6 +17,19 @@ namespace Acme.Product.Infrastructure.Operators;
 /// 注意：此算子需要FlowExecutionService支持条件分支路由
 /// 输出数据会通过True或False端口传递，供后续算子使用
 /// </remarks>
+[OperatorMeta(
+    DisplayName = "条件分支",
+    Description = "根据数值/字符串/布尔条件执行 True/False 两路分支，常用于 OK/NG 判定路由",
+    Category = "控制",
+    IconName = "branch",
+    Keywords = new[] { "条件", "分支", "判断", "如果", "否则", "IF", "Branch", "Condition", "Switch" }
+)]
+[InputPort("Value", "判断值", PortDataType.Any, IsRequired = true)]
+[OutputPort("True", "True分支", PortDataType.Any)]
+[OutputPort("False", "False分支", PortDataType.Any)]
+[OperatorParam("Condition", "条件", "enum", DefaultValue = "GreaterThan", Options = new[] { "GreaterThan|大于", "LessThan|小于", "Equal|等于", "NotEqual|不等于", "Contains|包含" })]
+[OperatorParam("CompareValue", "比较值", "string", DefaultValue = "0")]
+[OperatorParam("FieldName", "字段名", "string", DefaultValue = "")]
 public class ConditionalBranchOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ConditionalBranch;
@@ -63,11 +77,11 @@ public class ConditionalBranchOperator : OperatorBase
         if (result)
         {
             outputData["True"] = PreserveOutputValue(value);
-            outputData["False"] = null;
+            outputData["False"] = null!;
         }
         else
         {
-            outputData["True"] = null;
+            outputData["True"] = null!;
             outputData["False"] = PreserveOutputValue(value);
         }
 

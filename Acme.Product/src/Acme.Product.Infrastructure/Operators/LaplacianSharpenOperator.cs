@@ -7,13 +7,25 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 拉普拉斯锐化算子 - 边缘增强
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "拉普拉斯锐化",
+    Description = "基于拉普拉斯算子的边缘增强",
+    Category = "预处理",
+    IconName = "sharpen"
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "锐化图像", PortDataType.Image)]
+[OperatorParam("KernelSize", "核大小", "int", Description = "必须是奇数", DefaultValue = 3, Min = 1, Max = 7)]
+[OperatorParam("Scale", "缩放因子", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("SharpenStrength", "锐化强度", "double", DefaultValue = 1.0, Min = 0, Max = 5.0)]
 public class LaplacianSharpenOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.LaplacianSharpen;

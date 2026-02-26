@@ -9,12 +9,29 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 串口通信算子 - RS-232/485 PLC 通信
 /// SerialCommunication = 46
 /// </summary>
+[OperatorMeta(
+    DisplayName = "串口通信",
+    Description = "RS-232/485 串口数据收发",
+    Category = "通信",
+    IconName = "serial"
+)]
+[InputPort("Data", "发送数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Response", "接收数据", PortDataType.Any)]
+[OperatorParam("PortName", "串口号", "string", DefaultValue = "COM1")]
+[OperatorParam("BaudRate", "波特率", "enum", DefaultValue = "9600", Options = new[] { "9600|9600", "19200|19200", "38400|38400", "57600|57600", "115200|115200" })]
+[OperatorParam("DataBits", "数据位", "int", DefaultValue = 8, Min = 5, Max = 8)]
+[OperatorParam("StopBits", "停止位", "enum", DefaultValue = "One", Options = new[] { "One|1", "OnePointFive|1.5", "Two|2" })]
+[OperatorParam("Parity", "校验位", "enum", DefaultValue = "None", Options = new[] { "None|无", "Odd|奇校验", "Even|偶校验" })]
+[OperatorParam("SendData", "发送内容", "string", DefaultValue = "")]
+[OperatorParam("Encoding", "编码", "enum", DefaultValue = "UTF8", Options = new[] { "UTF8|UTF-8", "ASCII|ASCII", "HEX|HEX" })]
+[OperatorParam("TimeoutMs", "超时(毫秒)", "int", DefaultValue = 3000, Min = 100, Max = 30000)]
 public class SerialCommunicationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.SerialCommunication;

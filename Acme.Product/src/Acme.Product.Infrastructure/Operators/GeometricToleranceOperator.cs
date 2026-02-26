@@ -7,12 +7,32 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 几何公差算子 - 平行度/垂直度测量
 /// </summary>
+[OperatorMeta(
+    DisplayName = "几何公差",
+    Description = "平行度/垂直度测量",
+    Category = "检测",
+    IconName = "geometric-tolerance",
+    Keywords = new[] { "公差", "平行度", "垂直度", "GD&T", "Tolerance", "Parallelism", "Perpendicularity" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Tolerance", "公差值", PortDataType.Float)]
+[OperatorParam("MeasureType", "测量类型", "enum", DefaultValue = "Parallelism", Options = new[] { "Parallelism|平行度", "Perpendicularity|垂直度" })]
+[OperatorParam("Line1_X1", "线1起点X", "int", DefaultValue = 0)]
+[OperatorParam("Line1_Y1", "线1起点Y", "int", DefaultValue = 0)]
+[OperatorParam("Line1_X2", "线1终点X", "int", DefaultValue = 100)]
+[OperatorParam("Line1_Y2", "线1终点Y", "int", DefaultValue = 100)]
+[OperatorParam("Line2_X1", "线2起点X", "int", DefaultValue = 0)]
+[OperatorParam("Line2_Y1", "线2起点Y", "int", DefaultValue = 200)]
+[OperatorParam("Line2_X2", "线2终点X", "int", DefaultValue = 100)]
+[OperatorParam("Line2_Y2", "线2终点Y", "int", DefaultValue = 200)]
 public class GeometricToleranceOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeometricTolerance;

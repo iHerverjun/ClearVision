@@ -10,6 +10,7 @@ using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -26,6 +27,18 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 检测结果保存
 /// - 调试图像输出
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像保存",
+    Description = "保存检测图像到本地硬盘",
+    Category = "输出",
+    IconName = "save"
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("FilePath", "保存路径", PortDataType.String)]
+[OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
+[OperatorParam("Directory", "目录", "string", DefaultValue = "C:\\ClearVision\\NG_Images")]
+[OperatorParam("FileNameTemplate", "命名规则", "string", DefaultValue = "NG_{yyyyMMdd_HHmmss}_{Guid}.jpg")]
+[OperatorParam("Quality", "质量", "int", DefaultValue = 90, Min = 1, Max = 100)]
 public class ImageSaveOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageSave;

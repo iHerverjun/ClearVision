@@ -23,7 +23,7 @@ namespace Acme.Product.Infrastructure.Operators;
 /// </summary>
 public sealed class ImageWrapper : IDisposable
 {
-    private Mat _mat;
+    private Mat _mat = null!;
     private int _refCount = 1;
     private readonly object _lock = new();
     private bool _disposed = false;

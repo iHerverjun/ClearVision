@@ -6,8 +6,28 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "位置修正",
+    Description = "Corrects downstream ROI coordinates using reference/base offsets.",
+    Category = "定位",
+    IconName = "position",
+    Keywords = new[] { "position correction", "roi offset", "translation", "rotation" }
+)]
+[InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
+[InputPort("BasePoint", "Base Point", PortDataType.Point, IsRequired = true)]
+[InputPort("RoiX", "ROI X", PortDataType.Integer, IsRequired = false)]
+[InputPort("RoiY", "ROI Y", PortDataType.Integer, IsRequired = false)]
+[OutputPort("CorrectedX", "Corrected X", PortDataType.Integer)]
+[OutputPort("CorrectedY", "Corrected Y", PortDataType.Integer)]
+[OutputPort("OffsetX", "Offset X", PortDataType.Float)]
+[OutputPort("OffsetY", "Offset Y", PortDataType.Float)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OperatorParam("CorrectionMode", "Correction Mode", "enum", DefaultValue = "Translation", Options = new[] { "Translation|Translation", "TranslationRotation|TranslationRotation" })]
+[OperatorParam("ReferenceAngle", "Reference Angle", "double", DefaultValue = 0.0, Min = -360.0, Max = 360.0)]
+[OperatorParam("CurrentAngle", "Current Angle", "double", DefaultValue = 0.0, Min = -360.0, Max = 360.0)]
 public class PositionCorrectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PositionCorrection;

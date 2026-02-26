@@ -4,8 +4,21 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "帧平均",
+    Description = "Averages multi-frame input to reduce temporal noise.",
+    Category = "预处理",
+    IconName = "frame-average",
+    Keywords = new[] { "frame", "averaging", "multi-frame", "denoise" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("FrameCount", "Frame Count", PortDataType.Integer)]
+[OperatorParam("FrameCount", "Frame Count", "int", DefaultValue = 8, Min = 1, Max = 64)]
+[OperatorParam("Mode", "Mode", "enum", DefaultValue = "Mean", Options = new[] { "Mean|Mean", "Median|Median" })]
 public class FrameAveragingOperator : OperatorBase
 {
     private readonly object _syncRoot = new();
@@ -101,12 +114,13 @@ public class FrameAveragingOperator : OperatorBase
         var accumType = channelCount == 1 ? MatType.CV_32FC1 : MatType.CV_32FC3;
 
         using var accum = new Mat(frames[0].Rows, frames[0].Cols, accumType, Scalar.All(0));
+        using var noMask = new Mat();
 
         foreach (var frame in frames)
         {
             using var temp = new Mat();
             frame.ConvertTo(temp, accumType);
-            Cv2.Accumulate(temp, accum, null);
+            Cv2.Accumulate(temp, accum, noMask);
         }
 
         var result = new Mat();

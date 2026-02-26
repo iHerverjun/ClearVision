@@ -8,12 +8,25 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 变量读取算子 - 从全局变量表读取值
 /// 【第三优先级】变量表/全局上下文功能
 /// </summary>
+[OperatorMeta(
+    DisplayName = "变量读取",
+    Description = "从全局变量表读取值",
+    Category = "变量",
+    IconName = "variable-read"
+)]
+[OutputPort("Value", "值", PortDataType.Any)]
+[OutputPort("Exists", "是否存在", PortDataType.Boolean)]
+[OutputPort("CycleCount", "循环计数", PortDataType.Integer)]
+[OperatorParam("VariableName", "变量名", "string", Description = "要读取的变量名称", DefaultValue = "")]
+[OperatorParam("DefaultValue", "默认值", "string", Description = "变量不存在时的默认值", DefaultValue = "0")]
+[OperatorParam("DataType", "数据类型", "enum", DefaultValue = "String", Options = new[] { "String|字符串", "Int|整数", "Double|浮点数", "Bool|布尔值" })]
 public class VariableReadOperator : OperatorBase
 {
     private readonly IVariableContext _variableContext;

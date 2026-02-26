@@ -7,12 +7,29 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 轮廓测量算子 - 轮廓分析与测量
 /// </summary>
+[OperatorMeta(
+    DisplayName = "轮廓测量",
+    Description = "轮廓分析与测量",
+    Category = "检测",
+    IconName = "contour-measure",
+    Keywords = new[] { "轮廓", "面积", "周长", "形状分析", "Contour", "Area", "Perimeter" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Area", "面积", PortDataType.Float)]
+[OutputPort("Perimeter", "周长", PortDataType.Float)]
+[OutputPort("ContourCount", "轮廓数量", PortDataType.Integer)]
+[OperatorParam("Threshold", "二值化阈值", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100, Min = 0)]
+[OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000, Min = 0)]
+[OperatorParam("SortBy", "排序依据", "enum", DefaultValue = "Area", Options = new[] { "Area|面积", "Perimeter|周长" })]
 public class ContourMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ContourMeasurement;

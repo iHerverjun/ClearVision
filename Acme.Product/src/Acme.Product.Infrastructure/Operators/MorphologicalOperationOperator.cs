@@ -7,13 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 形态学操作算子 - 腐蚀/膨胀/开运算/闭运算/梯度/顶帽/黑帽
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "形态学操作",
+    Description = "腐蚀/膨胀/开运算/闭运算/梯度/顶帽/黑帽",
+    Category = "预处理",
+    IconName = "morphology"
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "处理后图像", PortDataType.Image)]
+[OperatorParam("Operation", "操作类型", "enum", DefaultValue = "Close", Options = new[] { "Erode|腐蚀", "Dilate|膨胀", "Open|开运算", "Close|闭运算", "Gradient|梯度", "TopHat|顶帽", "BlackHat|黑帽" })]
+[OperatorParam("KernelShape", "核形状", "enum", DefaultValue = "Rect", Options = new[] { "Rect|矩形", "Cross|十字形", "Ellipse|椭圆形" })]
+[OperatorParam("KernelWidth", "核宽度", "int", DefaultValue = 3, Min = 1, Max = 51)]
+[OperatorParam("KernelHeight", "核高度", "int", DefaultValue = 3, Min = 1, Max = 51)]
+[OperatorParam("Iterations", "迭代次数", "int", DefaultValue = 1, Min = 1, Max = 10)]
 public class MorphologicalOperationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MorphologicalOperation;

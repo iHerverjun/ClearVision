@@ -1145,23 +1145,6 @@ function initializeToolbar() {
     // 注意："新建"和"导入图片"按钮已移至工程分页
     // 由 projectView.js 处理
     
-    // 【阶段B-B5】导入按钮
-    const importBtn = document.getElementById('btn-import');
-    if (importBtn) {
-        importBtn.addEventListener('click', () => {
-            console.log('[App] 导入工程');
-            showImportDialog();
-        });
-    }
-    
-    // 【阶段B-B5】导出按钮
-    const exportBtn = document.getElementById('btn-export');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            console.log('[App] 导出工程');
-            exportProjectToJson();
-        });
-    }
     
     // 保存按钮
     const saveBtn = document.getElementById('btn-save');
@@ -1641,6 +1624,10 @@ function showImportDialog() {
     };
     input.click();
 }
+
+// Expose import/export functions globally for projectView.js
+window.showImportDialog = showImportDialog;
+window.exportProjectToJson = exportProjectToJson;
 
 // ==========================================================================
 // 阶段五：状态栏更新功能

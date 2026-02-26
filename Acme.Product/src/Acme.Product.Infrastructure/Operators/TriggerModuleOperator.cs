@@ -3,8 +3,22 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "触发模块",
+    Description = "Generates software, timer, or external triggers.",
+    Category = "逻辑工具",
+    IconName = "trigger",
+    Keywords = new[] { "trigger", "start", "timer", "external signal" }
+)]
+[OutputPort("Triggered", "Triggered", PortDataType.Boolean)]
+[OutputPort("Timestamp", "Timestamp", PortDataType.String)]
+[OutputPort("TriggerCount", "Trigger Count", PortDataType.Integer)]
+[OperatorParam("TriggerMode", "Trigger Mode", "enum", DefaultValue = "Software", Options = new[] { "Software|Software", "Timer|Timer", "ExternalSignal|ExternalSignal" })]
+[OperatorParam("Interval", "Interval (ms)", "int", DefaultValue = 1000, Min = 1, Max = 3600000)]
+[OperatorParam("AutoRepeat", "Auto Repeat", "bool", DefaultValue = true)]
 public class TriggerModuleOperator : OperatorBase
 {
     private readonly object _syncRoot = new();

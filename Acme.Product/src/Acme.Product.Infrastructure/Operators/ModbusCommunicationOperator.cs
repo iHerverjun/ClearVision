@@ -10,11 +10,30 @@ using Microsoft.Extensions.Logging;
 using NModbus;
 using System.Net.Sockets;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Modbus通信算子 - 支持TCP和RTU协议（带连接池）
 /// </summary>
+[OperatorMeta(
+    DisplayName = "Modbus通信",
+    Description = "工业设备Modbus RTU/TCP通信",
+    Category = "通信",
+    IconName = "modbus",
+    Keywords = new[] { "Modbus", "PLC", "通信", "寄存器", "RTU", "TCP", "工业", "Communication" }
+)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Response", "响应", PortDataType.String)]
+[OutputPort("Status", "状态", PortDataType.Boolean)]
+[OperatorParam("Protocol", "协议", "enum", DefaultValue = "TCP", Options = new[] { "TCP|TCP", "RTU|RTU" })]
+[OperatorParam("IpAddress", "IP地址", "string", DefaultValue = "192.168.1.1")]
+[OperatorParam("Port", "端口", "int", DefaultValue = 502, Min = 1, Max = 65535)]
+[OperatorParam("SlaveId", "从机ID", "int", DefaultValue = 1, Min = 1, Max = 247)]
+[OperatorParam("RegisterAddress", "寄存器地址", "int", DefaultValue = 0)]
+[OperatorParam("RegisterCount", "寄存器数量", "int", DefaultValue = 1, Min = 1, Max = 125)]
+[OperatorParam("FunctionCode", "功能码", "enum", DefaultValue = "ReadHolding", Options = new[] { "ReadCoils|读线圈", "ReadHolding|读保持寄存器", "WriteSingle|写单寄存器", "WriteMultiple|写多寄存器" })]
+[OperatorParam("WriteValue", "写入值", "string", DefaultValue = "")]
 public class ModbusCommunicationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ModbusCommunication;

@@ -8,12 +8,23 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像对比算子 - 差分分析
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像对比",
+    Description = "分析两幅图像的差异",
+    Category = "预处理",
+    IconName = "diff"
+)]
+[InputPort("BaseImage", "基准图", PortDataType.Image, IsRequired = true)]
+[InputPort("CompareImage", "对比图", PortDataType.Image, IsRequired = true)]
+[OutputPort("DiffImage", "差异图", PortDataType.Image)]
+[OutputPort("DiffRate", "差异率", PortDataType.Float)]
 public class ImageDiffOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageDiff;

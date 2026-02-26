@@ -8,12 +8,30 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Text.Json;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 相机标定算子 - 棋盘格/圆点标定
 /// </summary>
+[OperatorMeta(
+    DisplayName = "相机标定",
+    Description = "棋盘格/圆点标定",
+    Category = "标定",
+    IconName = "calibration",
+    Keywords = new[] { "标定", "棋盘格", "内参", "畸变", "Calibration", "Chessboard", "Intrinsic" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("CalibrationData", "标定数据", PortDataType.String)]
+[OperatorParam("PatternType", "标定板类型", "enum", DefaultValue = "Chessboard", Options = new[] { "Chessboard|棋盘格", "CircleGrid|圆点格" })]
+[OperatorParam("BoardWidth", "棋盘格宽度", "int", DefaultValue = 9, Min = 2, Max = 30)]
+[OperatorParam("BoardHeight", "棋盘格高度", "int", DefaultValue = 6, Min = 2, Max = 30)]
+[OperatorParam("SquareSize", "方格尺寸(mm)", "double", DefaultValue = 25.0, Min = 0.1, Max = 1000.0)]
+[OperatorParam("Mode", "模式", "enum", DefaultValue = "SingleImage", Options = new[] { "SingleImage|单图检测", "FolderCalibration|文件夹标定" })]
+[OperatorParam("ImageFolder", "标定图片文件夹", "string", DefaultValue = "")]
+[OperatorParam("CalibrationOutputPath", "标定结果保存路径", "string", DefaultValue = "calibration_result.json")]
 public class CameraCalibrationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CameraCalibration;

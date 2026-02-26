@@ -216,7 +216,7 @@ public static class DependencyInjection
         services.AddScoped<Acme.Product.Infrastructure.AI.DryRun.DryRunService>();
 
         // ==================== Sprint 5: AI 编排接入 ====================
-        services.AddSingleton<Acme.Product.Infrastructure.AI.AIPromptBuilder>();
+        services.AddScoped<Acme.Product.Infrastructure.AI.PromptBuilder>();
         services.AddScoped<Acme.Product.Infrastructure.AI.AIGeneratedFlowParser>();
         services.AddSingleton<Acme.Product.Infrastructure.AI.DryRun.DryRunStubRegistry>();
         services.AddSingleton<Acme.Product.Infrastructure.AI.DryRun.StubRegistryBuilder>();

@@ -28,7 +28,7 @@ public class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery, List<
         // IProjectRepository interface usually has SearchAsync.
         // Let's assume SearchAsync exists based on previous file reads (ProjectService uses it).
         
-        var projects = await _repository.SearchAsync(request.SearchTerm);
+        var projects = await _repository.SearchAsync(request.SearchTerm ?? string.Empty);
         return _mapper.Map<List<ProjectDto>>(projects);
     }
 }

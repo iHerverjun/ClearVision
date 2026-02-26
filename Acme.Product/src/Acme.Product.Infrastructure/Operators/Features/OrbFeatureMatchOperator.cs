@@ -7,12 +7,30 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// ORB特征匹配算子 - 基于ORB特征的快速模板匹配
 /// </summary>
+[OperatorMeta(
+    DisplayName = "ORB特征匹配",
+    Description = "基于ORB特征的快速模板匹配，适合实时应用",
+    Category = "匹配定位",
+    IconName = "orb-match"
+)]
+[InputPort("Image", "搜索图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
+[OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
+[OperatorParam("MaxFeatures", "最大特征点", "int", DefaultValue = 500, Min = 100, Max = 2000)]
+[OperatorParam("ScaleFactor", "尺度因子", "double", DefaultValue = 1.2, Min = 1.0, Max = 2.0)]
+[OperatorParam("NLevels", "金字塔层数", "int", DefaultValue = 8, Min = 1, Max = 12)]
+[OperatorParam("EdgeThreshold", "边缘阈值", "int", DefaultValue = 31, Min = 3, Max = 100)]
 public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.OrbFeatureMatch;

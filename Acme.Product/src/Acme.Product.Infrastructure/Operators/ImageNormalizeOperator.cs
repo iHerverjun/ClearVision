@@ -4,8 +4,21 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "图像归一化",
+    Description = "Normalizes pixel distribution for robust downstream processing.",
+    Category = "预处理",
+    IconName = "normalize",
+    Keywords = new[] { "normalize", "minmax", "zscore", "equalize" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "MinMax", Options = new[] { "MinMax|MinMax", "ZScore|ZScore", "Histogram|Histogram" })]
+[OperatorParam("Alpha", "Alpha", "double", DefaultValue = 0.0)]
+[OperatorParam("Beta", "Beta", "double", DefaultValue = 255.0)]
 public class ImageNormalizeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageNormalize;

@@ -9,6 +9,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -24,6 +25,16 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 字符串解析为数值用于计算
 /// - 类型统一转换
 /// </summary>
+[OperatorMeta(
+    DisplayName = "类型转换",
+    Description = "在不同数据类型间进行强制转换",
+    Category = "通用",
+    IconName = "convert"
+)]
+[InputPort("Input", "输入", PortDataType.Any, IsRequired = true)]
+[OutputPort("Output", "输出", PortDataType.Any)]
+[OperatorParam("TargetType", "目标类型", "enum", DefaultValue = "String", Options = new[] { "String|String", "Float|Float", "Integer|Integer", "Boolean|Boolean" })]
+[OperatorParam("Format", "格式字符串", "string", DefaultValue = "")]
 public class TypeConvertOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TypeConvert;

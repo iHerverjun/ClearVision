@@ -4,8 +4,23 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "图像拼接",
+    Description = "Stitches two images into a larger panorama-like output.",
+    Category = "图像处理",
+    IconName = "stitch",
+    Keywords = new[] { "stitch", "panorama", "merge image" }
+)]
+[InputPort("Image1", "Image 1", PortDataType.Image, IsRequired = true)]
+[InputPort("Image2", "Image 2", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("OverlapRatio", "Overlap Ratio", PortDataType.Float)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "FeatureBased", Options = new[] { "FeatureBased|FeatureBased", "Manual|Manual" })]
+[OperatorParam("OverlapPercent", "Overlap Percent", "double", DefaultValue = 20.0, Min = 0.0, Max = 90.0)]
+[OperatorParam("BlendMode", "Blend Mode", "enum", DefaultValue = "Linear", Options = new[] { "Linear|Linear", "MultiBand|MultiBand" })]
 public class ImageStitchingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageStitching;

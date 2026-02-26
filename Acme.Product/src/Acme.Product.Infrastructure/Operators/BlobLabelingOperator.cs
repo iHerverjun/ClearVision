@@ -5,8 +5,24 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "连通域标注",
+    Description = "Classifies connected blobs by geometric features and draws labels.",
+    Category = "定位",
+    IconName = "blob-label",
+    Keywords = new[] { "blob", "label", "classify connected component" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Blobs", "Blobs", PortDataType.Contour, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Labels", "Labels", PortDataType.Any)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("LabelBy", "Label By", "enum", DefaultValue = "Area", Options = new[] { "Area|Area", "Circularity|Circularity", "AspectRatio|AspectRatio", "Position|Position" })]
+[OperatorParam("Thresholds", "Thresholds", "string", DefaultValue = "[]")]
+[OperatorParam("DrawLabels", "Draw Labels", "bool", DefaultValue = true)]
 public class BlobLabelingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BlobLabeling;

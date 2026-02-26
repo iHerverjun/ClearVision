@@ -5,8 +5,22 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "标定加载",
+    Description = "Loads calibration data from JSON/XML/YAML file.",
+    Category = "标定",
+    IconName = "file-open",
+    Keywords = new[] { "load calibration", "calibration file", "matrix" }
+)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OutputPort("CameraMatrix", "Camera Matrix", PortDataType.Any)]
+[OutputPort("DistCoeffs", "Dist Coeffs", PortDataType.Any)]
+[OutputPort("PixelSize", "Pixel Size", PortDataType.Float)]
+[OperatorParam("FilePath", "File Path", "file", DefaultValue = "")]
+[OperatorParam("FileFormat", "File Format", "enum", DefaultValue = "JSON", Options = new[] { "JSON|JSON", "XML|XML", "YAML|YAML" })]
 public class CalibrationLoaderOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CalibrationLoader;

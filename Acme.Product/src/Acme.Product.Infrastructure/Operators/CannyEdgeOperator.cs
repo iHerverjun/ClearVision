@@ -7,12 +7,28 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Canny边缘检测算子
 /// </summary>
+[OperatorMeta(
+    DisplayName = "边缘检测",
+    Description = "利用 Canny/Sobel 等算法检测图像边缘，用于尺寸测量和缺陷定位前的轮廓提取",
+    Category = "特征提取",
+    IconName = "edge",
+    Keywords = new[] { "边缘", "轮廓提取", "Canny", "Sobel", "边界", "找边", "Edge", "Contour extraction" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OutputPort("Edges", "边缘", PortDataType.Image)]
+[OperatorParam("Threshold1", "低阈值", "double", DefaultValue = 50.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("Threshold2", "高阈值", "double", DefaultValue = 150.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("EnableGaussianBlur", "启用高斯模糊", "bool", DefaultValue = true)]
+[OperatorParam("GaussianKernelSize", "高斯核大小", "int", DefaultValue = 5, Min = 3, Max = 15)]
+[OperatorParam("ApertureSize", "Sobel孔径", "enum", DefaultValue = "3", Options = new[] { "3|3", "5|5", "7|7" })]
 public class CannyEdgeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgeDetection;

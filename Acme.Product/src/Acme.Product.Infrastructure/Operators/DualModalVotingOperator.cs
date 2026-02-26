@@ -8,6 +8,7 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -21,6 +22,23 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - PrioritizeDeepLearning: 优先深度学习，DL权重更高
 /// - PrioritizeTraditional: 优先传统算法，传统算法权重更高
 /// </remarks>
+[OperatorMeta(
+    DisplayName = "双模态投票",
+    Description = "结合深度学习和传统算法结果进行投票决策",
+    Category = "AI检测",
+    IconName = "voting"
+)]
+[InputPort("DLResult", "深度学习结果", PortDataType.Any, IsRequired = true)]
+[InputPort("TraditionalResult", "传统算法结果", PortDataType.Any, IsRequired = true)]
+[OutputPort("IsOk", "是否OK", PortDataType.Boolean)]
+[OutputPort("Confidence", "综合置信度", PortDataType.Float)]
+[OutputPort("JudgmentValue", "判定值", PortDataType.String)]
+[OperatorParam("VotingStrategy", "投票策略", "enum", DefaultValue = "WeightedAverage", Options = new[] { "WeightedAverage|加权平均", "Unanimous|一致同意", "Majority|多数表决", "PrioritizeDeepLearning|优先深度学习", "PrioritizeTraditional|优先传统算法" })]
+[OperatorParam("DLWeight", "DL权重", "double", DefaultValue = 0.6, Min = 0.0, Max = 1.0)]
+[OperatorParam("TraditionalWeight", "传统算法权重", "double", DefaultValue = 0.4, Min = 0.0, Max = 1.0)]
+[OperatorParam("ConfidenceThreshold", "置信度阈值", "double", DefaultValue = 0.5, Min = 0.0, Max = 1.0)]
+[OperatorParam("OkOutputValue", "OK输出值", "string", DefaultValue = "1")]
+[OperatorParam("NgOutputValue", "NG输出值", "string", DefaultValue = "0")]
 public class DualModalVotingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.DualModalVoting;

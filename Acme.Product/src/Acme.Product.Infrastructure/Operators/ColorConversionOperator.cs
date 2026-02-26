@@ -7,12 +7,23 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 颜色空间转换算子 - 支持BGR/GRAY/HSV/Lab/YUV等颜色空间转换
 /// </summary>
+[OperatorMeta(
+    DisplayName = "颜色空间转换",
+    Description = "BGR/GRAY/HSV/Lab/YUV等颜色空间转换",
+    Category = "预处理",
+    IconName = "color-convert",
+    Keywords = new[] { "颜色", "色彩", "灰度", "HSV", "Lab", "转换", "Color", "Convert", "Gray" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "输出图像", PortDataType.Image)]
+[OperatorParam("ConversionCode", "转换类型", "enum", DefaultValue = "BGR2GRAY", Options = new[] { "BGR2GRAY|BGR转灰度", "BGR2HSV|BGR转HSV", "BGR2Lab|BGR转Lab", "BGR2YUV|BGR转YUV", "GRAY2BGR|灰度转BGR", "HSV2BGR|HSV转BGR" })]
 public class ColorConversionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ColorConversion;

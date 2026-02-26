@@ -7,12 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 几何拟合算子 - 直线/圆/椭圆拟合
 /// </summary>
+[OperatorMeta(
+    DisplayName = "几何拟合",
+    Description = "从轮廓点拟合直线、圆或椭圆",
+    Category = "测量",
+    IconName = "fit",
+    Keywords = new[] { "拟合", "直线拟合", "圆拟合", "椭圆", "最小二乘", "Fit", "Line fit", "Circle fit" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("FitResult", "拟合结果", PortDataType.Any)]
+[OperatorParam("FitType", "拟合类型", "enum", DefaultValue = "Circle", Options = new[] { "Line|直线", "Circle|圆", "Ellipse|椭圆" })]
+[OperatorParam("Threshold", "二值化阈值", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("MinArea", "最小轮廓面积", "int", DefaultValue = 100, Min = 0)]
+[OperatorParam("MinPoints", "最少拟合点数", "int", DefaultValue = 5, Min = 3, Max = 10000)]
 public class GeometricFittingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeometricFitting;

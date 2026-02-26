@@ -9,12 +9,34 @@ using Acme.PlcComm;
 using Acme.PlcComm.Interfaces;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 欧姆龙FINS通信算子
 /// 支持FINS/TCP协议，适用于CP1H/CJ2M/NJ/NX系列PLC
 /// </summary>
+[OperatorMeta(
+    DisplayName = "欧姆龙FINS通信",
+    Description = "欧姆龙FINS/TCP协议PLC读写通信（CP1H/CJ2M/NJ/NX）",
+    Category = "通信",
+    IconName = "fins"
+)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Response", "响应", PortDataType.String)]
+[OutputPort("Status", "状态", PortDataType.Boolean)]
+[OperatorParam("IpAddress", "IP地址", "string", DefaultValue = "192.168.250.1")]
+[OperatorParam("Port", "端口", "int", DefaultValue = 9600, Min = 1, Max = 65535)]
+[OperatorParam("Address", "PLC地址", "string", DefaultValue = "DM100")]
+[OperatorParam("Length", "读取长度", "int", DefaultValue = 1, Min = 1, Max = 999)]
+[OperatorParam("DataType", "数据类型", "enum", DefaultValue = "Word", Options = new[] { "Bit|位 (Bool)", "Word|字 (Word/UInt16)", "Int16|短整型 (Int16)", "DWord|双字 (DWord/UInt32)", "Int32|整型 (Int32)", "Float|浮点 (Float)", "Double|双精度 (Double)" })]
+[OperatorParam("Operation", "操作", "enum", DefaultValue = "Read", Options = new[] { "Read|读取", "Write|写入" })]
+[OperatorParam("WriteValue", "写入值", "string", DefaultValue = "")]
+[OperatorParam("PollingMode", "轮询模式", "enum", Description = "读取时是否启用轮询等待", DefaultValue = "None", Options = new[] { "None|不等待", "WaitForValue|等待指定值" })]
+[OperatorParam("PollingCondition", "等待条件", "enum", Description = "等待的条件类型", DefaultValue = "Equal", Options = new[] { "Equal|等于", "NotEqual|不等于", "GreaterThan|大于", "LessThan|小于", "GreaterOrEqual|大于等于", "LessOrEqual|小于等于" })]
+[OperatorParam("PollingValue", "等待值", "string", Description = "等待的目标值（如触发信号值）", DefaultValue = "1")]
+[OperatorParam("PollingTimeout", "等待超时(ms)", "int", Description = "最长等待时间（毫秒）", DefaultValue = 30000, Min = 100, Max = 300000)]
+[OperatorParam("PollingInterval", "轮询间隔(ms)", "int", Description = "每次读取间隔（毫秒）", DefaultValue = 50, Min = 10, Max = 5000)]
 public class OmronFinsCommunicationOperator : PlcCommunicationOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.OmronFinsCommunication;

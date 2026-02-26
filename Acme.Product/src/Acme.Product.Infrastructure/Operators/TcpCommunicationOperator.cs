@@ -9,12 +9,29 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
 using System.Text;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// TCP/IP通信算子 - 支持客户端/服务器模式（带连接池）
 /// </summary>
+[OperatorMeta(
+    DisplayName = "TCP通信",
+    Description = "TCP/IP网络通信",
+    Category = "通信",
+    IconName = "tcp",
+    Keywords = new[] { "TCP", "网络", "Socket", "通信", "发送", "接收", "IP", "Communication" }
+)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Response", "响应", PortDataType.String)]
+[OutputPort("Status", "状态", PortDataType.Boolean)]
+[OperatorParam("Mode", "模式", "enum", DefaultValue = "Client", Options = new[] { "Client|客户端", "Server|服务器" })]
+[OperatorParam("IpAddress", "IP地址", "string", DefaultValue = "127.0.0.1")]
+[OperatorParam("Port", "端口", "int", DefaultValue = 8080, Min = 1, Max = 65535)]
+[OperatorParam("SendData", "发送数据", "string", DefaultValue = "")]
+[OperatorParam("Timeout", "超时(ms)", "int", DefaultValue = 5000, Min = 100, Max = 30000)]
+[OperatorParam("Encoding", "编码", "enum", DefaultValue = "UTF8", Options = new[] { "UTF8|UTF-8", "ASCII|ASCII", "GBK|GBK" })]
 public class TcpCommunicationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TcpCommunication;

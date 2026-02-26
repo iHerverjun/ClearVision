@@ -7,13 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像减法算子 - 差异检测
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像减法",
+    Description = "差异检测",
+    Category = "预处理",
+    IconName = "subtract"
+)]
+[InputPort("Image1", "图像1", PortDataType.Image, IsRequired = true)]
+[InputPort("Image2", "图像2", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "差异图像", PortDataType.Image)]
+[OutputPort("MinDifference", "最小差异", PortDataType.Float)]
+[OutputPort("MaxDifference", "最大差异", PortDataType.Float)]
+[OutputPort("MeanDifference", "平均差异", PortDataType.Float)]
+[OperatorParam("AbsoluteDiff", "绝对差异", "bool", Description = "使用绝对差异或简单相减", DefaultValue = true)]
 public class ImageSubtractOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageSubtract;

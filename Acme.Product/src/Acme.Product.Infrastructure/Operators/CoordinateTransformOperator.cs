@@ -8,12 +8,30 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Text.Json;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 坐标转换算子 - 像素坐标到物理坐标转换
 /// </summary>
+[OperatorMeta(
+    DisplayName = "坐标转换",
+    Description = "像素坐标到物理坐标转换",
+    Category = "标定",
+    IconName = "coordinate-transform",
+    Keywords = new[] { "坐标", "像素", "物理", "毫米", "转换", "Coordinate", "Pixel to mm", "Physical" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = false)]
+[InputPort("PixelX", "像素X", PortDataType.Float, IsRequired = false)]
+[InputPort("PixelY", "像素Y", PortDataType.Float, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("PhysicalX", "物理X(mm)", PortDataType.Float)]
+[OutputPort("PhysicalY", "物理Y(mm)", PortDataType.Float)]
+[OperatorParam("PixelX", "像素X坐标", "double", DefaultValue = 0.0)]
+[OperatorParam("PixelY", "像素Y坐标", "double", DefaultValue = 0.0)]
+[OperatorParam("PixelSize", "像素尺寸(mm/px)", "double", DefaultValue = 0.01, Min = 0.0001, Max = 100.0)]
+[OperatorParam("CalibrationFile", "标定文件路径", "file", DefaultValue = "")]
 public class CoordinateTransformOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CoordinateTransform;

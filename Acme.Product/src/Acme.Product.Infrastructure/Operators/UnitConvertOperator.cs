@@ -4,8 +4,24 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "单位换算",
+    Description = "Converts value between pixel, mm, um and inch.",
+    Category = "数据处理",
+    IconName = "unit",
+    Keywords = new[] { "unit convert", "pixel to mm", "mm", "um", "inch" }
+)]
+[InputPort("Value", "Value", PortDataType.Float, IsRequired = true)]
+[InputPort("PixelSize", "Pixel Size", PortDataType.Float, IsRequired = false)]
+[OutputPort("Result", "Result", PortDataType.Float)]
+[OutputPort("Unit", "Unit", PortDataType.String)]
+[OperatorParam("FromUnit", "From Unit", "enum", DefaultValue = "Pixel", Options = new[] { "Pixel|Pixel", "mm|mm", "um|um", "inch|inch" })]
+[OperatorParam("ToUnit", "To Unit", "enum", DefaultValue = "mm", Options = new[] { "Pixel|Pixel", "mm|mm", "um|um", "inch|inch" })]
+[OperatorParam("Scale", "Scale", "double", DefaultValue = 1.0, Min = 1E-09, Max = 1000000.0)]
+[OperatorParam("UseCalibration", "Use Calibration", "bool", DefaultValue = false)]
 public class UnitConvertOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.UnitConvert;

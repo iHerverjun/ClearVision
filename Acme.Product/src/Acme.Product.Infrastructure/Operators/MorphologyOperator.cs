@@ -7,12 +7,28 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 形态学算子 - 支持腐蚀、膨胀、开运算、闭运算
 /// </summary>
+[OperatorMeta(
+    DisplayName = "形态学",
+    Description = "腐蚀/膨胀/开运算/闭运算等形态学操作，用于去除毛刺、填充孔洞和分离粘连目标",
+    Category = "预处理",
+    IconName = "morphology",
+    Keywords = new[] { "形态学", "膨胀", "腐蚀", "开运算", "闭运算", "Morphology", "Erode", "Dilate" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("Operation", "操作类型", "string", DefaultValue = "Erode")]
+[OperatorParam("KernelSize", "核大小", "int", DefaultValue = 3, Min = 1, Max = 21)]
+[OperatorParam("KernelShape", "核形状", "string", DefaultValue = "Rect")]
+[OperatorParam("Iterations", "迭代次数", "int", DefaultValue = 1, Min = 1, Max = 10)]
+[OperatorParam("AnchorX", "锚点X", "int", DefaultValue = -1)]
+[OperatorParam("AnchorY", "锚点Y", "int", DefaultValue = -1)]
 public class MorphologyOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Morphology;

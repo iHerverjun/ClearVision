@@ -7,12 +7,26 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 阈值二值化算子
 /// </summary>
+[OperatorMeta(
+    DisplayName = "二值化",
+    Description = "全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离",
+    Category = "预处理",
+    IconName = "threshold",
+    Keywords = new[] { "二值化", "阈值", "分割", "黑白", "Otsu", "Threshold", "Binarize", "Segmentation" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("Threshold", "阈值", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("MaxValue", "最大值", "double", DefaultValue = 255.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("Type", "类型", "enum", DefaultValue = "0", Options = new[] { "0|Binary", "1|Binary Inv", "2|Trunc", "3|To Zero", "4|To Zero Inv", "8|Otsu", "16|Triangle" })]
+[OperatorParam("UseOtsu", "使用Otsu", "bool", DefaultValue = false)]
 public class ThresholdOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Thresholding;

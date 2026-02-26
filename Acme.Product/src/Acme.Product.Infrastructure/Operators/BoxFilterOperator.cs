@@ -8,11 +8,33 @@ using OpenCvSharp;
 using DetectionListValue = Acme.Product.Core.ValueObjects.DetectionList;
 using DetectionResultValue = Acme.Product.Core.ValueObjects.DetectionResult;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Filters detection boxes by area/class/region/score.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "候选框筛选",
+    Description = "Filters detections by area, class, region, or score.",
+    Category = "数据处理",
+    IconName = "filter",
+    Keywords = new[] { "box filter", "class filter", "area filter", "score" }
+)]
+[InputPort("Detections", "Detections", PortDataType.DetectionList, IsRequired = true)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[OutputPort("Detections", "Detections", PortDataType.DetectionList)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("FilterMode", "Filter Mode", "enum", DefaultValue = "Area", Options = new[] { "Area|Area", "Class|Class", "Region|Region", "Score|Score" })]
+[OperatorParam("MinArea", "Min Area", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("MaxArea", "Max Area", "int", DefaultValue = 9999999, Min = 0)]
+[OperatorParam("TargetClasses", "Target Classes", "string", DefaultValue = "")]
+[OperatorParam("MinScore", "Min Score", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("RegionX", "Region X", "int", DefaultValue = 0)]
+[OperatorParam("RegionY", "Region Y", "int", DefaultValue = 0)]
+[OperatorParam("RegionW", "Region Width", "int", DefaultValue = 0)]
+[OperatorParam("RegionH", "Region Height", "int", DefaultValue = 0)]
 public class BoxFilterOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BoxFilter;

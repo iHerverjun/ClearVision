@@ -5,8 +5,28 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "矩形检测",
+    Description = "Detects rectangular/quadrilateral objects from contours.",
+    Category = "定位",
+    IconName = "rectangle",
+    Keywords = new[] { "rectangle", "quadrilateral", "box", "locate" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Rectangles", "Rectangles", PortDataType.Any)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OutputPort("Center", "Center", PortDataType.Point)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("Width", "Width", PortDataType.Float)]
+[OutputPort("Height", "Height", PortDataType.Float)]
+[OperatorParam("MinArea", "Min Area", "int", DefaultValue = 100, Min = 0, Max = 100000000)]
+[OperatorParam("MaxArea", "Max Area", "int", DefaultValue = 10000000, Min = 0, Max = 100000000)]
+[OperatorParam("AngleTolerance", "Angle Tolerance", "double", DefaultValue = 15.0, Min = 0.0, Max = 90.0)]
+[OperatorParam("ApproxEpsilon", "Approx Epsilon", "double", DefaultValue = 0.02, Min = 0.0001, Max = 1000.0)]
 public class RectangleDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.RectangleDetection;

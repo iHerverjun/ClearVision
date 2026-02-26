@@ -5,11 +5,26 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Computes distance/angle/intersection between two lines.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "线线距离",
+    Description = "Computes distance and angle between two lines.",
+    Category = "检测",
+    IconName = "parallel",
+    Keywords = new[] { "line distance", "angle", "parallel" }
+)]
+[InputPort("Line1", "Line 1", PortDataType.LineData, IsRequired = true)]
+[InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = true)]
+[OutputPort("Distance", "Distance", PortDataType.Float)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("Intersection", "Intersection", PortDataType.Point)]
+[OutputPort("IsParallel", "Is Parallel", PortDataType.Boolean)]
+[OperatorParam("ParallelThreshold", "Parallel Threshold", "double", DefaultValue = 2.0, Min = 0.0, Max = 45.0)]
 public class LineLineDistanceOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.LineLineDistance;

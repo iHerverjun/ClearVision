@@ -5,8 +5,26 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "四边形查找",
+    Description = "Finds quadrilateral contours without right-angle constraints.",
+    Category = "定位",
+    IconName = "quadrilateral",
+    Keywords = new[] { "quadrilateral", "polygon", "trapezoid" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Vertices", "Vertices", PortDataType.PointList)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OutputPort("Area", "Area", PortDataType.Float)]
+[OutputPort("Center", "Center", PortDataType.Point)]
+[OperatorParam("MinArea", "Min Area", "int", DefaultValue = 100, Min = 0, Max = 100000000)]
+[OperatorParam("MaxArea", "Max Area", "int", DefaultValue = 10000000, Min = 0, Max = 100000000)]
+[OperatorParam("ApproxEpsilon", "Approx Epsilon", "double", DefaultValue = 0.02, Min = 0.0001, Max = 1000.0)]
+[OperatorParam("ConvexOnly", "Convex Only", "bool", DefaultValue = false)]
 public class QuadrilateralFindOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.QuadrilateralFind;

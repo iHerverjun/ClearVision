@@ -8,12 +8,24 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Text.Json;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 畸变校正算子 - 基于标定数据校正图像畸变
 /// </summary>
+[OperatorMeta(
+    DisplayName = "畸变校正",
+    Description = "基于标定数据校正图像畸变",
+    Category = "标定",
+    IconName = "undistort",
+    Keywords = new[] { "畸变", "校正", "矫正", "去畸变", "Undistort", "Distortion", "Correct" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[InputPort("CalibrationData", "标定数据", PortDataType.String, IsRequired = false)]
+[OutputPort("Image", "校正图像", PortDataType.Image)]
+[OperatorParam("CalibrationFile", "标定文件路径", "file", DefaultValue = "")]
 public class UndistortOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Undistort;

@@ -4,8 +4,30 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "直方图分析",
+    Description = "Computes histogram and distribution statistics for selected channel.",
+    Category = "检测",
+    IconName = "histogram",
+    Keywords = new[] { "histogram", "distribution", "peak", "median" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Mean", "Mean", PortDataType.Float)]
+[OutputPort("StdDev", "StdDev", PortDataType.Float)]
+[OutputPort("Mode", "Mode", PortDataType.Integer)]
+[OutputPort("Median", "Median", PortDataType.Integer)]
+[OutputPort("Peak", "Peak", PortDataType.Integer)]
+[OutputPort("Valley", "Valley", PortDataType.Integer)]
+[OperatorParam("Channel", "Channel", "enum", DefaultValue = "Gray", Options = new[] { "Gray|Gray", "R|R", "G|G", "B|B" })]
+[OperatorParam("BinCount", "Bin Count", "int", DefaultValue = 256, Min = 2, Max = 1024)]
+[OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiW", "ROI W", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiH", "ROI H", "int", DefaultValue = 0, Min = 0)]
 public class HistogramAnalysisOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.HistogramAnalysis;

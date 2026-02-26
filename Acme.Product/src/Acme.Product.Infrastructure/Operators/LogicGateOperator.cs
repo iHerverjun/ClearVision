@@ -7,7 +7,8 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -22,6 +23,16 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 外观OK AND 尺寸OK AND 条码OK → 产品合格
 /// - 多条件组合判定
 /// </summary>
+[OperatorMeta(
+    DisplayName = "逻辑门",
+    Description = "布尔逻辑运算 (AND, OR, NOT, XOR...)",
+    Category = "通用",
+    IconName = "logic"
+)]
+[InputPort("InputA", "输入 A", PortDataType.Boolean, IsRequired = true)]
+[InputPort("InputB", "输入 B", PortDataType.Boolean, IsRequired = false)]
+[OutputPort("Result", "输出", PortDataType.Boolean)]
+[OperatorParam("Operation", "逻辑操作", "enum", DefaultValue = "AND", Options = new[] { "AND|AND (与)", "OR|OR (或)", "NOT|NOT (非)", "XOR|XOR (异或)", "NAND|NAND (与非)", "NOR|NOR (或非)" })]
 public class LogicGateOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.LogicGate;

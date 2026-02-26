@@ -5,8 +5,25 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "角点检测",
+    Description = "Detects corner points using Harris or Shi-Tomasi.",
+    Category = "定位",
+    IconName = "corner",
+    Keywords = new[] { "corner", "vertex", "harris", "shitomasi" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Corners", "Corners", PortDataType.PointList)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "ShiTomasi", Options = new[] { "Harris|Harris", "ShiTomasi|ShiTomasi" })]
+[OperatorParam("MaxCorners", "Max Corners", "int", DefaultValue = 100, Min = 1, Max = 5000)]
+[OperatorParam("QualityLevel", "Quality Level", "double", DefaultValue = 0.01, Min = 1E-06, Max = 1.0)]
+[OperatorParam("MinDistance", "Min Distance", "double", DefaultValue = 10.0, Min = 0.0, Max = 10000.0)]
+[OperatorParam("BlockSize", "Block Size", "int", DefaultValue = 3, Min = 2, Max = 31)]
 public class CornerDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CornerDetection;
@@ -48,7 +65,8 @@ public class CornerDetectionOperator : OperatorBase
         }
 
         var useHarris = method.Equals("Harris", StringComparison.OrdinalIgnoreCase);
-        var corners = Cv2.GoodFeaturesToTrack(gray, maxCorners, qualityLevel, minDistance, null, blockSize, useHarris, 0.04);
+        using var noMask = new Mat();
+        var corners = Cv2.GoodFeaturesToTrack(gray, maxCorners, qualityLevel, minDistance, noMask, blockSize, useHarris, 0.04);
         corners ??= Array.Empty<Point2f>();
 
         if (corners.Length > 0)
@@ -102,4 +120,3 @@ public class CornerDetectionOperator : OperatorBase
         return ValidationResult.Valid();
     }
 }
-

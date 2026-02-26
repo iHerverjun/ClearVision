@@ -4,8 +4,21 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "光照校正",
+    Description = "Corrects uneven illumination by background or model-based methods.",
+    Category = "预处理",
+    IconName = "shading",
+    Keywords = new[] { "shading", "flat field", "illumination", "background" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Background", "Background", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "GaussianModel", Options = new[] { "DivideByBackground|DivideByBackground", "GaussianModel|GaussianModel", "MorphologicalTopHat|MorphologicalTopHat" })]
+[OperatorParam("KernelSize", "Kernel Size", "int", DefaultValue = 51, Min = 3, Max = 501)]
 public class ShadingCorrectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ShadingCorrection;

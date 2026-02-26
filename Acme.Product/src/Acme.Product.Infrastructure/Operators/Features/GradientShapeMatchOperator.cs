@@ -7,12 +7,31 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 梯度形状匹配算子
 /// </summary>
+[OperatorMeta(
+    DisplayName = "梯度形状匹配",
+    Description = "基于梯度方向的形状匹配，支持旋转不变性",
+    Category = "匹配定位",
+    IconName = "shape-match"
+)]
+[InputPort("Image", "搜索图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("Angle", "旋转角度", PortDataType.Float)]
+[OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
+[OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
+[OperatorParam("MinScore", "最小分数(%)", "double", DefaultValue = 80.0, Min = 0.0, Max = 100.0)]
+[OperatorParam("AngleRange", "角度范围(±)", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("AngleStep", "角度步长", "int", DefaultValue = 1, Min = 1, Max = 10)]
+[OperatorParam("MagnitudeThreshold", "梯度阈值", "int", DefaultValue = 30, Min = 0, Max = 255)]
 public class GradientShapeMatchOperator : OperatorBase
 {
     private readonly Dictionary<string, GradientShapeMatcher> _matcherCache = new();

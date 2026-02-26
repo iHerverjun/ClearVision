@@ -8,12 +8,30 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Collections.Concurrent;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 形状匹配算子 - 旋转/缩放不变模板匹配
 /// </summary>
+[OperatorMeta(
+    DisplayName = "形状匹配",
+    Description = "旋转/缩放不变的高级模板匹配",
+    Category = "匹配定位",
+    IconName = "shape-match"
+)]
+[InputPort("Image", "搜索图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Matches", "匹配结果", PortDataType.Any)]
+[OperatorParam("TemplatePath", "模板文件路径", "file", DefaultValue = "")]
+[OperatorParam("MinScore", "最小匹配分数", "double", DefaultValue = 0.7, Min = 0.1, Max = 1.0)]
+[OperatorParam("MaxMatches", "最大匹配数", "int", DefaultValue = 1, Min = 1, Max = 50)]
+[OperatorParam("AngleStart", "起始角度", "double", DefaultValue = -30.0, Min = -180.0, Max = 180.0)]
+[OperatorParam("AngleExtent", "角度范围", "double", DefaultValue = 60.0, Min = 0.0, Max = 360.0)]
+[OperatorParam("AngleStep", "角度步长", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("NumLevels", "金字塔层数", "int", DefaultValue = 3, Min = 1, Max = 6)]
 public class ShapeMatchingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ShapeMatching;

@@ -6,8 +6,27 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "边缘对缺陷",
+    Description = "Checks edge-pair spacing deviations against expected width.",
+    Category = "AI检测",
+    IconName = "edge-pair-defect",
+    Keywords = new[] { "edge pair", "notch", "bump", "deviation" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Line1", "Line 1", PortDataType.LineData, IsRequired = false)]
+[InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("DefectCount", "Defect Count", PortDataType.Integer)]
+[OutputPort("MaxDeviation", "Max Deviation", PortDataType.Float)]
+[OutputPort("Deviations", "Deviations", PortDataType.Any)]
+[OperatorParam("ExpectedWidth", "Expected Width", "double", DefaultValue = 20.0, Min = 0.0, Max = 100000.0)]
+[OperatorParam("Tolerance", "Tolerance", "double", DefaultValue = 2.0, Min = 0.0, Max = 100000.0)]
+[OperatorParam("NumSamples", "Sample Count", "int", DefaultValue = 100, Min = 5, Max = 5000)]
+[OperatorParam("EdgeMethod", "Edge Method", "enum", DefaultValue = "Canny", Options = new[] { "Canny|Canny", "Sobel|Sobel" })]
 public class EdgePairDefectOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgePairDefect;

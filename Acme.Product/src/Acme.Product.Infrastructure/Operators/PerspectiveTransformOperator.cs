@@ -7,12 +7,40 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 透视变换算子 - 四边形透视校正
 /// </summary>
+[OperatorMeta(
+    DisplayName = "透视变换",
+    Description = "四边形透视校正",
+    Category = "预处理",
+    IconName = "perspective",
+    Keywords = new[] { "透视", "变换", "矫正", "仿射", "四边形", "Perspective", "Warp", "Transform" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("SrcX1", "源点1 X", "double", DefaultValue = 0.0)]
+[OperatorParam("SrcY1", "源点1 Y", "double", DefaultValue = 0.0)]
+[OperatorParam("SrcX2", "源点2 X", "double", DefaultValue = 100.0)]
+[OperatorParam("SrcY2", "源点2 Y", "double", DefaultValue = 0.0)]
+[OperatorParam("SrcX3", "源点3 X", "double", DefaultValue = 100.0)]
+[OperatorParam("SrcY3", "源点3 Y", "double", DefaultValue = 100.0)]
+[OperatorParam("SrcX4", "源点4 X", "double", DefaultValue = 0.0)]
+[OperatorParam("SrcY4", "源点4 Y", "double", DefaultValue = 100.0)]
+[OperatorParam("DstX1", "目标点1 X", "double", DefaultValue = 0.0)]
+[OperatorParam("DstY1", "目标点1 Y", "double", DefaultValue = 0.0)]
+[OperatorParam("DstX2", "目标点2 X", "double", DefaultValue = 640.0)]
+[OperatorParam("DstY2", "目标点2 Y", "double", DefaultValue = 0.0)]
+[OperatorParam("DstX3", "目标点3 X", "double", DefaultValue = 640.0)]
+[OperatorParam("DstY3", "目标点3 Y", "double", DefaultValue = 480.0)]
+[OperatorParam("DstX4", "目标点4 X", "double", DefaultValue = 0.0)]
+[OperatorParam("DstY4", "目标点4 Y", "double", DefaultValue = 480.0)]
+[OperatorParam("OutputWidth", "输出宽度", "int", DefaultValue = 640, Min = 1, Max = 8192)]
+[OperatorParam("OutputHeight", "输出高度", "int", DefaultValue = 480, Min = 1, Max = 8192)]
 public class PerspectiveTransformOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PerspectiveTransform;

@@ -8,12 +8,26 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using Acme.Product.Infrastructure.Memory;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像裁剪算子 - 提取ROI区域
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像裁剪",
+    Description = "ROI区域提取",
+    Category = "预处理",
+    IconName = "crop",
+    Keywords = new[] { "裁剪", "切割", "ROI", "区域提取", "Crop", "Region" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("X", "起始X", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("Y", "起始Y", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("Width", "宽度", "int", DefaultValue = 100, Min = 1)]
+[OperatorParam("Height", "高度", "int", DefaultValue = 100, Min = 1)]
 public class ImageCropOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageCrop;

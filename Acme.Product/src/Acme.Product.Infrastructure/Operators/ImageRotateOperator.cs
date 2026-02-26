@@ -7,12 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像旋转算子 - 任意角度旋转
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像旋转",
+    Description = "任意角度旋转",
+    Category = "预处理",
+    IconName = "rotate",
+    Keywords = new[] { "旋转", "角度", "翻转", "校正", "Rotate", "Angle", "Flip" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("Angle", "旋转角度", "double", DefaultValue = 0.0, Min = -360.0, Max = 360.0)]
+[OperatorParam("CenterX", "中心X", "int", DefaultValue = -1)]
+[OperatorParam("CenterY", "中心Y", "int", DefaultValue = -1)]
+[OperatorParam("Scale", "缩放比例", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("AutoResize", "自动调整尺寸", "bool", DefaultValue = true)]
 public class ImageRotateOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageRotate;

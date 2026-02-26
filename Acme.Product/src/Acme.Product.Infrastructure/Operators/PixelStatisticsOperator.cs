@@ -4,8 +4,29 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "像素统计",
+    Description = "Computes ROI/masked pixel-level statistics.",
+    Category = "检测",
+    IconName = "pixel-stats",
+    Keywords = new[] { "pixel statistics", "mean", "stddev", "min max", "non-zero" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Mask", "Mask", PortDataType.Image, IsRequired = false)]
+[OutputPort("Mean", "Mean", PortDataType.Float)]
+[OutputPort("StdDev", "StdDev", PortDataType.Float)]
+[OutputPort("Min", "Min", PortDataType.Integer)]
+[OutputPort("Max", "Max", PortDataType.Integer)]
+[OutputPort("Median", "Median", PortDataType.Integer)]
+[OutputPort("NonZeroCount", "NonZero Count", PortDataType.Integer)]
+[OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiW", "ROI W", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("RoiH", "ROI H", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("Channel", "Channel", "enum", DefaultValue = "Gray", Options = new[] { "Gray|Gray", "R|R", "G|G", "B|B", "All|All" })]
 public class PixelStatisticsOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PixelStatistics;
@@ -173,10 +194,11 @@ public class PixelStatisticsOperator : OperatorBase
     private static int ComputeMedian(Mat analysis, Mat mask)
     {
         using var hist = new Mat();
+        using var noMask = new Mat();
         Cv2.CalcHist(
             new[] { analysis },
             new[] { 0 },
-            mask.Empty() ? null : mask,
+            mask.Empty() ? noMask : mask,
             hist,
             1,
             new[] { 256 },
@@ -233,4 +255,3 @@ public class PixelStatisticsOperator : OperatorBase
         return int.TryParse(raw.ToString(), out var value) ? value : def;
     }
 }
-

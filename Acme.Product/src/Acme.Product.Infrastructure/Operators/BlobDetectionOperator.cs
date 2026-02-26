@@ -7,12 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Blob检测算子 - 检测图像中的连通区域
 /// </summary>
+[OperatorMeta(
+    DisplayName = "Blob分析",
+    Description = "连通区域分析",
+    Category = "特征提取",
+    IconName = "blob",
+    Keywords = new[] { "连通域", "缺陷区域", "斑点", "面积提取", "缺陷分析", "Blob", "Connected components" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "标记图像", PortDataType.Image)]
+[OutputPort("Blobs", "Blob数据", PortDataType.Contour)]
+[OutputPort("BlobCount", "Blob数量", PortDataType.Integer)]
+[OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100, Min = 0)]
+[OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000, Min = 0)]
+[OperatorParam("Color", "目标颜色", "enum", DefaultValue = "White", Options = new[] { "White|白色", "Black|黑色" })]
 public class BlobDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BlobAnalysis;

@@ -7,8 +7,23 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "平移旋转标定",
+    Description = "Fits image-to-robot transform from calibration point pairs.",
+    Category = "标定",
+    IconName = "calibration",
+    Keywords = new[] { "calibration", "hand-eye", "translation", "rotation" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OutputPort("RotationCenter", "Rotation Center", PortDataType.Point)]
+[OutputPort("CalibrationError", "Calibration Error", PortDataType.Float)]
+[OperatorParam("CalibrationPoints", "Calibration Points", "string", DefaultValue = "[]")]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "LeastSquares", Options = new[] { "LeastSquares|LeastSquares", "SVD|SVD" })]
+[OperatorParam("SavePath", "Save Path", "file", DefaultValue = "")]
 public class TranslationRotationCalibrationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TranslationRotationCalibration;

@@ -9,6 +9,7 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -24,6 +25,16 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 从检测结果中提取最佳匹配项
 /// - 获取最大/最小缺陷
 /// </summary>
+[OperatorMeta(
+    DisplayName = "数组索引器",
+    Description = "从列表中按索引或条件提取元素",
+    Category = "数据处理",
+    IconName = "index"
+)]
+[InputPort("List", "列表", PortDataType.Any, IsRequired = true)]
+[OutputPort("Item", "元素", PortDataType.Any)]
+[OperatorParam("Mode", "提取模式", "enum", DefaultValue = "Index", Options = new[] { "Index|按索引", "MaxConfidence|最大置信度", "MaxArea|最大面积", "MinArea|最小面积", "First|第一个", "Last|最后一个" })]
+[OperatorParam("Index", "索引", "int", DefaultValue = 0)]
 public class ArrayIndexerOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ArrayIndexer;
@@ -57,7 +68,7 @@ public class ArrayIndexerOperator : OperatorBase
         {
             return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
-                { "Result", null },
+                { "Result", null! },
                 { "Found", false },
                 { "Index", -1 }
             }));
@@ -76,7 +87,7 @@ public class ArrayIndexerOperator : OperatorBase
             {
                 return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
                 {
-                    { "Result", null },
+                    { "Result", null! },
                     { "Found", false },
                     { "Index", -1 },
                     { "Message", $"未找到标签为 '{labelFilter}' 的项" }
@@ -148,7 +159,7 @@ public class ArrayIndexerOperator : OperatorBase
 
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
-            { "Result", result },
+            { "Result", result! },
             { "Found", result != null },
             { "Index", resultIndex },
             { "TotalCount", items.Count },

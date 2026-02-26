@@ -7,12 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像缩放算子 - 调整图像尺寸
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像缩放",
+    Description = "调整图像尺寸",
+    Category = "预处理",
+    IconName = "resize",
+    Keywords = new[] { "缩放", "放大", "缩小", "尺寸", "Resize", "Scale", "Zoom" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("Width", "目标宽度", "int", DefaultValue = 640, Min = 1, Max = 8192)]
+[OperatorParam("Height", "目标高度", "int", DefaultValue = 480, Min = 1, Max = 8192)]
+[OperatorParam("ScaleFactor", "缩放比例", "double", DefaultValue = 1.0, Min = 0.01, Max = 10.0)]
+[OperatorParam("Interpolation", "插值方法", "enum", DefaultValue = "Linear", Options = new[] { "Nearest|最近邻", "Linear|双线性", "Cubic|三次", "Area|区域" })]
+[OperatorParam("UseScale", "使用比例", "bool", DefaultValue = false)]
 public class ImageResizeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageResize;

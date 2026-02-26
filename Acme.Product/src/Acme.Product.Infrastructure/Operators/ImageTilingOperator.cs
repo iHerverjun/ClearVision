@@ -4,8 +4,24 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "图像切片",
+    Description = "Splits an image into tiled regions with optional overlap.",
+    Category = "拆分组合",
+    IconName = "tile",
+    Keywords = new[] { "tile", "grid", "split image" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Tiles", "Tiles", PortDataType.Any)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Rows", "Rows", "int", DefaultValue = 2, Min = 1, Max = 100)]
+[OperatorParam("Cols", "Cols", "int", DefaultValue = 2, Min = 1, Max = 100)]
+[OperatorParam("Overlap", "Overlap", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("OutputMode", "Output Mode", "enum", DefaultValue = "Array", Options = new[] { "Array|Array", "Sequential|Sequential" })]
 public class ImageTilingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageTiling;

@@ -279,7 +279,7 @@ public sealed class WebView2Host : IAsyncDisposable
     {
         // 开发环境：使用项目目录
         var devPath = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "",
+            AppContext.BaseDirectory,
             "..", "..", "..", "wwwroot");
 
         if (Directory.Exists(devPath))
@@ -289,7 +289,7 @@ public sealed class WebView2Host : IAsyncDisposable
 
         // 生产环境：使用执行目录
         var prodPath = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "",
+            AppContext.BaseDirectory,
             "wwwroot");
 
         return prodPath;

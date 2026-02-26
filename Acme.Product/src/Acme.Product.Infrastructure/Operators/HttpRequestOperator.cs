@@ -11,6 +11,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -28,6 +29,20 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 触发 AGV 搬运指令
 /// - 查询外部系统数据
 /// </summary>
+[OperatorMeta(
+    DisplayName = "HTTP 请求",
+    Description = "调用外部 REST API",
+    Category = "通信",
+    IconName = "http"
+)]
+[InputPort("Body", "请求体", PortDataType.String, IsRequired = false)]
+[OutputPort("Response", "响应内容", PortDataType.String)]
+[OutputPort("StatusCode", "状态码", PortDataType.Integer)]
+[OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
+[OperatorParam("Url", "API 地址", "string", DefaultValue = "http://localhost:5000/api")]
+[OperatorParam("Method", "方法", "enum", DefaultValue = "POST", Options = new[] { "GET|GET", "POST|POST", "PUT|PUT", "DELETE|DELETE" })]
+[OperatorParam("Timeout", "超时(ms)", "int", DefaultValue = 5000)]
+[OperatorParam("MaxRetries", "最大重试", "int", DefaultValue = 3)]
 public class HttpRequestOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.HttpRequest;

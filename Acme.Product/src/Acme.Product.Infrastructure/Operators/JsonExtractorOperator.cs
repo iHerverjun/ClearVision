@@ -10,6 +10,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -25,6 +26,16 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 提取 HTTP API 响应中的特定字段
 /// - 处理配置 JSON 数据
 /// </summary>
+[OperatorMeta(
+    DisplayName = "JSON 提取器",
+    Description = "按 JSONPath 从字符串中提取字段",
+    Category = "数据处理",
+    IconName = "json"
+)]
+[InputPort("Json", "JSON字符串", PortDataType.String, IsRequired = true)]
+[OutputPort("Value", "提取值", PortDataType.Any)]
+[OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
+[OperatorParam("JsonPath", "JSONPath", "string", DefaultValue = "$.data")]
 public class JsonExtractorOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.JsonExtractor;
@@ -91,7 +102,7 @@ public class JsonExtractorOperator : OperatorBase
                 var defaultResult = ConvertToOutputType(defaultValue, outputType);
                 return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
                 {
-                    { "Value", defaultResult },
+                    { "Value", defaultResult! },
                     { "Found", false },
                     { "AsString", defaultValue },
                     { "Path", path }
@@ -111,7 +122,7 @@ public class JsonExtractorOperator : OperatorBase
 
             return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
-                { "Value", result },
+                { "Value", result! },
                 { "Found", true },
                 { "AsString", asString },
                 { "AsFloat", asFloat },

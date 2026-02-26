@@ -5,8 +5,34 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "颜色测量",
+    Description = "Measures average Lab/HSV values and computes DeltaE.",
+    Category = "颜色处理",
+    IconName = "color-measure",
+    Keywords = new[] { "color", "deltaE", "lab", "hsv" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("ReferenceColor", "Reference Color", PortDataType.Any, IsRequired = false)]
+[OutputPort("L", "L", PortDataType.Float)]
+[OutputPort("A", "A", PortDataType.Float)]
+[OutputPort("B", "B", PortDataType.Float)]
+[OutputPort("H", "H", PortDataType.Float)]
+[OutputPort("S", "S", PortDataType.Float)]
+[OutputPort("V", "V", PortDataType.Float)]
+[OutputPort("DeltaE", "DeltaE", PortDataType.Float)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("ColorSpace", "Color Space", "enum", DefaultValue = "Lab", Options = new[] { "Lab|Lab", "HSV|HSV" })]
+[OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0)]
+[OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0)]
+[OperatorParam("RoiW", "ROI W", "int", DefaultValue = 0)]
+[OperatorParam("RoiH", "ROI H", "int", DefaultValue = 0)]
+[OperatorParam("RefL", "Ref L", "double", DefaultValue = 0.0)]
+[OperatorParam("RefA", "Ref A", "double", DefaultValue = 0.0)]
+[OperatorParam("RefB", "Ref B", "double", DefaultValue = 0.0)]
 public class ColorMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ColorMeasurement;

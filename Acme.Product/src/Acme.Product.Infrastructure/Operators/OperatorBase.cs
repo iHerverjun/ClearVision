@@ -185,7 +185,8 @@ public abstract class OperatorBase : IOperatorExecutor
             // 处理 System.Text.Json 反序列化的 JsonElement
             if (param.Value is System.Text.Json.JsonElement jsonElement)
             {
-                return ConvertJsonElement<T>(jsonElement, defaultValue);
+                var converted = ConvertJsonElement<T>(jsonElement, defaultValue);
+                return converted is null ? defaultValue : converted;
             }
 
             return (T)Convert.ChangeType(param.Value, typeof(T));

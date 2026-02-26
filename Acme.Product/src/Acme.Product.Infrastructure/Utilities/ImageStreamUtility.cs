@@ -76,7 +76,7 @@ public static class ImageStreamUtility
 
             return Convert.ToBase64String(compressedData);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // 注意：此类为静态工具类，无法直接注入ILogger
             // 异常应向上抛出由调用方处理，或可考虑传入ILogger参数
@@ -129,7 +129,7 @@ public static class ImageStreamUtility
 
             return Convert.ToBase64String(compressedData);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // 注意：此类为静态工具类，无法直接注入ILogger
             // 异常向上抛出，由调用方使用ILogger记录

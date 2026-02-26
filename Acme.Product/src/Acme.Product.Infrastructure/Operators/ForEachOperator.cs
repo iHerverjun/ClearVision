@@ -10,7 +10,8 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -25,6 +26,18 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 批量 HTTP 校验
 /// - 并行图像处理（滤波、裁剪等）
 /// </summary>
+[OperatorMeta(
+    DisplayName = "ForEach 循环",
+    Description = "对集合中的每个元素执行子图",
+    Category = "流程控制",
+    IconName = "loop"
+)]
+[InputPort("Items", "集合", PortDataType.Any, IsRequired = true)]
+[OutputPort("Results", "结果列表", PortDataType.Any)]
+[OperatorParam("IoMode", "执行模式", "enum", DefaultValue = "Parallel", Options = new[] { "Parallel|并行(纯计算)", "Sequential|串行(含通信)" })]
+[OperatorParam("MaxParallelism", "最大并行度", "int", DefaultValue = 8, Min = 1, Max = 64)]
+[OperatorParam("Timeout", "超时(ms)", "int", DefaultValue = 30000)]
+[OperatorParam("FailFast", "遇错即停", "bool", DefaultValue = true)]
 public class ForEachOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ForEach;

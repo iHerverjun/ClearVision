@@ -13,7 +13,8 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -51,6 +52,23 @@ public enum YoloVersion
 /// 深度学习算子 - 使用 ONNX 模型进行 AI 缺陷检测
 /// 支持 YOLOv5, YOLOv6, YOLOv8, YOLOv11 等多种模型格式
 /// </summary>
+[OperatorMeta(
+    DisplayName = "深度学习",
+    Description = "AI 深度学习推理，支持 YOLOv5/v6/v8/v11 等模型，用于缺陷检测和目标分类",
+    Category = "AI检测",
+    IconName = "ai",
+    Keywords = new[] { "深度学习", "AI", "模型", "推理", "缺陷识别", "目标检测", "YOLO", "判断瑕疵", "Deep learning" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Defects", "缺陷列表", PortDataType.DetectionList)]
+[OutputPort("DefectCount", "缺陷数量", PortDataType.Integer)]
+[OperatorParam("ModelPath", "模型路径", "file", DefaultValue = "")]
+[OperatorParam("Confidence", "置信度阈值", "double", DefaultValue = 0.5, Min = 0.0, Max = 1.0)]
+[OperatorParam("ModelVersion", "YOLO版本", "enum", DefaultValue = "Auto", Options = new[] { "Auto|自动检测", "YOLOv5|YOLOv5", "YOLOv6|YOLOv6", "YOLOv8|YOLOv8", "YOLOv11|YOLOv11" })]
+[OperatorParam("InputSize", "输入尺寸", "int", DefaultValue = 640, Min = 320, Max = 1280)]
+[OperatorParam("TargetClasses", "目标类别", "string", Description = "检测目标类别（逗号分隔，如 person,car），为空则检测所有类别", DefaultValue = "")]
+[OperatorParam("LabelFile", "标签文件路径", "file", Description = "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt", DefaultValue = "")]
 public class DeepLearningOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.DeepLearning;

@@ -8,12 +8,27 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 变量写入算子 - 写入值到全局变量表
 /// 【第三优先级】变量表/全局上下文功能
 /// </summary>
+[OperatorMeta(
+    DisplayName = "变量写入",
+    Description = "写入值到全局变量表",
+    Category = "变量",
+    IconName = "variable-write"
+)]
+[InputPort("Value", "值", PortDataType.Any, IsRequired = false)]
+[OutputPort("VariableName", "变量名", PortDataType.String)]
+[OutputPort("Value", "写入的值", PortDataType.Any)]
+[OutputPort("CycleCount", "循环计数", PortDataType.Integer)]
+[OperatorParam("VariableName", "变量名", "string", Description = "要写入的变量名称", DefaultValue = "")]
+[OperatorParam("DataType", "数据类型", "enum", DefaultValue = "String", Options = new[] { "String|字符串", "Int|整数", "Double|浮点数", "Bool|布尔值" })]
+[OperatorParam("UseInputValue", "使用输入值", "bool", Description = "优先使用上游输入的值，否则使用下方静态值", DefaultValue = true)]
+[OperatorParam("StaticValue", "静态值", "string", Description = "当没有上游输入时使用的值", DefaultValue = "0")]
 public class VariableWriteOperator : OperatorBase
 {
     private readonly IVariableContext _variableContext;
@@ -91,7 +106,7 @@ public class VariableWriteOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "VariableName", variableName },
-            { "Value", value },
+            { "Value", value! },
             { "CycleCount", _variableContext.CycleCount }
         }));
     }

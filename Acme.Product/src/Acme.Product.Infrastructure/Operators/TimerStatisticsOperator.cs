@@ -4,8 +4,23 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "计时统计",
+    Description = "Measures elapsed and cycle time statistics.",
+    Category = "逻辑工具",
+    IconName = "timer",
+    Keywords = new[] { "timer", "elapsed", "cycle time", "ct", "statistics" }
+)]
+[InputPort("Trigger", "Trigger", PortDataType.Any, IsRequired = false)]
+[OutputPort("ElapsedMs", "Elapsed (ms)", PortDataType.Float)]
+[OutputPort("TotalMs", "Total (ms)", PortDataType.Float)]
+[OutputPort("AverageMs", "Average (ms)", PortDataType.Float)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("Mode", "Mode", "enum", DefaultValue = "SingleShot", Options = new[] { "SingleShot|SingleShot", "Cumulative|Cumulative" })]
+[OperatorParam("ResetInterval", "Reset Interval", "int", DefaultValue = 0, Min = 0, Max = 1000000)]
 public class TimerStatisticsOperator : OperatorBase
 {
     private readonly object _syncRoot = new();

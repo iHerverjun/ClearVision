@@ -10,7 +10,8 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -25,6 +26,24 @@ namespace Acme.Product.Infrastructure.Operators;
 /// 6. 金字塔粗到精搜索 (Coarse-to-Fine)
 /// 7. 多目标检测与 NMS 去重
 /// </summary>
+[OperatorMeta(
+    DisplayName = "金字塔形状匹配",
+    Description = "多尺度金字塔形状匹配，速度快，适合大尺寸图像",
+    Category = "匹配定位",
+    IconName = "pyramid-match"
+)]
+[InputPort("Image", "搜索图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("Angle", "旋转角度", PortDataType.Float)]
+[OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
+[OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
+[OperatorParam("MinScore", "最小分数(%)", "double", DefaultValue = 80.0, Min = 0.0, Max = 100.0)]
+[OperatorParam("AngleRange", "角度范围(±)", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("PyramidLevels", "金字塔层数", "int", DefaultValue = 3, Min = 1, Max = 5)]
+[OperatorParam("MagnitudeThreshold", "梯度阈值", "int", DefaultValue = 30, Min = 0, Max = 255)]
 public class PyramidShapeMatchOperator : OperatorBase
 {
     private readonly Dictionary<string, List<Template>> _templateCache = new();

@@ -6,8 +6,28 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "间隙测量",
+    Description = "Measures spacing using points or image projection.",
+    Category = "检测",
+    IconName = "gap",
+    Keywords = new[] { "gap", "spacing", "pitch", "distance" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[InputPort("Points", "Points", PortDataType.PointList, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Gaps", "Gaps", PortDataType.Any)]
+[OutputPort("MeanGap", "Mean Gap", PortDataType.Float)]
+[OutputPort("MinGap", "Min Gap", PortDataType.Float)]
+[OutputPort("MaxGap", "Max Gap", PortDataType.Float)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("Direction", "Direction", "enum", DefaultValue = "Auto", Options = new[] { "Horizontal|Horizontal", "Vertical|Vertical", "Auto|Auto" })]
+[OperatorParam("MinGap", "Min Gap", "double", DefaultValue = 0.0, Min = 0.0, Max = 1000000.0)]
+[OperatorParam("MaxGap", "Max Gap", "double", DefaultValue = 0.0, Min = 0.0, Max = 1000000.0)]
+[OperatorParam("ExpectedCount", "Expected Count", "int", DefaultValue = 0, Min = 0, Max = 10000)]
 public class GapMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GapMeasurement;

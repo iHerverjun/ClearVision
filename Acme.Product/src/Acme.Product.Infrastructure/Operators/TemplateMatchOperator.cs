@@ -7,12 +7,29 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 模板匹配算子 - 在图像中查找模板位置
 /// </summary>
+[OperatorMeta(
+    DisplayName = "模板匹配",
+    Description = "NCC/SQDiff 模板匹配，用于定位目标位置和缺失检测",
+    Category = "匹配定位",
+    IconName = "template",
+    Keywords = new[] { "模板匹配", "定位", "找图", "特征匹配", "关联定位", "Template", "Match", "Locate" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
+[OperatorParam("Method", "匹配方法", "enum", DefaultValue = "NCC", Options = new[] { "NCC|归一化相关 (NCC)", "SQDiff|平方差 (SQDiff)" })]
+[OperatorParam("Threshold", "匹配分数阈值", "double", DefaultValue = 0.8, Min = 0.1, Max = 1.0)]
+[OperatorParam("MaxMatches", "最大匹配数", "int", DefaultValue = 1, Min = 1, Max = 100)]
 public class TemplateMatchOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TemplateMatching;

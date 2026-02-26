@@ -7,12 +7,30 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 角度测量算子 - 基于三点计算角度
 /// </summary>
+[OperatorMeta(
+    DisplayName = "角度测量",
+    Description = "基于三点计算角度",
+    Category = "检测",
+    IconName = "angle-measure",
+    Keywords = new[] { "角度", "三点", "弧度", "夹角", "Angle", "Degree", "Radian" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Angle", "角度", PortDataType.Float)]
+[OperatorParam("Point1X", "点1 X", "int", DefaultValue = 0)]
+[OperatorParam("Point1Y", "点1 Y", "int", DefaultValue = 0)]
+[OperatorParam("Point2X", "点2 X(顶点)", "int", DefaultValue = 100)]
+[OperatorParam("Point2Y", "点2 Y(顶点)", "int", DefaultValue = 100)]
+[OperatorParam("Point3X", "点3 X", "int", DefaultValue = 200)]
+[OperatorParam("Point3Y", "点3 Y", "int", DefaultValue = 0)]
+[OperatorParam("Unit", "角度单位", "enum", DefaultValue = "Degree", Options = new[] { "Degree|度", "Radian|弧度" })]
 public class AngleMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.AngleMeasurement;

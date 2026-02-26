@@ -171,7 +171,7 @@ public class HandEyeCalibrationService : IHandEyeCalibrationService
 
             // 如果仅给出纯文件名，则追加到 AppData 库中，否则如果是绝对路径则直接使用原始路径
             string fullPath = Path.IsPathRooted(fileName) ? fileName : Path.Combine(appData, fileName);
-            string directoryPath = Path.GetDirectoryName(fullPath);
+            string? directoryPath = Path.GetDirectoryName(fullPath);
 
             if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
             {

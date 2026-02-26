@@ -8,6 +8,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -22,6 +23,18 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 圆A.Radius → Subtract.ValueA，圆B.Radius → Subtract.ValueB → Abs → ConditionalBranch
 /// - 尺寸公差计算
 /// </summary>
+[OperatorMeta(
+    DisplayName = "数值计算",
+    Description = "支持加减乘除、取绝对值、开方等常用运算",
+    Category = "数据处理",
+    IconName = "calc",
+    Keywords = new[] { "计算", "数学", "加减乘除", "数值", "判断大小", "运算", "Math", "Calculate", "Add", "Subtract", "Multiply", "Divide" }
+)]
+[InputPort("ValueA", "数值 A", PortDataType.Float, IsRequired = true)]
+[InputPort("ValueB", "数值 B", PortDataType.Float, IsRequired = false)]
+[OutputPort("Result", "结果", PortDataType.Float)]
+[OutputPort("IsPositive", "大于零", PortDataType.Boolean)]
+[OperatorParam("Operation", "运算类型", "enum", DefaultValue = "Add", Options = new[] { "Add|加 (+)", "Subtract|减 (-)", "Multiply|乘 (×)", "Divide|除 (÷)", "Abs|绝对值 (Abs)", "Min|取小 (Min)", "Max|取大 (Max)", "Power|幂运算 (Power)", "Sqrt|平方根 (Sqrt)", "Round|取整 (Round)", "Modulo|取余 (Modulo)" })]
 public class MathOperationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MathOperation;

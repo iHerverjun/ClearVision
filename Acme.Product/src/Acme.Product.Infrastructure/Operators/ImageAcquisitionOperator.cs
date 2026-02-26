@@ -9,12 +9,27 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像采集算子 - 支持相机和文件采集
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像采集",
+    Description = "从文件或相机采集图像",
+    Category = "采集",
+    IconName = "camera",
+    Keywords = new[] { "采集", "相机", "拍照", "取图", "摄像头", "图像输入", "Acquire", "Camera", "Capture" }
+)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("sourceType", "采集源", "enum", DefaultValue = "file", Options = new[] { "file|文件", "camera|相机" })]
+[OperatorParam("filePath", "文件路径", "file", DefaultValue = "")]
+[OperatorParam("cameraId", "相机", "cameraBinding", DefaultValue = "")]
+[OperatorParam("exposureTime", "曝光时间", "double", DefaultValue = 5000.0, Min = 1.0, Max = 1000000.0)]
+[OperatorParam("gain", "增益", "double", DefaultValue = 1.0, Min = 1.0, Max = 20.0)]
+[OperatorParam("triggerMode", "触发模式", "enum", DefaultValue = "Software", Options = new[] { "Software|软触发", "Hardware|外触发" })]
 public class ImageAcquisitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;

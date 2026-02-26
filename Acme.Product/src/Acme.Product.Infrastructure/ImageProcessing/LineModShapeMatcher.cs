@@ -376,6 +376,7 @@ public sealed class LineModShapeMatcher : IDisposable
             // 3x3 邻域投票
             Parallel.For(1, height - 1, r =>
             {
+                Span<int> hist = stackalloc int[8];
                 for (int c = 1; c < width - 1; c++)
                 {
                     float mag = magPtr[r * magStep + c];
@@ -383,7 +384,7 @@ public sealed class LineModShapeMatcher : IDisposable
                         continue;
 
                     // stackalloc 在 C# 自动清零
-                    Span<int> hist = stackalloc int[8];
+                    hist.Clear();
                     for (int dr = -1; dr <= 1; dr++)
                     {
                         for (int dc = -1; dc <= 1; dc++)
@@ -467,7 +468,7 @@ public sealed class LineModShapeMatcher : IDisposable
         int height = magnitude.Rows;
         int magStep = (int)magnitude.Step() / sizeof(float);
         int angleStep = (int)quantizedAngle.Step();
-        int maskStep = maskPtr != null ? (int)mask.Step() : 0;
+        int maskStep = mask != null && maskPtr != null ? (int)mask.Step() : 0;
 
         int border = nmsSize / 2;
 

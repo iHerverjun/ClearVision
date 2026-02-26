@@ -2,9 +2,21 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "延时",
+    Description = "等待指定时间后继续执行，常用于通信前等待下位机就绪",
+    Category = "流程控制",
+    IconName = "timer",
+    Keywords = new[] { "延时", "等待", "暂停", "定时", "休眠", "Delay", "Wait", "Sleep", "Timer" }
+)]
+[InputPort("Input", "透传输入", PortDataType.Any, IsRequired = false)]
+[OutputPort("Output", "透传输出", PortDataType.Any)]
+[OutputPort("ElapsedMs", "实际耗时(ms)", PortDataType.Integer)]
+[OperatorParam("Milliseconds", "延时毫秒", "int", DefaultValue = 200, Min = 0, Max = 60000)]
 public class DelayOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Delay;

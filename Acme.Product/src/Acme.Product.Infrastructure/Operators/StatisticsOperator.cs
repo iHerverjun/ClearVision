@@ -8,7 +8,8 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -23,6 +24,22 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 尺寸公差 SPC 监控
 /// - 产线质量趋势分析
 /// </summary>
+[OperatorMeta(
+    DisplayName = "统计分析",
+    Description = "计算均值、标准差、CPK 等质量统计指标",
+    Category = "通用",
+    IconName = "stats"
+)]
+[InputPort("Value", "输入值", PortDataType.Float, IsRequired = true)]
+[OutputPort("Mean", "均值", PortDataType.Float)]
+[OutputPort("StdDev", "标准差", PortDataType.Float)]
+[OutputPort("Count", "样本数", PortDataType.Integer)]
+[OutputPort("Min", "最小值", PortDataType.Float)]
+[OutputPort("Max", "最大值", PortDataType.Float)]
+[OutputPort("Cpk", "过程能力指数", PortDataType.Float)]
+[OutputPort("IsCapable", "能力达标", PortDataType.Boolean)]
+[OperatorParam("USL", "规格上限", "double", Description = "Upper Specification Limit，留空则不计算 CPK", DefaultValue = "")]
+[OperatorParam("LSL", "规格下限", "double", Description = "Lower Specification Limit，留空则不计算 CPK", DefaultValue = "")]
 public class StatisticsOperator : OperatorBase
 {
     private readonly List<double> _historyValues = new();

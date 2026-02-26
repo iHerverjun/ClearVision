@@ -8,8 +8,23 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "N点标定",
+    Description = "Builds affine or perspective calibration from user point pairs.",
+    Category = "标定",
+    IconName = "n-point",
+    Keywords = new[] { "n-point", "affine", "perspective", "calibration" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OutputPort("PixelSize", "Pixel Size", PortDataType.Float)]
+[OutputPort("ReprojectionError", "Reprojection Error", PortDataType.Float)]
+[OperatorParam("CalibrationMode", "Calibration Mode", "enum", DefaultValue = "Affine", Options = new[] { "Affine|Affine", "Perspective|Perspective" })]
+[OperatorParam("PointPairs", "Point Pairs", "string", DefaultValue = "")]
+[OperatorParam("SavePath", "Save Path", "file", DefaultValue = "")]
 public class NPointCalibrationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.NPointCalibration;

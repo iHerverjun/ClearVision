@@ -8,12 +8,33 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System.Text.Json;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// ROI管理器算子 - 矩形/圆形/多边形区域选择
 /// </summary>
+[OperatorMeta(
+    DisplayName = "ROI管理器",
+    Description = "矩形/圆形/多边形区域选择",
+    Category = "辅助",
+    IconName = "roi",
+    Keywords = new[] { "ROI", "区域", "感兴趣区", "掩膜", "选区", "Region", "Mask", "Area of interest" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "ROI图像", PortDataType.Image)]
+[OutputPort("Mask", "掩膜", PortDataType.Image)]
+[OperatorParam("Shape", "形状", "enum", DefaultValue = "Rectangle", Options = new[] { "Rectangle|矩形", "Circle|圆形", "Polygon|多边形" })]
+[OperatorParam("Operation", "操作", "enum", DefaultValue = "Crop", Options = new[] { "Crop|裁剪", "Mask|掩膜" })]
+[OperatorParam("X", "X", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("Y", "Y", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("Width", "宽度", "int", DefaultValue = 200, Min = 1)]
+[OperatorParam("Height", "高度", "int", DefaultValue = 200, Min = 1)]
+[OperatorParam("CenterX", "圆心X", "int", DefaultValue = 100)]
+[OperatorParam("CenterY", "圆心Y", "int", DefaultValue = 100)]
+[OperatorParam("Radius", "半径", "int", DefaultValue = 50, Min = 1)]
+[OperatorParam("PolygonPoints", "多边形顶点(JSON)", "string", DefaultValue = "[[10,10],[200,10],[200,200],[10,200]]")]
 public class RoiManagerOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.RoiManager;

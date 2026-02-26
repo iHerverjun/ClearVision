@@ -34,8 +34,8 @@
 
 ### 1.1 设计元数据 Attribute 体系
 
-- [ ] 在 `Acme.Product.Core` 中新建 `Attributes/` 目录
-- [ ] 设计并实现以下 Attribute 类：
+- [x] 在 `Acme.Product.Core` 中新建 `Attributes/` 目录
+- [x] 设计并实现以下 Attribute 类：
 
 | Attribute | 标注位置 | 用途 |
 |-----------|----------|------|
@@ -45,7 +45,7 @@
 | `[OperatorParam]` | 类（可多次） | 参数定义：Name、DisplayName、DataType、DefaultValue、Min/Max、Options |
 | `[AlgorithmInfo]` | 类（可选） | 算法信息：算法名称、时间复杂度、空间复杂度、核心依赖库 |
 
-- [ ] Attribute 示例设计（以 `GaussianBlurOperator` 为例）：
+- [x] Attribute 示例设计（以 `GaussianBlurOperator` 为例）：
 
 ```csharp
 [OperatorMeta(
@@ -71,35 +71,35 @@ public class GaussianBlurOperator : OperatorBase { ... }
 
 ### 1.2 实现 Attribute 自动发现引擎
 
-- [ ] 在 `Acme.Product.Infrastructure/Services/` 新建 `OperatorMetadataScanner.cs`
-- [ ] 实现反射扫描逻辑：扫描程序集中所有继承 `OperatorBase` 且标注了 `[OperatorMeta]` 的类
-- [ ] 将扫描结果转化为现有的 `OperatorMetadata` 对象
-- [ ] 输出完整的 `List<OperatorMetadata>` 供工厂消费
+- [x] 在 `Acme.Product.Infrastructure/Services/` 新建 `OperatorMetadataScanner.cs`
+- [x] 实现反射扫描逻辑：扫描程序集中所有继承 `OperatorBase` 且标注了 `[OperatorMeta]` 的类
+- [x] 将扫描结果转化为现有的 `OperatorMetadata` 对象
+- [x] 输出完整的 `List<OperatorMetadata>` 供工厂消费
 
 ### 1.3 改造 OperatorFactory（兼容模式）
 
 > [!CAUTION]
 > 此步骤直接接触主项目运行时代码，必须采用**纯增量**策略，不得删除或修改任何现有硬编码逻辑。
 
-- [ ] 修改 `OperatorFactory.InitializeDefaultOperators()` 逻辑：
+- [x] 修改 `OperatorFactory.InitializeDefaultOperators()` 逻辑：
   - 保留全部现有硬编码注册（**不删除任何一行**）
   - 在硬编码之后追加 Attribute 扫描结果，仅补充硬编码中**缺失**的算子
   - 若 Attribute 与硬编码同时存在，**以硬编码为准**（确保零行为变更）
-- [ ] 添加仅在 `DEBUG` 模式下的日志：记录每个算子的元数据来源（Attribute / Hardcode）
-- [ ] 添加启动时校验（仅告警不拦截）：检测 Attribute 定义与硬编码是否存在字段差异
+- [x] 添加仅在 `DEBUG` 模式下的日志：记录每个算子的元数据来源（Attribute / Hardcode）
+- [x] 添加启动时校验（仅告警不拦截）：检测 Attribute 定义与硬编码是否存在字段差异
 
 ### 1.4 逐步为 101 个算子添加 Attribute
 
 > [!NOTE]
 > Attribute 标注是**纯增量操作**——仅在算子类上添加 Attribute，不修改任何方法体或逻辑代码。对主项目运行时**零影响**。
 
-- [ ] **批次 1（核心算子 × 20）**：图像采集、预处理、滤波、边缘检测等基础算子
-- [ ] **批次 2（测量算子 × 15）**：卡尺、宽度、角度、距离、间距测量等
-- [ ] **批次 3（标定算子 × 8）**：相机标定、N点标定、畸变校正等
-- [ ] **批次 4（通信算子 × 8）**：Modbus、TCP、串口、PLC、MQTT、HTTP等
-- [ ] **批次 5（流程控制 × 12）**：条件分支、循环、异常、变量、脚本等
-- [ ] **批次 6（AI + 后处理 × 10）**：深度学习推理、NMS、Box过滤、缺陷检测等
-- [ ] **批次 7（剩余算子）**：数据处理、格式转换、结果判定等
+- [x] **批次 1（核心算子 × 20）**：图像采集、预处理、滤波、边缘检测等基础算子
+- [x] **批次 2（测量算子 × 15）**：卡尺、宽度、角度、距离、间距测量等
+- [x] **批次 3（标定算子 × 8）**：相机标定、N点标定、畸变校正等
+- [x] **批次 4（通信算子 × 8）**：Modbus、TCP、串口、PLC、MQTT、HTTP等
+- [x] **批次 5（流程控制 × 12）**：条件分支、循环、异常、变量、脚本等
+- [x] **批次 6（AI + 后处理 × 10）**：深度学习推理、NMS、Box过滤、缺陷检测等
+- [x] **批次 7（剩余算子）**：数据处理、格式转换、结果判定等
 - [ ] 每完成一个批次后，运行全部单元测试确认无回退
 
 ### 1.5 验证（不清理硬编码）
@@ -107,9 +107,9 @@ public class GaussianBlurOperator : OperatorBase { ... }
 > [!IMPORTANT]
 > 本阶段**不移除** `InitializeDefaultOperators()` 中的硬编码。硬编码将长期保留作为 fallback，仅在未来明确不需要时才考虑移除。
 
-- [ ] 运行全部单元测试，确保行为一致
-- [ ] 验证前端算子库展示无变化
-- [ ] 编译主项目 Release 模式，确认无警告
+- [x] 运行全部单元测试，确保行为一致（2026-02-26：593 总数，588 通过 / 5 跳过 / 0 失败）
+- [x] 验证前端算子库展示无变化
+- [x] 编译主项目 Release 模式，确认无警告（2026-02-26：`0 warning / 0 error`）
 
 ---
 

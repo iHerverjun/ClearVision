@@ -13,12 +13,22 @@ using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// OCR识别算子 - 文字识别
 /// </summary>
+[OperatorMeta(
+    DisplayName = "OCR 识别",
+    Description = "识别图像中的文本内容",
+    Category = "识别",
+    IconName = "text-recognition"
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Text", "识别文本", PortDataType.String)]
+[OutputPort("IsSuccess", "成功", PortDataType.Boolean)]
 public class OcrRecognitionOperator : OperatorBase
 {
     private readonly OcrEngineProvider _ocrEngineProvider;

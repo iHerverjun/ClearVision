@@ -5,8 +5,27 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "平行线查找",
+    Description = "Finds best pair of near-parallel lines in an image.",
+    Category = "定位",
+    IconName = "parallel",
+    Keywords = new[] { "parallel", "dual edge", "rails" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Line1", "Line 1", PortDataType.LineData)]
+[OutputPort("Line2", "Line 2", PortDataType.LineData)]
+[OutputPort("Distance", "Distance", PortDataType.Float)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("PairCount", "Pair Count", PortDataType.Integer)]
+[OperatorParam("AngleTolerance", "Angle Tolerance", "double", DefaultValue = 5.0, Min = 0.0, Max = 45.0)]
+[OperatorParam("MinLength", "Min Length", "double", DefaultValue = 40.0, Min = 1.0, Max = 100000.0)]
+[OperatorParam("MinDistance", "Min Distance", "double", DefaultValue = 2.0, Min = 0.0, Max = 100000.0)]
+[OperatorParam("MaxDistance", "Max Distance", "double", DefaultValue = 200.0, Min = 0.0, Max = 100000.0)]
 public class ParallelLineFindOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ParallelLineFind;

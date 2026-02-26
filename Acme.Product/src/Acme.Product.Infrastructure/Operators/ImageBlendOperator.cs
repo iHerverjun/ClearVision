@@ -7,13 +7,26 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像融合算子 - 加权混合/透明叠加
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像融合",
+    Description = "加权混合/透明叠加",
+    Category = "预处理",
+    IconName = "blend"
+)]
+[InputPort("Background", "背景", PortDataType.Image, IsRequired = true)]
+[InputPort("Foreground", "前景", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "融合图像", PortDataType.Image)]
+[OperatorParam("Alpha", "背景权重", "double", DefaultValue = 0.5, Min = 0, Max = 1.0)]
+[OperatorParam("Beta", "前景权重", "double", DefaultValue = 0.5, Min = 0, Max = 1.0)]
+[OperatorParam("Gamma", "亮度偏移", "double", DefaultValue = 0, Min = -255, Max = 255)]
 public class ImageBlendOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageBlend;

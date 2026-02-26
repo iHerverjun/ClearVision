@@ -8,11 +8,27 @@ using OpenCvSharp;
 using DetectionListValue = Acme.Product.Core.ValueObjects.DetectionList;
 using DetectionResultValue = Acme.Product.Core.ValueObjects.DetectionResult;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Non-maximum suppression for detection boxes.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "候选框抑制",
+    Description = "Runs non-maximum suppression on detection boxes.",
+    Category = "数据处理",
+    IconName = "nms",
+    Keywords = new[] { "nms", "box", "iou", "suppression" }
+)]
+[InputPort("Detections", "Detections", PortDataType.DetectionList, IsRequired = true)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[OutputPort("Detections", "Detections", PortDataType.DetectionList)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OperatorParam("IouThreshold", "IoU Threshold", "double", DefaultValue = 0.45, Min = 0.1, Max = 1.0)]
+[OperatorParam("ScoreThreshold", "Score Threshold", "double", DefaultValue = 0.25, Min = 0.0, Max = 1.0)]
+[OperatorParam("MaxDetections", "Max Detections", "int", DefaultValue = 100, Min = 1, Max = 1000)]
 public class BoxNmsOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BoxNms;

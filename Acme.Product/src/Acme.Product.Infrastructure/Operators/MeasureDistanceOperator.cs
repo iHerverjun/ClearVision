@@ -7,12 +7,30 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 距离测量算子 - 测量两点之间或点到轮廓的距离
 /// </summary>
+[OperatorMeta(
+    DisplayName = "测量",
+    Description = "两点/水平/垂直距离测量，支持图像坐标和 Point 输入两种模式，用于尺寸检测",
+    Category = "检测",
+    IconName = "measure",
+    Keywords = new[] { "测量", "距离", "长度", "卡尺", "尺寸", "两点间距", "Measure", "Distance", "Length", "Size" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = false)]
+[InputPort("PointA", "起点", PortDataType.Point, IsRequired = false)]
+[InputPort("PointB", "终点", PortDataType.Point, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Distance", "测量距离", PortDataType.Float)]
+[OperatorParam("X1", "起点X", "int", DefaultValue = 0)]
+[OperatorParam("Y1", "起点Y", "int", DefaultValue = 0)]
+[OperatorParam("X2", "终点X", "int", DefaultValue = 100)]
+[OperatorParam("Y2", "终点Y", "int", DefaultValue = 100)]
+[OperatorParam("MeasureType", "测量类型", "enum", DefaultValue = "PointToPoint", Options = new[] { "PointToPoint|点到点", "Horizontal|水平", "Vertical|垂直" })]
 public class MeasureDistanceOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Measurement;

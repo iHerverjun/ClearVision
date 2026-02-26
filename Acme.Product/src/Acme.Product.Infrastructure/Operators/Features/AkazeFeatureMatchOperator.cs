@@ -7,12 +7,30 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// AKAZE特征匹配算子 - 基于AKAZE特征的鲁棒模板匹配
 /// </summary>
+[OperatorMeta(
+    DisplayName = "AKAZE特征匹配",
+    Description = "基于AKAZE特征的鲁棒模板匹配，对光照/旋转/缩放变化具有强鲁棒性",
+    Category = "匹配定位",
+    IconName = "feature-match"
+)]
+[InputPort("Image", "搜索图像", PortDataType.Image, IsRequired = true)]
+[InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
+[OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
+[OperatorParam("Threshold", "检测阈值", "double", DefaultValue = 0.001, Min = 0.0001, Max = 0.1)]
+[OperatorParam("MinMatchCount", "最小匹配数", "int", DefaultValue = 10, Min = 3, Max = 100)]
+[OperatorParam("EnableSymmetryTest", "对称测试", "bool", DefaultValue = true)]
+[OperatorParam("MaxFeatures", "最大特征点", "int", DefaultValue = 500, Min = 100, Max = 2000)]
 public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.AkazeFeatureMatch;

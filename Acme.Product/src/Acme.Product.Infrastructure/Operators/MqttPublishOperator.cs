@@ -10,6 +10,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -28,6 +29,18 @@ namespace Acme.Product.Infrastructure.Operators;
 /// 
 /// 注意：此为基础框架，实际 MQTT 连接需要 MQTTnet 等库
 /// </summary>
+[OperatorMeta(
+    DisplayName = "MQTT 发布",
+    Description = "向消息队列推送数据",
+    Category = "通信",
+    IconName = "mqtt"
+)]
+[InputPort("Payload", "消息负载", PortDataType.Any, IsRequired = true)]
+[OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
+[OperatorParam("Broker", "Broker地址", "string", DefaultValue = "localhost")]
+[OperatorParam("Port", "端口", "int", DefaultValue = 1883)]
+[OperatorParam("Topic", "主题", "string", DefaultValue = "cv/results")]
+[OperatorParam("Qos", "QoS", "int", DefaultValue = 1)]
 public class MqttPublishOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MqttPublish;

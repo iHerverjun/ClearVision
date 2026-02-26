@@ -9,12 +9,26 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 数据库写入算子 - 支持SQLite (可扩展SQLServer/MySQL)
 /// </summary>
+[OperatorMeta(
+    DisplayName = "数据库写入",
+    Description = "检测结果存储到数据库",
+    Category = "数据",
+    IconName = "database",
+    Keywords = new[] { "数据库", "存储", "写入", "记录", "SQL", "Database", "Store", "Write" }
+)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = true)]
+[OutputPort("Status", "状态", PortDataType.Boolean)]
+[OutputPort("RecordId", "记录ID", PortDataType.String)]
+[OperatorParam("ConnectionString", "连接字符串", "string", DefaultValue = "")]
+[OperatorParam("TableName", "表名", "string", DefaultValue = "InspectionResults")]
+[OperatorParam("DbType", "数据库类型", "enum", DefaultValue = "SQLite", Options = new[] { "SQLite|SQLite", "SQLServer|SQLServer", "MySQL|MySQL" })]
 public class DatabaseWriteOperator : OperatorBase
 {
     /// <summary>

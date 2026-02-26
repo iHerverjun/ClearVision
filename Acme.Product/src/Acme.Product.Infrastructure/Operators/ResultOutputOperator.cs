@@ -8,12 +8,27 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 结果输出算子执行器
 /// 透传输入数据作为输出，用于流程最终结果输出
 /// </summary>
+[OperatorMeta(
+    DisplayName = "结果输出",
+    Description = "汇总检测结果并输出，支持 JSON/CSV/Text 格式，可选保存到文件",
+    Category = "输出",
+    IconName = "output",
+    Keywords = new[] { "输出", "结果", "结束", "呈现", "记录", "Output", "Result", "Display" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = false)]
+[InputPort("Result", "结果", PortDataType.Any, IsRequired = false)]
+[InputPort("Text", "文本", PortDataType.String, IsRequired = false)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Output", "输出", PortDataType.Any)]
+[OperatorParam("Format", "输出格式", "enum", DefaultValue = "JSON", Options = new[] { "JSON|JSON", "CSV|CSV", "Text|Text" })]
+[OperatorParam("SaveToFile", "保存到文件", "bool", DefaultValue = true)]
 public class ResultOutputOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ResultOutput;

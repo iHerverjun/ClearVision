@@ -4,8 +4,24 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "图像组合",
+    Description = "Composes multiple images by concat/grid/channel merge.",
+    Category = "拆分组合",
+    IconName = "compose",
+    Keywords = new[] { "compose", "concat", "grid", "merge channels" }
+)]
+[InputPort("Image1", "Image 1", PortDataType.Image, IsRequired = true)]
+[InputPort("Image2", "Image 2", PortDataType.Image, IsRequired = true)]
+[InputPort("Image3", "Image 3", PortDataType.Image, IsRequired = false)]
+[InputPort("Image4", "Image 4", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Mode", "Mode", "enum", DefaultValue = "Horizontal", Options = new[] { "Horizontal|Horizontal", "Vertical|Vertical", "Grid|Grid", "ChannelMerge|ChannelMerge" })]
+[OperatorParam("Padding", "Padding", "int", DefaultValue = 0, Min = 0, Max = 1000)]
+[OperatorParam("BackgroundColor", "Background Color", "string", DefaultValue = "#000000")]
 public class ImageComposeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageCompose;

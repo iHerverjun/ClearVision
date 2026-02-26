@@ -8,12 +8,33 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 圆测量算子 - 霍夫圆检测与测量
 /// </summary>
+[OperatorMeta(
+    DisplayName = "圆测量",
+    Description = "霍夫变换检测圆形并测量半径与圆心坐标，适用于孔径检测和圆形定位",
+    Category = "检测",
+    IconName = "circle-measure",
+    Keywords = new[] { "圆", "半径", "圆心", "霍夫", "孔", "圆检测", "Circle", "Radius", "Hough" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Radius", "半径", PortDataType.Float)]
+[OutputPort("Center", "圆心", PortDataType.Point)]
+[OutputPort("Circle", "圆数据", PortDataType.CircleData)]
+[OutputPort("CircleCount", "圆数量", PortDataType.Integer)]
+[OperatorParam("Method", "检测方法", "enum", DefaultValue = "HoughCircle", Options = new[] { "HoughCircle|霍夫圆", "FitEllipse|拟合椭圆" })]
+[OperatorParam("MinRadius", "最小半径", "int", DefaultValue = 10, Min = 0)]
+[OperatorParam("MaxRadius", "最大半径", "int", DefaultValue = 200, Min = 0)]
+[OperatorParam("Dp", "分辨率比", "double", DefaultValue = 1.0, Min = 0.5, Max = 4.0)]
+[OperatorParam("MinDist", "最小圆距", "double", DefaultValue = 50.0, Min = 1.0)]
+[OperatorParam("Param1", "Canny阈值", "double", DefaultValue = 100.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("Param2", "累加器阈值", "double", DefaultValue = 30.0, Min = 0.0, Max = 255.0)]
 public class CircleMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CircleMeasurement;

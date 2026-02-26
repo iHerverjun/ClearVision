@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,31 @@ namespace Acme.Product.Infrastructure.Operators;
 /// <summary>
 /// 高斯模糊算子
 /// </summary>
+[OperatorMeta(
+    DisplayName = "Gaussian Blur",
+    Description = "Apply Gaussian filtering to suppress image noise",
+    Category = "Filtering",
+    IconName = "filter",
+    Keywords = new[] { "gaussian", "blur", "filter", "denoise" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("KernelSize", "Kernel Size", "int", DefaultValue = 5, Min = 1, Max = 31)]
+[OperatorParam("SigmaX", "Sigma X", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("SigmaY", "Sigma Y", "double", DefaultValue = 0.0, Min = 0.0, Max = 10.0)]
+[OperatorParam(
+    "BorderType",
+    "Border Type",
+    "enum",
+    DefaultValue = "4",
+    Options = new[] { "0|Constant", "1|Replicate", "2|Reflect", "3|Wrap", "4|Default" }
+)]
+[AlgorithmInfo(
+    Name = "Gaussian Blur (OpenCV)",
+    CoreApi = "Cv2.GaussianBlur",
+    TimeComplexity = "O(W*H*K^2)",
+    Dependencies = new[] { "OpenCvSharp" }
+)]
 public class GaussianBlurOperator : OperatorBase
 {
     /// <summary>

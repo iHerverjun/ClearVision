@@ -7,13 +7,32 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 颜色检测算子 - 基于 HSV/Lab 空间的颜色分析与分级
 /// ColorDetection = 45
 /// </summary>
+[OperatorMeta(
+    DisplayName = "颜色检测",
+    Description = "基于 HSV/Lab 空间的颜色分析与分级",
+    Category = "颜色处理",
+    IconName = "color"
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("ColorInfo", "颜色信息", PortDataType.Any)]
+[OperatorParam("ColorSpace", "颜色空间", "enum", DefaultValue = "HSV", Options = new[] { "HSV|HSV", "Lab|Lab" })]
+[OperatorParam("AnalysisMode", "分析模式", "enum", DefaultValue = "Average", Options = new[] { "Average|平均色", "Dominant|主色提取", "Range|颜色范围检测" })]
+[OperatorParam("HueLow", "H下限", "int", DefaultValue = 0, Min = 0, Max = 180)]
+[OperatorParam("HueHigh", "H上限", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("SatLow", "S下限", "int", DefaultValue = 50, Min = 0, Max = 255)]
+[OperatorParam("SatHigh", "S上限", "int", DefaultValue = 255, Min = 0, Max = 255)]
+[OperatorParam("ValLow", "V下限", "int", DefaultValue = 50, Min = 0, Max = 255)]
+[OperatorParam("ValHigh", "V上限", "int", DefaultValue = 255, Min = 0, Max = 255)]
+[OperatorParam("DominantK", "主色数量K", "int", DefaultValue = 3, Min = 1, Max = 10)]
 public class ColorDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ColorDetection;

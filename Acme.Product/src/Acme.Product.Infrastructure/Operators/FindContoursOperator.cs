@@ -7,12 +7,29 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 轮廓查找算子 - 查找图像中的轮廓
 /// </summary>
+[OperatorMeta(
+    DisplayName = "轮廓检测",
+    Description = "查找图像轮廓，提取边缘点集和层次关系，供后续测量和拟合使用",
+    Category = "特征提取",
+    IconName = "contour",
+    Keywords = new[] { "轮廓", "边界", "形状", "多边形", "边缘点", "Contour", "Shape", "Boundary" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Contours", "轮廓数据", PortDataType.Contour)]
+[OutputPort("ContourCount", "轮廓数量", PortDataType.Integer)]
+[OperatorParam("Mode", "检索模式", "enum", DefaultValue = "External", Options = new[] { "External|外部", "List|列表", "Tree|树" })]
+[OperatorParam("Method", "近似方法", "enum", DefaultValue = "Simple", Options = new[] { "Simple|简单", "None|无" })]
+[OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100)]
+[OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000)]
+[OperatorParam("Threshold", "二值化阈值", "double", DefaultValue = 127.0)]
 public class FindContoursOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ContourDetection;

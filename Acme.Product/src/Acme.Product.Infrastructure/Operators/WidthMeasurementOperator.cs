@@ -6,11 +6,29 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Measures width between two approximately parallel edges/lines.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "宽度测量",
+    Description = "Measures width between parallel edges or lines.",
+    Category = "检测",
+    IconName = "ruler",
+    Keywords = new[] { "width", "thickness", "gap", "distance" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Line1", "Line 1", PortDataType.LineData, IsRequired = false)]
+[InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Width", "Width", PortDataType.Float)]
+[OutputPort("MinWidth", "Min Width", PortDataType.Float)]
+[OutputPort("MaxWidth", "Max Width", PortDataType.Float)]
+[OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "AutoEdge", Options = new[] { "AutoEdge|AutoEdge", "ManualLines|ManualLines" })]
+[OperatorParam("NumSamples", "Sample Count", "int", DefaultValue = 24, Min = 10, Max = 100)]
+[OperatorParam("Direction", "Direction", "enum", DefaultValue = "Perpendicular", Options = new[] { "Perpendicular|Perpendicular", "Custom|Custom" })]
 public class WidthMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.WidthMeasurement;

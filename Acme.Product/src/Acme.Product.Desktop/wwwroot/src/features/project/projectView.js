@@ -47,6 +47,32 @@ export class ProjectView {
             newProjectBtn.addEventListener('click', () => this.showNewProjectDialog());
         }
         
+        // 导入工程按钮（从全局工具栏迁移至此）
+        const importBtn = document.getElementById('btn-import');
+        if (importBtn) {
+            importBtn.addEventListener('click', () => {
+                console.log('[ProjectView] 导入工程');
+                if (typeof window.showImportDialog === 'function') {
+                    window.showImportDialog();
+                } else {
+                    showToast('导入功能未就绪', 'warning');
+                }
+            });
+        }
+        
+        // 导出工程按钮（从全局工具栏迁移至此）
+        const exportBtn = document.getElementById('btn-export');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                console.log('[ProjectView] 导出工程');
+                if (typeof window.exportProjectToJson === 'function') {
+                    window.exportProjectToJson();
+                } else {
+                    showToast('导出功能未就绪', 'warning');
+                }
+            });
+        }
+        
         // Tab 切换
         const tabs = this.container.querySelectorAll('.tab-btn');
         tabs.forEach(tab => {

@@ -10,6 +10,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -25,6 +26,16 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - 日志拼装
 /// - 文件名生成
 /// </summary>
+[OperatorMeta(
+    DisplayName = "字符串格式化",
+    Description = "按模板生成字符串",
+    Category = "通用",
+    IconName = "text"
+)]
+[InputPort("Arg1", "参数 1", PortDataType.Any, IsRequired = false)]
+[InputPort("Arg2", "参数 2", PortDataType.Any, IsRequired = false)]
+[OutputPort("Result", "结果", PortDataType.String)]
+[OperatorParam("Template", "模板", "string", DefaultValue = "Result is {0} and {1}")]
 public class StringFormatOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.StringFormat;

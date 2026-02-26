@@ -6,8 +6,28 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "点集工具",
+    Description = "Merges/sorts/filters point lists and computes set properties.",
+    Category = "逻辑工具",
+    IconName = "point-set",
+    Keywords = new[] { "point set", "sort points", "convex hull", "bounding rect" }
+)]
+[InputPort("Points1", "Points 1", PortDataType.PointList, IsRequired = true)]
+[InputPort("Points2", "Points 2", PortDataType.PointList, IsRequired = false)]
+[OutputPort("Points", "Points", PortDataType.PointList)]
+[OutputPort("Count", "Count", PortDataType.Integer)]
+[OutputPort("Center", "Center", PortDataType.Point)]
+[OutputPort("BoundingBox", "Bounding Box", PortDataType.Rectangle)]
+[OperatorParam("Operation", "Operation", "enum", DefaultValue = "Merge", Options = new[] { "Merge|Merge", "Sort|Sort", "Filter|Filter", "ConvexHull|ConvexHull", "BoundingRect|BoundingRect" })]
+[OperatorParam("SortBy", "Sort By", "enum", DefaultValue = "X", Options = new[] { "X|X", "Y|Y", "Distance|Distance" })]
+[OperatorParam("FilterMinX", "Filter Min X", "double", DefaultValue = -1000000000.0)]
+[OperatorParam("FilterMinY", "Filter Min Y", "double", DefaultValue = -1000000000.0)]
+[OperatorParam("FilterMaxX", "Filter Max X", "double", DefaultValue = 1000000000.0)]
+[OperatorParam("FilterMaxY", "Filter Max Y", "double", DefaultValue = 1000000000.0)]
 public class PointSetToolOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PointSetTool;

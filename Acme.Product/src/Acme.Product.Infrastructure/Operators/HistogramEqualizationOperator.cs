@@ -7,12 +7,25 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 直方图均衡化算子 - 支持全局均衡化和CLAHE自适应均衡化
 /// </summary>
+[OperatorMeta(
+    DisplayName = "直方图均衡化",
+    Description = "全局均衡化和CLAHE自适应均衡化",
+    Category = "预处理",
+    IconName = "histogram",
+    Keywords = new[] { "直方图", "均衡化", "对比度", "增强", "CLAHE", "Histogram", "Equalize", "Contrast" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "输出图像", PortDataType.Image)]
+[OperatorParam("Method", "方法", "enum", DefaultValue = "Global", Options = new[] { "Global|全局均衡化", "CLAHE|CLAHE自适应" })]
+[OperatorParam("ClipLimit", "裁剪限制", "double", DefaultValue = 2.0, Min = 0.0, Max = 100.0)]
+[OperatorParam("TileGridSize", "网格大小", "int", DefaultValue = 8, Min = 1, Max = 64)]
 public class HistogramEqualizationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.HistogramEqualization;

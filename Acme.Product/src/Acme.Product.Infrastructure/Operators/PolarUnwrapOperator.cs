@@ -6,8 +6,26 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "极坐标展开",
+    Description = "Unwraps annular image regions into rectangular view.",
+    Category = "图像处理",
+    IconName = "polar",
+    Keywords = new[] { "polar", "unwrap", "ring", "annular" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Center", "Center", PortDataType.Point, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("CenterX", "Center X", "int", DefaultValue = 0)]
+[OperatorParam("CenterY", "Center Y", "int", DefaultValue = 0)]
+[OperatorParam("InnerRadius", "Inner Radius", "int", DefaultValue = 0, Min = 0, Max = 100000)]
+[OperatorParam("OuterRadius", "Outer Radius", "int", DefaultValue = 100, Min = 1, Max = 100000)]
+[OperatorParam("StartAngle", "Start Angle", "double", DefaultValue = 0.0, Min = -3600.0, Max = 3600.0)]
+[OperatorParam("EndAngle", "End Angle", "double", DefaultValue = 360.0, Min = -3600.0, Max = 3600.0)]
+[OperatorParam("OutputWidth", "Output Width", "int", DefaultValue = 0, Min = 0, Max = 20000)]
 public class PolarUnwrapOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PolarUnwrap;

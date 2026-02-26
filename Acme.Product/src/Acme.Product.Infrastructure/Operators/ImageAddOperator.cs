@@ -7,13 +7,26 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 图像加法算子 - 图像叠加/合并
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "图像加法",
+    Description = "两幅图像叠加/合并",
+    Category = "预处理",
+    IconName = "add"
+)]
+[InputPort("Image1", "图像1", PortDataType.Image, IsRequired = true)]
+[InputPort("Image2", "图像2", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "合成图像", PortDataType.Image)]
+[OperatorParam("Scale1", "图像1权重", "double", DefaultValue = 1.0, Min = 0, Max = 10.0)]
+[OperatorParam("Scale2", "图像2权重", "double", DefaultValue = 1.0, Min = 0, Max = 10.0)]
+[OperatorParam("Offset", "亮度偏移", "double", DefaultValue = 0, Min = -255, Max = 255)]
 public class ImageAddOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAdd;

@@ -5,8 +5,25 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "文本保存",
+    Description = "Saves text or structured data to text/csv/json file.",
+    Category = "逻辑工具",
+    IconName = "save-text",
+    Keywords = new[] { "save text", "export csv", "log", "json export" }
+)]
+[InputPort("Data", "Data", PortDataType.Any, IsRequired = false)]
+[InputPort("Text", "Text", PortDataType.String, IsRequired = false)]
+[OutputPort("FilePath", "File Path", PortDataType.String)]
+[OutputPort("Success", "Success", PortDataType.Boolean)]
+[OperatorParam("FilePath", "File Path", "file", DefaultValue = "output_{date}_{time}.txt")]
+[OperatorParam("Format", "Format", "enum", DefaultValue = "Text", Options = new[] { "Text|Text", "CSV|CSV", "JSON|JSON" })]
+[OperatorParam("AppendMode", "Append Mode", "bool", DefaultValue = true)]
+[OperatorParam("AddTimestamp", "Add Timestamp", "bool", DefaultValue = true)]
+[OperatorParam("Encoding", "Encoding", "enum", DefaultValue = "UTF8", Options = new[] { "UTF8|UTF8", "GBK|GBK" })]
 public class TextSaveOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TextSave;

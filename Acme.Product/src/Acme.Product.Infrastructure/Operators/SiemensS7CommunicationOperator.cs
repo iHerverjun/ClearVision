@@ -10,12 +10,36 @@ using Acme.PlcComm.Interfaces;
 using Acme.PlcComm.Siemens;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 西门子S7通信算子
 /// 支持S7-200/300/400/1200/1500系列PLC读写操作
 /// </summary>
+[OperatorMeta(
+    DisplayName = "西门子S7通信",
+    Description = "西门子S7系列PLC读写通信（S7-200/300/400/1200/1500）",
+    Category = "通信",
+    IconName = "s7"
+)]
+[InputPort("Data", "数据", PortDataType.Any, IsRequired = false)]
+[OutputPort("Response", "响应", PortDataType.String)]
+[OutputPort("Status", "状态", PortDataType.Boolean)]
+[OperatorParam("IpAddress", "IP地址", "string", DefaultValue = "192.168.0.1")]
+[OperatorParam("Port", "端口", "int", DefaultValue = 102, Min = 1, Max = 65535)]
+[OperatorParam("CpuType", "CPU类型", "enum", DefaultValue = "S71200", Options = new[] { "S7200|S7-200", "S7200Smart|S7-200 Smart", "S7300|S7-300", "S7400|S7-400", "S71200|S7-1200", "S71500|S7-1500" })]
+[OperatorParam("Rack", "机架号", "int", DefaultValue = 0, Min = 0, Max = 15)]
+[OperatorParam("Slot", "插槽号", "int", DefaultValue = 1, Min = 0, Max = 15)]
+[OperatorParam("Address", "PLC地址", "string", DefaultValue = "DB1.DBW100")]
+[OperatorParam("DataType", "数据类型", "enum", DefaultValue = "Word", Options = new[] { "Bit|位 (Bool)", "Byte|字节 (Byte)", "Word|字 (Word/UInt16)", "Int16|短整型 (Int16)", "DWord|双字 (DWord/UInt32)", "Int32|整型 (Int32)", "Float|浮点 (Float)", "Double|双精度 (Double)", "String|字符串 (String)" })]
+[OperatorParam("Operation", "操作", "enum", DefaultValue = "Read", Options = new[] { "Read|读取", "Write|写入" })]
+[OperatorParam("WriteValue", "写入值", "string", DefaultValue = "")]
+[OperatorParam("PollingMode", "轮询模式", "enum", Description = "读取时是否启用轮询等待", DefaultValue = "None", Options = new[] { "None|不等待", "WaitForValue|等待指定值" })]
+[OperatorParam("PollingCondition", "等待条件", "enum", Description = "等待的条件类型", DefaultValue = "Equal", Options = new[] { "Equal|等于", "NotEqual|不等于", "GreaterThan|大于", "LessThan|小于", "GreaterOrEqual|大于等于", "LessOrEqual|小于等于" })]
+[OperatorParam("PollingValue", "等待值", "string", Description = "等待的目标值（如触发信号值）", DefaultValue = "1")]
+[OperatorParam("PollingTimeout", "等待超时(ms)", "int", Description = "最长等待时间（毫秒）", DefaultValue = 30000, Min = 100, Max = 300000)]
+[OperatorParam("PollingInterval", "轮询间隔(ms)", "int", Description = "每次读取间隔（毫秒）", DefaultValue = 50, Min = 10, Max = 5000)]
 public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.SiemensS7Communication;
@@ -173,6 +197,7 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
 
                 // 返回成功的输出，附加轮询信息
                 var output = CreateSuccessOutput(currentValue, dataType);
+                output.OutputData ??= new Dictionary<string, object>();
                 output.OutputData["PollingReadCount"] = readCount;
                 output.OutputData["PollingElapsedMs"] = (int)totalElapsed;
                 output.OutputData["PollingMatched"] = true;

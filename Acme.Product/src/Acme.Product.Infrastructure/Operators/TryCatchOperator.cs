@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -18,6 +19,20 @@ namespace Acme.Product.Infrastructure.Operators;
 /// 而是通过输出端口路由到 Try 分支或 Catch 分支。
 /// 实际的异常捕获由 FlowExecutionService 在流程执行时处理。
 /// </remarks>
+[OperatorMeta(
+    DisplayName = "异常捕获",
+    Description = "Try-Catch 流程控制",
+    Category = "流程控制",
+    IconName = "trycatch"
+)]
+[InputPort("Input", "输入", PortDataType.Any, IsRequired = false)]
+[OutputPort("Try", "Try分支", PortDataType.Any)]
+[OutputPort("Catch", "Catch分支", PortDataType.Any)]
+[OutputPort("Error", "错误信息", PortDataType.String)]
+[OutputPort("HasError", "是否有错", PortDataType.Boolean)]
+[OperatorParam("EnableCatch", "启用Catch", "bool", Description = "是否启用异常捕获", DefaultValue = true)]
+[OperatorParam("CatchOutputError", "输出错误信息", "bool", DefaultValue = true)]
+[OperatorParam("CatchOutputStackTrace", "输出堆栈", "bool", DefaultValue = false)]
 public class TryCatchOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TryCatch;

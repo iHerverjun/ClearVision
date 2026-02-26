@@ -6,8 +6,25 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "脚本算子",
+    Description = "Runs user-defined expression or script snippet.",
+    Category = "逻辑工具",
+    IconName = "script",
+    Keywords = new[] { "script", "custom", "code", "expression", "formula" }
+)]
+[InputPort("Input1", "Input 1", PortDataType.Any, IsRequired = false)]
+[InputPort("Input2", "Input 2", PortDataType.Any, IsRequired = false)]
+[InputPort("Input3", "Input 3", PortDataType.Any, IsRequired = false)]
+[InputPort("Input4", "Input 4", PortDataType.Any, IsRequired = false)]
+[OutputPort("Output1", "Output 1", PortDataType.Any)]
+[OutputPort("Output2", "Output 2", PortDataType.Any)]
+[OperatorParam("ScriptLanguage", "Script Language", "enum", DefaultValue = "CSharpExpression", Options = new[] { "CSharpExpression|CSharpExpression", "CSharpScript|CSharpScript" })]
+[OperatorParam("Code", "Code", "string", DefaultValue = "Input1 + Input2")]
+[OperatorParam("Timeout", "Timeout (ms)", "int", DefaultValue = 5000, Min = 1, Max = 120000)]
 public class ScriptOperator : OperatorBase
 {
     private static readonly string[] SupportedLanguages = ["CSharpExpression", "CSharpScript"];

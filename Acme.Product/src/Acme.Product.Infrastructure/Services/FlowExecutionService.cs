@@ -815,7 +815,6 @@ public class FlowExecutionService : IFlowExecutionService
                     else
                     {
                         // 普通算子：执行增强的端口映射逻辑
-                        bool matchedByPort = false;
 
                         // 尝试获取连线两端的端口定义
                         // 注意：SourceOperator 可能不在当前上下文（虽然不太可能），但我们要防御性编程
@@ -833,7 +832,6 @@ public class FlowExecutionService : IFlowExecutionService
                                     // 将数据映射到目标端口名
                                     // 例如：源输出 "Image" -> 目标输入 "Background"
                                     inputs[targetPort.Name] = data;
-                                    matchedByPort = true;
                                 }
                             }
                         }
@@ -909,7 +907,6 @@ public class FlowExecutionService : IFlowExecutionService
 
             // 顺序执行（调试模式不支持并行）
             int completedCount = 0;
-            bool breakpointHit = false;
             Guid? pausedOperatorId = null;
 
             foreach (var op in executionOrder)
@@ -923,7 +920,6 @@ public class FlowExecutionService : IFlowExecutionService
                 // 检查是否命中断点
                 if (options.Breakpoints.Contains(op.Id))
                 {
-                    breakpointHit = true;
                     pausedOperatorId = op.Id;
                     result.BreakpointHit = true;
                     result.PausedOperatorId = pausedOperatorId;

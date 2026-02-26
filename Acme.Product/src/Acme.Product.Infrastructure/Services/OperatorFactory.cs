@@ -4058,9 +4058,9 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "Text", DisplayName = "注释文本", DataType = "string", DefaultValue = "" }
             }
         };
+        OperatorFactoryMetadataMerge.Apply(_metadata);
     }
 }
-
 
 
 

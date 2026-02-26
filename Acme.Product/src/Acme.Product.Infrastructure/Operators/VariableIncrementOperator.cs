@@ -8,12 +8,29 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 变量递增算子 - 计数器自增/自减
 /// 【第三优先级】变量表/全局上下文功能
 /// </summary>
+[OperatorMeta(
+    DisplayName = "变量递增",
+    Description = "计数器自增/自减，支持重置条件",
+    Category = "变量",
+    IconName = "counter"
+)]
+[OutputPort("VariableName", "变量名", PortDataType.String)]
+[OutputPort("PreviousValue", "前值", PortDataType.Integer)]
+[OutputPort("NewValue", "新值", PortDataType.Integer)]
+[OutputPort("Delta", "增量", PortDataType.Integer)]
+[OutputPort("WasReset", "是否已重置", PortDataType.Boolean)]
+[OperatorParam("VariableName", "变量名", "string", Description = "计数器变量名称", DefaultValue = "counter")]
+[OperatorParam("Delta", "增量", "int", Description = "每次递增的值（可为负数实现递减）", DefaultValue = 1)]
+[OperatorParam("ResetCondition", "重置条件", "enum", Description = "满足条件时重置计数器", DefaultValue = "None", Options = new[] { "None|不重置", "GreaterThan|大于阈值", "LessThan|小于阈值", "Equal|等于阈值" })]
+[OperatorParam("ResetThreshold", "重置阈值", "int", DefaultValue = 100)]
+[OperatorParam("ResetValue", "重置后值", "int", Description = "重置后的起始值", DefaultValue = 0)]
 public class VariableIncrementOperator : OperatorBase
 {
     private readonly IVariableContext _variableContext;

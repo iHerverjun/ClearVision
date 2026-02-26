@@ -4,8 +4,27 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "表面缺陷检测",
+    Description = "Detects surface defects using gradient, reference diff, or local contrast.",
+    Category = "AI检测",
+    IconName = "surface-defect",
+    Keywords = new[] { "surface defect", "scratch", "stain", "traditional detection" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("Reference", "Reference", PortDataType.Image, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("DefectMask", "Defect Mask", PortDataType.Image)]
+[OutputPort("DefectCount", "Defect Count", PortDataType.Integer)]
+[OutputPort("DefectArea", "Defect Area", PortDataType.Float)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "GradientMagnitude", Options = new[] { "GradientMagnitude|GradientMagnitude", "ReferenceDiff|ReferenceDiff", "LocalContrast|LocalContrast" })]
+[OperatorParam("Threshold", "Threshold", "double", DefaultValue = 35.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("MinArea", "Min Area", "int", DefaultValue = 20, Min = 0, Max = 10000000)]
+[OperatorParam("MaxArea", "Max Area", "int", DefaultValue = 1000000, Min = 0, Max = 10000000)]
+[OperatorParam("MorphCleanSize", "Morph Clean Size", "int", DefaultValue = 3, Min = 1, Max = 301)]
 public class SurfaceDefectDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.SurfaceDefectDetection;

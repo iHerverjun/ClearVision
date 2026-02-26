@@ -5,8 +5,21 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "边线交点",
+    Description = "Computes line intersection and angle between two lines.",
+    Category = "定位",
+    IconName = "intersection",
+    Keywords = new[] { "intersection", "cross point", "line angle" }
+)]
+[InputPort("Line1", "Line 1", PortDataType.LineData, IsRequired = true)]
+[InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = true)]
+[OutputPort("Point", "Point", PortDataType.Point)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("HasIntersection", "Has Intersection", PortDataType.Boolean)]
 public class EdgeIntersectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgeIntersection;

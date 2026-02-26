@@ -7,13 +7,26 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// CLAHE自适应直方图均衡化算子 - 专门用于局部对比度增强
 /// 【第三优先级】图像预处理算子扩展
 /// </summary>
+[OperatorMeta(
+    DisplayName = "CLAHE增强",
+    Description = "自适应直方图均衡化，用于局部对比度增强",
+    Category = "预处理",
+    IconName = "clahe"
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "增强图像", PortDataType.Image)]
+[OperatorParam("ClipLimit", "裁剪限制", "double", Description = "对比度限制阈值，防止过度放大噪声", DefaultValue = 2.0, Min = 0, Max = 40)]
+[OperatorParam("TileWidth", "网格宽度", "int", DefaultValue = 8, Min = 2, Max = 64)]
+[OperatorParam("TileHeight", "网格高度", "int", DefaultValue = 8, Min = 2, Max = 64)]
+[OperatorParam("ColorSpace", "颜色空间", "enum", DefaultValue = "Lab", Options = new[] { "Lab|Lab - L通道", "HSV|HSV - V通道", "Gray|灰度", "All|所有通道" })]
 public class ClaheEnhancementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ClaheEnhancement;

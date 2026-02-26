@@ -5,22 +5,39 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using ZXing;
 using ZXing.Common;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 条码识别算子 - 一维码/二维码识别 (CodeRecognition = 9)
 /// </summary>
+[OperatorMeta(
+    DisplayName = "条码识别",
+    Description = "一维码/二维码识别，支持 QR、Code128、DataMatrix 等多种码制",
+    Category = "识别",
+    IconName = "barcode",
+    Keywords = new[] { "条码", "二维码", "扫码", "识别", "QR", "读取", "Barcode", "Decode", "Read code" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Text", "识别内容", PortDataType.String)]
+[OutputPort("CodeCount", "识别数量", PortDataType.Integer)]
+[OutputPort("CodeType", "条码类型", PortDataType.String)]
+[OperatorParam("CodeType", "码制类型", "enum", DefaultValue = "All", Options = new[] { "All|全部", "QR|QR码", "Code128|Code128", "DataMatrix|DataMatrix", "EAN13|EAN-13", "Code39|Code39" })]
+[OperatorParam("MaxResults", "最大结果数", "int", DefaultValue = 10, Min = 1, Max = 100)]
 public class CodeRecognitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CodeRecognition;
 
     public CodeRecognitionOperator(ILogger<CodeRecognitionOperator> logger) : base(logger) { }
 
+    [SupportedOSPlatform("windows6.1")]
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
@@ -32,6 +49,11 @@ public class CodeRecognitionOperator : OperatorBase
         }
 
         // 获取参数
+        if (!OperatingSystem.IsWindowsVersionAtLeast(6, 1))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("CodeRecognitionOperator 浠呮敮鎸?Windows 6.1+ 骞冲彴"));
+        }
+
         var codeType = GetStringParam(@operator, "CodeType", "All");
         var maxResults = GetIntParam(@operator, "MaxResults", 10, 1, 100);
 
@@ -126,6 +148,7 @@ public class CodeRecognitionOperator : OperatorBase
     /// <summary>
     /// Mat 转 Bitmap - 使用 PNG 编解码
     /// </summary>
+    [SupportedOSPlatform("windows6.1")]
     private System.Drawing.Bitmap MatToBitmap(Mat mat)
     {
         // 将Mat转换为字节数组

@@ -6,8 +6,28 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "仿射变换",
+    Description = "Applies 2D affine transform using 3-point or rotate-scale-translate mode.",
+    Category = "图像处理",
+    IconName = "affine",
+    Keywords = new[] { "affine", "warp", "rotate", "scale", "translate" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OperatorParam("Mode", "Mode", "enum", DefaultValue = "RotateScaleTranslate", Options = new[] { "ThreePoint|ThreePoint", "RotateScaleTranslate|RotateScaleTranslate" })]
+[OperatorParam("SrcPoints", "Source Points", "string", DefaultValue = "[[0,0],[100,0],[0,100]]")]
+[OperatorParam("DstPoints", "Destination Points", "string", DefaultValue = "[[0,0],[100,0],[0,100]]")]
+[OperatorParam("Angle", "Angle", "double", DefaultValue = 0.0, Min = -3600.0, Max = 3600.0)]
+[OperatorParam("Scale", "Scale", "double", DefaultValue = 1.0, Min = 0.001, Max = 1000.0)]
+[OperatorParam("TranslateX", "Translate X", "double", DefaultValue = 0.0, Min = -100000.0, Max = 100000.0)]
+[OperatorParam("TranslateY", "Translate Y", "double", DefaultValue = 0.0, Min = -100000.0, Max = 100000.0)]
+[OperatorParam("OutputWidth", "Output Width", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("OutputHeight", "Output Height", "int", DefaultValue = 0, Min = 0, Max = 10000)]
 public class AffineTransformOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.AffineTransform;

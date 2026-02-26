@@ -7,12 +7,30 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 直线测量算子 - 霍夫直线检测与测量
 /// </summary>
+[OperatorMeta(
+    DisplayName = "直线测量",
+    Description = "霍夫直线检测与测量",
+    Category = "检测",
+    IconName = "line-measure",
+    Keywords = new[] { "直线", "线段", "角度", "霍夫", "Line", "Hough", "Segment" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Angle", "角度", PortDataType.Float)]
+[OutputPort("Length", "长度", PortDataType.Float)]
+[OutputPort("Line", "直线数据", PortDataType.LineData)]
+[OutputPort("LineCount", "直线数量", PortDataType.Integer)]
+[OperatorParam("Method", "检测方法", "enum", DefaultValue = "HoughLine", Options = new[] { "HoughLine|霍夫直线", "FitLine|拟合直线" })]
+[OperatorParam("Threshold", "累加阈值", "int", DefaultValue = 100, Min = 1)]
+[OperatorParam("MinLength", "最小长度", "double", DefaultValue = 50.0, Min = 0.0)]
+[OperatorParam("MaxGap", "最大间隙", "double", DefaultValue = 10.0, Min = 0.0)]
 public class LineMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.LineMeasurement;

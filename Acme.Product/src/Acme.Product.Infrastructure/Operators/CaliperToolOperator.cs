@@ -6,11 +6,31 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Industrial caliper-like edge pair detector over a single scan line.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "卡尺工具",
+    Description = "Detects edge pairs along a scan line and reports width.",
+    Category = "检测",
+    IconName = "caliper",
+    Keywords = new[] { "caliper", "edge pair", "width", "distance", "edge" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[InputPort("SearchRegion", "Search Region", PortDataType.Rectangle, IsRequired = false)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OutputPort("Width", "Width", PortDataType.Float)]
+[OutputPort("EdgePairs", "Edge Pairs", PortDataType.PointList)]
+[OutputPort("PairCount", "Pair Count", PortDataType.Integer)]
+[OperatorParam("Direction", "Direction", "enum", DefaultValue = "Horizontal", Options = new[] { "Horizontal|Horizontal", "Vertical|Vertical", "Custom|Custom" })]
+[OperatorParam("Angle", "Angle", "double", DefaultValue = 0.0, Min = -180.0, Max = 180.0)]
+[OperatorParam("Polarity", "Polarity", "enum", DefaultValue = "Both", Options = new[] { "DarkToLight|DarkToLight", "LightToDark|LightToDark", "Both|Both" })]
+[OperatorParam("EdgeThreshold", "Edge Threshold", "double", DefaultValue = 18.0, Min = 1.0, Max = 255.0)]
+[OperatorParam("ExpectedCount", "Expected Count", "int", DefaultValue = 1, Min = 1, Max = 100)]
+[OperatorParam("SubpixelAccuracy", "Subpixel Accuracy", "bool", DefaultValue = false)]
 public class CaliperToolOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CaliperTool;

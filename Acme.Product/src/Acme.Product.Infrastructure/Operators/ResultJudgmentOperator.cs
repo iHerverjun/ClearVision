@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -19,6 +20,25 @@ namespace Acme.Product.Infrastructure.Operators;
 /// - GreaterOrEqual: 大于等于期望值
 /// - LessOrEqual: 小于等于期望值
 /// </remarks>
+[OperatorMeta(
+    DisplayName = "结果判定",
+    Description = "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
+    Category = "流程控制",
+    IconName = "judgment"
+)]
+[InputPort("Value", "输入值", PortDataType.Any, IsRequired = true)]
+[InputPort("Confidence", "置信度", PortDataType.Float, IsRequired = false)]
+[OutputPort("IsOk", "是否OK", PortDataType.Boolean)]
+[OutputPort("JudgmentValue", "判定值", PortDataType.String)]
+[OutputPort("Details", "详细信息", PortDataType.String)]
+[OperatorParam("FieldName", "判定字段", "string", Description = "要从上游输入中读取的字段名，如 DefectCount, Distance", DefaultValue = "Value")]
+[OperatorParam("Condition", "判定条件", "enum", DefaultValue = "Equal", Options = new[] { "Equal|等于 (Equal)", "GreaterThan|大于 (GreaterThan)", "LessThan|小于 (LessThan)", "GreaterOrEqual|大于等于 (GreaterOrEqual)", "LessOrEqual|小于等于 (LessOrEqual)", "Range|范围内 (Range)", "Contains|包含 (Contains)", "StartsWith|开头是 (StartsWith)", "EndsWith|结尾是 (EndsWith)" })]
+[OperatorParam("ExpectValue", "期望值", "string", Description = "判定目标值，如 4（螺钉数）、0（缺陷数）、9.5（尺寸下限）", DefaultValue = "4")]
+[OperatorParam("ExpectValueMin", "范围最小值", "string", Description = "用于Range条件，设置范围下限", DefaultValue = "")]
+[OperatorParam("ExpectValueMax", "范围最大值", "string", Description = "用于Range条件，设置范围上限", DefaultValue = "")]
+[OperatorParam("MinConfidence", "最小置信度", "double", Description = "置信度低于此值时判定为NG（0表示不检查置信度）", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("OkOutputValue", "OK输出值", "string", Description = "判定为OK时输出的值（用于PLC写入）", DefaultValue = "1")]
+[OperatorParam("NgOutputValue", "NG输出值", "string", Description = "判定为NG时输出的值（用于PLC写入）", DefaultValue = "0")]
 public class ResultJudgmentOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ResultJudgment;

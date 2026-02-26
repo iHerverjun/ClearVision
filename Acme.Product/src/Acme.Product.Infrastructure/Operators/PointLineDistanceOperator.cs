@@ -6,11 +6,23 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Computes perpendicular distance from a point to a line segment's infinite line.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "点线距离",
+    Description = "Computes perpendicular distance from a point to a line.",
+    Category = "检测",
+    IconName = "distance",
+    Keywords = new[] { "point", "line", "distance", "perpendicular" }
+)]
+[InputPort("Point", "Point", PortDataType.Point, IsRequired = true)]
+[InputPort("Line", "Line", PortDataType.LineData, IsRequired = true)]
+[OutputPort("Distance", "Distance", PortDataType.Float)]
+[OutputPort("FootPoint", "Foot Point", PortDataType.Point)]
 public class PointLineDistanceOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PointLineDistance;

@@ -8,12 +8,26 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 循环计数器算子 - 获取当前循环次数和统计信息
 /// 【第三优先级】循环计数器功能
 /// </summary>
+[OperatorMeta(
+    DisplayName = "循环计数器",
+    Description = "获取当前循环次数和统计信息",
+    Category = "变量",
+    IconName = "cycle"
+)]
+[OutputPort("CycleCount", "当前次数", PortDataType.Integer)]
+[OutputPort("MaxCycles", "最大次数", PortDataType.Integer)]
+[OutputPort("IsLimitReached", "是否达到限制", PortDataType.Boolean)]
+[OutputPort("RemainingCycles", "剩余次数", PortDataType.Integer)]
+[OutputPort("Progress", "进度(%)", PortDataType.Float)]
+[OperatorParam("Action", "操作", "enum", Description = "读取/重置/递增", DefaultValue = "Read", Options = new[] { "Read|读取", "Reset|重置", "Increment|递增" })]
+[OperatorParam("MaxCycles", "最大循环次数", "int", Description = "0表示无限制", DefaultValue = 0)]
 public class CycleCounterOperator : OperatorBase
 {
     private readonly IVariableContext _variableContext;

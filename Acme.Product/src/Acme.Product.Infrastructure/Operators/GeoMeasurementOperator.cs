@@ -5,8 +5,25 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "几何测量",
+    Description = "General geometry measurement between point/line/circle elements.",
+    Category = "检测",
+    IconName = "geometry",
+    Keywords = new[] { "geometry", "point-line", "line-circle", "circle-circle" }
+)]
+[InputPort("Element1", "Element 1", PortDataType.Any, IsRequired = true)]
+[InputPort("Element2", "Element 2", PortDataType.Any, IsRequired = true)]
+[OutputPort("Distance", "Distance", PortDataType.Float)]
+[OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("Intersection1", "Intersection 1", PortDataType.Point)]
+[OutputPort("Intersection2", "Intersection 2", PortDataType.Point)]
+[OutputPort("MeasureType", "Measure Type", PortDataType.String)]
+[OperatorParam("Element1Type", "Element1 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
+[OperatorParam("Element2Type", "Element2 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
 public class GeoMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeoMeasurement;

@@ -7,12 +7,25 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 双边滤波算子 - 边缘保留的平滑滤波
 /// </summary>
+[OperatorMeta(
+    DisplayName = "双边滤波",
+    Description = "边缘保留的平滑滤波",
+    Category = "预处理",
+    IconName = "filter",
+    Keywords = new[] { "双边", "滤波", "边缘保留", "平滑", "纹理", "Bilateral", "Edge-preserving" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("Diameter", "直径", "int", DefaultValue = 9, Min = 1, Max = 25)]
+[OperatorParam("SigmaColor", "色彩Sigma", "double", DefaultValue = 75.0, Min = 1.0, Max = 255.0)]
+[OperatorParam("SigmaSpace", "空间Sigma", "double", DefaultValue = 75.0, Min = 1.0, Max = 255.0)]
 public class BilateralFilterOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BilateralFilter;

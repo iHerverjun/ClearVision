@@ -6,8 +6,23 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "点位对齐",
+    Description = "Computes offset and distance between current and reference points.",
+    Category = "数据处理",
+    IconName = "align-point",
+    Keywords = new[] { "alignment", "offset", "reference point", "distance" }
+)]
+[InputPort("CurrentPoint", "Current Point", PortDataType.Point, IsRequired = true)]
+[InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
+[OutputPort("OffsetX", "Offset X", PortDataType.Float)]
+[OutputPort("OffsetY", "Offset Y", PortDataType.Float)]
+[OutputPort("Distance", "Distance", PortDataType.Float)]
+[OperatorParam("OutputUnit", "Output Unit", "enum", DefaultValue = "Pixel", Options = new[] { "Pixel|Pixel", "mm|mm" })]
+[OperatorParam("PixelSize", "Pixel Size", "double", DefaultValue = 1.0, Min = 1E-09, Max = 1000000.0)]
 public class PointAlignmentOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PointAlignment;

@@ -10,7 +10,8 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
@@ -21,6 +22,19 @@ namespace Acme.Product.Infrastructure.Operators;
 /// 2. GradientInterp - 梯度插值法 (简化版本)
 /// 3. GaussianFit - 高斯拟合法
 /// </summary>
+[OperatorMeta(
+    DisplayName = "亚像素边缘",
+    Description = "高精度亚像素级边缘提取",
+    Category = "颜色处理",
+    IconName = "edge-subpixel"
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("Edges", "边缘点集", PortDataType.Any)]
+[OperatorParam("LowThreshold", "低阈值", "double", DefaultValue = 50.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("HighThreshold", "高阈值", "double", DefaultValue = 150.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("Sigma", "高斯Sigma", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("Method", "亚像素方法", "enum", DefaultValue = "GradientInterp", Options = new[] { "GradientInterp|梯度插值", "GaussianFit|高斯拟合" })]
 public class SubpixelEdgeDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.SubpixelEdgeDetection;

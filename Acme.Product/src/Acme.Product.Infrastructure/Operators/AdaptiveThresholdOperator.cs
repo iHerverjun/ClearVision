@@ -7,12 +7,27 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 自适应阈值算子 - 支持Mean和Gaussian自适应阈值
 /// </summary>
+[OperatorMeta(
+    DisplayName = "自适应阈值",
+    Description = "Mean和Gaussian自适应阈值",
+    Category = "预处理",
+    IconName = "adaptive-threshold",
+    Keywords = new[] { "自适应", "阈值", "局部", "Adaptive", "Local threshold", "Gaussian" }
+)]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "输出图像", PortDataType.Image)]
+[OperatorParam("MaxValue", "最大值", "double", DefaultValue = 255.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("AdaptiveMethod", "自适应方法", "enum", DefaultValue = "Gaussian", Options = new[] { "Gaussian|高斯加权", "Mean|均值" })]
+[OperatorParam("ThresholdType", "阈值类型", "enum", DefaultValue = "Binary", Options = new[] { "Binary|二值化", "BinaryInv|反二值化" })]
+[OperatorParam("BlockSize", "块大小", "int", DefaultValue = 11, Min = 3, Max = 99)]
+[OperatorParam("C", "常数C", "double", DefaultValue = 2.0, Min = -100.0, Max = 100.0)]
 public class AdaptiveThresholdOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.AdaptiveThreshold;

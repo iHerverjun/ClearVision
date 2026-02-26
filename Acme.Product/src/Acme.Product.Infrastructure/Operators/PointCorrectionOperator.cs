@@ -6,8 +6,27 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "点位修正",
+    Description = "Computes translation/rotation correction from detected to reference point.",
+    Category = "数据处理",
+    IconName = "point-correction",
+    Keywords = new[] { "correction", "compensation", "robot", "pick place" }
+)]
+[InputPort("DetectedPoint", "Detected Point", PortDataType.Point, IsRequired = true)]
+[InputPort("DetectedAngle", "Detected Angle", PortDataType.Float, IsRequired = false)]
+[InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
+[InputPort("ReferenceAngle", "Reference Angle", PortDataType.Float, IsRequired = false)]
+[OutputPort("CorrectionX", "Correction X", PortDataType.Float)]
+[OutputPort("CorrectionY", "Correction Y", PortDataType.Float)]
+[OutputPort("CorrectionAngle", "Correction Angle", PortDataType.Float)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OperatorParam("CorrectionMode", "Correction Mode", "enum", DefaultValue = "TranslationOnly", Options = new[] { "TranslationOnly|TranslationOnly", "TranslationRotation|TranslationRotation" })]
+[OperatorParam("OutputUnit", "Output Unit", "enum", DefaultValue = "Pixel", Options = new[] { "Pixel|Pixel", "mm|mm" })]
+[OperatorParam("PixelSize", "Pixel Size", "double", DefaultValue = 1.0, Min = 1E-09, Max = 1000000.0)]
 public class PointCorrectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PointCorrection;

@@ -4,8 +4,24 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
+[OperatorMeta(
+    DisplayName = "边界填充",
+    Description = "Pads image border using OpenCV border policies.",
+    Category = "图像处理",
+    IconName = "border",
+    Keywords = new[] { "border", "pad", "copy make border" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Top", "Top", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("Bottom", "Bottom", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("Left", "Left", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("Right", "Right", "int", DefaultValue = 0, Min = 0, Max = 10000)]
+[OperatorParam("BorderType", "Border Type", "enum", DefaultValue = "Constant", Options = new[] { "Constant|Constant", "Replicate|Replicate", "Reflect|Reflect", "Wrap|Wrap" })]
+[OperatorParam("Color", "Color", "string", DefaultValue = "#000000")]
 public class CopyMakeBorderOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CopyMakeBorder;

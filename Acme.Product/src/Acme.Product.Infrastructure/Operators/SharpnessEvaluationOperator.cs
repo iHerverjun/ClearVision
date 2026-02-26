@@ -4,11 +4,29 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// Evaluates image sharpness by multiple focus measures.
 /// </summary>
+[OperatorMeta(
+    DisplayName = "清晰度评估",
+    Description = "Evaluates focus quality of an image.",
+    Category = "检测",
+    IconName = "focus",
+    Keywords = new[] { "sharpness", "focus", "blur", "laplacian", "tenengrad" }
+)]
+[InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
+[OutputPort("Score", "Score", PortDataType.Float)]
+[OutputPort("IsSharp", "Is Sharp", PortDataType.Boolean)]
+[OutputPort("Image", "Image", PortDataType.Image)]
+[OperatorParam("Method", "Method", "enum", DefaultValue = "Laplacian", Options = new[] { "Laplacian|Laplacian", "Brenner|Brenner", "Tenengrad|Tenengrad", "SMD|SMD" })]
+[OperatorParam("Threshold", "Threshold", "double", DefaultValue = 100.0, Min = 0.0)]
+[OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0)]
+[OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0)]
+[OperatorParam("RoiW", "ROI Width", "int", DefaultValue = 0)]
+[OperatorParam("RoiH", "ROI Height", "int", DefaultValue = 0)]
 public class SharpnessEvaluationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.SharpnessEvaluation;

@@ -43,7 +43,7 @@ public sealed class OcrEngineProvider : IDisposable
                         _logger.LogInformation("[OcrEngineProvider] 正在初始化 PaddleOCREngine 服务...");
 
                         // 采用默认的 OCR 参数与模型字典 (自动提取到执行目录)
-                        OCRModelConfig config = null; // 默认自带模型
+                        OCRModelConfig? config = null; // 默认自带模型
                         OCRParameter oCRParameter = new OCRParameter();
                         oCRParameter.cpu_math_library_num_threads = 4;// 限制线程数以防止占满CPU
                         oCRParameter.enable_mkldnn = true;

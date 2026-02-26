@@ -8,12 +8,23 @@ using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using Acme.Product.Infrastructure.Memory;
-
+
+using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
 /// 中值滤波算子 - 有效去除椒盐噪声同时保留边缘
 /// </summary>
+[OperatorMeta(
+    DisplayName = "中值滤波",
+    Description = "有效去除椒盐噪声同时保留边缘",
+    Category = "预处理",
+    IconName = "filter",
+    Keywords = new[] { "中值", "滤波", "椒盐噪声", "去噪", "Median", "Filter", "Salt and pepper" }
+)]
+[InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
+[OutputPort("Image", "图像", PortDataType.Image)]
+[OperatorParam("KernelSize", "核大小", "int", DefaultValue = 5, Min = 1, Max = 31)]
 public class MedianBlurOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MedianBlur;
