@@ -17,7 +17,8 @@ public interface IAiFlowGenerationService
         AiFlowGenerationRequest request,
         Action<string>? onProgress = null,
         Action<AiStreamChunk>? onStreamChunk = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Action<GenerateFlowAttachmentReport>? onAttachmentReport = null);
 }
 
 /// <summary>

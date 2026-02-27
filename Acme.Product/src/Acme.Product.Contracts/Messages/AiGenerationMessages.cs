@@ -30,6 +30,8 @@ public record GenerateFlowRequestPayload
     /// 可选：当前流程 JSON（用于增量修改/解释）
     /// </summary>
     public string? ExistingFlowJson { get; init; }
+
+    public List<string>? Attachments { get; init; }
 }
 
 /// <summary>
@@ -81,6 +83,26 @@ public record GenerateFlowStreamChunk
 /// <summary>
 /// 内部流式块传递模型
 /// </summary>
+public record GenerateFlowAttachmentReport
+{
+    public string Type => "GenerateFlowAttachmentReport";
+    public List<GenerateFlowAttachmentSentItem> Sent { get; init; } = new();
+    public List<GenerateFlowAttachmentSkippedItem> Skipped { get; init; } = new();
+}
+
+public record GenerateFlowAttachmentSentItem
+{
+    public string Path { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+}
+
+public record GenerateFlowAttachmentSkippedItem
+{
+    public string Path { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string Reason { get; init; } = string.Empty;
+}
+
 public record AiStreamChunk(string ChunkType, string Content);
 
 public static class AiStreamChunkType

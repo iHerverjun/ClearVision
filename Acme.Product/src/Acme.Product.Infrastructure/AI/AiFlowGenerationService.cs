@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Enums;
@@ -8,6 +8,8 @@ using System.Text.RegularExpressions;
 using Acme.Product.Core.Entities;
 using Acme.Product.Infrastructure.AI.DryRun;
 using Acme.Product.Contracts.Messages;
+using OpenCvSharp;
+using System.Globalization;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -27,6 +29,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         PropertyNameCaseInsensitive = true
     };
+    private const int MaxMultimodalAttachmentCount = 4;
 
     public AiFlowGenerationService(
         AiApiClient apiClient,
@@ -54,10 +57,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         AiFlowGenerationRequest request,
         Action<string>? onProgress = null,
         Action<AiStreamChunk>? onStreamChunk = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<GenerateFlowAttachmentReport>? onAttachmentReport = null)
     {
-        // 推送：构建提示词
-        onProgress?.Invoke("正在分析需求并构建提示词...");
+        // 鎺ㄩ€侊細鏋勫缓鎻愮ず璇?
+        onProgress?.Invoke("姝ｅ湪鍒嗘瀽闇€姹傚苟鏋勫缓鎻愮ず璇?..");
         var conversationContext = _conversationalFlowService.PrepareContext(request);
         var systemPrompt = _promptBuilder.BuildSystemPrompt(request.Description);
         var userMessage = BuildUserMessage(
@@ -65,8 +69,14 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             conversationContext.ExistingFlowJson,
             conversationContext.Intent,
             conversationContext.PromptContext);
+        var attachmentSelection = AnalyzeMultimodalAttachments(request.Attachments, MaxMultimodalAttachmentCount);
+        if (request.Attachments is { Count: > 0 })
+        {
+            onAttachmentReport?.Invoke(attachmentSelection.Report);
+        }
+        var initialUserMessage = BuildUserChatMessage(userMessage, attachmentSelection.SendablePaths);
 
-        // 读取当前配置快照
+        // 璇诲彇褰撳墠閰嶇疆蹇収
         var options = _configStore.Get();
 
         AiGeneratedFlowJson? generatedFlow = null;
@@ -77,22 +87,22 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         {
             try
             {
-                _logger.LogInformation("调用 AI API，第 {Attempt} 次尝试", attempt + 1);
+                _logger.LogInformation("Calling AI API, attempt {Attempt}", attempt + 1);
 
-                // 推送：正在调用 AI (带重试次数)
+                // 鎺ㄩ€侊細姝ｅ湪璋冪敤 AI (甯﹂噸璇曟鏁?
                 if (attempt > 0)
-                    onProgress?.Invoke($"AI 响应未通过校验或出错，正在重试（第 {attempt + 1}/{options.MaxRetries} 次）...");
+                    onProgress?.Invoke($"AI 鍝嶅簲鏈€氳繃鏍￠獙鎴栧嚭閿欙紝姝ｅ湪閲嶈瘯锛堢 {attempt + 1}/{options.MaxRetries} 娆★級...");
                 else
-                    onProgress?.Invoke("正在请求 AI 模型生成方案...");
+                    onProgress?.Invoke("姝ｅ湪璇锋眰 AI 妯″瀷鐢熸垚鏂规...");
 
-                // 构建完整的上下文消息
-                var messages = new List<ChatMessage> { new ChatMessage("user", userMessage) };
+                // 鏋勫缓瀹屾暣鐨勪笂涓嬫枃娑堟伅
+                var messages = new List<ChatMessage> { initialUserMessage };
                 if (attempt > 0)
                 {
                     messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!)));
                 }
 
-                // 调用 API (使用流式接口)
+                // 璋冪敤 API (浣跨敤娴佸紡鎺ュ彛)
                 var completionResult = await _apiClient.StreamCompleteAsync(
                     systemPrompt,
                     messages,
@@ -100,44 +110,44 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     null,
                     cancellationToken);
                 var rawResponse = completionResult.Content;
-                _logger.LogDebug("AI 原始响应长度：{Length}", rawResponse.Length);
+                _logger.LogDebug("AI 鍘熷鍝嶅簲闀垮害锛歿Length}", rawResponse.Length);
                 if (!string.IsNullOrEmpty(completionResult.Reasoning))
                 {
-                    _logger.LogDebug("AI 思维链：{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");
+                    _logger.LogDebug("AI 鎬濈淮閾撅細{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");
                 }
 
-                // 推送：解析结果
-                onProgress?.Invoke("收到 AI 响应，正在解析 JSON 数据...");
-                // 解析 AI 输出的 JSON
+                // 鎺ㄩ€侊細瑙ｆ瀽缁撴灉
+                onProgress?.Invoke("鏀跺埌 AI 鍝嶅簲锛屾鍦ㄨВ鏋?JSON 鏁版嵁...");
+                // 瑙ｆ瀽 AI 杈撳嚭鐨?JSON
                 generatedFlow = ParseAiResponse(rawResponse);
                 if (generatedFlow == null)
                 {
                     lastValidation = new AiValidationResult();
-                    lastValidation.AddError("AI 返回的内容不是合法的 JSON 格式");
+                    lastValidation.AddError("AI 杩斿洖鐨勫唴瀹逛笉鏄悎娉曠殑 JSON 鏍煎紡");
                     retryCount++;
                     continue;
                 }
 
-                // 推送：校验结果
-                onProgress?.Invoke("正在校验生成的算子和参数有效性...");
-                // 校验
+                // 鎺ㄩ€侊細鏍￠獙缁撴灉
+                onProgress?.Invoke("姝ｅ湪鏍￠獙鐢熸垚鐨勭畻瀛愬拰鍙傛暟鏈夋晥鎬?..");
+                // 鏍￠獙
                 lastValidation = _validator.Validate(generatedFlow);
                 if (lastValidation.IsValid)
                 {
-                    // 校验通过，转换为 DTO 并返回
+                    // 鏍￠獙閫氳繃锛岃浆鎹负 DTO 骞惰繑鍥?
                     var flowDto = ConvertToFlowDto(generatedFlow, request.Description);
                     _layoutService.ApplyLayout(flowDto);
 
-                    onProgress?.Invoke("正在进行 Dry-Run 沙盒安全校验与分支覆盖率统计...");
+                    onProgress?.Invoke("姝ｅ湪杩涜 Dry-Run 娌欑洅瀹夊叏鏍￠獙涓庡垎鏀鐩栫巼缁熻...");
 
-                    // S6-003: 转换并在虚拟沙盒中运行以收集覆盖率
+                    // S6-003: 杞崲骞跺湪铏氭嫙娌欑洅涓繍琛屼互鏀堕泦瑕嗙洊鐜?
                     object? dryRunReport = null;
                     try
                     {
-                        var flowEntity = ConvertDtoToEntity(flowDto); // 暂时需转换为 Entity 供仿真使用
+                        var flowEntity = ConvertDtoToEntity(flowDto); // 鏆傛椂闇€杞崲涓?Entity 渚涗豢鐪熶娇鐢?
                         var drResult = await _dryRunService.RunAsync(
                             flowEntity,
-                            new Dictionary<string, object>(), // 空输入
+                            new Dictionary<string, object>(), // 绌鸿緭鍏?
                             new DryRunStubRegistry(),
                             cancellationToken);
 
@@ -151,7 +161,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "DryRun 预演阶段异常，跳过覆盖率采集");
+                        _logger.LogWarning(ex, "DryRun 棰勬紨闃舵寮傚父锛岃烦杩囪鐩栫巼閲囬泦");
                     }
 
                     _conversationalFlowService.RecordAssistantResponse(
@@ -173,36 +183,36 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     };
                 }
 
-                _logger.LogWarning("AI 生成内容校验失败，错误：{Errors}",
+                _logger.LogWarning("AI 鐢熸垚鍐呭鏍￠獙澶辫触锛岄敊璇細{Errors}",
                     string.Join("; ", lastValidation.Errors));
                 retryCount++;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning("AI API 调用超时");
+                _logger.LogWarning("AI API 璋冪敤瓒呮椂");
                 return new AiFlowGenerationResult
                 {
                     Success = false,
-                    ErrorMessage = "AI 生成超时，请检查网络连接或稍后重试。"
+                    ErrorMessage = "AI generation timed out. Please retry."
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AI API 调用失败");
+                _logger.LogError(ex, "AI API 璋冪敤澶辫触");
                 return new AiFlowGenerationResult
                 {
                     Success = false,
-                    ErrorMessage = $"AI 服务调用失败：{ex.Message}"
+                    ErrorMessage = $"AI service call failed: {ex.Message}"
                 };
             }
         }
 
-        // 所有重试均失败
+        // 鎵€鏈夐噸璇曞潎澶辫触
         return new AiFlowGenerationResult
         {
             Success = false,
-            ErrorMessage = $"AI 生成的工作流未通过校验（已重试 {retryCount} 次）：" +
-                          string.Join("；", lastValidation?.Errors ?? new List<string>()),
+            ErrorMessage = $"AI generated workflow did not pass validation (retried {retryCount} times): " +
+                          string.Join("; ", lastValidation?.Errors ?? new List<string>()),
             RetryCount = retryCount
         };
     }
@@ -214,57 +224,290 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         string promptContext)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"请根据以下描述生成工作流：");
+        sb.AppendLine("Please generate a workflow from the following request:");
         sb.AppendLine();
         sb.AppendLine(request.Description);
 
         if (!string.IsNullOrWhiteSpace(request.AdditionalContext))
         {
             sb.AppendLine();
-            sb.AppendLine($"补充信息：{request.AdditionalContext}");
+            sb.AppendLine($"Additional context: {request.AdditionalContext}");
+        }
+
+        var attachmentContext = BuildAttachmentContext(request.Attachments);
+        if (!string.IsNullOrWhiteSpace(attachmentContext))
+        {
+            sb.AppendLine();
+            sb.AppendLine("Attachment context:");
+            sb.AppendLine(attachmentContext);
+            sb.AppendLine("If attachments include template and target images, provide concrete template-matching parameter ranges.");
         }
 
         if (!string.IsNullOrWhiteSpace(promptContext))
         {
             sb.AppendLine();
-            sb.AppendLine("会话上下文：");
+            sb.AppendLine("浼氳瘽涓婁笅鏂囷細");
             sb.AppendLine(promptContext);
         }
 
         if (!string.IsNullOrWhiteSpace(existingFlow))
         {
             sb.AppendLine();
-            sb.AppendLine("以下是用户当前的工作流 JSON，请在此基础上处理：");
+            sb.AppendLine("浠ヤ笅鏄敤鎴峰綋鍓嶇殑宸ヤ綔娴?JSON锛岃鍦ㄦ鍩虹涓婂鐞嗭細");
             sb.AppendLine("```json");
             sb.AppendLine(existingFlow);
             sb.AppendLine("```");
 
             if (intent == ConversationIntent.Modify)
             {
-                sb.AppendLine("要求：仅增量修改用户明确提出的部分，未提及的节点与连线尽量保持不变。");
+                sb.AppendLine("Requirement: apply incremental changes only to explicitly requested parts and keep other nodes/connections unchanged.");
             }
             else if (intent == ConversationIntent.Explain)
             {
-                sb.AppendLine("要求：保持 operators 与 connections 结构不变，重点完善 explanation 字段。");
+                sb.AppendLine("Requirement: keep operators and connections unchanged and focus on improving the explanation field.");
             }
         }
 
         sb.AppendLine();
-        sb.AppendLine("请严格按照规定的 JSON 格式输出，不要包含任何其他文字。");
+        sb.AppendLine("Output must be valid JSON only with no extra text.");
 
         return sb.ToString();
     }
+
+    private static ChatMessage BuildUserChatMessage(string userMessage, IReadOnlyList<string> sendablePaths)
+    {
+        if (sendablePaths.Count == 0)
+            return new ChatMessage("user", userMessage);
+
+        var parts = new List<ChatMessageContentPart>(sendablePaths.Count + 1)
+        {
+            ChatMessageContentPart.TextPart(userMessage)
+        };
+        parts.AddRange(sendablePaths.Select(path => ChatMessageContentPart.ImageFile(path, "high")));
+        return new ChatMessage("user", parts);
+    }
+
+    private static AttachmentSelectionResult AnalyzeMultimodalAttachments(IReadOnlyList<string>? attachments, int maxCount)
+    {
+        if (attachments == null || attachments.Count == 0 || maxCount <= 0)
+        {
+            return new AttachmentSelectionResult(Array.Empty<string>(), new GenerateFlowAttachmentReport());
+        }
+
+        var dedup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sendablePaths = new List<string>(Math.Min(attachments.Count, maxCount));
+        var sent = new List<GenerateFlowAttachmentSentItem>();
+        var skipped = new List<GenerateFlowAttachmentSkippedItem>();
+
+        foreach (var attachment in attachments)
+        {
+            if (string.IsNullOrWhiteSpace(attachment))
+                continue;
+
+            var normalizedPath = attachment.Trim();
+            if (!dedup.Add(normalizedPath))
+                continue;
+
+            var name = Path.GetFileName(normalizedPath);
+            if (sendablePaths.Count >= maxCount)
+            {
+                skipped.Add(new GenerateFlowAttachmentSkippedItem
+                {
+                    Path = normalizedPath,
+                    Name = name,
+                    Reason = "limit_exceeded"
+                });
+                continue;
+            }
+
+            if (!File.Exists(normalizedPath))
+            {
+                skipped.Add(new GenerateFlowAttachmentSkippedItem
+                {
+                    Path = normalizedPath,
+                    Name = name,
+                    Reason = "file_missing"
+                });
+                continue;
+            }
+
+            var extension = Path.GetExtension(normalizedPath);
+            if (!AiApiClient.IsSupportedImageExtension(extension))
+            {
+                skipped.Add(new GenerateFlowAttachmentSkippedItem
+                {
+                    Path = normalizedPath,
+                    Name = name,
+                    Reason = "unsupported_format"
+                });
+                continue;
+            }
+
+            try
+            {
+                var info = new FileInfo(normalizedPath);
+                if (info.Length <= 0 || info.Length > AiApiClient.MaxImageBytes)
+                {
+                    skipped.Add(new GenerateFlowAttachmentSkippedItem
+                    {
+                        Path = normalizedPath,
+                        Name = name,
+                        Reason = "file_too_large"
+                    });
+                    continue;
+                }
+
+                using var stream = File.Open(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length <= 0)
+                {
+                    skipped.Add(new GenerateFlowAttachmentSkippedItem
+                    {
+                        Path = normalizedPath,
+                        Name = name,
+                        Reason = "read_failed"
+                    });
+                    continue;
+                }
+            }
+            catch
+            {
+                skipped.Add(new GenerateFlowAttachmentSkippedItem
+                {
+                    Path = normalizedPath,
+                    Name = name,
+                    Reason = "read_failed"
+                });
+                continue;
+            }
+
+            sendablePaths.Add(normalizedPath);
+            sent.Add(new GenerateFlowAttachmentSentItem
+            {
+                Path = normalizedPath,
+                Name = name
+            });
+        }
+
+        return new AttachmentSelectionResult(
+            sendablePaths,
+            new GenerateFlowAttachmentReport
+            {
+                Sent = sent,
+                Skipped = skipped
+            });
+    }
+
+    private static List<string> NormalizeAttachmentPaths(IReadOnlyList<string>? attachments, int maxCount)
+    {
+        if (attachments == null || attachments.Count == 0 || maxCount <= 0)
+            return new List<string>();
+
+        var dedup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var normalizedPaths = new List<string>(Math.Min(attachments.Count, maxCount));
+
+        foreach (var attachment in attachments)
+        {
+            if (string.IsNullOrWhiteSpace(attachment))
+                continue;
+
+            var normalized = attachment.Trim();
+            if (!dedup.Add(normalized))
+                continue;
+
+            normalizedPaths.Add(normalized);
+            if (normalizedPaths.Count >= maxCount)
+                break;
+        }
+
+        return normalizedPaths;
+    }
+
+    private string BuildAttachmentContext(IReadOnlyList<string>? attachments)
+    {
+        var normalizedPaths = NormalizeAttachmentPaths(attachments, maxCount: 8);
+        if (normalizedPaths.Count == 0)
+            return string.Empty;
+
+        var lines = new List<string>(normalizedPaths.Count);
+        for (var i = 0; i < normalizedPaths.Count; i++)
+        {
+            lines.Add($"{i + 1}. {DescribeAttachment(normalizedPaths[i])}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private string DescribeAttachment(string filePath)
+    {
+        var fileName = Path.GetFileName(filePath);
+        if (!File.Exists(filePath))
+            return $"{fileName} | path={filePath} | status=missing";
+
+        try
+        {
+            var fileInfo = new FileInfo(filePath);
+            var extension = string.IsNullOrWhiteSpace(fileInfo.Extension)
+                ? "unknown"
+                : fileInfo.Extension.TrimStart('.').ToLowerInvariant();
+
+            var imageSize = TryGetImageSize(filePath);
+            var sizeText = FormatByteSize(fileInfo.Length);
+
+            if (imageSize.HasValue)
+            {
+                var (width, height) = imageSize.Value;
+                return $"{fileName} | path={filePath} | type={extension} | size={sizeText} | resolution={width}x{height}";
+            }
+
+            return $"{fileName} | path={filePath} | type={extension} | size={sizeText} | resolution=unknown";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read attachment metadata: {AttachmentPath}", filePath);
+            return $"{fileName} | path={filePath} | status=metadata_unavailable";
+        }
+    }
+
+    private static (int Width, int Height)? TryGetImageSize(string filePath)
+    {
+        try
+        {
+            using var image = Cv2.ImRead(filePath, ImreadModes.Unchanged);
+            if (image.Empty())
+                return null;
+
+            return (image.Width, image.Height);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string FormatByteSize(long byteSize)
+    {
+        if (byteSize < 1024)
+            return $"{byteSize}B";
+        if (byteSize < 1024 * 1024)
+            return $"{(byteSize / 1024d).ToString("F1", CultureInfo.InvariantCulture)}KB";
+
+        return $"{(byteSize / 1024d / 1024d).ToString("F2", CultureInfo.InvariantCulture)}MB";
+    }
+
+    private sealed record AttachmentSelectionResult(
+        IReadOnlyList<string> SendablePaths,
+        GenerateFlowAttachmentReport Report);
 
     private string BuildRetryMessage(string originalMessage, AiValidationResult failedValidation)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(originalMessage);
         sb.AppendLine();
-        sb.AppendLine("【你上次的输出存在以下错误，请修正后重新生成】");
+        sb.AppendLine("Your previous output has validation errors. Please regenerate with fixes.");
         foreach (var error in failedValidation.Errors)
             sb.AppendLine($"- {error}");
         sb.AppendLine();
-        sb.AppendLine("请重新生成完整的 JSON，不要只修改部分内容。");
+        sb.AppendLine("Regenerate the complete JSON instead of partial modifications.");
 
         return sb.ToString();
     }
@@ -273,10 +516,10 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         try
         {
-            _logger.LogDebug("AI 原始响应前 500 字符：{Preview}",
+            _logger.LogDebug("AI 鍘熷鍝嶅簲鍓?500 瀛楃锛歿Preview}",
                 rawResponse.Length > 500 ? rawResponse[..500] + "..." : rawResponse);
 
-            // 清理可能的 Markdown 代码块包装
+            // 娓呯悊鍙兘鐨?Markdown 浠ｇ爜鍧楀寘瑁?
             var json = rawResponse.Trim();
             if (json.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
                 json = json[7..];
@@ -288,20 +531,20 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
             json = json.Trim();
 
-            // 如果清理后仍不是以 { 开头，尝试从响应中提取 JSON 对象
-            // （推理模型可能在 JSON 前后加了解释文字）
+            // 濡傛灉娓呯悊鍚庝粛涓嶆槸浠?{ 寮€澶达紝灏濊瘯浠庡搷搴斾腑鎻愬彇 JSON 瀵硅薄
+            // 锛堟帹鐞嗘ā鍨嬪彲鑳藉湪 JSON 鍓嶅悗鍔犱簡瑙ｉ噴鏂囧瓧锛?
             if (!json.StartsWith("{"))
             {
-                _logger.LogWarning("AI 响应不是纯 JSON，尝试提取嵌入的 JSON 对象...");
+                _logger.LogWarning("AI 鍝嶅簲涓嶆槸绾?JSON锛屽皾璇曟彁鍙栧祵鍏ョ殑 JSON 瀵硅薄...");
                 var match = Regex.Match(json, @"\{[\s\S]*\}", RegexOptions.Singleline);
                 if (match.Success)
                 {
                     json = match.Value;
-                    _logger.LogInformation("成功从 AI 响应中提取出 JSON 对象（长度 {Length}）", json.Length);
+                    _logger.LogInformation("Extracted JSON object from AI response. Length={Length}", json.Length);
                 }
                 else
                 {
-                    _logger.LogError(null, "AI 响应中找不到 JSON 对象，响应内容前 200 字符：{Content}",
+                    _logger.LogError(null, "AI 鍝嶅簲涓壘涓嶅埌 JSON 瀵硅薄锛屽搷搴斿唴瀹瑰墠 200 瀛楃锛歿Content}",
                         json.Length > 200 ? json.Substring(0, 200) : json);
                     return null;
                 }
@@ -311,7 +554,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning("解析 AI 响应 JSON 失败：{Error}，响应内容前 300 字符：{Content}",
+            _logger.LogWarning("瑙ｆ瀽 AI 鍝嶅簲 JSON 澶辫触锛歿Error}锛屽搷搴斿唴瀹瑰墠 300 瀛楃锛歿Content}",
                 ex.Message,
                 rawResponse.Length > 300 ? rawResponse[..300] + "..." : rawResponse);
             return null;
@@ -320,16 +563,16 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
     private OperatorFlowDto ConvertToFlowDto(AiGeneratedFlowJson generated, string userDescription)
     {
-        // tempId → (IdGuid, Metadata) 的映射
+        // tempId 鈫?(IdGuid, Metadata) 鐨勬槧灏?
         var opInfoMapping = new Dictionary<string, (Guid Id, OperatorMetadata Meta)>();
 
-        // tempId → (InputPorts: Name->Guid, OutputPorts: Name->Guid)
+        // tempId 鈫?(InputPorts: Name->Guid, OutputPorts: Name->Guid)
         var portMapping = new Dictionary<string, (Dictionary<string, Guid> Inputs, Dictionary<string, Guid> Outputs)>();
 
         foreach (var op in generated.Operators)
         {
             var type = Enum.Parse<OperatorType>(op.OperatorType);
-            var metadata = _operatorFactory.GetMetadata(type) ?? throw new InvalidOperationException($"算子 {type} 未注册");
+            var metadata = _operatorFactory.GetMetadata(type) ?? throw new InvalidOperationException($"Operator {type} is not registered.");
             var operatorId = Guid.NewGuid();
             opInfoMapping[op.TempId] = (operatorId, metadata);
 
@@ -354,7 +597,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 Id = operatorId,
                 Name = op.DisplayName,
                 Type = metadata.Type,
-                X = 0, // 由 AutoLayoutService 填充
+                X = 0, // 鐢?AutoLayoutService 濉厖
                 Y = 0,
                 IsEnabled = true,
                 InputPorts = metadata.InputPorts.Select(p => new PortDto
@@ -393,20 +636,20 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
         var connections = generated.Connections?.Select(conn =>
         {
-            // 源端口必须从 OutputPorts 查找
+            // 婧愮鍙ｅ繀椤讳粠 OutputPorts 鏌ユ壘
             var outputs = portMapping[conn.SourceTempId].Outputs;
             if (!outputs.TryGetValue(conn.SourcePortName, out var srcPortId))
             {
                 throw new InvalidOperationException(
-                   $"源算子 {conn.SourceTempId} 不存在输出端口 '{conn.SourcePortName}'");
+                   $"婧愮畻瀛?{conn.SourceTempId} 涓嶅瓨鍦ㄨ緭鍑虹鍙?'{conn.SourcePortName}'");
             }
 
-            // 目标端口必须从 InputPorts 查找
+            // 鐩爣绔彛蹇呴』浠?InputPorts 鏌ユ壘
             var inputs = portMapping[conn.TargetTempId].Inputs;
             if (!inputs.TryGetValue(conn.TargetPortName, out var tgtPortId))
             {
                 throw new InvalidOperationException(
-                    $"目标算子 {conn.TargetTempId} 不存在输入端口 '{conn.TargetPortName}'");
+                    $"鐩爣绠楀瓙 {conn.TargetTempId} 涓嶅瓨鍦ㄨ緭鍏ョ鍙?'{conn.TargetPortName}'");
             }
 
             return new OperatorConnectionDto
@@ -422,7 +665,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return new OperatorFlowDto
         {
             Id = Guid.NewGuid(),
-            Name = $"AI生成 - {userDescription}",
+            Name = $"AI鐢熸垚 - {userDescription}",
             Operators = operators,
             Connections = connections
         };
@@ -430,7 +673,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
     private OperatorFlow ConvertDtoToEntity(OperatorFlowDto dto)
     {
-        // 简单转换为用于测试跑分的内部结构
+        // 绠€鍗曡浆鎹负鐢ㄤ簬娴嬭瘯璺戝垎鐨勫唴閮ㄧ粨鏋?
         var flow = new OperatorFlow(dto.Name);
         typeof(OperatorFlow).GetProperty("Id")?.SetValue(flow, dto.Id);
 
@@ -439,7 +682,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             var op = _operatorFactory.CreateOperator(o.Type, o.Name, o.X, o.Y);
             typeof(Operator).GetProperty("Id")?.SetValue(op, o.Id);
 
-            // 简单复制一下核心参数
+            // 绠€鍗曞鍒朵竴涓嬫牳蹇冨弬鏁?
             foreach (var pDto in o.Parameters)
             {
                 var targetParam = op.Parameters.FirstOrDefault(p => p.Name == pDto.Name);
@@ -459,3 +702,4 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return flow;
     }
 }
+

@@ -3,6 +3,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
+using System.Threading;
 
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -15,7 +16,8 @@ namespace Acme.Product.Infrastructure.Operators;
     Description = "Legacy morphology node. Use Morphological Operation for new workflows.",
     Category = "Preprocessing",
     IconName = "morphology",
-    Keywords = new[] { "Morphology", "Erode", "Dilate", "Open", "Close", "Legacy" }
+    Keywords = new[] { "Morphology", "Erode", "Dilate", "Open", "Close", "Legacy" },
+    Tags = new[] { "Legacy", "Deprecated", "Compatibility" }
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "Image", PortDataType.Image)]
@@ -27,6 +29,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("AnchorY", "Anchor Y", "int", DefaultValue = -1)]
 public class MorphologyOperator : OperatorBase
 {
+    private static int _legacyWarningLogged;
+
     public override OperatorType OperatorType => OperatorType.Morphology;
 
     public MorphologyOperator(ILogger<MorphologyOperator> logger) : base(logger)
@@ -42,6 +46,8 @@ public class MorphologyOperator : OperatorBase
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
         }
+
+        LogLegacyUsageOnce();
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
@@ -103,5 +109,14 @@ public class MorphologyOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private void LogLegacyUsageOnce()
+    {
+        if (Interlocked.Exchange(ref _legacyWarningLogged, 1) == 0)
+        {
+            Logger.LogWarning(
+                "[MorphologyOperator] Legacy node is kept for compatibility. Prefer MorphologicalOperationOperator for new workflows.");
+        }
     }
 }

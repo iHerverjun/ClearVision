@@ -7,7 +7,8 @@ public record AiFlowGenerationRequest(
     string Description,
     string? AdditionalContext = null,
     string? SessionId = null,
-    string? ExistingFlowJson = null
+    string? ExistingFlowJson = null,
+    IReadOnlyList<string>? Attachments = null
 );
 
 /// <summary>

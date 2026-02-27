@@ -187,13 +187,16 @@ public class HikvisionCamera : ICameraProvider
                     MV_CAMERALINK_DEVICE => "CameraLink",
                     _ => "Unknown"
                 };
+                string manufacturer = ExtractManufacturerName(deviceInfo);
+                string model = ExtractModelName(deviceInfo, interfaceType);
+                string userDefinedName = ExtractUserDefinedName(deviceInfo, i, manufacturer);
 
                 _cachedDevices.Add(new CameraDeviceInfo
                 {
                     SerialNumber = serialNumber,
-                    Manufacturer = "Hikvision",
-                    Model = $"HIK-{interfaceType}",
-                    UserDefinedName = $"Hikvision Camera {i + 1}",
+                    Manufacturer = manufacturer,
+                    Model = model,
+                    UserDefinedName = userDefinedName,
                     InterfaceType = interfaceType
                 });
             }
@@ -214,16 +217,109 @@ public class HikvisionCamera : ICameraProvider
         {
             if (deviceInfo.SpecialInfo != null && deviceInfo.SpecialInfo.Length > 0)
             {
-                int offset = deviceInfo.nTLayerType == MV_GIGE_DEVICE ? 16 : 64;
-                int length = deviceInfo.nTLayerType == MV_GIGE_DEVICE ? 16 : 64;
-
-                string sn = System.Text.Encoding.ASCII.GetString(deviceInfo.SpecialInfo, offset, length);
-                return sn.TrimEnd('\0').Trim();
+                if (deviceInfo.nTLayerType == MV_GIGE_DEVICE)
+                {
+                    // GigE layout may vary across SDK versions; try both common offsets.
+                    var sn = ExtractAsciiField(deviceInfo.SpecialInfo, 144, 16);
+                    if (!string.IsNullOrWhiteSpace(sn)) return sn;
+                    sn = ExtractAsciiField(deviceInfo.SpecialInfo, 16, 16);
+                    if (!string.IsNullOrWhiteSpace(sn)) return sn;
+                }
+                else
+                {
+                    var sn = ExtractAsciiField(deviceInfo.SpecialInfo, 64, 64);
+                    if (!string.IsNullOrWhiteSpace(sn)) return sn;
+                }
             }
         }
         catch (Exception ex) { Debug.WriteLine($"[HikvisionCamera] ExtractSerialNumber failed: {ex.Message}"); }
 
         return $"HIK-{deviceInfo.nMacAddrLow:X8}";
+    }
+
+    private string ExtractManufacturerName(MV_CC_DEVICE_INFO deviceInfo)
+    {
+        try
+        {
+            if (deviceInfo.nTLayerType == MV_GIGE_DEVICE &&
+                deviceInfo.SpecialInfo != null &&
+                deviceInfo.SpecialInfo.Length > 0)
+            {
+                var manufacturer = ExtractAsciiField(deviceInfo.SpecialInfo, 0, 32);
+                if (!string.IsNullOrWhiteSpace(manufacturer)) return manufacturer;
+
+                // Some layouts contain IP fields before manufacturer name.
+                manufacturer = ExtractAsciiField(deviceInfo.SpecialInfo, 16, 32);
+                if (!string.IsNullOrWhiteSpace(manufacturer)) return manufacturer;
+            }
+        }
+        catch (Exception ex) { Debug.WriteLine($"[HikvisionCamera] ExtractManufacturerName failed: {ex.Message}"); }
+
+        return "Hikvision";
+    }
+
+    private string ExtractModelName(MV_CC_DEVICE_INFO deviceInfo, string interfaceType)
+    {
+        try
+        {
+            if (deviceInfo.nTLayerType == MV_GIGE_DEVICE &&
+                deviceInfo.SpecialInfo != null &&
+                deviceInfo.SpecialInfo.Length > 0)
+            {
+                var model = ExtractAsciiField(deviceInfo.SpecialInfo, 32, 32);
+                if (!string.IsNullOrWhiteSpace(model)) return model;
+
+                model = ExtractAsciiField(deviceInfo.SpecialInfo, 48, 32);
+                if (!string.IsNullOrWhiteSpace(model)) return model;
+            }
+        }
+        catch (Exception ex) { Debug.WriteLine($"[HikvisionCamera] ExtractModelName failed: {ex.Message}"); }
+
+        return $"HIK-{interfaceType}";
+    }
+
+    private string ExtractUserDefinedName(MV_CC_DEVICE_INFO deviceInfo, int deviceIndex, string manufacturer)
+    {
+        try
+        {
+            if (deviceInfo.nTLayerType == MV_GIGE_DEVICE &&
+                deviceInfo.SpecialInfo != null &&
+                deviceInfo.SpecialInfo.Length > 0)
+            {
+                var userDefinedName = ExtractAsciiField(deviceInfo.SpecialInfo, 176, 16);
+                if (!string.IsNullOrWhiteSpace(userDefinedName)) return userDefinedName;
+
+                userDefinedName = ExtractAsciiField(deviceInfo.SpecialInfo, 160, 16);
+                if (!string.IsNullOrWhiteSpace(userDefinedName)) return userDefinedName;
+            }
+        }
+        catch (Exception ex) { Debug.WriteLine($"[HikvisionCamera] ExtractUserDefinedName failed: {ex.Message}"); }
+
+        var fallbackManufacturer = string.IsNullOrWhiteSpace(manufacturer) ? "Hikvision" : manufacturer;
+        return $"{fallbackManufacturer} Camera {deviceIndex + 1}";
+    }
+
+    private static string ExtractAsciiField(byte[] source, int offset, int length)
+    {
+        if (source == null || source.Length == 0 || offset < 0 || length <= 0 || offset >= source.Length)
+        {
+            return string.Empty;
+        }
+
+        int safeLength = Math.Min(length, source.Length - offset);
+        if (safeLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        var text = System.Text.Encoding.ASCII.GetString(source, offset, safeLength);
+        var nullTerminatorIndex = text.IndexOf('\0');
+        if (nullTerminatorIndex >= 0)
+        {
+            text = text.Substring(0, nullTerminatorIndex);
+        }
+
+        return text.Trim();
     }
 
     public bool Open(string serialNumber)

@@ -700,7 +700,8 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "OuterRadius", DisplayName = "Outer Radius", DataType = "int", DefaultValue = 100, MinValue = 1, MaxValue = 100000 },
                 new() { Name = "StartAngle", DisplayName = "Start Angle", DataType = "double", DefaultValue = 0.0, MinValue = -3600.0, MaxValue = 3600.0 },
                 new() { Name = "EndAngle", DisplayName = "End Angle", DataType = "double", DefaultValue = 360.0, MinValue = -3600.0, MaxValue = 3600.0 },
-                new() { Name = "OutputWidth", DisplayName = "Output Width", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 20000 }
+                new() { Name = "OutputWidth", DisplayName = "Output Width", DataType = "int", DefaultValue = 0, MinValue = 0, MaxValue = 20000 },
+                new() { Name = "UseWarpPolar", DisplayName = "Use WarpPolar", DataType = "bool", DefaultValue = true }
             }
         };
 
@@ -1580,11 +1581,12 @@ public class OperatorFactory : IOperatorFactory
         _metadata[OperatorType.Morphology] = new OperatorMetadata
         {
             Type = OperatorType.Morphology,
-            DisplayName = "形态学",
-            Description = "腐蚀/膨胀/开运算/闭运算等形态学操作，用于去除毛刺、填充孔洞和分离粘连目标",
+            DisplayName = "Morphology (Legacy)",
+            Description = "Legacy morphology node. Use Morphological Operation for new workflows.",
             Category = "预处理",
             IconName = "morphology",
             Keywords = new[] { "形态学", "膨胀", "腐蚀", "开运算", "闭运算", "Morphology", "Erode", "Dilate" },
+            Tags = new[] { "Legacy", "Deprecated", "Compatibility" },
             InputPorts = new List<PortDefinition>
             {
                 new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
@@ -1992,7 +1994,9 @@ public class OperatorFactory : IOperatorFactory
             Keywords = new[] { "透视", "变换", "矫正", "仿射", "四边形", "Perspective", "Warp", "Transform" },
             InputPorts = new List<PortDefinition>
             {
-                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true }
+                new() { Name = "Image", DisplayName = "图像", DataType = PortDataType.Image, IsRequired = true },
+                new() { Name = "SrcPoints", DisplayName = "源点集合", DataType = PortDataType.PointList, IsRequired = false },
+                new() { Name = "DstPoints", DisplayName = "目标点集合", DataType = PortDataType.PointList, IsRequired = false }
             },
             OutputPorts = new List<PortDefinition>
             {
@@ -2000,6 +2004,8 @@ public class OperatorFactory : IOperatorFactory
             },
             Parameters = new List<ParameterDefinition>
             {
+                new() { Name = "SrcPointsJson", DisplayName = "源点集合(JSON)", DataType = "string", DefaultValue = "" },
+                new() { Name = "DstPointsJson", DisplayName = "目标点集合(JSON)", DataType = "string", DefaultValue = "" },
                 new() { Name = "SrcX1", DisplayName = "源点1 X", DataType = "double", DefaultValue = 0.0 },
                 new() { Name = "SrcY1", DisplayName = "源点1 Y", DataType = "double", DefaultValue = 0.0 },
                 new() { Name = "SrcX2", DisplayName = "源点2 X", DataType = "double", DefaultValue = 100.0 },
@@ -3242,7 +3248,16 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "Scale1", DisplayName = "图像1权重", DataType = "double", DefaultValue = 1.0, MinValue = 0, MaxValue = 10.0 },
                 new() { Name = "Scale2", DisplayName = "图像2权重", DataType = "double", DefaultValue = 1.0, MinValue = 0, MaxValue = 10.0 },
-                new() { Name = "Offset", DisplayName = "亮度偏移", DataType = "double", DefaultValue = 0, MinValue = -255, MaxValue = 255 }
+                new() { Name = "Offset", DisplayName = "亮度偏移", DataType = "double", DefaultValue = 0, MinValue = -255, MaxValue = 255 },
+                new() { Name = "SizeMismatchPolicy", DisplayName = "尺寸不一致策略", DataType = "enum", DefaultValue = "Resize", Options = new List<ParameterOption>
+                {
+                    new() { Label = "Resize", Value = "Resize" },
+                    new() { Label = "Fail", Value = "Fail" },
+                    new() { Label = "CropToOverlap", Value = "Crop" },
+                    new() { Label = "AnchorPaste", Value = "AnchorPaste" }
+                } },
+                new() { Name = "OffsetX", DisplayName = "图像2偏移X", DataType = "int", DefaultValue = 0, MinValue = -100000, MaxValue = 100000 },
+                new() { Name = "OffsetY", DisplayName = "图像2偏移Y", DataType = "int", DefaultValue = 0, MinValue = -100000, MaxValue = 100000 }
             }
         };
 
@@ -3986,6 +4001,7 @@ public class OperatorFactory : IOperatorFactory
                 new() { Name = "USL", DisplayName = "规格上限", DataType = "double", DefaultValue = "", Description = "Upper Specification Limit，留空则不计算 CPK" },
                 new() { Name = "LSL", DisplayName = "规格下限", DataType = "double", DefaultValue = "", Description = "Lower Specification Limit，留空则不计算 CPK" },
                 new() { Name = "WindowSize", DisplayName = "Window Size", DataType = "int", DefaultValue = 1000, MinValue = 2, MaxValue = 50000 },
+                new() { Name = "StateTtlMinutes", DisplayName = "State TTL Minutes", DataType = "int", DefaultValue = 120, MinValue = 1, MaxValue = 10080 },
                 new() { Name = "Reset", DisplayName = "Reset", DataType = "bool", DefaultValue = false }
             }
         };

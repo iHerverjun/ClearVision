@@ -621,6 +621,13 @@ class SettingsView {
                 };
 
                 this.cameraBindings.push(newBinding);
+                const saved = await this.saveCameraBindings();
+                if (!saved) {
+                    this.cameraBindings = this.cameraBindings.filter(b => b.id !== newBinding.id);
+                    this.refreshCameraTable();
+                    return;
+                }
+
                 this.refreshCameraTable();
                 showToast(`已成功绑定逻辑相机: ${displayName}`, 'success');
                 
@@ -1562,6 +1569,33 @@ class SettingsView {
         return updatedBindings;
     }
 
+    async saveCameraBindings({ silent = false } = {}) {
+        const preferredActiveId = this.config?.activeCameraId || '';
+        const activeCameraId = this.cameraBindings.some(b => b.id === preferredActiveId)
+            ? preferredActiveId
+            : (this.cameraBindings[0]?.id || '');
+
+        try {
+            await httpClient.put('/cameras/bindings', {
+                bindings: this.cameraBindings,
+                activeCameraId: activeCameraId
+            });
+
+            if (this.config) {
+                this.config.cameras = [...this.cameraBindings];
+                this.config.activeCameraId = activeCameraId;
+            }
+
+            return true;
+        } catch (error) {
+            console.error('[SettingsView] Failed to save camera bindings:', error);
+            if (!silent) {
+                showToast('保存相机绑定失败: ' + error.message, 'error');
+            }
+            return false;
+        }
+    }
+
     /**
      * 收集输入并调用 API
      */
@@ -1600,10 +1634,10 @@ class SettingsView {
             await httpClient.put('/settings', config);
 
             // 保存相机绑定
-            await httpClient.put('/cameras/bindings', {
-                bindings: config.cameras,
-                activeCameraId: config.activeCameraId
-            });
+            const bindingsSaved = await this.saveCameraBindings({ silent: true });
+            if (!bindingsSaved) {
+                throw new Error('Camera bindings save failed');
+            }
 
             // 保存 AI 配置（通过后端 API 保存当前编辑的模型）
             await this._saveCurrentForm();

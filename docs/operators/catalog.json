@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T21:25:09.5821979+08:00",
+  "generatedAt": "2026-02-27T11:05:45.9694473+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -709,6 +709,9 @@
       "category": "预处理",
       "version": "1.0.0",
       "tags": [
+        "Compatibility",
+        "Deprecated",
+        "Legacy",
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
@@ -2059,6 +2062,18 @@
           "displayName": "图像",
           "dataType": "Image",
           "isRequired": true
+        },
+        {
+          "name": "SrcPoints",
+          "displayName": "源点集合",
+          "dataType": "PointList",
+          "isRequired": false
+        },
+        {
+          "name": "DstPoints",
+          "displayName": "目标点集合",
+          "dataType": "PointList",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -2070,6 +2085,28 @@
         }
       ],
       "parameters": [
+        {
+          "name": "SrcPointsJson",
+          "displayName": "源点集合(JSON)",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DstPointsJson",
+          "displayName": "目标点集合(JSON)",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
         {
           "name": "SrcX1",
           "displayName": "源点1 X",
@@ -2270,13 +2307,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 100,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/PerspectiveTransform.md"
     },
@@ -6391,16 +6428,66 @@
           "max": "255",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "SizeMismatchPolicy",
+          "displayName": "尺寸不一致策略",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Resize",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Resize",
+              "label": "Resize"
+            },
+            {
+              "value": "Fail",
+              "label": "Fail"
+            },
+            {
+              "value": "Crop",
+              "label": "CropToOverlap"
+            },
+            {
+              "value": "AnchorPaste",
+              "label": "AnchorPaste"
+            }
+          ]
+        },
+        {
+          "name": "OffsetX",
+          "displayName": "图像2偏移X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "-100000",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OffsetY",
+          "displayName": "图像2偏移Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "-100000",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 100,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/ImageAdd.md"
     },
@@ -8790,6 +8877,17 @@
           "defaultValue": "1000",
           "min": "2",
           "max": "50000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "StateTtlMinutes",
+          "displayName": "State TTL Minutes",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "120",
+          "min": "1",
+          "max": "10080",
           "isRequired": true,
           "options": null
         },
@@ -11196,16 +11294,27 @@
           "max": "20000",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "UseWarpPolar",
+          "displayName": "Use WarpPolar",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 96,
+        "totalScore": 100,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 85,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/PolarUnwrap.md"
     },

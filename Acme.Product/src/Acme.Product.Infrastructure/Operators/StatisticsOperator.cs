@@ -24,10 +24,14 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("USL", "Upper Specification Limit", "double", DefaultValue = "", Description = "Optional. Cpk is calculated when both USL and LSL are provided.")]
 [OperatorParam("LSL", "Lower Specification Limit", "double", DefaultValue = "", Description = "Optional. Cpk is calculated when both USL and LSL are provided.")]
 [OperatorParam("WindowSize", "Window Size", "int", DefaultValue = 1000, Min = 2, Max = 50000)]
+[OperatorParam("StateTtlMinutes", "State TTL Minutes", "int", DefaultValue = 120, Min = 1, Max = 10080)]
 [OperatorParam("Reset", "Reset History", "bool", DefaultValue = false)]
 public class StatisticsOperator : OperatorBase
 {
     private static readonly ConcurrentDictionary<Guid, RollingHistoryState> HistoryByOperator = new();
+    private static readonly object CleanupSync = new();
+    private static DateTime _lastCleanupUtc = DateTime.MinValue;
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
 
     public override OperatorType OperatorType => OperatorType.Statistics;
 
@@ -48,7 +52,9 @@ public class StatisticsOperator : OperatorBase
         var usl = GetOptionalDoubleParam(@operator, "USL");
         var lsl = GetOptionalDoubleParam(@operator, "LSL");
         var windowSize = GetIntParam(@operator, "WindowSize", 1000, min: 2, max: 50_000);
+        var stateTtlMinutes = GetIntParam(@operator, "StateTtlMinutes", 120, min: 1, max: 10_080);
         var reset = GetBoolParam(@operator, "Reset", false);
+        var nowUtc = DateTime.UtcNow;
 
         var state = HistoryByOperator.GetOrAdd(@operator.Id, _ => new RollingHistoryState());
 
@@ -66,8 +72,11 @@ public class StatisticsOperator : OperatorBase
                 state.Values.Dequeue();
             }
 
+            state.LastTouchedUtc = nowUtc;
             snapshot = state.Values.ToArray();
         }
+
+        TryCleanupStaleStates(nowUtc, TimeSpan.FromMinutes(stateTtlMinutes));
 
         var count = snapshot.Length;
         var mean = snapshot.Average();
@@ -86,7 +95,8 @@ public class StatisticsOperator : OperatorBase
             { "Min", min },
             { "Max", max },
             { "Range", max - min },
-            { "WindowSize", windowSize }
+            { "WindowSize", windowSize },
+            { "StateTtlMinutes", stateTtlMinutes }
         };
 
         if (usl.HasValue && lsl.HasValue && count >= 2 && stdDev > 0)
@@ -131,7 +141,47 @@ public class StatisticsOperator : OperatorBase
             return ValidationResult.Invalid("WindowSize must be between 2 and 50000.");
         }
 
+        var stateTtlMinutes = GetIntParam(@operator, "StateTtlMinutes", 120);
+        if (stateTtlMinutes < 1 || stateTtlMinutes > 10_080)
+        {
+            return ValidationResult.Invalid("StateTtlMinutes must be between 1 and 10080.");
+        }
+
         return ValidationResult.Valid();
+    }
+
+    private static void TryCleanupStaleStates(DateTime nowUtc, TimeSpan stateTtl)
+    {
+        if ((nowUtc - _lastCleanupUtc) < CleanupInterval)
+        {
+            return;
+        }
+
+        lock (CleanupSync)
+        {
+            if ((nowUtc - _lastCleanupUtc) < CleanupInterval)
+            {
+                return;
+            }
+
+            var staleBefore = nowUtc - stateTtl;
+            foreach (var entry in HistoryByOperator)
+            {
+                var shouldRemove = false;
+                var state = entry.Value;
+                lock (state.SyncRoot)
+                {
+                    shouldRemove = state.LastTouchedUtc < staleBefore;
+                }
+
+                if (shouldRemove)
+                {
+                    HistoryByOperator.TryRemove(entry.Key, out _);
+                }
+            }
+
+            _lastCleanupUtc = nowUtc;
+        }
     }
 
     private static double? GetOptionalDoubleParam(Operator @operator, string name)
@@ -150,5 +200,7 @@ public class StatisticsOperator : OperatorBase
         public object SyncRoot { get; } = new();
 
         public Queue<double> Values { get; } = new();
+
+        public DateTime LastTouchedUtc { get; set; } = DateTime.UtcNow;
     }
 }

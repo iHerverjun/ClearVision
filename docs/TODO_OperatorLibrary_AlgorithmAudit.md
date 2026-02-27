@@ -4,6 +4,60 @@
 
 ---
 
+## 审计执行结果（2026-02-26，源码复核版）
+
+### 执行状态总览
+
+| 批次 | 状态 | 报告 |
+|------|------|------|
+| 第 1 批：图像预处理与滤波 | ✅ 已完成 | `docs/AlgorithmAudit/Batch1_Preprocessing.md` |
+| 第 2 批：边缘检测与亚像素处理 | ✅ 已完成 | `docs/AlgorithmAudit/Batch2_EdgeDetection.md` |
+| 第 3 批：特征匹配与模板匹配 | ✅ 已完成 | `docs/AlgorithmAudit/Batch3_Matching.md` |
+| 第 4 批：Blob/轮廓/几何测量 | ✅ 已完成 | `docs/AlgorithmAudit/Batch4_Measurement.md` |
+| 第 5 批：标定与几何变换 | ✅ 已完成 | `docs/AlgorithmAudit/Batch5_Calibration.md` |
+| 第 6 批：深度学习与缺陷检测 | ✅ 已完成 | `docs/AlgorithmAudit/Batch6_DeepLearning.md` |
+| 第 7 批：颜色/算术/工具类算子 | ✅ 已完成 | `docs/AlgorithmAudit/Batch7_General.md` |
+| 全局勘误与交叉核查 | ✅ 已完成 | `docs/AlgorithmAudit/Errata_CrossVerification.md` |
+
+本次更新在既有 7 份批次报告基础上，对历史高优先级问题进行了源码级复核（以当前分支代码为准），避免将已修复问题继续作为待办项保留。
+
+### 关键问题闭环情况（已确认）
+
+| 项目 | 当前状态 | 代码证据 |
+|------|----------|----------|
+| `BoxFilterOperator` 概念混淆（候选框 vs 均值滤波） | ✅ 已闭环：候选框算子已更名为 `BoundingBoxFilterOperator`，且已新增图像级均值滤波 `MeanFilterOperator` | `Acme.Product/src/Acme.Product.Infrastructure/Operators/BoundingBoxFilterOperator.cs:18`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/MeanFilterOperator.cs:30` |
+| `FrameAveragingOperator` Median 性能瓶颈 | ✅ 已闭环：采用时间堆叠 + `Cv2.Sort` 取中值，不再使用逐像素 `Array.Sort` | `Acme.Product/src/Acme.Product.Infrastructure/Operators/FrameAveragingOperator.cs:165`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/FrameAveragingOperator.cs:167` |
+| `CannyEdgeOperator` 仅手动双阈值 | ✅ 已闭环：新增 `AutoThreshold` / `AutoThresholdSigma` 与中值自适应阈值计算 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/CannyEdgeOperator.cs:22`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/CannyEdgeOperator.cs:87` |
+| `ShapeMatchingOperator` 的 `NumLevels` 参数未生效 | ✅ 已闭环：已实现金字塔构建与粗到细角度搜索 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/ShapeMatchingOperator.cs:84`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/ShapeMatchingOperator.cs:187` |
+| `CameraCalibrationOperator` 单图模式不输出标定矩阵 | ✅ 已闭环：单图模式执行 `Cv2.CalibrateCamera` 并输出 `CameraMatrix` | `Acme.Product/src/Acme.Product.Infrastructure/Operators/CameraCalibrationOperator.cs:117`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/CameraCalibrationOperator.cs:139` |
+| `UndistortOperator` 标定矩阵契约不兼容 | ✅ 已闭环：解析逻辑同时支持 9 元素扁平矩阵与 3x3 嵌套矩阵 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/UndistortOperator.cs:146`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/UndistortOperator.cs:163` |
+| `TypeConvertOperator` 输入端口名不匹配导致失效 | ✅ 已闭环：优先读取 `Input`，兼容回退 `Value` | `Acme.Product/src/Acme.Product.Infrastructure/Operators/TypeConvertOperator.cs:94`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/TypeConvertOperator.cs:100` |
+| `OcrRecognitionOperator` 并发调用风险 | ✅ 已闭环：`OcrEngineProvider` 对引擎访问已加锁 | `Acme.Product/src/Acme.Product.Infrastructure/Services/OcrEngineProvider.cs:37` |
+| `ImageSubtractOperator` 彩色图 `MinMaxLoc` 崩溃风险 | ✅ 已闭环：统计前先转灰度再执行 `MinMaxLoc` | `Acme.Product/src/Acme.Product.Infrastructure/Operators/ImageSubtractOperator.cs:70`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/ImageSubtractOperator.cs:77` |
+| `TextSaveOperator` 并发写文件冲突 | ✅ 已闭环：按文件路径维护锁并串行写入 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/TextSaveOperator.cs:30`, `Acme.Product/src/Acme.Product.Infrastructure/Operators/TextSaveOperator.cs:186` |
+
+结论：历史报告中的核心 P1 缺陷在当前代码基线下已完成闭环，复核范围内未发现新增 P1。
+
+### 优化项完成情况（2026-02-27）
+
+| 原优先级 | 项目 | 完成状态 | 实现位置 |
+|--------|------|----------|----------|
+| P2 | 形态学双算子并存（兼容保留） | ✅ 已落地兼容下线信号：Legacy 算子增加 `Tags=Legacy/Deprecated` 与一次性运行告警，保留兼容不破坏旧流程。 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/MorphologyOperator.cs`, `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorFactory.cs` |
+| P2 | 透视变换参数建模繁琐（16 个点坐标参数） | ✅ 已支持点集输入：新增 `SrcPoints/DstPoints` 输入端口 + `SrcPointsJson/DstPointsJson` 参数；旧 `SrcX1..DstY4` 仍可回退兼容。 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/PerspectiveTransformOperator.cs`, `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorFactory.cs` |
+| P2 | 极坐标展开性能瓶颈 | ✅ 已引入 `WarpPolar` 加速路径，并保留 `Remap` 自动回退机制（异常或不适配场景自动降级）。 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/PolarUnwrapOperator.cs`, `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorFactory.cs` |
+| P3 | 图像加法尺寸不一致默认 Resize 失真 | ✅ 已新增策略化处理：`Resize/Fail/Crop/AnchorPaste` + `OffsetX/OffsetY`，默认保持兼容。 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/ImageAddOperator.cs`, `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorFactory.cs` |
+| P3 | 统计算子状态回收缺失 | ✅ 已新增显式回收策略：`StateTtlMinutes` 参数 + 周期性清理过期状态。 | `Acme.Product/src/Acme.Product.Infrastructure/Operators/StatisticsOperator.cs`, `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorFactory.cs` |
+
+本批优化已完成代码落地与定向单测验证，当前“仍需持续优化项”清单清零。
+
+### 清单差异说明（计划 vs 当前代码）
+
+- 计划表中的 `BoxFilterOperator.cs` 已演进为 `BoundingBoxFilterOperator.cs`（检测框过滤语义更清晰）。
+- 图像级均值滤波能力已由 `MeanFilterOperator.cs` 提供，补齐了 Box/Mean Filter 的图像处理场景。
+- `MorphologyOperator.cs` 目前处于 Legacy 兼容态，`MorphologicalOperationOperator.cs` 为推荐主入口。
+
+---
+
 ## 审计维度
 
 每个算子将从以下 5 个维度评分（1-5 分）：

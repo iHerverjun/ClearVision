@@ -41,7 +41,7 @@ public static class CameraProviderFactory
     /// </summary>
     public static List<CameraDeviceInfo> DiscoverAll()
     {
-        var allDevices = new List<CameraDeviceInfo>();
+        var discoveredDevices = new List<DiscoveredDevice>();
 
         // 华睿相机枚举
         try
@@ -49,7 +49,10 @@ public static class CameraProviderFactory
             Debug.WriteLine("[CameraProviderFactory] Starting Huaray camera enumeration...");
             using var mv = new MindVisionCamera();
             var devices = mv.EnumerateDevices();
-            allDevices.AddRange(devices);
+            foreach (var device in devices)
+            {
+                discoveredDevices.Add(new DiscoveredDevice("Huaray", device));
+            }
             Debug.WriteLine($"[CameraProviderFactory] Huaray: found {devices.Count} devices");
         }
         catch (DllNotFoundException ex)
@@ -71,7 +74,10 @@ public static class CameraProviderFactory
             Debug.WriteLine("[CameraProviderFactory] Starting Hikvision camera enumeration...");
             using var hik = new HikvisionCamera();
             var devices = hik.EnumerateDevices();
-            allDevices.AddRange(devices);
+            foreach (var device in devices)
+            {
+                discoveredDevices.Add(new DiscoveredDevice("Hikvision", device));
+            }
             Debug.WriteLine($"[CameraProviderFactory] Hikvision: found {devices.Count} devices");
         }
         catch (DllNotFoundException ex)
@@ -87,8 +93,9 @@ public static class CameraProviderFactory
             Debug.WriteLine($"[CameraProviderFactory] Hikvision enum failed: {ex.GetType().Name} - {ex.Message}");
         }
 
-        Debug.WriteLine($"[CameraProviderFactory] Total cameras discovered: {allDevices.Count}");
-        return allDevices;
+        var deduplicatedDevices = DeduplicateBySerial(discoveredDevices);
+        Debug.WriteLine($"[CameraProviderFactory] Total cameras discovered: {discoveredDevices.Count}, deduplicated: {deduplicatedDevices.Count}");
+        return deduplicatedDevices;
     }
 
     /// <summary>
@@ -123,6 +130,122 @@ public static class CameraProviderFactory
         catch (Exception ex) { Debug.WriteLine($"[CameraProviderFactory] Hikvision AutoDetect failed: {ex.Message}"); }
 
         return null;
+    }
+
+    private static List<CameraDeviceInfo> DeduplicateBySerial(IEnumerable<DiscoveredDevice> discoveredDevices)
+    {
+        var serialMap = new Dictionary<string, DiscoveredDevice>(StringComparer.OrdinalIgnoreCase);
+        var unkeyedDevices = new List<CameraDeviceInfo>();
+
+        foreach (var discovered in discoveredDevices)
+        {
+            var serialNumber = discovered.Device.SerialNumber?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(serialNumber))
+            {
+                unkeyedDevices.Add(discovered.Device);
+                continue;
+            }
+
+            if (!serialMap.TryGetValue(serialNumber, out var existing))
+            {
+                serialMap[serialNumber] = discovered;
+                continue;
+            }
+
+            if (ShouldReplace(existing, discovered))
+            {
+                serialMap[serialNumber] = discovered;
+            }
+        }
+
+        var result = new List<CameraDeviceInfo>(serialMap.Count + unkeyedDevices.Count);
+        foreach (var pair in serialMap)
+        {
+            result.Add(pair.Value.Device);
+        }
+
+        result.AddRange(unkeyedDevices);
+        return result;
+    }
+
+    private static bool ShouldReplace(DiscoveredDevice existing, DiscoveredDevice candidate)
+    {
+        int existingMatchScore = GetSourceMatchScore(existing);
+        int candidateMatchScore = GetSourceMatchScore(candidate);
+        if (candidateMatchScore != existingMatchScore)
+        {
+            return candidateMatchScore > existingMatchScore;
+        }
+
+        int existingDetailScore = GetDetailScore(existing.Device);
+        int candidateDetailScore = GetDetailScore(candidate.Device);
+        if (candidateDetailScore != existingDetailScore)
+        {
+            return candidateDetailScore > existingDetailScore;
+        }
+
+        // Same confidence: keep existing to preserve first-found stability.
+        return false;
+    }
+
+    private static int GetSourceMatchScore(DiscoveredDevice discovered)
+    {
+        var source = NormalizeName(discovered.SourceProvider);
+        var manufacturer = NormalizeName(discovered.Device.Manufacturer);
+
+        if (source == "huaray")
+        {
+            return manufacturer is "huaray" or "mindvision" ? 3 : 1;
+        }
+
+        if (source == "hikvision")
+        {
+            return manufacturer == "hikvision" ? 3 : 1;
+        }
+
+        return 0;
+    }
+
+    private static int GetDetailScore(CameraDeviceInfo device)
+    {
+        int score = 0;
+
+        if (!string.IsNullOrWhiteSpace(device.Model) &&
+            !device.Model.Equals("Huaray Camera", StringComparison.OrdinalIgnoreCase) &&
+            !device.Model.StartsWith("HIK-", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 2;
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.UserDefinedName))
+        {
+            score += 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.InterfaceType) &&
+            !device.InterfaceType.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 1;
+        }
+
+        return score;
+    }
+
+    private static string NormalizeName(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+    }
+
+    private sealed class DiscoveredDevice
+    {
+        public DiscoveredDevice(string sourceProvider, CameraDeviceInfo device)
+        {
+            SourceProvider = sourceProvider;
+            Device = device;
+        }
+
+        public string SourceProvider { get; }
+        public CameraDeviceInfo Device { get; }
     }
 }
 

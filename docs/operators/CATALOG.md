@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-02-26 21:25:09 +08:00`
+> 生成时间 / Generated At: `2026-02-27 11:05:45 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -28,11 +28,11 @@
 | 颜色处理 | 2 | 1.7% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **88.2**
+- 平均分 / Average: **88.5**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 76 |
-| B | 35 |
+| A | 77 |
+| B | 34 |
 | C | 7 |
 
 ## 分类索引 / Grouped Index
@@ -69,7 +69,7 @@
 | `OperatorType.AffineTransform` | 仿射变换 | 1 | 2 | 9 | 100 (A) | `1.0.0` | - | [AffineTransform](./AffineTransform.md) |
 | `OperatorType.CopyMakeBorder` | 边界填充 | 1 | 1 | 6 | 94 (A) | `1.0.0` | - | [CopyMakeBorder](./CopyMakeBorder.md) |
 | `OperatorType.ImageStitching` | 图像拼接 | 2 | 2 | 3 | 94 (A) | `1.0.0` | - | [ImageStitching](./ImageStitching.md) |
-| `OperatorType.PolarUnwrap` | 极坐标展开 | 2 | 1 | 7 | 96 (A) | `1.0.0` | - | [PolarUnwrap](./PolarUnwrap.md) |
+| `OperatorType.PolarUnwrap` | 极坐标展开 | 2 | 1 | 8 | 100 (A) | `1.0.0` | - | [PolarUnwrap](./PolarUnwrap.md) |
 
 ### 定位 (7)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -184,7 +184,7 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.LogicGate` | 逻辑门 | 2 | 1 | 1 | 73 (B) | `1.0.0` | - | [LogicGate](./LogicGate.md) |
-| `OperatorType.Statistics` | Statistics | 1 | 7 | 4 | 90 (A) | `1.0.0` | - | [Statistics](./Statistics.md) |
+| `OperatorType.Statistics` | Statistics | 1 | 7 | 5 | 90 (A) | `1.0.0` | - | [Statistics](./Statistics.md) |
 | `OperatorType.StringFormat` | 字符串格式化 | 2 | 1 | 1 | 76 (B) | `1.0.0` | - | [StringFormat](./StringFormat.md) |
 | `OperatorType.TypeConvert` | Type Convert | 1 | 1 | 2 | 83 (B) | `1.0.0` | - | [TypeConvert](./TypeConvert.md) |
 
@@ -212,7 +212,7 @@
 | `OperatorType.Filtering` | Gaussian Blur | 1 | 1 | 4 | 76 (B) | `1.0.0` | Gaussian Blur (OpenCV) | [Filtering](./Filtering.md) |
 | `OperatorType.FrameAveraging` | 帧平均 | 1 | 2 | 2 | 94 (A) | `1.0.0` | - | [FrameAveraging](./FrameAveraging.md) |
 | `OperatorType.HistogramEqualization` | 直方图均衡化 | 1 | 1 | 3 | 94 (A) | `1.0.0` | - | [HistogramEqualization](./HistogramEqualization.md) |
-| `OperatorType.ImageAdd` | 图像加法 | 2 | 1 | 3 | 76 (B) | `1.0.0` | - | [ImageAdd](./ImageAdd.md) |
+| `OperatorType.ImageAdd` | 图像加法 | 2 | 1 | 6 | 100 (A) | `1.0.0` | - | [ImageAdd](./ImageAdd.md) |
 | `OperatorType.ImageBlend` | 图像融合 | 2 | 1 | 3 | 76 (B) | `1.0.0` | - | [ImageBlend](./ImageBlend.md) |
 | `OperatorType.ImageCrop` | 图像裁剪 | 1 | 1 | 4 | 94 (A) | `1.0.0` | - | [ImageCrop](./ImageCrop.md) |
 | `OperatorType.ImageDiff` | 图像对比 | 2 | 2 | 0 | 71 (B) | `1.0.0` | - | [ImageDiff](./ImageDiff.md) |
@@ -225,7 +225,7 @@
 | `OperatorType.MedianBlur` | 中值滤波 | 1 | 1 | 1 | 94 (A) | `1.0.0` | - | [MedianBlur](./MedianBlur.md) |
 | `OperatorType.MorphologicalOperation` | Morphological Operation | 1 | 1 | 7 | 76 (B) | `1.0.0` | - | [MorphologicalOperation](./MorphologicalOperation.md) |
 | `OperatorType.Morphology` | Morphology (Legacy) | 1 | 1 | 6 | 94 (A) | `1.0.0` | - | [Morphology](./Morphology.md) |
-| `OperatorType.PerspectiveTransform` | 透视变换 | 1 | 1 | 18 | 94 (A) | `1.0.0` | - | [PerspectiveTransform](./PerspectiveTransform.md) |
+| `OperatorType.PerspectiveTransform` | 透视变换 | 3 | 1 | 20 | 100 (A) | `1.0.0` | - | [PerspectiveTransform](./PerspectiveTransform.md) |
 | `OperatorType.ShadingCorrection` | 光照校正 | 2 | 1 | 2 | 94 (A) | `1.0.0` | - | [ShadingCorrection](./ShadingCorrection.md) |
 | `OperatorType.Thresholding` | 二值化 | 1 | 1 | 4 | 76 (B) | `1.0.0` | - | [Thresholding](./Thresholding.md) |
 

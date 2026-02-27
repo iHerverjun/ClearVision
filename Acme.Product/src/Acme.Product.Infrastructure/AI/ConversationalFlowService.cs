@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
 using Acme.Product.Core.DTOs;
 
 namespace Acme.Product.Infrastructure.AI;
@@ -13,16 +14,16 @@ public enum ConversationIntent
 
 public sealed class ConversationTurn
 {
-    public string Role { get; init; } = string.Empty;
-    public string Message { get; init; } = string.Empty;
-    public DateTime TimestampUtc { get; init; } = DateTime.UtcNow;
+    public string Role { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
 }
 
 public sealed class ConversationSession
 {
-    public string SessionId { get; init; } = string.Empty;
+    public string SessionId { get; set; } = string.Empty;
     public string? CurrentFlowJson { get; set; }
-    public List<ConversationTurn> History { get; } = new();
+    public List<ConversationTurn> History { get; set; } = new();
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -42,11 +43,27 @@ public interface IConversationalFlowService
     void RecordAssistantResponse(string sessionId, string assistantMessage, string? latestFlowJson);
 }
 
+internal sealed class ConversationStore
+{
+    public List<ConversationSession> Sessions { get; set; } = new();
+}
+
 public class ConversationalFlowService : IConversationalFlowService
 {
+    private const int MaxHistory = 20;
+    private const int MaxPromptHistory = 6;
+    private const int MaxPersistedSessions = 200;
+    private static readonly TimeSpan SessionRetention = TimeSpan.FromDays(30);
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+
     private static readonly string[] _modifyKeywords =
     [
-        "改", "修改", "调整", "优化", "加", "增加", "新增", "补充", "删除", "删掉", "替换", "调大", "调小",
+        "改", "修改", "调整", "优化", "调优", "增加", "新增", "补充", "删除", "删掉", "替换", "调大", "调小",
         "change", "update", "adjust", "add", "remove", "replace", "refine"
     ];
 
@@ -65,6 +82,20 @@ public class ConversationalFlowService : IConversationalFlowService
     private readonly ConcurrentDictionary<string, ConversationSession> _sessions =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly object _persistLock = new();
+    private readonly string _storagePath;
+
+    public ConversationalFlowService(string? storageRootPath = null)
+    {
+        var rootPath = string.IsNullOrWhiteSpace(storageRootPath)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClearVision")
+            : storageRootPath;
+
+        Directory.CreateDirectory(rootPath);
+        _storagePath = Path.Combine(rootPath, "conversation_sessions.json");
+        LoadSessionsFromStore();
+    }
+
     public ConversationSession GetOrCreateSession(string? sessionId)
     {
         var normalizedSessionId = string.IsNullOrWhiteSpace(sessionId)
@@ -73,31 +104,37 @@ public class ConversationalFlowService : IConversationalFlowService
 
         return _sessions.GetOrAdd(normalizedSessionId, id => new ConversationSession
         {
-            SessionId = id
+            SessionId = id,
+            UpdatedAtUtc = DateTime.UtcNow
         });
     }
 
     public ConversationIntent DetectIntent(string userDescription, bool hasExistingFlow)
     {
+        var content = userDescription ?? string.Empty;
+
         if (!hasExistingFlow)
             return ConversationIntent.New;
 
-        if (ContainsAny(userDescription, _newKeywords))
+        if (ContainsAny(content, _newKeywords))
             return ConversationIntent.New;
 
-        if (ContainsAny(userDescription, _explainKeywords))
+        if (ContainsAny(content, _explainKeywords))
             return ConversationIntent.Explain;
 
-        if (ContainsAny(userDescription, _modifyKeywords))
+        if (ContainsAny(content, _modifyKeywords))
             return ConversationIntent.Modify;
 
-        // 存在上下文但未出现明确动词时，默认按增量修改处理
+        // 有上下文但未出现明确动词时，按增量修改处理。
         return ConversationIntent.Modify;
     }
 
     public ConversationContext PrepareContext(AiFlowGenerationRequest request)
     {
         var session = GetOrCreateSession(request.SessionId);
+        ConversationIntent intent;
+        string? existingFlowJson;
+        string promptContext;
 
         lock (session)
         {
@@ -107,26 +144,29 @@ public class ConversationalFlowService : IConversationalFlowService
             session.History.Add(new ConversationTurn
             {
                 Role = "user",
-                Message = request.Description
+                Message = request.Description,
+                TimestampUtc = DateTime.UtcNow
             });
 
             TrimHistory(session);
             session.UpdatedAtUtc = DateTime.UtcNow;
+
+            var hasExistingFlow = !string.IsNullOrWhiteSpace(session.CurrentFlowJson);
+            intent = DetectIntent(request.Description, hasExistingFlow);
+            if ((intent == ConversationIntent.Modify || intent == ConversationIntent.Explain) && !hasExistingFlow)
+                intent = ConversationIntent.New;
+
+            existingFlowJson = session.CurrentFlowJson;
+            promptContext = BuildPromptContext(session, intent);
         }
 
-        var hasExistingFlow = !string.IsNullOrWhiteSpace(session.CurrentFlowJson);
-        var intent = DetectIntent(request.Description, hasExistingFlow);
-
-        if ((intent == ConversationIntent.Modify || intent == ConversationIntent.Explain) && !hasExistingFlow)
-            intent = ConversationIntent.New;
-
-        var context = BuildPromptContext(session, intent);
+        PersistSessions();
         return new ConversationContext
         {
             SessionId = session.SessionId,
             Intent = intent,
-            ExistingFlowJson = session.CurrentFlowJson,
-            PromptContext = context
+            ExistingFlowJson = existingFlowJson,
+            PromptContext = promptContext
         };
     }
 
@@ -143,12 +183,15 @@ public class ConversationalFlowService : IConversationalFlowService
             session.History.Add(new ConversationTurn
             {
                 Role = "assistant",
-                Message = assistantMessage
+                Message = assistantMessage,
+                TimestampUtc = DateTime.UtcNow
             });
 
             TrimHistory(session);
             session.UpdatedAtUtc = DateTime.UtcNow;
         }
+
+        PersistSessions();
     }
 
     private static string BuildPromptContext(ConversationSession session, ConversationIntent intent)
@@ -171,7 +214,7 @@ public class ConversationalFlowService : IConversationalFlowService
 
         var historyToInject = session.History
             .OrderByDescending(turn => turn.TimestampUtc)
-            .Take(6)
+            .Take(MaxPromptHistory)
             .OrderBy(turn => turn.TimestampUtc)
             .ToList();
 
@@ -203,10 +246,135 @@ public class ConversationalFlowService : IConversationalFlowService
 
     private static void TrimHistory(ConversationSession session)
     {
-        const int maxHistory = 20;
-        if (session.History.Count <= maxHistory)
+        if (session.History.Count <= MaxHistory)
             return;
 
-        session.History.RemoveRange(0, session.History.Count - maxHistory);
+        session.History.RemoveRange(0, session.History.Count - MaxHistory);
+    }
+
+    private void LoadSessionsFromStore()
+    {
+        if (!File.Exists(_storagePath))
+            return;
+
+        try
+        {
+            var json = File.ReadAllText(_storagePath);
+            var store = JsonSerializer.Deserialize<ConversationStore>(json, _jsonOptions);
+            if (store?.Sessions == null || store.Sessions.Count == 0)
+                return;
+
+            var cutoff = DateTime.UtcNow - SessionRetention;
+            foreach (var session in store.Sessions)
+            {
+                if (session == null || string.IsNullOrWhiteSpace(session.SessionId))
+                    continue;
+
+                NormalizeSession(session);
+                if (session.UpdatedAtUtc < cutoff)
+                    continue;
+
+                _sessions[session.SessionId.Trim()] = session;
+            }
+
+            PruneInMemorySessions();
+        }
+        catch
+        {
+            // Ignore corrupted persistence file and start with empty in-memory sessions.
+        }
+    }
+
+    private void PersistSessions()
+    {
+        lock (_persistLock)
+        {
+            try
+            {
+                PruneInMemorySessions();
+
+                var snapshot = _sessions.Values
+                    .Select(CloneSession)
+                    .OrderByDescending(session => session.UpdatedAtUtc)
+                    .Take(MaxPersistedSessions)
+                    .ToList();
+
+                var json = JsonSerializer.Serialize(new ConversationStore
+                {
+                    Sessions = snapshot
+                }, _jsonOptions);
+
+                File.WriteAllText(_storagePath, json);
+            }
+            catch
+            {
+                // Swallow persistence failure to avoid interrupting request flow.
+            }
+        }
+    }
+
+    private static ConversationSession CloneSession(ConversationSession session)
+    {
+        lock (session)
+        {
+            return new ConversationSession
+            {
+                SessionId = session.SessionId,
+                CurrentFlowJson = session.CurrentFlowJson,
+                UpdatedAtUtc = session.UpdatedAtUtc,
+                History = session.History
+                    .Select(turn => new ConversationTurn
+                    {
+                        Role = turn.Role,
+                        Message = turn.Message,
+                        TimestampUtc = turn.TimestampUtc
+                    })
+                    .ToList()
+            };
+        }
+    }
+
+    private static void NormalizeSession(ConversationSession session)
+    {
+        session.History ??= new List<ConversationTurn>();
+        session.History = session.History
+            .Where(turn => turn != null && !string.IsNullOrWhiteSpace(turn.Role))
+            .OrderBy(turn => turn.TimestampUtc)
+            .TakeLast(MaxHistory)
+            .Select(turn => new ConversationTurn
+            {
+                Role = turn.Role,
+                Message = turn.Message ?? string.Empty,
+                TimestampUtc = turn.TimestampUtc == default ? DateTime.UtcNow : turn.TimestampUtc
+            })
+            .ToList();
+
+        session.UpdatedAtUtc = session.UpdatedAtUtc == default ? DateTime.UtcNow : session.UpdatedAtUtc;
+        session.SessionId = session.SessionId.Trim();
+    }
+
+    private void PruneInMemorySessions()
+    {
+        var cutoff = DateTime.UtcNow - SessionRetention;
+        foreach (var kvp in _sessions.ToArray())
+        {
+            if (kvp.Value.UpdatedAtUtc < cutoff)
+                _sessions.TryRemove(kvp.Key, out _);
+        }
+
+        if (_sessions.Count <= MaxPersistedSessions)
+            return;
+
+        var keepSessionIds = _sessions.Values
+            .OrderByDescending(session => session.UpdatedAtUtc)
+            .Take(MaxPersistedSessions)
+            .Select(session => session.SessionId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var key in _sessions.Keys)
+        {
+            if (!keepSessionIds.Contains(key))
+                _sessions.TryRemove(key, out _);
+        }
     }
 }

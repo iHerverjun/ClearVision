@@ -1,4 +1,4 @@
-import webMessageBridge from '../../core/messaging/webMessageBridge.js';
+﻿import webMessageBridge from '../../core/messaging/webMessageBridge.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
 
@@ -11,18 +11,23 @@ export class AiPanel {
         this.containerId = containerId;
         this.flowCanvas = flowCanvas;
         this.container = document.getElementById(containerId);
+        this.sessionStorageKey = 'cv_ai_session_id';
         
         // 状态
         this.isGenerating = false;
         this.history = []; // { id, desc, time, result, error }
         this.currentThinkingStep = null;
-        this.sessionId = null;
+        this.sessionId = this._loadSessionId();
         this.currentResult = null;
+        this.attachments = [];
         
         // 绑定方法
         this._handleGenerate = this._handleGenerate.bind(this);
         this._handleApplyFlow = this._handleApplyFlow.bind(this);
         this._handleNewConversation = this._handleNewConversation.bind(this);
+        this._handleAttachmentClick = this._handleAttachmentClick.bind(this);
+        this._handleFilePickedEvent = this._handleFilePickedEvent.bind(this);
+        this._handleAttachmentReport = this._handleAttachmentReport.bind(this);
         
         // 初始化
         this._init();
@@ -47,8 +52,11 @@ export class AiPanel {
     
     _handleNewConversation() {
         this.sessionId = null;
+        this._saveSessionId(null);
         this.currentResult = null;
+        this.attachments = [];
         this._clearResultPane();
+        this._renderAttachments();
         const container = this.container.querySelector('#ai-chat-container');
         if (container) container.innerHTML = '';
         const progress = this.container.querySelector('#ai-progress-container');
@@ -65,7 +73,8 @@ export class AiPanel {
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                         </span>
                         <span class="pane-title">CO-PILOT 对话</span>
-                        <span class="status-badge online">在线</span>
+                        <span class="status-badge online" id="ai-conn-status"><span class="status-dot connected"></span>在线</span>
+                        <button class="icon-btn" id="ai-btn-new-session" title="新建对话">新对话</button>
                     </div>
                     
                     <div class="ai-chat-container" id="ai-chat-container">
@@ -76,7 +85,7 @@ export class AiPanel {
                     
                     <div class="ai-input-section">
                         <div class="ai-input-box">
-                            <button class="icon-btn" title="附件">
+                            <button class="icon-btn" id="ai-btn-attach" title="附件">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 015 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 005 0V5c0-1.38-1.12-2.5-2.5-2.5S8 3.62 8 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
                             </button>
                             <textarea class="ai-textarea" id="ai-input" placeholder="输入指令..."></textarea>
@@ -84,6 +93,7 @@ export class AiPanel {
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                             </button>
                         </div>
+                        <div class="ai-attachments" id="ai-attachments"></div>
                         <div class="ai-quick-examples">
                             <div class="examples-header" id="examples-toggle">
                                 快捷示例 
@@ -149,8 +159,10 @@ export class AiPanel {
         `;
         
         // 事件绑定
+        const attachBtn = this.container.querySelector('#ai-btn-attach');
         this.container.querySelector('#ai-btn-gen').addEventListener('click', this._handleGenerate);
         this.container.querySelector('#ai-btn-apply').addEventListener('click', this._handleApplyFlow);
+        if (attachBtn) attachBtn.addEventListener('click', this._handleAttachmentClick);
         const newSessionBtn = this.container.querySelector('#ai-btn-new-session');
         if (newSessionBtn) newSessionBtn.addEventListener('click', this._handleNewConversation);
         
@@ -178,11 +190,14 @@ export class AiPanel {
             aiInput.style.height = 'auto';
             aiInput.style.height = (aiInput.scrollHeight) + 'px';
         });
+
+        this._renderAttachments();
     }
     
     _checkConnection() {
         const indicator = this.container.querySelector('#ai-conn-status');
-        const dot = indicator.querySelector('.status-dot');
+        const dot = indicator?.querySelector('.status-dot');
+        if (!dot) return;
         
         httpClient.get('/api/health')
             .then(() => {
@@ -198,6 +213,8 @@ export class AiPanel {
         webMessageBridge.on('GenerateFlowStreamChunk', (data) => this._handleStreamChunk(data));
         webMessageBridge.on('AiFirewallBlocked', (data) => this._handleFirewallBlocked(data));
         webMessageBridge.on('GenerateFlowResult', (data) => this._handleResult(data));
+        webMessageBridge.on('FilePickedEvent', this._handleFilePickedEvent);
+        webMessageBridge.on('GenerateFlowAttachmentReport', this._handleAttachmentReport);
     }
     
     _getCurrentFlowJson() {
@@ -213,6 +230,7 @@ export class AiPanel {
     async _handleGenerate() {
         const input = this.container.querySelector('#ai-input');
         const description = input.value.trim();
+        const attachmentPaths = this.attachments.map(item => item.path);
         
         if (!description) {
             this._addMessage('system', '请输入需求描述。');
@@ -230,7 +248,18 @@ export class AiPanel {
         if (reasoningEl) reasoningEl.innerHTML = '';
         if (thinkingEl) thinkingEl.innerHTML = '';
 
-        this._addMessage('user', description);
+        if (attachmentPaths.length > 0) {
+            this.attachments = this.attachments.map(item =>
+                item.status === 'skipped'
+                    ? item
+                    : { ...item, status: 'pending', reason: '' });
+            this._renderAttachments();
+        }
+
+        const userMessage = attachmentPaths.length > 0
+            ? `${description}\n\n[附件] ${this.attachments.map(item => item.name).join('，')}`
+            : description;
+        this._addMessage('user', userMessage);
         
         const thinkingId = 'thinking-' + Date.now();
         this._addThinkingChain(thinkingId);
@@ -243,7 +272,8 @@ export class AiPanel {
                 payload: { 
                     description,
                     sessionId: this.sessionId,
-                    existingFlowJson
+                    existingFlowJson,
+                    attachments: attachmentPaths
                 } 
             });
             input.value = ''; // 清空输入框
@@ -360,6 +390,7 @@ export class AiPanel {
         this._setGeneratingState(false);
         const payload = data.payload || data;
         this.sessionId = payload.sessionId || this.sessionId;
+        this._saveSessionId(this.sessionId);
         
         const container = this.container.querySelector('#ai-progress-stepper');
         if (container) {
@@ -524,8 +555,167 @@ export class AiPanel {
                 btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
             }
         }
+        const attachBtn = this.container.querySelector('#ai-btn-attach');
+        if (attachBtn) attachBtn.disabled = busy;
+        this.container.querySelectorAll('.ai-attachment-remove').forEach(btnEl => {
+            btnEl.disabled = busy;
+        });
         const input = this.container.querySelector('#ai-input');
         if(input) input.disabled = busy;
+    }
+
+    _handleAttachmentClick() {
+        if (this.isGenerating) return;
+        webMessageBridge.sendMessage('PickFileCommand', {
+            parameterName: 'aiAttachment',
+            filter: 'Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All Files|*.*'
+        });
+    }
+
+    _handleFilePickedEvent(data) {
+        const payload = data?.payload || data || {};
+        if (payload.parameterName !== 'aiAttachment') return;
+        if (payload.isCancelled || !payload.filePath) return;
+
+        const normalizedPath = payload.filePath.trim();
+        if (!normalizedPath) return;
+
+        const exists = this.attachments.some(item =>
+            item.path.toLowerCase() === normalizedPath.toLowerCase());
+        if (exists) {
+            this._addMessage('system', '该附件已存在，无需重复添加。');
+            return;
+        }
+
+        const attachment = {
+            path: normalizedPath,
+            name: this._getFileName(normalizedPath),
+            status: 'ready',
+            reason: ''
+        };
+        this.attachments.push(attachment);
+        this._renderAttachments();
+        this._addMessage('system', `已添加附件：${attachment.name}`);
+    }
+
+    _handleAttachmentReport(data) {
+        const payload = data?.payload || data || {};
+        const sent = Array.isArray(payload.sent) ? payload.sent : [];
+        const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
+
+        if (sent.length === 0 && skipped.length === 0) return;
+
+        const sentMap = new Map(sent
+            .filter(item => item?.path)
+            .map(item => [String(item.path).toLowerCase(), item]));
+        const skippedMap = new Map(skipped
+            .filter(item => item?.path)
+            .map(item => [String(item.path).toLowerCase(), item]));
+
+        this.attachments = this.attachments.map(item => {
+            const key = item.path.toLowerCase();
+            if (skippedMap.has(key)) {
+                const skipInfo = skippedMap.get(key);
+                return {
+                    ...item,
+                    status: 'skipped',
+                    reason: this._formatSkipReason(skipInfo?.reason)
+                };
+            }
+            if (sentMap.has(key)) {
+                return {
+                    ...item,
+                    status: 'sent',
+                    reason: ''
+                };
+            }
+            return item;
+        });
+
+        this._renderAttachments();
+
+        const sentNames = sent.map(item => item?.name).filter(Boolean);
+        const skippedNames = skipped.map(item => {
+            const name = item?.name || this._getFileName(item?.path || '');
+            const reason = this._formatSkipReason(item?.reason);
+            return reason ? `${name}(${reason})` : name;
+        }).filter(Boolean);
+
+        const sections = [];
+        if (sentNames.length > 0) {
+            sections.push(`已发送: ${sentNames.join('，')}`);
+        }
+        if (skippedNames.length > 0) {
+            sections.push(`已跳过: ${skippedNames.join('，')}`);
+        }
+        if (sections.length > 0) {
+            this._addMessage('system', `附件处理结果\n${sections.join('\n')}`);
+        }
+    }
+
+    _removeAttachment(path) {
+        this.attachments = this.attachments.filter(item => item.path !== path);
+        this._renderAttachments();
+    }
+
+    _renderAttachments() {
+        const container = this.container?.querySelector('#ai-attachments');
+        if (!container) return;
+
+        if (!this.attachments.length) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const chips = this.attachments.map(item => {
+            const title = item.reason ? `${item.path}\n${item.reason}` : item.path;
+            const statusLabel = this._getAttachmentStatusLabel(item.status, item.reason);
+            const statusClass = `status-${item.status || 'ready'}`;
+            return `
+                <div class="ai-attachment-chip" title="${this._escapeHtml(title)}">
+                    <span class="ai-attachment-name">${this._escapeHtml(item.name)}</span>
+                    <span class="ai-attachment-status ${statusClass}">${this._escapeHtml(statusLabel)}</span>
+                    <button class="ai-attachment-remove" data-path="${this._escapeHtml(item.path)}" type="button" aria-label="remove attachment">×</button>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `<div class="ai-attachment-list">${chips}</div>`;
+        container.querySelectorAll('.ai-attachment-remove').forEach(btn => {
+            btn.addEventListener('click', () => this._removeAttachment(btn.dataset.path || ''));
+            btn.disabled = this.isGenerating;
+        });
+    }
+
+    _getAttachmentStatusLabel(status, reason) {
+        switch (status) {
+            case 'pending': return '发送中';
+            case 'sent': return '已发送';
+            case 'skipped': return reason ? `已跳过(${reason})` : '已跳过';
+            default: return '待发送';
+        }
+    }
+
+    _formatSkipReason(reason) {
+        switch (reason) {
+            case 'file_missing': return '文件不存在';
+            case 'unsupported_format': return '格式不支持';
+            case 'file_too_large': return '文件过大';
+            case 'read_failed': return '读取失败';
+            case 'limit_exceeded': return '超出数量上限';
+            default: return reason || '';
+        }
+    }
+
+    _getFileName(filePath) {
+        const parts = String(filePath || '').split(/[/\\]/);
+        return parts[parts.length - 1] || filePath;
+    }
+
+    _escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value ?? '';
+        return div.innerHTML;
     }
     
     _clearResultPane() {
@@ -568,5 +758,25 @@ export class AiPanel {
     
     _loadHistory() {
         this._renderHistoryList();
+    }
+
+    _loadSessionId() {
+        try {
+            return localStorage.getItem(this.sessionStorageKey);
+        } catch {
+            return null;
+        }
+    }
+
+    _saveSessionId(sessionId) {
+        try {
+            if (sessionId) {
+                localStorage.setItem(this.sessionStorageKey, sessionId);
+            } else {
+                localStorage.removeItem(this.sessionStorageKey);
+            }
+        } catch {
+            // ignore localStorage failures
+        }
     }
 }

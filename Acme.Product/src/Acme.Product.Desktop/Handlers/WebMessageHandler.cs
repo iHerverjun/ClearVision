@@ -14,6 +14,7 @@ using Acme.Product.Desktop.Handlers;
 using Acme.Product.Infrastructure.Services;
 using System.Text.Json;
 using System.Net.Http;
+using System.Linq;
 
 namespace Acme.Product.Desktop.Handlers;
 
@@ -442,6 +443,15 @@ public class WebMessageHandler
                     ? flowElement.GetString()
                     : flowElement.GetRawText()
                 : null;
+            var attachments = payload.TryGetProperty("attachments", out var attachmentElement) &&
+                              attachmentElement.ValueKind == JsonValueKind.Array
+                ? attachmentElement.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString())
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Cast<string>()
+                    .ToList()
+                : null;
 
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.GenerateFlowMessageHandler>();
@@ -451,6 +461,7 @@ public class WebMessageHandler
                 sessionId,
                 existingFlowJson,
                 hint,
+                attachments,
                 onMessage: (type, payload) =>
                 {
                     // 在 UI 线程推送进度消息

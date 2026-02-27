@@ -175,6 +175,19 @@
     font-weight: 500;
 }
 
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success-jade);
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.status-dot.disconnected {
+    background: #e74c3c;
+}
+
 /* Pane icon (header badge) */
 .pane-icon {
     color: var(--cinnabar);
@@ -302,6 +315,11 @@
     color: var(--cinnabar);
 }
 
+.icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .ai-textarea {
     flex: 1;
     background: transparent;
@@ -346,6 +364,91 @@
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+}
+
+.ai-attachments {
+    margin-top: 8px;
+}
+
+.ai-attachment-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ai-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    background: rgba(45, 74, 94, 0.35);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-full);
+    padding: 3px 6px 3px 10px;
+    color: var(--paper-dim);
+    font-size: var(--font-size-xs);
+    line-height: 1.2;
+}
+
+.ai-attachment-name {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-attachment-status {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+    font-size: 10px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.ai-attachment-status.status-ready {
+    color: var(--ink-gray);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ai-attachment-status.status-pending {
+    color: #f9d66b;
+    border-color: rgba(249, 214, 107, 0.35);
+}
+
+.ai-attachment-status.status-sent {
+    color: var(--success-jade);
+    border-color: rgba(46, 204, 113, 0.35);
+}
+
+.ai-attachment-status.status-skipped {
+    color: #ff9a8b;
+    border-color: rgba(231, 76, 60, 0.35);
+}
+
+.ai-attachment-remove {
+    width: 18px;
+    height: 18px;
+    margin-left: 6px;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-gray);
+    background: transparent;
+    cursor: pointer;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-attachment-remove:hover {
+    color: #ffffff;
+    background: rgba(231, 76, 60, 0.7);
+}
+
+.ai-attachment-remove:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .ai-quick-examples {

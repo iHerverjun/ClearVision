@@ -97,7 +97,7 @@ public class Sprint7_AiEvolutionTests
     public void ConversationalFlowService_PrepareContext_WithFlowAndModifyIntent_ShouldDetectModify()
     {
         // Arrange
-        var service = new ConversationalFlowService();
+        var service = new ConversationalFlowService(Path.Combine(Path.GetTempPath(), "clearvision-conversation-test-" + Guid.NewGuid().ToString("N")));
         var request = new AiFlowGenerationRequest(
             "把阈值改成100",
             SessionId: "session-1",
@@ -116,7 +116,7 @@ public class Sprint7_AiEvolutionTests
     public void ConversationalFlowService_PrepareContext_WithoutFlow_ShouldDefaultToNew()
     {
         // Arrange
-        var service = new ConversationalFlowService();
+        var service = new ConversationalFlowService(Path.Combine(Path.GetTempPath(), "clearvision-conversation-test-" + Guid.NewGuid().ToString("N")));
         var request = new AiFlowGenerationRequest(
             "把阈值改成100",
             SessionId: "session-2");
@@ -133,7 +133,7 @@ public class Sprint7_AiEvolutionTests
     public void ConversationalFlowService_PrepareContext_WithExplainIntent_ShouldDetectExplain()
     {
         // Arrange
-        var service = new ConversationalFlowService();
+        var service = new ConversationalFlowService(Path.Combine(Path.GetTempPath(), "clearvision-conversation-test-" + Guid.NewGuid().ToString("N")));
         var request = new AiFlowGenerationRequest(
             "解释一下这个流程为什么这样设计",
             SessionId: "session-3",
@@ -145,6 +145,43 @@ public class Sprint7_AiEvolutionTests
         // Assert
         context.Intent.Should().Be(ConversationIntent.Explain);
         context.PromptContext.Should().Contain("会话意图：EXPLAIN");
+    }
+
+    [Fact(DisplayName = "ConversationalFlowService - 重启后应恢复会话上下文")]
+    public void ConversationalFlowService_Restart_ShouldRestoreSessionContext()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "clearvision-conversation-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var firstService = new ConversationalFlowService(tempRoot);
+            var firstContext = firstService.PrepareContext(
+                new AiFlowGenerationRequest(
+                    "先创建一个检测流程",
+                    SessionId: "persist-session",
+                    ExistingFlowJson: """{"operators":[{"tempId":"op_1","operatorType":"Thresholding"}]}"""));
+
+            firstService.RecordAssistantResponse(
+                firstContext.SessionId,
+                "已生成初版流程",
+                firstContext.ExistingFlowJson);
+
+            File.Exists(Path.Combine(tempRoot, "conversation_sessions.json")).Should().BeTrue();
+
+            var secondService = new ConversationalFlowService(tempRoot);
+            var restoredContext = secondService.PrepareContext(
+                new AiFlowGenerationRequest(
+                    "把阈值改成100",
+                    SessionId: firstContext.SessionId));
+
+            restoredContext.Intent.Should().Be(ConversationIntent.Modify);
+            restoredContext.ExistingFlowJson.Should().NotBeNullOrWhiteSpace();
+            restoredContext.PromptContext.Should().Contain("assistant: 已生成初版流程");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
     }
 
     [Fact(DisplayName = "FlowTemplateService - 应初始化内置模板并支持读取")]

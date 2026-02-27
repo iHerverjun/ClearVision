@@ -11,6 +11,8 @@ class PropertyPanel {
         this.previewPanel = null;
         this.pendingRecommendation = null;
         this.recommendedFieldNames = new Set();
+        this.cameraBindingsCache = [];
+        this.cameraBindingsLoadingPromise = null;
         this.recommendationSupportedOperators = new Set([
             'Thresholding',
             'Filtering',
@@ -194,6 +196,7 @@ class PropertyPanel {
         
         let inputHtml = '';
         const requiredMark = isRequired ? '<span class="required">*</span>' : '';
+        const currentValue = value !== undefined ? value : defaultValue;
         
         switch (dataType) {
             case 'int':
@@ -280,22 +283,31 @@ class PropertyPanel {
                 `;
                 break;
                 
-            case 'cameraBinding':
-                // 从 window.cv_config 或 API 获取绑定列表
-                const config = window.cv_config || {};
-                const bindings = config.cameras || [];
+            case 'cameraBinding': {
+                const bindings = this.cameraBindingsCache || [];
+                const hasBindings = bindings.length > 0;
+                const selectedCameraId = currentValue || '';
+
                 inputHtml = `
-                    <select id="param-${name}" name="${name}" class="form-select" data-type="string">
+                    <select id="param-${name}"
+                            name="${name}"
+                            class="form-select"
+                            data-type="string"
+                            data-camera-binding-select="true"
+                            data-current-value="${selectedCameraId}">
                         <option value="">-- 请选择相机 --</option>
-                        ${bindings.map(b => `
-                            <option value="${b.id}" ${b.id === currentValue ? 'selected' : ''}>
-                                ${b.displayName} (${b.serialNumber})
-                            </option>
-                        `).join('')}
+                        ${hasBindings
+                            ? bindings.map(b => `
+                                <option value="${b.id}" ${b.id === selectedCameraId ? 'selected' : ''}>
+                                    ${b.displayName} (${b.serialNumber})
+                                </option>
+                            `).join('')
+                            : '<option value="" disabled>加载中...</option>'}
                     </select>
-                    ${bindings.length === 0 ? '<p class="form-description error">未检测到全局相机配置，请在“系统设置”中添加。</p>' : ''}
+                    ${hasBindings ? '' : '<p class="form-description error" data-camera-binding-hint>正在加载相机绑定列表...</p>'}
                 `;
                 break;
+            }
                 
             default:
                 inputHtml = `
@@ -473,6 +485,89 @@ class PropertyPanel {
                     filter: 'Image Files|*.bmp;*.jpg;*.png;*.jpeg|All Files|*.*'
                 });
             });
+        });
+
+        this.loadCameraBindingsForSelects(true);
+    }
+
+    async loadCameraBindingsForSelects(forceRefresh = false) {
+        const form = document.getElementById('property-form');
+        if (!form) return;
+
+        const cameraSelects = form.querySelectorAll('select[data-camera-binding-select="true"]');
+        if (cameraSelects.length === 0) return;
+
+        try {
+            const bindings = await this.fetchCameraBindings(forceRefresh);
+            this.populateCameraBindingSelects(cameraSelects, bindings);
+        } catch (error) {
+            console.error('[PropertyPanel] Failed to load camera bindings:', error);
+            const message = error?.message || 'Unknown error';
+            this.populateCameraBindingSelects(cameraSelects, [], message);
+        }
+    }
+
+    async fetchCameraBindings(forceRefresh = false) {
+        if (!forceRefresh && this.cameraBindingsCache.length > 0) {
+            return this.cameraBindingsCache;
+        }
+
+        if (!forceRefresh && this.cameraBindingsLoadingPromise) {
+            return this.cameraBindingsLoadingPromise;
+        }
+
+        this.cameraBindingsLoadingPromise = (async () => {
+            const bindings = await httpClient.get('/cameras/bindings');
+            this.cameraBindingsCache = Array.isArray(bindings) ? bindings : [];
+            return this.cameraBindingsCache;
+        })();
+
+        try {
+            return await this.cameraBindingsLoadingPromise;
+        } finally {
+            this.cameraBindingsLoadingPromise = null;
+        }
+    }
+
+    populateCameraBindingSelects(selects, bindings, errorMessage = '') {
+        const hasBindings = Array.isArray(bindings) && bindings.length > 0;
+
+        selects.forEach(select => {
+            const selectedCameraId = select.dataset.currentValue || select.value || '';
+            let optionsHtml = '<option value="">-- 请选择相机 --</option>';
+
+            if (hasBindings) {
+                optionsHtml += bindings.map(b => `
+                    <option value="${b.id}">
+                        ${b.displayName} (${b.serialNumber})
+                    </option>
+                `).join('');
+            } else if (errorMessage) {
+                optionsHtml += '<option value="" disabled>加载失败</option>';
+            } else {
+                optionsHtml += '<option value="" disabled>暂无可用相机绑定</option>';
+            }
+
+            select.innerHTML = optionsHtml;
+
+            if (hasBindings && bindings.some(b => b.id === selectedCameraId)) {
+                select.value = selectedCameraId;
+            } else {
+                select.value = '';
+            }
+
+            const hint = select.closest('.form-group')?.querySelector('[data-camera-binding-hint]');
+            if (!hint) return;
+
+            if (hasBindings) {
+                hint.remove();
+                return;
+            }
+
+            hint.textContent = errorMessage
+                ? `加载相机绑定失败: ${errorMessage}`
+                : '未检测到相机绑定，请在“系统设置”中添加。';
+            hint.classList.add('error');
         });
     }
 

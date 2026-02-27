@@ -1,4 +1,5 @@
-﻿using System.Collections;
+using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -6,7 +7,6 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -26,6 +26,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("StartAngle", "Start Angle", "double", DefaultValue = 0.0, Min = -3600.0, Max = 3600.0)]
 [OperatorParam("EndAngle", "End Angle", "double", DefaultValue = 360.0, Min = -3600.0, Max = 3600.0)]
 [OperatorParam("OutputWidth", "Output Width", "int", DefaultValue = 0, Min = 0, Max = 20000)]
+[OperatorParam("UseWarpPolar", "Use WarpPolar", "bool", DefaultValue = true)]
 public class PolarUnwrapOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PolarUnwrap;
@@ -56,6 +57,7 @@ public class PolarUnwrapOperator : OperatorBase
         var startAngle = GetDoubleParam(@operator, "StartAngle", 0.0, -3600.0, 3600.0);
         var endAngle = GetDoubleParam(@operator, "EndAngle", 360.0, -3600.0, 3600.0);
         var outputWidth = GetIntParam(@operator, "OutputWidth", 0, 0, 20000);
+        var useWarpPolar = GetBoolParam(@operator, "UseWarpPolar", true);
 
         if (outerRadius <= innerRadius)
         {
@@ -78,6 +80,159 @@ public class PolarUnwrapOperator : OperatorBase
             : Math.Max(1, (int)Math.Round((2 * Math.PI * outerRadius) * (Math.Abs(angleSpan) / 360.0)));
         var height = Math.Max(1, outerRadius - innerRadius);
 
+        Mat unwrapped;
+        var method = "Remap";
+        var fallbackReason = string.Empty;
+        if (useWarpPolar && TryUnwrapByWarpPolar(src, center, innerRadius, outerRadius, startAngle, angleSpan, width, height, out unwrapped, out fallbackReason))
+        {
+            method = "WarpPolar";
+        }
+        else
+        {
+            unwrapped = UnwrapByRemap(src, center, innerRadius, angleSpan, startAngle, width, height);
+            if (useWarpPolar && !string.IsNullOrWhiteSpace(fallbackReason))
+            {
+                Logger.LogDebug("[PolarUnwrap] Fallback to Remap: {Reason}", fallbackReason);
+            }
+        }
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(unwrapped, new Dictionary<string, object>
+        {
+            { "Method", method },
+            { "UseWarpPolar", useWarpPolar }
+        })));
+    }
+
+    public override ValidationResult ValidateParameters(Operator @operator)
+    {
+        var inner = GetIntParam(@operator, "InnerRadius", 0);
+        var outer = GetIntParam(@operator, "OuterRadius", 1);
+        if (inner < 0)
+        {
+            return ValidationResult.Invalid("InnerRadius must be >= 0");
+        }
+
+        if (outer <= inner)
+        {
+            return ValidationResult.Invalid("OuterRadius must be greater than InnerRadius");
+        }
+
+        return ValidationResult.Valid();
+    }
+
+    private static bool TryUnwrapByWarpPolar(
+        Mat src,
+        Position center,
+        int innerRadius,
+        int outerRadius,
+        double startAngle,
+        double angleSpan,
+        int outputWidth,
+        int outputHeight,
+        out Mat unwrapped,
+        out string reason)
+    {
+        unwrapped = new Mat();
+        reason = string.Empty;
+
+        try
+        {
+            var fullAngleRows = Math.Max(outputWidth, 360);
+            using var polar = new Mat();
+            Cv2.WarpPolar(
+                src,
+                polar,
+                new Size(outerRadius, fullAngleRows),
+                new Point2f((float)center.X, (float)center.Y),
+                outerRadius,
+                InterpolationFlags.Linear,
+                WarpPolarMode.Linear);
+
+            if (polar.Empty())
+            {
+                reason = "WarpPolar returned empty image.";
+                return false;
+            }
+
+            var normalizedStart = NormalizeAngle(startAngle);
+            var rowsForSpan = Math.Clamp((int)Math.Round((angleSpan / 360.0) * fullAngleRows), 1, fullAngleRows);
+            var startRow = (int)Math.Round((normalizedStart / 360.0) * fullAngleRows) % fullAngleRows;
+
+            using var angleSlice = SliceRowsWithWrap(polar, startRow, rowsForSpan);
+            if (angleSlice.Empty())
+            {
+                reason = "Failed to slice angle rows.";
+                return false;
+            }
+
+            var inner = Math.Clamp(innerRadius, 0, outerRadius - 1);
+            var span = Math.Max(1, outerRadius - inner);
+            using var radialSliceExpr = angleSlice.ColRange(inner, inner + span);
+            using var radialSlice = radialSliceExpr.Clone();
+            using var transposed = new Mat();
+            Cv2.Transpose(radialSlice, transposed);
+
+            if (transposed.Empty())
+            {
+                reason = "WarpPolar transpose result is empty.";
+                return false;
+            }
+
+            if (transposed.Width != outputWidth || transposed.Height != outputHeight)
+            {
+                Cv2.Resize(transposed, unwrapped, new Size(outputWidth, outputHeight), 0, 0, InterpolationFlags.Linear);
+            }
+            else
+            {
+                unwrapped = transposed.Clone();
+            }
+
+            return !unwrapped.Empty();
+        }
+        catch (Exception ex)
+        {
+            reason = ex.Message;
+            unwrapped.Dispose();
+            unwrapped = new Mat();
+            return false;
+        }
+    }
+
+    private static Mat SliceRowsWithWrap(Mat src, int startRow, int rowCount)
+    {
+        if (rowCount >= src.Rows)
+        {
+            return src.Clone();
+        }
+
+        if (startRow + rowCount <= src.Rows)
+        {
+            using var slice = src.RowRange(startRow, startRow + rowCount);
+            return slice.Clone();
+        }
+
+        var firstPartRows = src.Rows - startRow;
+        var secondPartRows = rowCount - firstPartRows;
+
+        using var firstPart = src.RowRange(startRow, src.Rows);
+        using var secondPart = src.RowRange(0, secondPartRows);
+        using var firstClone = firstPart.Clone();
+        using var secondClone = secondPart.Clone();
+
+        var merged = new Mat();
+        Cv2.VConcat(new[] { firstClone, secondClone }, merged);
+        return merged;
+    }
+
+    private static Mat UnwrapByRemap(
+        Mat src,
+        Position center,
+        int innerRadius,
+        double angleSpan,
+        double startAngle,
+        int width,
+        int height)
+    {
         using var mapX = new Mat(height, width, MatType.CV_32FC1);
         using var mapY = new Mat(height, width, MatType.CV_32FC1);
 
@@ -97,25 +252,18 @@ public class PolarUnwrapOperator : OperatorBase
 
         var unwrapped = new Mat();
         Cv2.Remap(src, unwrapped, mapX, mapY, InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(unwrapped)));
+        return unwrapped;
     }
 
-    public override ValidationResult ValidateParameters(Operator @operator)
+    private static double NormalizeAngle(double angle)
     {
-        var inner = GetIntParam(@operator, "InnerRadius", 0);
-        var outer = GetIntParam(@operator, "OuterRadius", 1);
-        if (inner < 0)
+        var normalized = angle % 360.0;
+        if (normalized < 0)
         {
-            return ValidationResult.Invalid("InnerRadius must be >= 0");
+            normalized += 360.0;
         }
 
-        if (outer <= inner)
-        {
-            return ValidationResult.Invalid("OuterRadius must be greater than InnerRadius");
-        }
-
-        return ValidationResult.Valid();
+        return normalized;
     }
 
     private Position ResolveCenter(Operator @operator, Dictionary<string, object>? inputs, int width, int height)

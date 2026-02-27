@@ -21,6 +21,8 @@ public class AiApiClient
         WriteIndented = false
     };
 
+    internal const int MaxImageBytes = 20 * 1024 * 1024;
+
     public AiApiClient(HttpClient httpClient, AiConfigStore configStore)
     {
         _httpClient = httpClient;
@@ -89,7 +91,7 @@ public class AiApiClient
             max_tokens = options.MaxTokens,
             temperature = options.Temperature,
             system = systemPrompt,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray()
+            messages = messages.Select(BuildAnthropicMessage).ToArray()
         };
 
         var apiUrl = options.BaseUrl ?? "https://api.anthropic.com/v1/messages";
@@ -152,7 +154,7 @@ public class AiApiClient
             max_tokens = options.MaxTokens,
             temperature = options.Temperature,
             system = systemPrompt,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
+            messages = messages.Select(BuildAnthropicMessage).ToArray(),
             stream = true
         };
 
@@ -227,7 +229,7 @@ public class AiApiClient
         {
             new { role = "system", content = systemPrompt }
         };
-        apiMessages.AddRange(messages.Select(m => new { role = m.Role, content = m.Content }));
+        apiMessages.AddRange(messages.Select(BuildOpenAiMessage));
 
         // 判断是否为推理模型（如 deepseek-reasoner）
         var isReasonerModel = options.Model.Contains("reasoner", StringComparison.OrdinalIgnoreCase);
@@ -311,7 +313,7 @@ public class AiApiClient
             .GetProperty("choices")[0]
             .GetProperty("message");
 
-        var content = message.GetProperty("content").GetString();
+        var content = ExtractOpenAiMessageContent(message);
 
         // 提取思维链（DeepSeek reasoning_content）
         string? reasoning = null;
@@ -335,7 +337,7 @@ public class AiApiClient
         CancellationToken cancellationToken)
     {
         var apiMessages = new List<object> { new { role = "system", content = systemPrompt } };
-        apiMessages.AddRange(messages.Select(m => new { role = m.Role, content = m.Content }));
+        apiMessages.AddRange(messages.Select(BuildOpenAiMessage));
 
         var isReasonerModel = options.Model.Contains("reasoner", StringComparison.OrdinalIgnoreCase);
         object requestBody;
@@ -408,14 +410,10 @@ public class AiApiClient
                     }
                 }
 
-                if (delta.TryGetProperty("content", out var contentEl))
+                if (TryExtractDeltaContent(delta, out var contentChunk) && !string.IsNullOrEmpty(contentChunk))
                 {
-                    var chunk = contentEl.GetString() ?? "";
-                    if (!string.IsNullOrEmpty(chunk))
-                    {
-                        fullContent.Append(chunk);
-                        onChunk(new AiStreamChunk(AiStreamChunkType.Content, chunk));
-                    }
+                    fullContent.Append(contentChunk);
+                    onChunk(new AiStreamChunk(AiStreamChunkType.Content, contentChunk));
                 }
             }
             catch (JsonException) { }
@@ -426,6 +424,250 @@ public class AiApiClient
     }
 
     // 保留旧方法以兼容
+    private static object BuildAnthropicMessage(ChatMessage message)
+    {
+        if (!message.HasRichContent)
+        {
+            return new { role = message.Role, content = message.Content };
+        }
+
+        var contentParts = BuildAnthropicContentParts(message);
+        if (contentParts.Count == 0)
+        {
+            return new { role = message.Role, content = message.Content };
+        }
+
+        return new { role = message.Role, content = contentParts };
+    }
+
+    private static List<object> BuildAnthropicContentParts(ChatMessage message)
+    {
+        var parts = new List<object>();
+
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            parts.Add(new { type = "text", text = message.Content });
+        }
+
+        if (message.Parts == null)
+        {
+            return parts;
+        }
+
+        foreach (var part in message.Parts)
+        {
+            if (part.Type == ChatContentPartType.Text)
+            {
+                if (!string.IsNullOrWhiteSpace(part.Text))
+                {
+                    parts.Add(new { type = "text", text = part.Text });
+                }
+                continue;
+            }
+
+            if (part.Type == ChatContentPartType.Image &&
+                TryReadImageData(part.ImagePath, out var imageBase64, out var mediaType))
+            {
+                parts.Add(new
+                {
+                    type = "image",
+                    source = new
+                    {
+                        type = "base64",
+                        media_type = mediaType,
+                        data = imageBase64
+                    }
+                });
+            }
+        }
+
+        return parts;
+    }
+
+    private static object BuildOpenAiMessage(ChatMessage message)
+    {
+        if (!message.HasRichContent)
+        {
+            return new { role = message.Role, content = message.Content };
+        }
+
+        var contentParts = BuildOpenAiContentParts(message);
+        if (contentParts.Count == 0)
+        {
+            return new { role = message.Role, content = message.Content };
+        }
+
+        return new { role = message.Role, content = contentParts };
+    }
+
+    private static List<object> BuildOpenAiContentParts(ChatMessage message)
+    {
+        var parts = new List<object>();
+
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            parts.Add(new { type = "text", text = message.Content });
+        }
+
+        if (message.Parts == null)
+        {
+            return parts;
+        }
+
+        foreach (var part in message.Parts)
+        {
+            if (part.Type == ChatContentPartType.Text)
+            {
+                if (!string.IsNullOrWhiteSpace(part.Text))
+                {
+                    parts.Add(new { type = "text", text = part.Text });
+                }
+                continue;
+            }
+
+            if (part.Type == ChatContentPartType.Image &&
+                TryReadImageData(part.ImagePath, out var imageBase64, out var mediaType))
+            {
+                parts.Add(new
+                {
+                    type = "image_url",
+                    image_url = new
+                    {
+                        url = $"data:{mediaType};base64,{imageBase64}",
+                        detail = part.Detail
+                    }
+                });
+            }
+        }
+
+        return parts;
+    }
+
+    private static bool TryReadImageData(
+        string? imagePath,
+        out string imageBase64,
+        out string mediaType)
+    {
+        imageBase64 = string.Empty;
+        mediaType = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(imagePath))
+            return false;
+
+        var normalizedPath = imagePath.Trim();
+        if (!File.Exists(normalizedPath))
+            return false;
+
+        var extension = Path.GetExtension(normalizedPath);
+        mediaType = GetImageMediaType(extension);
+        if (string.IsNullOrWhiteSpace(mediaType))
+            return false;
+
+        var fileInfo = new FileInfo(normalizedPath);
+        if (fileInfo.Length <= 0 || fileInfo.Length > MaxImageBytes)
+            return false;
+
+        var bytes = File.ReadAllBytes(normalizedPath);
+        imageBase64 = Convert.ToBase64String(bytes);
+        return true;
+    }
+
+    private static string GetImageMediaType(string? extension) =>
+        extension?.ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".bmp" => "image/bmp",
+            ".gif" => "image/gif",
+            ".tif" => "image/tiff",
+            ".tiff" => "image/tiff",
+            _ => string.Empty
+        };
+
+    internal static bool IsSupportedImageExtension(string? extension) =>
+        !string.IsNullOrWhiteSpace(GetImageMediaType(extension));
+
+    private static string? ExtractOpenAiMessageContent(JsonElement message)
+    {
+        if (!message.TryGetProperty("content", out var contentElement))
+            return null;
+
+        if (contentElement.ValueKind == JsonValueKind.String)
+            return contentElement.GetString();
+
+        if (contentElement.ValueKind != JsonValueKind.Array)
+            return null;
+
+        var sb = new StringBuilder();
+        foreach (var part in contentElement.EnumerateArray())
+        {
+            if (part.ValueKind == JsonValueKind.String)
+            {
+                sb.Append(part.GetString());
+                continue;
+            }
+
+            if (part.ValueKind != JsonValueKind.Object)
+                continue;
+
+            if (part.TryGetProperty("text", out var textEl) && textEl.ValueKind == JsonValueKind.String)
+            {
+                sb.Append(textEl.GetString());
+                continue;
+            }
+
+            if (part.TryGetProperty("type", out var typeEl) &&
+                typeEl.ValueKind == JsonValueKind.String &&
+                typeEl.GetString() == "text" &&
+                part.TryGetProperty("content", out var contentEl) &&
+                contentEl.ValueKind == JsonValueKind.String)
+            {
+                sb.Append(contentEl.GetString());
+            }
+        }
+
+        return sb.Length > 0 ? sb.ToString() : null;
+    }
+
+    private static bool TryExtractDeltaContent(JsonElement delta, out string chunk)
+    {
+        chunk = string.Empty;
+
+        if (!delta.TryGetProperty("content", out var contentElement))
+            return false;
+
+        if (contentElement.ValueKind == JsonValueKind.String)
+        {
+            chunk = contentElement.GetString() ?? string.Empty;
+            return true;
+        }
+
+        if (contentElement.ValueKind != JsonValueKind.Array)
+            return false;
+
+        var sb = new StringBuilder();
+        foreach (var part in contentElement.EnumerateArray())
+        {
+            if (part.ValueKind == JsonValueKind.String)
+            {
+                sb.Append(part.GetString());
+                continue;
+            }
+
+            if (part.ValueKind == JsonValueKind.Object &&
+                part.TryGetProperty("text", out var textEl) &&
+                textEl.ValueKind == JsonValueKind.String)
+            {
+                sb.Append(textEl.GetString());
+            }
+        }
+
+        chunk = sb.ToString();
+        return !string.IsNullOrEmpty(chunk);
+    }
+
     public async Task<AiCompletionResult> CompleteAsync(
         string systemPrompt,
         string userMessage,
@@ -442,4 +684,56 @@ public class AiApiClient
 /// <summary>
 /// 聊天消息
 /// </summary>
-public record ChatMessage(string Role, string Content);
+public sealed class ChatMessage
+{
+    public string Role { get; }
+    public string Content { get; }
+    public IReadOnlyList<ChatMessageContentPart>? Parts { get; }
+
+    public bool HasRichContent => Parts != null && Parts.Count > 0;
+
+    public ChatMessage(string role, string content)
+    {
+        Role = role;
+        Content = content;
+        Parts = null;
+    }
+
+    public ChatMessage(string role, IReadOnlyList<ChatMessageContentPart> parts)
+    {
+        Role = role;
+        Content = string.Empty;
+        Parts = parts;
+    }
+}
+
+public static class ChatContentPartType
+{
+    public const string Text = "text";
+    public const string Image = "image";
+}
+
+public sealed class ChatMessageContentPart
+{
+    public string Type { get; private set; } = ChatContentPartType.Text;
+    public string? Text { get; private set; }
+    public string? ImagePath { get; private set; }
+    public string Detail { get; private set; } = "high";
+
+    private ChatMessageContentPart() { }
+
+    public static ChatMessageContentPart TextPart(string text) =>
+        new()
+        {
+            Type = ChatContentPartType.Text,
+            Text = text
+        };
+
+    public static ChatMessageContentPart ImageFile(string imagePath, string detail = "high") =>
+        new()
+        {
+            Type = ChatContentPartType.Image,
+            ImagePath = imagePath,
+            Detail = string.IsNullOrWhiteSpace(detail) ? "high" : detail
+        };
+}
