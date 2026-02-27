@@ -27,9 +27,6 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("sourceType", "采集源", "enum", DefaultValue = "file", Options = new[] { "file|文件", "camera|相机" })]
 [OperatorParam("filePath", "文件路径", "file", DefaultValue = "")]
 [OperatorParam("cameraId", "相机", "cameraBinding", DefaultValue = "")]
-[OperatorParam("exposureTime", "曝光时间", "double", DefaultValue = 5000.0, Min = 1.0, Max = 1000000.0)]
-[OperatorParam("gain", "增益", "double", DefaultValue = 1.0, Min = 1.0, Max = 20.0)]
-[OperatorParam("triggerMode", "触发模式", "enum", DefaultValue = "Software", Options = new[] { "Software|软触发", "Hardware|外触发" })]
 public class ImageAcquisitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;
@@ -121,12 +118,29 @@ public class ImageAcquisitionOperator : OperatorBase
             {
                 // 获取并配置相机
                 var camera = await _cameraManager.GetOrCreateByBindingAsync(cameraId);
+                var bindingConfig = _cameraManager.GetBindings()
+                    .FirstOrDefault(b => b.Id.Equals(cameraId, StringComparison.OrdinalIgnoreCase));
 
-                // 应用运行时参数
-                var exposureTime = GetDoubleParam(@operator, "exposureTime", 5000);
-                var gain = GetDoubleParam(@operator, "gain", 1.0);
+                // 相机参数优先来自“系统设置 -> 相机管理”，保留旧算子参数作为向后兼容 fallback。
+                var exposureTime = bindingConfig?.ExposureTimeUs ?? GetDoubleParam(@operator, "exposureTime", 5000);
+                var gain = bindingConfig?.GainDb ?? GetDoubleParam(@operator, "gain", 1.0);
                 await camera.SetExposureTimeAsync(exposureTime);
                 await camera.SetGainAsync(gain);
+
+                if (camera is IIndustrialCamera industrialCamera)
+                {
+                    var triggerMode = bindingConfig?.TriggerMode ?? GetStringParam(@operator, "triggerMode", "Software");
+                    if (triggerMode.Equals("Software", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Current adapter maps false -> software trigger mode in provider SDKs.
+                        await industrialCamera.SetTriggerModeAsync(false);
+                        await industrialCamera.ExecuteSoftwareTriggerAsync();
+                    }
+                    else
+                    {
+                        await industrialCamera.SetTriggerModeAsync(true);
+                    }
+                }
 
                 // 采集图像
                 var imageData = await camera.AcquireSingleFrameAsync();

@@ -9,6 +9,7 @@ class SettingsView {
         this.config = null;
         this.users = [];
         this.cameraBindings = [];
+        this.selectedCameraBindingId = null;
         
         // 尝试从本地存储或全局对象中获取当前用户信息
         const storedUser = localStorage.getItem('cv_current_user');
@@ -464,10 +465,15 @@ class SettingsView {
         const section = this.container.querySelector('[data-section="cameras"]');
         if (!section) return;
 
+        const discoverHuarayBtn = section.querySelector('#btn-discover-huaray-cameras');
+        discoverHuarayBtn?.addEventListener('click', () => this.discoverCameras('huaray', discoverHuarayBtn));
+
+        const discoverHikvisionBtn = section.querySelector('#btn-discover-hikvision-cameras');
+        discoverHikvisionBtn?.addEventListener('click', () => this.discoverCameras('hikvision', discoverHikvisionBtn));
+
+        // 兼容旧按钮 ID，避免历史页面缓存导致按钮失效。
         const discoverBtn = section.querySelector('#btn-discover-cameras');
-        if (discoverBtn) {
-            discoverBtn.addEventListener('click', () => this.discoverCameras());
-        }
+        discoverBtn?.addEventListener('click', () => this.discoverCameras('all', discoverBtn));
 
         const calibBtn = section.querySelector('#btn-hand-eye-calib');
         if (calibBtn) {
@@ -485,7 +491,7 @@ class SettingsView {
 
         const tbody = this.container.querySelector('#camera-bindings-table tbody');
         if (tbody) {
-            tbody.addEventListener('click', (e) => {
+            tbody.addEventListener('click', async (e) => {
                 const tr = e.target.closest('tr.camera-row');
                 if (!tr) return;
 
@@ -497,13 +503,43 @@ class SettingsView {
                 if (deleteBtn) {
                     const id = tr.dataset.id;
                     if (confirm('确定要删除此相机配置吗？')) {
+                        const previousBindings = [...this.cameraBindings];
                         this.cameraBindings = this.cameraBindings.filter(b => b.id !== id);
+                        if (this.selectedCameraBindingId === id) {
+                            this.selectedCameraBindingId = null;
+                        }
                         this.refreshCameraTable();
+
+                        const saved = await this.saveCameraBindings({ silent: true });
+                        if (!saved) {
+                            this.cameraBindings = previousBindings;
+                            this.refreshCameraTable();
+                            showToast('删除相机配置失败，请重试', 'error');
+                            return;
+                        }
+
                         showToast('已移除相机配置', 'success');
                     }
                 }
             });
         }
+
+        const saveParamsBtn = section.querySelector('#btn-save-camera-params');
+        saveParamsBtn?.addEventListener('click', () => this.saveSelectedCameraParameters());
+
+        const resetParamsBtn = section.querySelector('#btn-reset-camera-params');
+        resetParamsBtn?.addEventListener('click', () => {
+            if (!this.selectedCameraBindingId) {
+                this.updateCameraParameterPanel(null);
+                return;
+            }
+            const row = this.container.querySelector(`#camera-bindings-table tr.camera-row[data-id="${this.selectedCameraBindingId}"]`);
+            if (row) {
+                this.selectCameraRow(row);
+            } else {
+                this.updateCameraParameterPanel(null);
+            }
+        });
     }
 
     async loadCameraBindings() {
@@ -514,41 +550,82 @@ class SettingsView {
 
         try {
             const bindings = await httpClient.get('/cameras/bindings');
-            this.cameraBindings = bindings || [];
+            this.cameraBindings = (bindings || []).map(binding => {
+                const exposureRaw = binding.exposureTimeUs ?? binding.ExposureTimeUs;
+                const gainRaw = binding.gainDb ?? binding.GainDb;
+                const triggerRaw = binding.triggerMode ?? binding.TriggerMode;
+
+                return {
+                    ...binding,
+                    exposureTimeUs: Number.isFinite(Number(exposureRaw)) ? Number(exposureRaw) : 5000,
+                    gainDb: Number.isFinite(Number(gainRaw)) ? Number(gainRaw) : 1.0,
+                    triggerMode: typeof triggerRaw === 'string' && triggerRaw.trim() ? triggerRaw.trim() : 'Software'
+                };
+            });
+
+            if (this.selectedCameraBindingId && !this.cameraBindings.some(b => b.id === this.selectedCameraBindingId)) {
+                this.selectedCameraBindingId = null;
+            }
             this.refreshCameraTable();
         } catch (error) {
             console.error('Failed to load camera bindings:', error);
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color:var(--accent);">加载配置失败: ` + error.message + `</td></tr>`;
             }
+            this.updateCameraParameterPanel(null);
         }
     }
 
-    async discoverCameras() {
-        showToast('正在搜索在线相机...', 'info');
-        const discoverBtn = this.container.querySelector('#btn-discover-cameras');
-        if (discoverBtn) discoverBtn.disabled = true;
+    async discoverCameras(vendor = 'all', sourceButton = null) {
+        const vendorMeta = {
+            huaray: { text: '华睿', endpoint: '/cameras/discover/huaray' },
+            hikvision: { text: '海康', endpoint: '/cameras/discover/hikvision' },
+            all: { text: '全部', endpoint: '/cameras/discover' }
+        };
+        const meta = vendorMeta[vendor] || vendorMeta.all;
+
+        showToast(`正在搜索${meta.text}相机...`, 'info');
+        if (sourceButton) sourceButton.disabled = true;
 
         try {
-            const devices = await httpClient.get('/cameras/discover');
-            
+            const response = await httpClient.get(meta.endpoint);
+            const devices = Array.isArray(response)
+                ? response
+                : (response?.devices || response?.Devices || []);
+            const diagnostics = Array.isArray(response)
+                ? null
+                : (response?.diagnostics || response?.Diagnostics || null);
+
+            if (diagnostics?.message) {
+                const diagnosticsType = devices.length > 0 ? 'info' : 'warning';
+                showToast(diagnostics.message, diagnosticsType);
+                console.info('[SettingsView] Camera diagnostics:', diagnostics);
+            }
+
             if (devices && devices.length > 0) {
-                showToast(`找到 ${devices.length} 个相机设备`, 'success');
-                this.showDiscoveryModal(devices);
+                showToast(`找到 ${devices.length} 个${meta.text}相机设备`, 'success');
+                this.showDiscoveryModal(devices, meta.text);
             } else {
-                showToast('未发现任何在线相机', 'warning');
+                showToast(`未发现在线${meta.text}相机`, 'warning');
             }
         } catch (error) {
-            showToast('搜索相机失败: ' + error.message, 'error');
+            showToast(`搜索${meta.text}相机失败: ${error.message}`, 'error');
         } finally {
-            if (discoverBtn) discoverBtn.disabled = false;
+            if (sourceButton) sourceButton.disabled = false;
         }
     }
 
-    showDiscoveryModal(devices) {
+    showDiscoveryModal(devices, vendorText = '在线') {
+        const normalizedDevices = (devices || []).map(device => ({
+            cameraId: device.cameraId ?? device.CameraId ?? '',
+            manufacturer: device.manufacturer ?? device.Manufacturer ?? '',
+            model: device.model ?? device.Model ?? '',
+            connectionType: device.connectionType ?? device.ConnectionType ?? ''
+        }));
+
         const contentDiv = document.createElement('div');
         contentDiv.innerHTML = `
-            <div class="settings-card-table-wrapper" style="max-height: 400px; overflow-y: auto;">
+            <div class="settings-card-table-wrapper" style="max-height: 420px; overflow: auto;">
                 <table class="settings-modern-table" style="margin: 0; width: 100%;">
                     <thead>
                         <tr>
@@ -560,17 +637,17 @@ class SettingsView {
                         </tr>
                     </thead>
                     <tbody>
-                        ${devices.map(d => `
+                        ${normalizedDevices.map(d => `
                             <tr>
-                                <td><code style="background:var(--panel-bg); padding:2px 6px; border-radius:4px; font-size:13px; font-family:var(--font-mono);">${d.cameraId}</code></td>
+                                <td><code style="background:var(--panel-bg); padding:2px 6px; border-radius:4px; font-size:13px; font-family:var(--font-mono); word-break:break-all;">${d.cameraId || '-'}</code></td>
                                 <td>${d.manufacturer || '-'}</td>
                                 <td>${d.model || '-'}</td>
                                 <td>${d.connectionType || '-'}</td>
                                 <td>
-                                    <button class="cv-btn cv-btn-primary btn-bind-camera" 
-                                            data-sn="${d.cameraId}" 
-                                            data-man="${d.manufacturer}" 
-                                            data-model="${d.model}" 
+                                    <button class="cv-btn cv-btn-primary btn-bind-camera"
+                                            data-sn="${d.cameraId || ''}"
+                                            data-man="${d.manufacturer}"
+                                            data-model="${d.model}"
                                             style="padding:6px 12px; font-size:13px; border-radius:6px;">
                                         添加绑定
                                     </button>
@@ -581,17 +658,16 @@ class SettingsView {
                 </table>
             </div>
             <p style="margin-top:16px; font-size:13px; color:var(--text-muted);">
-                * 点击“添加绑定”可以将选中设备汇入到您的视觉工程工作区中。
+                * 当前展示 ${vendorText} 搜索结果。点击“添加绑定”可将设备加入当前工程。
             </p>
         `;
 
-        // 这里需要引入外面的全局方法或者之前 import 进来的 createModal
-        // 顶部的 import { showToast, createModal } from '../../shared/components/uiComponents.js'; 已经确保了可用
         const modal = createModal({
-            title: '配置向导：发现在线相机',
+            title: `配置向导：发现${vendorText}相机`,
             content: contentDiv,
-            width: '720px'
+            width: '920px'
         });
+        modal.querySelector('.cv-modal')?.style.setProperty('max-width', '95vw');
 
         // 绑定点击事件
         const bindBtns = contentDiv.querySelectorAll('.btn-bind-camera');
@@ -602,7 +678,7 @@ class SettingsView {
                 const model = btn.dataset.model;
 
                 // 检查是否已存在
-                if (this.cameraBindings.find(b => b.serialNumber === sn)) {
+                if (this.cameraBindings.find(b => String(b.serialNumber || '').toLowerCase() === String(sn || '').toLowerCase())) {
                     showToast('该相机已在绑定列表中，无需重复添加', 'warning');
                     return;
                 }
@@ -617,7 +693,10 @@ class SettingsView {
                     manufacturer: manufacturer,
                     modelName: model,
                     ipAddress: sn, // 简单的演示赋值
-                    isEnabled: true
+                    isEnabled: true,
+                    exposureTimeUs: 5000,
+                    gainDb: 1.0,
+                    triggerMode: 'Software'
                 };
 
                 this.cameraBindings.push(newBinding);
@@ -636,6 +715,11 @@ class SettingsView {
                 btn.textContent = '已绑定';
                 btn.classList.add('settings-btn-light');
                 btn.classList.remove('cv-btn-primary');
+
+                const selectedRow = this.container.querySelector(`#camera-bindings-table tr.camera-row[data-id="${newBinding.id}"]`);
+                if (selectedRow) {
+                    this.selectCameraRow(selectedRow);
+                }
             });
         });
     }
@@ -644,8 +728,14 @@ class SettingsView {
         const tbody = this.container.querySelector('#camera-bindings-table tbody');
         if (!tbody) return;
 
+        if (this.selectedCameraBindingId && !this.cameraBindings.some(b => b.id === this.selectedCameraBindingId)) {
+            this.selectedCameraBindingId = null;
+        }
+
         if (!this.cameraBindings || this.cameraBindings.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:24px;">暂无绑定配置，请点击“搜索相机”以发现及更新</td></tr>';
+            this.selectedCameraBindingId = null;
+            this.updateCameraParameterPanel(null);
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:24px;">暂无绑定配置，请点击“华睿搜索”或“海康搜索”发现设备</td></tr>';
             return;
         }
 
@@ -656,9 +746,10 @@ class SettingsView {
             const statusText = isConnected ? '已连接' : '已断开';
             const bgClass = index === 0 ? '#fee2e2' : '#e0e7ff';
             const fgClass = index === 0 ? 'var(--cinnabar)' : 'var(--primary)';
+            const isSelected = this.selectedCameraBindingId === b.id;
 
             return `
-            <tr class="camera-row" data-id="${b.id}" style="cursor: pointer;">
+            <tr class="camera-row" data-id="${b.id}" style="cursor: pointer; background:${isSelected ? 'var(--panel-bg)' : 'transparent'};">
                 <td>
                     <div style="display:flex; align-items:center; gap:12px;">
                         <div style="width:32px; height:32px; background:${bgClass}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:${fgClass};">
@@ -673,34 +764,114 @@ class SettingsView {
                 <td><span class="font-mono">${b.ipAddress || '192.168.x.x'}</span></td>
                 <td>${b.manufacturer || '未知'}</td>
                 <td><span class="settings-status-badge ${statusClass}"><span class="${statusDotClass}"></span> ${statusText}</span></td>
-                <td><button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button></td>
+                <td><button class="action-icon-btn" title="删除" style="color:var(--cinnabar);"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>
             </tr>
             `;
         }).join('');
+
+        if (this.selectedCameraBindingId) {
+            const selectedBinding = this.cameraBindings.find(b => b.id === this.selectedCameraBindingId);
+            this.updateCameraParameterPanel(selectedBinding || null);
+        } else {
+            this.updateCameraParameterPanel(null);
+        }
     }
 
     selectCameraRow(tr) {
+        if (!tr) return;
+
         // 取消其他行高亮
         const allRows = this.container.querySelectorAll('tr.camera-row');
-        allRows.forEach(r => r.style.backgroundColor = '');
-        
-        // 高亮当前行
-        tr.style.backgroundColor = 'var(--panel-bg)';
+        allRows.forEach(r => {
+            r.style.backgroundColor = '';
+        });
 
         const id = tr.getAttribute('data-id');
+        this.selectedCameraBindingId = id;
         const cam = this.cameraBindings.find(b => b.id === id);
-        
-        // 更新参数面板
-        if (cam) {
-            const nameEl = this.container.querySelector('#current-cam-name');
-            if (nameEl) nameEl.textContent = cam.displayName || '未命名相机';
+        tr.style.backgroundColor = 'var(--panel-bg)';
 
-            // 更新输入框 (如果有)
-            const exposeInput = this.container.querySelector('input[type="number"]');
-            if(exposeInput) {
-               exposeInput.value = 5000;
-            }
+        this.updateCameraParameterPanel(cam || null);
+    }
+
+    updateCameraParameterPanel(cam) {
+        const nameEl = this.container.querySelector('#current-cam-name');
+        if (nameEl) {
+            nameEl.textContent = cam?.displayName || '未选择相机';
         }
+
+        const exposureInput = this.container.querySelector('#cam-param-exposure');
+        const gainInput = this.container.querySelector('#cam-param-gain');
+        const triggerModeSelect = this.container.querySelector('#cam-param-trigger-mode');
+
+        if (exposureInput) {
+            exposureInput.value = cam ? String(cam.exposureTimeUs ?? 5000) : '';
+            exposureInput.disabled = !cam;
+        }
+        if (gainInput) {
+            gainInput.value = cam ? String(cam.gainDb ?? 1.0) : '';
+            gainInput.disabled = !cam;
+        }
+        if (triggerModeSelect) {
+            const triggerMode = cam?.triggerMode || 'Software';
+            triggerModeSelect.value = ['Software', 'Hardware', 'Continuous'].includes(triggerMode) ? triggerMode : 'Software';
+            triggerModeSelect.disabled = !cam;
+        }
+
+        const saveBtn = this.container.querySelector('#btn-save-camera-params');
+        if (saveBtn) {
+            saveBtn.disabled = !cam;
+        }
+    }
+
+    async saveSelectedCameraParameters() {
+        if (!this.selectedCameraBindingId) {
+            showToast('请先在上方绑定列表中选择一台相机', 'warning');
+            return;
+        }
+
+        const binding = this.cameraBindings.find(b => b.id === this.selectedCameraBindingId);
+        if (!binding) {
+            showToast('未找到选中的相机绑定', 'error');
+            return;
+        }
+
+        const exposureInput = this.container.querySelector('#cam-param-exposure');
+        const gainInput = this.container.querySelector('#cam-param-gain');
+        const triggerModeSelect = this.container.querySelector('#cam-param-trigger-mode');
+        if (!exposureInput || !gainInput || !triggerModeSelect) {
+            showToast('参数面板控件缺失，请刷新后重试', 'error');
+            return;
+        }
+
+        const exposureTimeUs = Number.parseFloat(exposureInput.value);
+        const gainDb = Number.parseFloat(gainInput.value);
+        const triggerMode = triggerModeSelect.value || 'Software';
+
+        if (!Number.isFinite(exposureTimeUs) || exposureTimeUs < 10 || exposureTimeUs > 1000000) {
+            showToast('曝光时间需在 10 - 1000000 µs 范围内', 'warning');
+            return;
+        }
+        if (!Number.isFinite(gainDb) || gainDb < 0 || gainDb > 24) {
+            showToast('增益需在 0.0 - 24.0 dB 范围内', 'warning');
+            return;
+        }
+
+        binding.exposureTimeUs = exposureTimeUs;
+        binding.gainDb = gainDb;
+        binding.triggerMode = triggerMode;
+
+        const saved = await this.saveCameraBindings();
+        if (!saved) {
+            return;
+        }
+
+        this.refreshCameraTable();
+        const selectedRow = this.container.querySelector(`#camera-bindings-table tr.camera-row[data-id="${this.selectedCameraBindingId}"]`);
+        if (selectedRow) {
+            this.selectCameraRow(selectedRow);
+        }
+        showToast(`已保存相机参数: ${binding.displayName || binding.serialNumber}`, 'success');
     }
 
     // （演示用空壳。需要配合 Modal使用，这里只挂载入口）
@@ -721,6 +892,7 @@ class SettingsView {
 
     renderGeneralTab() {
         const general = this.config?.general || this.getDefaultConfig().general;
+        const runtimeTheme = localStorage.getItem('cv_theme') || general.theme || 'light';
         return `
             <div class="settings-section-title">
                 <h2>常规设置</h2>
@@ -748,8 +920,8 @@ class SettingsView {
                         <div class="settings-fieldset" style="flex:1;">
                             <label>系统主题 (Theme)</label>
                             <select class="cv-input" id="cfg-theme">
-                                <option value="light" ${general.theme === 'light' ? 'selected' : ''}>浅色主题 (Light)</option>
-                                <option value="dark" ${general.theme === 'dark' ? 'selected' : ''}>深色主题 (Dark)</option>
+                                <option value="light" ${runtimeTheme === 'light' ? 'selected' : ''}>浅色主题 (Light)</option>
+                                <option value="dark" ${runtimeTheme === 'dark' ? 'selected' : ''}>深色主题 (Dark)</option>
                             </select>
                         </div>
                         <div class="settings-fieldset" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
@@ -1080,13 +1252,14 @@ class SettingsView {
                     <p>配置和管理视觉系统连接的工业相机参数。</p>
                 </div>
                 <div class="settings-actions">
-                    <button class="cv-btn settings-btn-light" id="btn-discover-cameras">
+                    <button class="cv-btn settings-btn-light" id="btn-discover-huaray-cameras">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                        搜索相机
+                        华睿搜索
                     </button>
-                    <!-- <button class="cv-btn settings-btn-danger">
-                        <span style="font-size:16px; margin-right:4px;">+</span> 添加相机
-                    </button> -->
+                    <button class="cv-btn settings-btn-light" id="btn-discover-hikvision-cameras">
+                        <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                        海康搜索
+                    </button>
                 </div>
             </div>
 
@@ -1123,7 +1296,7 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>曝光时间 (Exposure Time)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
+                                <input type="number" class="cv-input" id="cam-param-exposure" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">µs</span>
                             </div>
                             <span class="settings-field-hint">范围: 10 - 1000000 µs</span>
@@ -1131,19 +1304,19 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>增益 (Gain)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" step="0.1" class="cv-input" value="" style="padding-right:36px;">
+                                <input type="number" step="0.1" class="cv-input" id="cam-param-gain" value="" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">dB</span>
                             </div>
                             <span class="settings-field-hint">范围: 0.0 - 24.0 dB</span>
                         </div>
                         <div class="settings-fieldset">
                             <label>触发模式 (Trigger Mode)</label>
-                            <select class="cv-input">
-                                <option>Hardware Trigger (Line 1)</option>
-                                <option>Software Trigger</option>
-                                <option>Continuous</option>
+                            <select class="cv-input" id="cam-param-trigger-mode">
+                                <option value="Software">Software Trigger</option>
+                                <option value="Hardware">Hardware Trigger</option>
+                                <option value="Continuous">Continuous</option>
                             </select>
-                            <span class="settings-field-hint">当前信号源: PLC_Output_01</span>
+                            <span class="settings-field-hint">仅作用于当前所选相机</span>
                         </div>
                     </div>
                     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:24px;">
@@ -1172,10 +1345,10 @@ class SettingsView {
                 </div>
                 <div class="settings-card-body" style="border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:12px; padding:16px 24px;">
                     <button class="cv-btn settings-btn-light" id="btn-hand-eye-calib">手眼标定向导</button>
-                    <button class="cv-btn settings-btn-light">重置默认</button>
-                    <button class="cv-btn settings-btn-danger">
+                    <button class="cv-btn settings-btn-light" id="btn-reset-camera-params">重置当前值</button>
+                    <button class="cv-btn settings-btn-danger" id="btn-save-camera-params">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-                        保存配置
+                        保存当前相机参数
                     </button>
                 </div>
             </div>
@@ -1546,27 +1719,7 @@ class SettingsView {
     // saveAiConfig 已被 _saveCurrentForm() 替代，不再需要此方法
 
     collectCameraBindings() {
-        const section = this.container.querySelector('[data-section="cameras"]');
-        if (!section) return this.cameraBindings;
-
-        const rows = section.querySelectorAll('.camera-row');
-        const updatedBindings = [];
-
-        rows.forEach(row => {
-            const id = row.dataset.id;
-            const displayName = row.querySelector('.cam-display-name')?.value || 'Camera';
-            const original = this.cameraBindings.find(b => b.id === id);
-            
-            if (original) {
-                updatedBindings.push({
-                    ...original,
-                    displayName: displayName
-                });
-            }
-        });
-
-        this.cameraBindings = updatedBindings;
-        return updatedBindings;
+        return this.cameraBindings.map(binding => ({ ...binding }));
     }
 
     async saveCameraBindings({ silent = false } = {}) {
@@ -1601,29 +1754,59 @@ class SettingsView {
      */
     async save() {
         console.log('[SettingsView] Saving config...');
+
+        const themeSelect = this.container?.querySelector('#cfg-theme');
+        const selectedTheme = themeSelect?.value;
+        const currentTheme = this.config?.general?.theme
+            || document.documentElement.dataset.theme
+            || 'light';
+        const effectiveTheme = selectedTheme || currentTheme;
+
+        // 保证“保存所有更改”也会带上当前选中相机的参数修改。
+        if (this.selectedCameraBindingId) {
+            const selectedBinding = this.cameraBindings.find(b => b.id === this.selectedCameraBindingId);
+            const exposureInput = this.container?.querySelector('#cam-param-exposure');
+            const gainInput = this.container?.querySelector('#cam-param-gain');
+            const triggerModeSelect = this.container?.querySelector('#cam-param-trigger-mode');
+            if (selectedBinding && exposureInput && gainInput && triggerModeSelect) {
+                const exposureTimeUs = Number.parseFloat(exposureInput.value);
+                const gainDb = Number.parseFloat(gainInput.value);
+                if (!Number.isFinite(exposureTimeUs) || exposureTimeUs < 10 || exposureTimeUs > 1000000) {
+                    showToast('曝光时间需在 10 - 1000000 µs 范围内', 'warning');
+                    return;
+                }
+                if (!Number.isFinite(gainDb) || gainDb < 0 || gainDb > 24) {
+                    showToast('增益需在 0.0 - 24.0 dB 范围内', 'warning');
+                    return;
+                }
+                selectedBinding.exposureTimeUs = exposureTimeUs;
+                selectedBinding.gainDb = gainDb;
+                selectedBinding.triggerMode = triggerModeSelect.value || 'Software';
+            }
+        }
         
         // 收集表单数据
         const config = {
             general: {
-                softwareTitle: document.getElementById('cfg-softwareTitle')?.value || '',
-                theme: document.getElementById('cfg-theme')?.value || 'dark', // 这里由于测试版没有theme下拉，默认为dark或直接留空
-                autoStart: false
+                softwareTitle: this.container?.querySelector('#cfg-softwareTitle')?.value || '',
+                theme: effectiveTheme,
+                autoStart: this.container?.querySelector('#cfg-autoStart')?.checked || false
             },
             communication: {
-                plcIpAddress: document.getElementById('cfg-plcIpAddress')?.value || '',
-                plcPort: parseInt(document.getElementById('cfg-plcPort')?.value || '502', 10),
-                protocol: document.getElementById('cfg-protocol')?.value || 'ModbusTcp',
+                plcIpAddress: this.container?.querySelector('#cfg-plcIpAddress')?.value || '',
+                plcPort: parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '502', 10),
+                protocol: this.container?.querySelector('#cfg-protocol')?.value || 'ModbusTcp',
                 heartbeatIntervalMs: 1000
             },
             storage: {
-                imageSavePath: document.getElementById('cfg-imageSavePath')?.value || '',
-                savePolicy: document.getElementById('cfg-savePolicy')?.value || 'NgOnly',
+                imageSavePath: this.container?.querySelector('#cfg-imageSavePath')?.value || '',
+                savePolicy: this.container?.querySelector('#cfg-savePolicy')?.value || 'NgOnly',
                 retentionDays: 30,
                 minFreeSpaceGb: 5
             },
             runtime: {
-                autoRun: document.getElementById('cfg-autoRun')?.checked || false,
-                stopOnConsecutiveNg: parseInt(document.getElementById('cfg-stopOnConsecutiveNg')?.value || '0', 10)
+                autoRun: this.container?.querySelector('#cfg-autoRun')?.checked || false,
+                stopOnConsecutiveNg: parseInt(this.container?.querySelector('#cfg-stopOnConsecutiveNg')?.value || '0', 10)
             },
             cameras: this.collectCameraBindings(),
             activeCameraId: ''
@@ -1645,9 +1828,10 @@ class SettingsView {
             console.log('[SettingsView] Config saved successfully');
             showToast('所有设置已生效并保存。', 'success');
             
-            // 立即应用主题
-            if (config.general.theme) {
-                document.documentElement.dataset.theme = config.general.theme;
+            // 仅在用户显式设置主题时才应用，避免“保存所有更改”意外切换深色模式。
+            if (themeSelect && selectedTheme) {
+                document.documentElement.dataset.theme = selectedTheme;
+                localStorage.setItem('cv_theme', selectedTheme);
             }
         } catch (error) {
             console.error('[SettingsView] Failed to save config:', error);

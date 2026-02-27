@@ -107,10 +107,7 @@ public class OperatorFactory : IOperatorFactory
             {
                 new() { Name = "sourceType", DisplayName = "采集源", DataType = "enum", DefaultValue = "file", Options = new List<ParameterOption> { new() { Label = "文件", Value = "file" }, new() { Label = "相机", Value = "camera" } } },
                 new() { Name = "filePath", DisplayName = "文件路径", DataType = "file", DefaultValue = "" },
-                new() { Name = "cameraId", DisplayName = "相机", DataType = "cameraBinding", DefaultValue = "" },
-                new() { Name = "exposureTime", DisplayName = "曝光时间", DataType = "double", DefaultValue = 5000.0, MinValue = 1.0, MaxValue = 1000000.0 },
-                new() { Name = "gain", DisplayName = "增益", DataType = "double", DefaultValue = 1.0, MinValue = 1.0, MaxValue = 20.0 },
-                new() { Name = "triggerMode", DisplayName = "触发模式", DataType = "enum", DefaultValue = "Software", Options = new List<ParameterOption> { new() { Label = "软触发", Value = "Software" }, new() { Label = "外触发", Value = "Hardware" } } }
+                new() { Name = "cameraId", DisplayName = "相机", DataType = "cameraBinding", DefaultValue = "" }
             }
         };
 

@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-02-27 11:05:45 +08:00`
+> 生成时间 / Generated At: `2026-02-27 13:55:09 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -200,7 +200,7 @@
 ### 采集 (1)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.ImageAcquisition` | 图像采集 | 0 | 1 | 6 | 78 (B) | `1.0.0` | - | [ImageAcquisition](./ImageAcquisition.md) |
+| `OperatorType.ImageAcquisition` | 图像采集 | 0 | 1 | 3 | 78 (B) | `1.0.0` | - | [ImageAcquisition](./ImageAcquisition.md) |
 
 ### 预处理 (23)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

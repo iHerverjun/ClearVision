@@ -32,6 +32,9 @@ export class PreviewPanel {
             return;
         }
 
+        const operator = this.getOperator();
+        const isImageAcquisition = operator?.type === 'ImageAcquisition';
+
         this.container.innerHTML = `
             <section class="operator-preview-panel ${this.collapsed ? 'collapsed' : ''}">
                 <header class="operator-preview-header">
@@ -46,6 +49,11 @@ export class PreviewPanel {
                         <button type="button" class="btn btn-secondary btn-preview-refresh" id="btn-preview-refresh">
                             刷新预览
                         </button>
+                        ${isImageAcquisition
+                            ? `<button type="button" class="btn btn-primary btn-preview-soft-trigger" id="btn-preview-soft-trigger">
+                                软触发拍照
+                            </button>`
+                            : ''}
                     </div>
                 </header>
 
@@ -86,6 +94,11 @@ export class PreviewPanel {
         refreshBtn?.addEventListener('click', async () => {
             await this.refresh();
         });
+
+        const softTriggerBtn = this.container.querySelector('#btn-preview-soft-trigger');
+        softTriggerBtn?.addEventListener('click', async () => {
+            await this.captureBySoftTrigger();
+        });
     }
 
     scheduleAutoPreview() {
@@ -111,7 +124,11 @@ export class PreviewPanel {
 
         const inputImageBase64 = await Promise.resolve(this.getInputImageBase64());
         if (!inputImageBase64) {
-            this._setStatus('缺少输入图像，请先执行一次检测');
+            if (operator.type === 'ImageAcquisition') {
+                this._setStatus('图像采集算子请点击“软触发拍照”获取预览');
+            } else {
+                this._setStatus('缺少输入图像，请先执行一次检测');
+            }
             this._setImage('before', null);
             this._setImage('after', null);
             return;
@@ -147,6 +164,58 @@ export class PreviewPanel {
                 : '预览完成');
         } catch (error) {
             this._setStatus(`预览错误: ${error.message}`);
+            this._setImage('after', null);
+            this._renderOutputs(null);
+        }
+    }
+
+    async captureBySoftTrigger() {
+        const operator = this.getOperator();
+        if (!operator?.type || operator.type !== 'ImageAcquisition') {
+            this._setStatus('当前算子不支持软触发拍照');
+            return;
+        }
+
+        const parameters = this.getParameters() || {};
+        const sourceType = String(parameters.sourceType || parameters.SourceType || 'camera').toLowerCase();
+        if (sourceType !== 'camera') {
+            this._setStatus('当前采集源不是相机，请将采集源切换为相机');
+            return;
+        }
+
+        const cameraBindingId = parameters.cameraId || parameters.CameraId;
+        if (!cameraBindingId) {
+            this._setStatus('请先在图像采集算子中选择相机');
+            return;
+        }
+
+        this._setStatus('软触发拍照中...');
+        this._setImage('before', null);
+
+        try {
+            const response = await httpClient.post('/cameras/soft-trigger-capture', {
+                cameraBindingId
+            });
+
+            const imageBase64 = response?.imageBase64 || response?.ImageBase64;
+            if (!imageBase64) {
+                this._setStatus('软触发成功，但未返回图像');
+                this._setImage('after', null);
+                this._renderOutputs(null);
+                return;
+            }
+
+            this._setImage('after', imageBase64);
+            this._renderOutputs({
+                Source: 'camera',
+                CameraId: cameraBindingId,
+                Width: response?.width ?? response?.Width,
+                Height: response?.height ?? response?.Height,
+                TriggerMode: response?.triggerMode ?? response?.TriggerMode
+            });
+            this._setStatus('软触发拍照完成');
+        } catch (error) {
+            this._setStatus(`软触发失败: ${error.message}`);
             this._setImage('after', null);
             this._renderOutputs(null);
         }

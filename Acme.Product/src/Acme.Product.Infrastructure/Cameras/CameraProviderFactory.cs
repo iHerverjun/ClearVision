@@ -43,58 +43,35 @@ public static class CameraProviderFactory
     {
         var discoveredDevices = new List<DiscoveredDevice>();
 
-        // 华睿相机枚举
-        try
-        {
-            Debug.WriteLine("[CameraProviderFactory] Starting Huaray camera enumeration...");
-            using var mv = new MindVisionCamera();
-            var devices = mv.EnumerateDevices();
-            foreach (var device in devices)
-            {
-                discoveredDevices.Add(new DiscoveredDevice("Huaray", device));
-            }
-            Debug.WriteLine($"[CameraProviderFactory] Huaray: found {devices.Count} devices");
-        }
-        catch (DllNotFoundException ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Huaray SDK DLL not found: {ex.Message}");
-        }
-        catch (BadImageFormatException ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Huaray SDK DLL format error (32/64-bit mismatch): {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Huaray enum failed: {ex.GetType().Name} - {ex.Message}");
-        }
-
-        // 海康相机枚举
-        try
-        {
-            Debug.WriteLine("[CameraProviderFactory] Starting Hikvision camera enumeration...");
-            using var hik = new HikvisionCamera();
-            var devices = hik.EnumerateDevices();
-            foreach (var device in devices)
-            {
-                discoveredDevices.Add(new DiscoveredDevice("Hikvision", device));
-            }
-            Debug.WriteLine($"[CameraProviderFactory] Hikvision: found {devices.Count} devices");
-        }
-        catch (DllNotFoundException ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Hikvision SDK DLL not found: {ex.Message}");
-        }
-        catch (BadImageFormatException ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Hikvision SDK DLL format error (32/64-bit mismatch): {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[CameraProviderFactory] Hikvision enum failed: {ex.GetType().Name} - {ex.Message}");
-        }
+        TryEnumerateProvider("Huaray", () => new MindVisionCamera(), discoveredDevices);
+        TryEnumerateProvider("Hikvision", () => new HikvisionCamera(), discoveredDevices);
 
         var deduplicatedDevices = DeduplicateBySerial(discoveredDevices);
         Debug.WriteLine($"[CameraProviderFactory] Total cameras discovered: {discoveredDevices.Count}, deduplicated: {deduplicatedDevices.Count}");
+        return deduplicatedDevices;
+    }
+
+    /// <summary>
+    /// 仅通过华睿 SDK 枚举
+    /// </summary>
+    public static List<CameraDeviceInfo> DiscoverHuarayOnly()
+    {
+        var discoveredDevices = new List<DiscoveredDevice>();
+        TryEnumerateProvider("Huaray", () => new MindVisionCamera(), discoveredDevices);
+        var deduplicatedDevices = DeduplicateBySerial(discoveredDevices);
+        Debug.WriteLine($"[CameraProviderFactory] Huaray-only discover: {deduplicatedDevices.Count}");
+        return deduplicatedDevices;
+    }
+
+    /// <summary>
+    /// 仅通过海康 SDK 枚举
+    /// </summary>
+    public static List<CameraDeviceInfo> DiscoverHikvisionOnly()
+    {
+        var discoveredDevices = new List<DiscoveredDevice>();
+        TryEnumerateProvider("Hikvision", () => new HikvisionCamera(), discoveredDevices);
+        var deduplicatedDevices = DeduplicateBySerial(discoveredDevices);
+        Debug.WriteLine($"[CameraProviderFactory] Hikvision-only discover: {deduplicatedDevices.Count}");
         return deduplicatedDevices;
     }
 
@@ -234,6 +211,37 @@ public static class CameraProviderFactory
     private static string NormalizeName(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+    }
+
+    private static void TryEnumerateProvider(
+        string providerName,
+        Func<ICameraProvider> providerFactory,
+        List<DiscoveredDevice> discoveredDevices)
+    {
+        try
+        {
+            Debug.WriteLine($"[CameraProviderFactory] Starting {providerName} camera enumeration...");
+            using var provider = providerFactory();
+            var devices = provider.EnumerateDevices();
+            foreach (var device in devices)
+            {
+                discoveredDevices.Add(new DiscoveredDevice(providerName, device));
+            }
+
+            Debug.WriteLine($"[CameraProviderFactory] {providerName}: found {devices.Count} devices");
+        }
+        catch (DllNotFoundException ex)
+        {
+            Debug.WriteLine($"[CameraProviderFactory] {providerName} SDK DLL not found: {ex.Message}");
+        }
+        catch (BadImageFormatException ex)
+        {
+            Debug.WriteLine($"[CameraProviderFactory] {providerName} SDK DLL format error (32/64-bit mismatch): {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraProviderFactory] {providerName} enum failed: {ex.GetType().Name} - {ex.Message}");
+        }
     }
 
     private sealed class DiscoveredDevice

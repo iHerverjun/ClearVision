@@ -161,4 +161,19 @@ public class CameraBindingConfig
     /// 是否启用此配置
     /// </summary>
     public bool IsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// 曝光时间（微秒）
+    /// </summary>
+    public double ExposureTimeUs { get; set; } = 5000.0;
+
+    /// <summary>
+    /// 增益（dB）
+    /// </summary>
+    public double GainDb { get; set; } = 1.0;
+
+    /// <summary>
+    /// 触发模式（Software / Continuous / Hardware）
+    /// </summary>
+    public string TriggerMode { get; set; } = "Software";
 }

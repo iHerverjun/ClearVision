@@ -86,6 +86,9 @@ class PropertyPanel {
         // 兼容 title (画布节点) 和 displayName (算子库)
         const title = this.currentOperator.title || this.currentOperator.displayName || this.currentOperator.type;
         const { type, parameters = [], iconPath, icon } = this.currentOperator;
+        const parametersForRender = type === 'ImageAcquisition'
+            ? parameters.filter(param => !['exposuretime', 'gain', 'triggermode'].includes(String(param?.name || '').toLowerCase()))
+            : parameters;
         const canRecommend = this.canRecommend(type);
         
         const iconHtml = iconPath 
@@ -106,11 +109,11 @@ class PropertyPanel {
             <div class="property-content">
         `;
 
-        if (parameters.length === 0) {
+        if (parametersForRender.length === 0) {
             html += '<p class="empty-text">该算子没有可配置参数</p>';
         } else {
             // 按分组组织参数
-            const groupedParams = this.groupParameters(parameters);
+            const groupedParams = this.groupParameters(parametersForRender);
             
             html += '<form class="property-form" id="property-form">';
             

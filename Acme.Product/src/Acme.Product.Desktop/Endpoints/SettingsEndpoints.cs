@@ -3,12 +3,16 @@
 // 作者：蘅芜君
 
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Infrastructure.AI;
+using Acme.Product.Infrastructure.Cameras;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using OpenCvSharp;
 using System;
+using System.Linq;
 
 namespace Acme.Product.Desktop.Endpoints;
 
@@ -180,6 +184,22 @@ public static class SettingsEndpoints
             return Results.Ok(devices);
         });
 
+        // 仅通过华睿 SDK 搜索在线相机
+        app.MapGet("/api/cameras/discover/huaray", (Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
+        {
+            var devices = CameraProviderFactory.DiscoverHuarayOnly();
+            var mapped = MapDiscoveredDevices(devices, cameraManager).ToList();
+            var diagnostics = BuildHuarayDiagnostics(mapped.Count);
+            return Results.Ok(new { devices = mapped, diagnostics });
+        });
+
+        // 仅通过海康 SDK 搜索在线相机
+        app.MapGet("/api/cameras/discover/hikvision", (Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
+        {
+            var devices = CameraProviderFactory.DiscoverHikvisionOnly();
+            return Results.Ok(MapDiscoveredDevices(devices, cameraManager));
+        });
+
         // 获取已配置的相机绑定列表
         app.MapGet("/api/cameras/bindings", (Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
         {
@@ -212,7 +232,130 @@ public static class SettingsEndpoints
             }
         });
 
+        // 使用绑定参数执行手动软触发抓图（仅用于预览）
+        app.MapPost("/api/cameras/soft-trigger-capture", async (
+            CameraSoftTriggerCaptureRequest request,
+            Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.CameraBindingId))
+            {
+                return Results.BadRequest(new { Error = "CameraBindingId is required." });
+            }
+
+            try
+            {
+                var binding = cameraManager.GetBindings()
+                    .FirstOrDefault(b => b.Id.Equals(request.CameraBindingId, StringComparison.OrdinalIgnoreCase));
+                if (binding == null)
+                {
+                    return Results.NotFound(new { Error = $"Camera binding not found: {request.CameraBindingId}" });
+                }
+
+                var camera = await cameraManager.GetOrCreateByBindingAsync(request.CameraBindingId);
+
+                await camera.SetExposureTimeAsync(binding.ExposureTimeUs);
+                await camera.SetGainAsync(binding.GainDb);
+
+                var configuredTriggerMode = binding.TriggerMode?.Trim() ?? "Software";
+                var effectiveTriggerMode = configuredTriggerMode;
+                if (camera is IIndustrialCamera industrialCamera)
+                {
+                    try
+                    {
+                        // 软触发预览始终走软件触发，避免主配置为硬触发时无法返回预览图像。
+                        // Current adapter maps false -> software trigger mode in provider SDKs.
+                        await industrialCamera.SetTriggerModeAsync(false);
+                        await industrialCamera.ExecuteSoftwareTriggerAsync();
+                        effectiveTriggerMode = "Software";
+                    }
+                    catch (Exception)
+                    {
+                        // 若 SDK 不支持软件触发，退回绑定模式后继续采图。
+                        if (!configuredTriggerMode.Equals("Software", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await industrialCamera.SetTriggerModeAsync(true);
+                            effectiveTriggerMode = configuredTriggerMode;
+                        }
+                    }
+                }
+
+                var frameBytes = await camera.AcquireSingleFrameAsync();
+                using var frameMat = Cv2.ImDecode(frameBytes, ImreadModes.Color);
+                if (frameMat.Empty())
+                {
+                    return Results.BadRequest(new { Error = "Camera frame decode failed." });
+                }
+
+                var pngBytes = frameMat.ToBytes(".png");
+                return Results.Ok(new
+                {
+                    imageBase64 = Convert.ToBase64String(pngBytes),
+                    width = frameMat.Width,
+                    height = frameMat.Height,
+                    cameraId = request.CameraBindingId,
+                    triggerMode = effectiveTriggerMode,
+                    configuredTriggerMode
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
         return app;
+    }
+
+    private static IEnumerable<CameraInfo> MapDiscoveredDevices(
+        IEnumerable<CameraDeviceInfo> devices,
+        Acme.Product.Core.Cameras.ICameraManager cameraManager)
+    {
+        return devices.Select(d => new CameraInfo
+        {
+            CameraId = d.SerialNumber,
+            Name = string.IsNullOrEmpty(d.UserDefinedName) ? d.Model : d.UserDefinedName,
+            Manufacturer = d.Manufacturer,
+            Model = d.Model,
+            ConnectionType = d.InterfaceType,
+            IsConnected = cameraManager.GetCamera(d.SerialNumber) != null
+        });
+    }
+
+    private static object BuildHuarayDiagnostics(int deviceCount)
+    {
+        var sdkLoaded = MindVisionCamera.IsSdkLoaded;
+        var sdkPath = MindVisionCamera.SdkAssemblyLocation;
+        var sdkLoadError = MindVisionCamera.LastSdkLoadError;
+        var enumerateDetail = MindVisionCamera.LastEnumerateError;
+
+        string message;
+        if (deviceCount > 0)
+        {
+            message = $"华睿搜索成功，发现 {deviceCount} 台设备。";
+        }
+        else if (!sdkLoaded)
+        {
+            message = string.IsNullOrWhiteSpace(sdkLoadError)
+                ? "华睿 SDK 未加载成功，请检查 MVSDK_Net.dll。"
+                : $"华睿 SDK 未加载成功：{sdkLoadError}";
+        }
+        else if (!string.IsNullOrWhiteSpace(enumerateDetail))
+        {
+            message = $"华睿 SDK 已加载，但枚举结果为空：{enumerateDetail}";
+        }
+        else
+        {
+            message = "华睿 SDK 已加载，但未发现设备。请检查相机供电、网线与网卡网段。";
+        }
+
+        return new
+        {
+            sdkLoaded,
+            sdkPath,
+            sdkLoadError,
+            enumerateDetail,
+            message
+        };
     }
 }
 
@@ -236,4 +379,10 @@ public class AiModelUpdateRequest
     public string? Model { get; set; }
     public string? BaseUrl { get; set; }
     public int TimeoutMs { get; set; }
+}
+
+/// <summary>软触发抓图请求</summary>
+public class CameraSoftTriggerCaptureRequest
+{
+    public string CameraBindingId { get; set; } = string.Empty;
 }
