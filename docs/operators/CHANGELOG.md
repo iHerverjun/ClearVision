@@ -127,6 +127,12 @@
 
 ## 历史变更 / Historical Changes
 
+### OperatorType.ImageAcquisition / 图像采集
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-02-27T13:55:09.8962327+08:00` | `E826D45C253D` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `0B7EA0C62AEC` |
+
 ### OperatorType.ImageAdd / 图像加法
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
