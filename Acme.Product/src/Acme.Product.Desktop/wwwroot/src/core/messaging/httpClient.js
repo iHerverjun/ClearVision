@@ -184,6 +184,41 @@ class HttpClient {
     }
 
     /**
+     * 发送 POST 请求并接收 Blob 响应
+     */
+    async postForBlob(url, data = null) {
+        let fullUrl = this.baseUrl + url;
+        console.log(`[HttpClient] POST (blob) ${fullUrl}`);
+
+        try {
+            const response = await fetch(fullUrl, {
+                method: 'POST',
+                headers: this.defaultHeaders,
+                body: data ? JSON.stringify(data) : null
+            });
+            this.saveSuccessfulPort(fullUrl);
+            return this.handleBlobResponse(response);
+        } catch (error) {
+            // 如果是连接错误，尝试自动发现端口并重试
+            if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+                const discoveredPort = await this.discoverPort();
+                if (discoveredPort && discoveredPort !== 5000) {
+                    console.log(`[HttpClient] 尝试使用发现的端口 ${discoveredPort} 重试...`);
+                    fullUrl = `http://localhost:${discoveredPort}/api${url}`;
+                    const response = await fetch(fullUrl, {
+                        method: 'POST',
+                        headers: this.defaultHeaders,
+                        body: data ? JSON.stringify(data) : null
+                    });
+                    this.saveSuccessfulPort(fullUrl);
+                    return this.handleBlobResponse(response);
+                }
+            }
+            throw this.handleNetworkError(error, fullUrl);
+        }
+    }
+
+    /**
      * 发送 PUT 请求
      */
     async put(url, data = null) {
@@ -250,6 +285,21 @@ class HttpClient {
             return new Error(errorMessage);
         }
         return error;
+    }
+
+    /**
+     * 处理 Blob 响应
+     */
+    async handleBlobResponse(response) {
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || `HTTP ${response.status}`);
+        }
+
+        return {
+            blob: await response.blob(),
+            headers: response.headers
+        };
     }
 
     /**

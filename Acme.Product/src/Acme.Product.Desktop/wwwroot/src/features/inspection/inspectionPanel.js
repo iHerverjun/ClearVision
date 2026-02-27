@@ -9,6 +9,7 @@ import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
 import { getCurrentProject } from '../project/projectManager.js';
 import { AnalysisCardsPanel } from './analysisCardsPanel.js';
+import { showToast } from '../../shared/components/uiComponents.js';
 
 // 检测统计状态
 const [getStats, setStats, subscribeStats] = createSignal({
@@ -43,13 +44,17 @@ class InspectionPanel {
         this.selectedCamera = null;
         this.isContinuous = false;
         this.selectedRunMode = 'camera';
-        
+        this.runtimeConfig = { autoRun: false, stopOnConsecutiveNg: 0 };
+        this.consecutiveNgCount = 0;
+        this._autoRunTriggered = false;
+
         // 初始化 UI 和分析卡片面板
         this.initialize();
         this.analysisCardsPanel = new AnalysisCardsPanel('analysis-cards-container');
         
         // 设置订阅
         this.setupSubscriptions();
+        this.loadRuntimeConfig();
         
         console.log('[InspectionPanel] 检测控制面板初始化完成');
     }
@@ -243,6 +248,7 @@ class InspectionPanel {
     async handleRunContinuous() {
         try {
             this.isContinuous = true;
+            this.consecutiveNgCount = 0;
             this.updateStatus('running', '连续运行中...');
             this.setButtonsState(true);
             
@@ -279,6 +285,7 @@ class InspectionPanel {
                 await inspectionController.stopRealtime();
                 this.isContinuous = false;
             }
+            this.consecutiveNgCount = 0;
             this.updateStatus('idle', '已停止');
             this.setButtonsState(false);
 
@@ -329,6 +336,19 @@ class InspectionPanel {
         
         // 更新按钮状态
         this.setButtonsState(false);
+
+        // 运行时消费：连续 NG 阈值达到时自动停机
+        if (result.status === 'NG') {
+            this.consecutiveNgCount += 1;
+        } else {
+            this.consecutiveNgCount = 0;
+        }
+
+        const stopThreshold = Number(this.runtimeConfig?.stopOnConsecutiveNg ?? 0);
+        if (this.isContinuous && stopThreshold > 0 && this.consecutiveNgCount >= stopThreshold) {
+            showToast(`连续NG达到阈值(${stopThreshold})，已自动停止`, 'warning');
+            this.handleStop();
+        }
         
         // 添加到最近结果
         this.addRecentResult(result);
@@ -507,6 +527,53 @@ class InspectionPanel {
     refresh() {
         this.updateCounters();
         this.renderRecentResults();
+        this.tryAutoRunIfNeeded();
+    }
+
+    async loadRuntimeConfig() {
+        try {
+            const settings = await httpClient.get('/settings');
+            const runtime = settings?.runtime || {};
+            this.runtimeConfig = {
+                autoRun: !!runtime.autoRun,
+                stopOnConsecutiveNg: Math.max(0, Number(runtime.stopOnConsecutiveNg || 0))
+            };
+        } catch (error) {
+            console.warn('[InspectionPanel] 加载运行时配置失败:', error);
+            this.runtimeConfig = { autoRun: false, stopOnConsecutiveNg: 0 };
+        }
+
+        this.tryAutoRunIfNeeded();
+    }
+
+    tryAutoRunIfNeeded() {
+        if (!this.runtimeConfig?.autoRun || this._autoRunTriggered || this.isContinuous) {
+            return;
+        }
+
+        const project = getCurrentProject();
+        if (!project) {
+            return;
+        }
+
+        // 优先使用流程驱动，避免未选择相机时自动启动失败
+        if (!inspectionController.cameraId) {
+            this.selectedRunMode = 'flow';
+            const runModeSelect = this.container.querySelector('#run-mode');
+            const descEl = this.container.querySelector('#run-mode-desc');
+            if (runModeSelect) {
+                runModeSelect.value = 'flow';
+            }
+            if (descEl) {
+                descEl.textContent = '流程驱动：流程内PLC读取算子等待触发信号';
+            }
+        }
+
+        this._autoRunTriggered = true;
+        this.handleRunContinuous().catch((error) => {
+            console.warn('[InspectionPanel] AutoRun 启动失败:', error);
+            this._autoRunTriggered = false;
+        });
     }
 
     /**

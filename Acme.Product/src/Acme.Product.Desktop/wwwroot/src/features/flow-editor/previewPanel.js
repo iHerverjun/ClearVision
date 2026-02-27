@@ -25,6 +25,9 @@ export class PreviewPanel {
             clearTimeout(this._debounceTimer);
             this._debounceTimer = null;
         }
+
+        this._setImage('before', null);
+        this._setImage('after', null);
     }
 
     render() {
@@ -193,25 +196,31 @@ export class PreviewPanel {
         this._setImage('before', null);
 
         try {
-            const response = await httpClient.post('/cameras/soft-trigger-capture', {
+            const { blob, headers } = await httpClient.postForBlob('/cameras/soft-trigger-capture', {
                 cameraBindingId
             });
 
-            const imageBase64 = response?.imageBase64 || response?.ImageBase64;
-            if (!imageBase64) {
+            if (!blob || blob.size === 0) {
                 this._setStatus('软触发成功，但未返回图像');
                 this._setImage('after', null);
                 this._renderOutputs(null);
                 return;
             }
 
-            this._setImage('after', imageBase64);
+            const imageUrl = URL.createObjectURL(blob);
+            this._setImage('after', imageUrl);
+
+            const widthHeader = headers.get('X-Image-Width');
+            const heightHeader = headers.get('X-Image-Height');
+            const parsedWidth = widthHeader ? Number(widthHeader) : null;
+            const parsedHeight = heightHeader ? Number(heightHeader) : null;
+
             this._renderOutputs({
                 Source: 'camera',
-                CameraId: cameraBindingId,
-                Width: response?.width ?? response?.Width,
-                Height: response?.height ?? response?.Height,
-                TriggerMode: response?.triggerMode ?? response?.TriggerMode
+                CameraId: headers.get('X-Camera-Id') || cameraBindingId,
+                Width: Number.isFinite(parsedWidth) ? parsedWidth : (widthHeader || 'N/A'),
+                Height: Number.isFinite(parsedHeight) ? parsedHeight : (heightHeader || 'N/A'),
+                TriggerMode: headers.get('X-Trigger-Mode') || 'Software'
             });
             this._setStatus('软触发拍照完成');
         } catch (error) {
@@ -239,16 +248,26 @@ export class PreviewPanel {
             return;
         }
 
+        const oldSource = image.getAttribute('src');
+
         if (!imageBase64OrDataUrl) {
+            if (oldSource && oldSource.startsWith('blob:')) {
+                URL.revokeObjectURL(oldSource);
+            }
             image.removeAttribute('src');
             image.style.display = 'none';
             placeholder.style.display = 'flex';
             return;
         }
 
-        const source = String(imageBase64OrDataUrl).startsWith('data:')
-            ? String(imageBase64OrDataUrl)
-            : `data:image/png;base64,${imageBase64OrDataUrl}`;
+        const imageSourceText = String(imageBase64OrDataUrl);
+        const source = imageSourceText.startsWith('data:') || imageSourceText.startsWith('blob:')
+            ? imageSourceText
+            : `data:image/png;base64,${imageSourceText}`;
+
+        if (oldSource && oldSource.startsWith('blob:') && oldSource !== source) {
+            URL.revokeObjectURL(oldSource);
+        }
 
         image.src = source;
         image.style.display = 'block';

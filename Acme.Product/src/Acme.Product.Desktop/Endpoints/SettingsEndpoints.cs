@@ -10,7 +10,7 @@ using Acme.Product.Infrastructure.Cameras;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using OpenCvSharp;
+using System.Buffers.Binary;
 using System;
 using System.Linq;
 
@@ -50,6 +50,21 @@ public static class SettingsEndpoints
             var defaultConfig = new AppConfig();
             await configService.SaveAsync(defaultConfig);
             return Results.Ok(defaultConfig);
+        });
+
+        // 获取磁盘容量信息（用于设置页存储卡片）
+        app.MapGet("/api/settings/disk-usage", (string? path, IConfigurationService configService) =>
+        {
+            var configuredPath = string.IsNullOrWhiteSpace(path)
+                ? configService.GetCurrent().Storage.ImageSavePath
+                : path;
+
+            if (!TryBuildDiskUsage(configuredPath, out var usage, out var error))
+            {
+                return Results.BadRequest(new { Error = error });
+            }
+
+            return Results.Ok(usage);
         });
 
         // ==================== AI 多模型管理 API ====================
@@ -235,6 +250,7 @@ public static class SettingsEndpoints
         // 使用绑定参数执行手动软触发抓图（仅用于预览）
         app.MapPost("/api/cameras/soft-trigger-capture", async (
             CameraSoftTriggerCaptureRequest request,
+            HttpContext context,
             Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
         {
             if (string.IsNullOrWhiteSpace(request.CameraBindingId))
@@ -260,21 +276,20 @@ public static class SettingsEndpoints
                 // （StartGrabbing → TriggerMode=On → TriggerSource=Software → ExecuteSoftwareTrigger → GetFrame）
 
                 var frameBytes = await camera.AcquireSingleFrameAsync();
-                using var frameMat = Cv2.ImDecode(frameBytes, ImreadModes.Color);
-                if (frameMat.Empty())
+                if (!TryReadPngDimensions(frameBytes, out var width, out var height))
                 {
-                    return Results.BadRequest(new { Error = "Camera frame decode failed." });
+                    return Results.BadRequest(new { Error = "Camera frame metadata parse failed." });
                 }
 
-                var pngBytes = frameMat.ToBytes(".png");
-                return Results.Ok(new
-                {
-                    imageBase64 = Convert.ToBase64String(pngBytes),
-                    width = frameMat.Width,
-                    height = frameMat.Height,
-                    cameraId = request.CameraBindingId,
-                    triggerMode = "Software"
-                });
+                context.Response.Headers["X-Image-Width"] = width.ToString();
+                context.Response.Headers["X-Image-Height"] = height.ToString();
+                context.Response.Headers["X-Camera-Id"] = request.CameraBindingId;
+                context.Response.Headers["X-Trigger-Mode"] = "Software";
+
+                return Results.File(
+                    frameBytes,
+                    contentType: "image/png",
+                    fileDownloadName: null);
             }
             catch (Exception ex)
             {
@@ -335,6 +350,90 @@ public static class SettingsEndpoints
             enumerateDetail,
             message
         };
+    }
+
+    private static bool TryReadPngDimensions(byte[] pngBytes, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+
+        if (pngBytes.Length < 24)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> pngSignature = stackalloc byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
+        ReadOnlySpan<byte> ihdrChunkType = stackalloc byte[] { 73, 72, 68, 82 };
+
+        if (!pngBytes.AsSpan(0, 8).SequenceEqual(pngSignature))
+        {
+            return false;
+        }
+
+        if (!pngBytes.AsSpan(12, 4).SequenceEqual(ihdrChunkType))
+        {
+            return false;
+        }
+
+        width = BinaryPrimitives.ReadInt32BigEndian(pngBytes.AsSpan(16, 4));
+        height = BinaryPrimitives.ReadInt32BigEndian(pngBytes.AsSpan(20, 4));
+        return width > 0 && height > 0;
+    }
+
+    private static bool TryBuildDiskUsage(string? targetPath, out object usage, out string error)
+    {
+        usage = default!;
+        error = string.Empty;
+
+        try
+        {
+            var fullPath = string.IsNullOrWhiteSpace(targetPath)
+                ? AppContext.BaseDirectory
+                : Path.GetFullPath(targetPath);
+
+            var rootPath = Path.GetPathRoot(fullPath);
+            if (string.IsNullOrWhiteSpace(rootPath))
+            {
+                rootPath = Path.GetPathRoot(AppContext.BaseDirectory);
+            }
+
+            if (string.IsNullOrWhiteSpace(rootPath))
+            {
+                error = "无法解析磁盘根路径。";
+                return false;
+            }
+
+            var drive = new DriveInfo(rootPath);
+            if (!drive.IsReady)
+            {
+                error = $"磁盘不可用: {drive.Name}";
+                return false;
+            }
+
+            var totalBytes = drive.TotalSize;
+            var freeBytes = drive.AvailableFreeSpace;
+            var usedBytes = totalBytes - freeBytes;
+            var usedPercent = totalBytes > 0 ? usedBytes * 100.0 / totalBytes : 0;
+
+            usage = new
+            {
+                driveName = drive.Name,
+                sourcePath = fullPath,
+                totalBytes,
+                usedBytes,
+                freeBytes,
+                totalGb = Math.Round(totalBytes / 1024d / 1024d / 1024d, 2),
+                usedGb = Math.Round(usedBytes / 1024d / 1024d / 1024d, 2),
+                freeGb = Math.Round(freeBytes / 1024d / 1024d / 1024d, 2),
+                usedPercent = Math.Round(usedPercent, 2)
+            };
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 }
 

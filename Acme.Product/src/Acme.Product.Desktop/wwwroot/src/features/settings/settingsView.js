@@ -20,6 +20,7 @@ class SettingsView {
         this.activeAiModelId = null;
         this.editingAiModelId = null;
         this._pendingFormEdits = {}; // 暂存表单中的未保存修改
+        this.diskUsage = null;
 
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
     }
@@ -61,6 +62,9 @@ class SettingsView {
         
         // 绑定整个容器内的事件
         this.bindEvents();
+
+        // 加载磁盘容量真实数据
+        await this.loadDiskUsage();
         
         // 默认激活第一个 Tab
         this.activateTab('general');
@@ -218,6 +222,14 @@ class SettingsView {
 
         // 绑定 AI 设置事件
         this.bindAiSettingsEvents();
+
+        // 存储路径变化后刷新磁盘容量卡片
+        const imageSavePathInput = this.container.querySelector('#cfg-imageSavePath');
+        if (imageSavePathInput) {
+            const refreshDiskUsage = () => this.loadDiskUsage();
+            imageSavePathInput.addEventListener('change', refreshDiskUsage);
+            imageSavePathInput.addEventListener('blur', refreshDiskUsage);
+        }
     }
     
     bindAiSettingsEvents() {
@@ -927,12 +939,6 @@ class SettingsView {
                         </div>
                     </div>
                 </div>
-                <div class="settings-card-body" style="border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; padding:16px 24px;">
-                    <button class="cv-btn settings-btn-danger">
-                        <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-                        保存常规设置
-                    </button>
-                </div>
             </div>
         `;
     }
@@ -952,8 +958,13 @@ class SettingsView {
                         <svg viewBox="0 0 24 24" class="settings-header-icon"><path d="M19 15v4H5v-4h14m1-2H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 18.5c-.82 0-1.5-.67-1.5-1.5s.68-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM19 5v4H5V5h14m1-2H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 8.5c-.82 0-1.5-.67-1.5-1.5S6.18 5.5 7 5.5s1.5.67 1.5 1.5S7.82 8.5 7 8.5z"/></svg>
                         <span>通讯连接设置</span>
                     </div>
-                    <div class="settings-status-badge status-connected">
-                        <span class="status-dot"></span> 已连接
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <div class="settings-status-badge status-connected">
+                            <span class="status-dot"></span> 已连接
+                        </div>
+                        <div class="settings-status-badge status-disconnected" style="color:#b45309; border-color:#f59e0b; background:#fffbeb;">
+                            开发中
+                        </div>
                     </div>
                 </div>
                 
@@ -978,7 +989,7 @@ class SettingsView {
                         <input type="number" class="cv-input" id="cfg-plcPort" value="${comm.plcPort || 502}">
                     </div>
                     <div class="settings-fieldset-action">
-                        <button class="cv-btn settings-btn-dark">
+                        <button class="cv-btn settings-btn-dark" disabled title="功能开发中">
                             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                             连接测试
                         </button>
@@ -994,9 +1005,9 @@ class SettingsView {
                         <span>地址映射表 (Address Mapping)</span>
                     </div>
                     <div class="settings-header-actions">
-                        <button class="icon-action-btn"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg></button>
-                        <button class="icon-action-btn"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
-                        <button class="cv-btn settings-btn-light" style="padding: 4px 12px; margin-left: 8px;">
+                        <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg></button>
+                        <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
+                        <button class="cv-btn settings-btn-light" style="padding: 4px 12px; margin-left: 8px;" disabled title="功能开发中">
                             <span style="font-size: 16px; margin-right: 4px;">+</span> 添加变量
                         </button>
                     </div>
@@ -1077,8 +1088,8 @@ class SettingsView {
             
             <!-- 底部浮动操作区 -->
             <div class="settings-floating-footer">
-                <button class="cv-btn settings-btn-light" style="width: 100px;">取消</button>
-                <button class="cv-btn settings-btn-danger" style="width: 140px;" id="btn-save-plc">
+                <button class="cv-btn settings-btn-light" style="width: 100px;" disabled title="功能开发中">取消</button>
+                <button class="cv-btn settings-btn-danger" style="width: 140px;" id="btn-save-plc" disabled title="功能开发中">
                     <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; margin-right: 6px; fill: currentColor;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg> 
                     同步配置
                 </button>
@@ -1155,20 +1166,20 @@ class SettingsView {
                 <div class="settings-modern-card" style="flex:1;">
                     <div class="settings-card-body" style="padding: 32px 24px;">
                         <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                            <span style="font-size:13px; font-weight:600; color:#475569;">D:\\ 磁盘空间</span>
-                            <span style="font-size:13px; font-weight:700; color:#0f172a;">85% 已用</span>
+                            <span id="disk-drive-label" style="font-size:13px; font-weight:600; color:#475569;">-- 磁盘空间</span>
+                            <span id="disk-used-percent" style="font-size:13px; font-weight:700; color:#0f172a;">--% 已用</span>
                         </div>
                         <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden; margin-bottom:24px;">
-                            <div style="background:var(--cinnabar); width:85%; height:100%;"></div>
+                            <div id="disk-used-bar" style="background:var(--cinnabar); width:0%; height:100%;"></div>
                         </div>
                         
                         <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
                             <span class="text-muted">已用空间</span>
-                            <span class="font-bold">425 GB</span>
+                            <span class="font-bold" id="disk-used-gb">-- GB</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:13px;">
                             <span class="text-muted">可用空间</span>
-                            <span class="font-bold" style="color:#059669;">75 GB</span>
+                            <span class="font-bold" id="disk-free-gb" style="color:#059669;">-- GB</span>
                         </div>
                         
                         <button class="cv-btn settings-btn-light" style="width:100%; margin-top:32px;">立即清理过期文件</button>
@@ -1713,6 +1724,37 @@ class SettingsView {
 
     // saveAiConfig 已被 _saveCurrentForm() 替代，不再需要此方法
 
+    async loadDiskUsage() {
+        if (!this.container) return;
+
+        try {
+            const pathInput = this.container.querySelector('#cfg-imageSavePath');
+            const sourcePath = pathInput?.value || this.config?.storage?.imageSavePath || '';
+            const usage = await httpClient.get(`/settings/disk-usage?path=${encodeURIComponent(sourcePath)}`);
+            this.diskUsage = usage;
+            this.updateDiskUsageCard();
+        } catch (error) {
+            console.warn('[SettingsView] 加载磁盘容量失败:', error);
+        }
+    }
+
+    updateDiskUsageCard() {
+        if (!this.container || !this.diskUsage) return;
+
+        const usage = this.diskUsage;
+        const driveLabel = this.container.querySelector('#disk-drive-label');
+        const usedPercent = this.container.querySelector('#disk-used-percent');
+        const usedBar = this.container.querySelector('#disk-used-bar');
+        const usedGb = this.container.querySelector('#disk-used-gb');
+        const freeGb = this.container.querySelector('#disk-free-gb');
+
+        if (driveLabel) driveLabel.textContent = `${usage.driveName} 磁盘空间`;
+        if (usedPercent) usedPercent.textContent = `${usage.usedPercent}% 已用`;
+        if (usedBar) usedBar.style.width = `${Math.min(100, Math.max(0, usage.usedPercent))}%`;
+        if (usedGb) usedGb.textContent = `${usage.usedGb} GB`;
+        if (freeGb) freeGb.textContent = `${usage.freeGb} GB`;
+    }
+
     collectCameraBindings() {
         return this.cameraBindings.map(binding => ({ ...binding }));
     }
@@ -1841,6 +1883,7 @@ class SettingsView {
 
             console.log('[SettingsView] Config saved successfully');
             showToast('所有设置已生效并保存。', 'success');
+            await this.loadDiskUsage();
             
             // 仅在用户显式设置主题时才应用，避免“保存所有更改”意外切换深色模式。
             if (themeSelect && selectedTheme) {

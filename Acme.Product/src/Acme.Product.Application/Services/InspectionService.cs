@@ -22,6 +22,7 @@ public class InspectionService : IInspectionService
     private readonly IProjectRepository _projectRepository;
     private readonly IFlowExecutionService _flowExecutionService;
     private readonly IImageAcquisitionService _imageAcquisitionService;
+    private readonly IConfigurationService _configurationService;
     private readonly ILogger<InspectionService> _logger;
 
     public InspectionService(
@@ -29,12 +30,14 @@ public class InspectionService : IInspectionService
         IProjectRepository projectRepository,
         IFlowExecutionService flowExecutionService,
         IImageAcquisitionService imageAcquisitionService,
+        IConfigurationService configurationService,
         ILogger<InspectionService> logger)
     {
         _resultRepository = resultRepository;
         _projectRepository = projectRepository;
         _flowExecutionService = flowExecutionService;
         _imageAcquisitionService = imageAcquisitionService;
+        _configurationService = configurationService;
         _logger = logger;
     }
 
@@ -135,6 +138,7 @@ public class InspectionService : IInspectionService
 
             // 保存输出的额外数据（文本、数值等），并过滤不安全对象（如 OpenCvSharp.Mat）
             TrySetOutputDataJson(result, flowResult.OutputData);
+            await PersistResultImageAsync(result, CancellationToken.None);
 
             await _resultRepository.AddAsync(result);
 
@@ -276,6 +280,7 @@ public class InspectionService : IInspectionService
         int currentIntervalMs = 500; // 默认500ms
 
         int cycleCount = 0;
+        int consecutiveNgCount = 0;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -293,7 +298,25 @@ public class InspectionService : IInspectionService
                 //  ③ 检测链 → 深度学习/测量/匹配
                 //  ④ 结果判定 → OK/NG判定
                 //  ⑤ PLC写入 → 回写判定结果
-                await ExecuteFlowCycleAsync(projectId, flow, cameraId, cancellationToken);
+                var cycleStatus = await ExecuteFlowCycleAsync(projectId, flow, cameraId, cancellationToken);
+
+                if (cycleStatus == InspectionStatus.NG)
+                {
+                    consecutiveNgCount++;
+                }
+                else
+                {
+                    consecutiveNgCount = 0;
+                }
+
+                var stopOnConsecutiveNg = GetStopOnConsecutiveNgThreshold();
+                if (stopOnConsecutiveNg > 0 && consecutiveNgCount >= stopOnConsecutiveNg)
+                {
+                    _logger.LogWarning(
+                        "[InspectionService] 连续NG达到阈值，自动停止实时检测: ProjectId={ProjectId}, ConsecutiveNg={ConsecutiveNg}, Threshold={Threshold}",
+                        projectId, consecutiveNgCount, stopOnConsecutiveNg);
+                    break;
+                }
 
                 // 重置间隔（执行成功）
                 currentIntervalMs = 500;
@@ -330,7 +353,7 @@ public class InspectionService : IInspectionService
     /// <summary>
     /// 执行单轮检测流程（完整流程执行）
     /// </summary>
-    private async Task ExecuteFlowCycleAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
+    private async Task<InspectionStatus> ExecuteFlowCycleAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
     {
         // 准备初始输入数据
         var inputData = new Dictionary<string, object>();
@@ -359,13 +382,13 @@ public class InspectionService : IInspectionService
         var flowResult = await _flowExecutionService.ExecuteFlowAsync(flow, inputData, cancellationToken: cancellationToken);
 
         // 处理流程结果
-        await ProcessFlowResultAsync(projectId, flowResult, cancellationToken);
+        return await ProcessFlowResultAsync(projectId, flowResult, cancellationToken);
     }
 
     /// <summary>
     /// 处理流程执行结果
     /// </summary>
-    private async Task ProcessFlowResultAsync(Guid projectId, FlowExecutionResult flowResult, CancellationToken cancellationToken)
+    private async Task<InspectionStatus> ProcessFlowResultAsync(Guid projectId, FlowExecutionResult flowResult, CancellationToken cancellationToken)
     {
         var result = new InspectionResult(projectId);
 
@@ -416,19 +439,122 @@ public class InspectionService : IInspectionService
 
             // 保存输出的额外数据（文本、数值等），并过滤不安全对象（如 OpenCvSharp.Mat）
             TrySetOutputDataJson(result, flowResult.OutputData);
+            await PersistResultImageAsync(result, cancellationToken);
 
             await _resultRepository.AddAsync(result);
 
             _logger.LogInformation(
                 "[InspectionService] 检测完成: Status={Status}, Defects={DefectCount}, Time={TimeMs}ms",
                 status, result.Defects.Count, flowResult.ExecutionTimeMs);
+            return status;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[InspectionService] 处理流程结果异常");
             result.MarkAsError(ex.Message);
             await _resultRepository.AddAsync(result);
+            return InspectionStatus.Error;
         }
+    }
+
+    private int GetStopOnConsecutiveNgThreshold()
+    {
+        var threshold = _configurationService.GetCurrent().Runtime.StopOnConsecutiveNg;
+        return threshold < 0 ? 0 : threshold;
+    }
+
+    private async Task PersistResultImageAsync(InspectionResult result, CancellationToken cancellationToken)
+    {
+        if (result.OutputImage == null || result.OutputImage.Length == 0)
+        {
+            return;
+        }
+
+        var config = _configurationService.GetCurrent();
+        var storage = config.Storage ?? new StorageConfig();
+        if (!ShouldPersistImage(storage.SavePolicy, result.Status))
+        {
+            return;
+        }
+
+        try
+        {
+            var rootPath = ResolveImageSaveRoot(storage.ImageSavePath);
+            var dateFolder = DateTime.Now.ToString("yyyyMMdd");
+            var statusFolder = result.Status switch
+            {
+                InspectionStatus.OK => "OK",
+                InspectionStatus.NG => "NG",
+                _ => "ERROR"
+            };
+
+            var targetDir = Path.Combine(rootPath, dateFolder, statusFolder);
+            Directory.CreateDirectory(targetDir);
+
+            var extension = GuessImageExtension(result.OutputImage);
+            var fileName = $"{result.ProjectId:N}_{result.Id:N}_{DateTime.Now:HHmmssfff}{extension}";
+            var targetPath = Path.Combine(targetDir, fileName);
+
+            await File.WriteAllBytesAsync(targetPath, result.OutputImage, cancellationToken);
+            _logger.LogDebug("[InspectionService] 检测图像已落盘: {Path}", targetPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[InspectionService] 检测图像落盘失败，已忽略此次写盘");
+        }
+    }
+
+    private static bool ShouldPersistImage(string? savePolicy, InspectionStatus status)
+    {
+        var policy = (savePolicy ?? "NgOnly").Trim();
+        if (policy.Equals("None", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (policy.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (policy.Equals("NgOnly", StringComparison.OrdinalIgnoreCase))
+        {
+            return status == InspectionStatus.NG;
+        }
+
+        return status == InspectionStatus.NG;
+    }
+
+    private static string ResolveImageSaveRoot(string? configuredPath)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return Path.GetFullPath(configuredPath);
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, "VisionData", "Images");
+    }
+
+    private static string GuessImageExtension(byte[] bytes)
+    {
+        if (bytes.Length >= 8 &&
+            bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+        {
+            return ".png";
+        }
+
+        if (bytes.Length >= 3 &&
+            bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+        {
+            return ".jpg";
+        }
+
+        if (bytes.Length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D)
+        {
+            return ".bmp";
+        }
+
+        return ".bin";
     }
 
     /// <summary>
