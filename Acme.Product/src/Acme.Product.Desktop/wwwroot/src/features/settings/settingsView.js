@@ -875,11 +875,6 @@ class SettingsView {
     }
 
     // （演示用空壳。需要配合 Modal使用，这里只挂载入口）
-    bindUserManagementEvents() {
-        const addBtn = this.container.querySelector('#btn-add-user');
-        if (addBtn) addBtn.addEventListener('click', () => showToast('请在旧版面板或完成 UI 重构后添加用户。', 'info'));
-    }
-
     // ----- UI 渲染块（为了测试顺利，简化版） -----
     getDefaultConfig() {
         return {
@@ -1141,7 +1136,7 @@ class SettingsView {
                             <div class="settings-fieldset" style="flex:1;">
                                 <label>自动清理阈值 (天)</label>
                                 <div class="input-with-suffix" style="position:relative;">
-                                    <input type="number" class="cv-input" value="${storage.retentionDays || 30}" style="padding-right:36px;">
+                                    <input type="number" class="cv-input" id="cfg-retentionDays" value="${storage.retentionDays || 30}" style="padding-right:36px;">
                                     <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">Days</span>
                                 </div>
                             </div>
@@ -1149,7 +1144,7 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>磁盘低空间预警 (GB)</label>
                             <div class="input-with-suffix" style="position:relative; max-width: 200px;">
-                                <input type="number" class="cv-input" value="${storage.minFreeSpaceGb || 5}" style="padding-right:36px;">
+                                <input type="number" class="cv-input" id="cfg-minFreeSpaceGb" value="${storage.minFreeSpaceGb || 5}" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">GB</span>
                             </div>
                             <span class="settings-field-hint">当磁盘剩余空间不足该值时，系统会报警并禁止生产启动。</span>
@@ -1722,11 +1717,16 @@ class SettingsView {
         return this.cameraBindings.map(binding => ({ ...binding }));
     }
 
-    async saveCameraBindings({ silent = false } = {}) {
+    resolveActiveCameraId() {
         const preferredActiveId = this.config?.activeCameraId || '';
-        const activeCameraId = this.cameraBindings.some(b => b.id === preferredActiveId)
-            ? preferredActiveId
-            : (this.cameraBindings[0]?.id || '');
+        if (this.cameraBindings.some(b => b.id === preferredActiveId)) {
+            return preferredActiveId;
+        }
+        return this.cameraBindings[0]?.id || '';
+    }
+
+    async saveCameraBindings({ silent = false } = {}) {
+        const activeCameraId = this.resolveActiveCameraId();
 
         try {
             await httpClient.put('/cameras/bindings', {
@@ -1761,6 +1761,20 @@ class SettingsView {
             || document.documentElement.dataset.theme
             || 'light';
         const effectiveTheme = selectedTheme || currentTheme;
+        const defaultConfig = this.getDefaultConfig();
+        const parsedHeartbeatIntervalMs = Number.parseInt(`${this.config?.communication?.heartbeatIntervalMs ?? ''}`, 10);
+        const heartbeatIntervalMs = Number.isFinite(parsedHeartbeatIntervalMs) && parsedHeartbeatIntervalMs > 0
+            ? parsedHeartbeatIntervalMs
+            : defaultConfig.communication.heartbeatIntervalMs;
+        const parsedRetentionDays = Number.parseInt(this.container?.querySelector('#cfg-retentionDays')?.value || '', 10);
+        const retentionDays = Number.isFinite(parsedRetentionDays) && parsedRetentionDays >= 0
+            ? parsedRetentionDays
+            : (this.config?.storage?.retentionDays ?? defaultConfig.storage.retentionDays);
+        const parsedMinFreeSpaceGb = Number.parseFloat(this.container?.querySelector('#cfg-minFreeSpaceGb')?.value || '');
+        const minFreeSpaceGb = Number.isFinite(parsedMinFreeSpaceGb) && parsedMinFreeSpaceGb >= 0
+            ? parsedMinFreeSpaceGb
+            : (this.config?.storage?.minFreeSpaceGb ?? defaultConfig.storage.minFreeSpaceGb);
+        const activeCameraId = this.resolveActiveCameraId();
 
         // 保证“保存所有更改”也会带上当前选中相机的参数修改。
         if (this.selectedCameraBindingId) {
@@ -1796,20 +1810,20 @@ class SettingsView {
                 plcIpAddress: this.container?.querySelector('#cfg-plcIpAddress')?.value || '',
                 plcPort: parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '502', 10),
                 protocol: this.container?.querySelector('#cfg-protocol')?.value || 'ModbusTcp',
-                heartbeatIntervalMs: 1000
+                heartbeatIntervalMs
             },
             storage: {
                 imageSavePath: this.container?.querySelector('#cfg-imageSavePath')?.value || '',
                 savePolicy: this.container?.querySelector('#cfg-savePolicy')?.value || 'NgOnly',
-                retentionDays: 30,
-                minFreeSpaceGb: 5
+                retentionDays,
+                minFreeSpaceGb
             },
             runtime: {
                 autoRun: this.container?.querySelector('#cfg-autoRun')?.checked || false,
                 stopOnConsecutiveNg: parseInt(this.container?.querySelector('#cfg-stopOnConsecutiveNg')?.value || '0', 10)
             },
             cameras: this.collectCameraBindings(),
-            activeCameraId: ''
+            activeCameraId
         };
         
         try {

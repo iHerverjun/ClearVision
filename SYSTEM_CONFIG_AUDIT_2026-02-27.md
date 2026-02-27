@@ -290,10 +290,18 @@
 ### 第一梯队：修正硬编错误与反常覆写逻辑
 
 *   **修复活动相机覆写**: 在 `save()` 方法组装 JSON 前读取维护好的 `this.cameraBindings` 结构，补充赋予原活跃主 ID，不能直接设定为 `''`。
+    *   **状态**: ✅ 已完成（2026-02-27）
+    *   **落地证据**: 新增并统一使用 `resolveActiveCameraId()`，`saveCameraBindings()` 与 `save()` 均改为基于现有绑定解析活动相机 ID，不再写死空字符串（`settingsView.js:1720, 1729, 1777, 1826`）。
 *   **纠正强制锁死的默认覆盖属性**:
     *   移除 `retentionDays` 与 `minFreeSpaceGb` 这俩项发出的前置强行锁定；给 HTML Input 添加相应 `id` 并从该 `id` 内读出 `value` 后解析。
+        *   **状态**: ✅ 已完成（2026-02-27）
+        *   **落地证据**: 存储页阈值输入已补充 `id`，保存时改为读取并解析用户输入，未填写时才回退配置/默认值（`settingsView.js:1139, 1147, 1769, 1773, 1818-1819`）。
     *   对于 `heartbeatIntervalMs`，可将其修改为从 `this.config.communication.heartbeatIntervalMs`（加载时的原本值）提取填入作为保存透传。
+        *   **状态**: ✅ 已完成（2026-02-27）
+        *   **落地证据**: 保存时改为解析并透传 `this.config.communication.heartbeatIntervalMs`，保留正整数校验与默认值兜底，不再强制写死 `1000`（`settingsView.js:1765-1768, 1813`）。
 *   **清理同名死代码**: 直接铲除 `settingsView.js` 在行 877 左右的 `bindUserManagementEvents` Dummy占位法实现。
+    *   **状态**: ✅ 已完成（2026-02-27）
+    *   **落地证据**: 占位实现已删除，当前仅保留一处真实 `bindUserManagementEvents()` 实现（`settingsView.js:1573`；调用点 `settingsView.js:216`）。
 
 ### 第二梯队：填平业务空白层，推动局部可用化
 
