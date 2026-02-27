@@ -9,6 +9,7 @@ using Acme.Product.Core.ValueObjects;
 using Acme.PlcComm;
 using Acme.PlcComm.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -31,12 +32,21 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// <summary>
     /// 心跳检测间隔（毫秒）
     /// </summary>
-    private const int HeartbeatIntervalMs = 5000;
+    private const int DefaultHeartbeatIntervalMs = 1000;
 
     /// <summary>
     /// 单次 Ping 超时（毫秒）。超时视为设备忙碌（≈在线）
     /// </summary>
     private const int PingTimeoutMs = 2000;
+    private static readonly object _configLock = new();
+    private static readonly TimeSpan ConfigRefreshInterval = TimeSpan.FromSeconds(2);
+    private static readonly JsonSerializerOptions _configJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+    private static CommunicationConfig _cachedCommunicationConfig = new();
+    private static DateTime _cachedCommunicationConfigAtUtc = DateTime.MinValue;
 
     protected PlcCommunicationOperatorBase(ILogger logger) : base(logger)
     {
@@ -98,13 +108,13 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// </summary>
     private static async Task HeartbeatLoopAsync(CancellationToken ct)
     {
-        _heartbeatLogger?.LogInformation("[Heartbeat] 心跳巡检已启动，间隔 {Interval}ms", HeartbeatIntervalMs);
+        _heartbeatLogger?.LogInformation("[Heartbeat] 心跳巡检已启动，间隔 {Interval}ms", GetHeartbeatIntervalMs());
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(HeartbeatIntervalMs, ct);
+                await Task.Delay(GetHeartbeatIntervalMs(), ct);
 
                 // 获取连接池快照（避免遍历期间集合被修改）
                 KeyValuePair<string, IPlcClient>[] snapshot;
@@ -259,6 +269,86 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// <summary>
     /// 根据数据类型获取长度
     /// </summary>
+    protected (string ipAddress, int port, string protocol) ResolveConnectionSettings(
+        string? ipAddress,
+        int? port,
+        string fallbackProtocol = "")
+    {
+        var global = GetGlobalCommunicationConfig();
+        var normalizedIp = (ipAddress ?? string.Empty).Trim();
+        var requestedPort = port ?? 0;
+
+        var resolvedIp = string.IsNullOrWhiteSpace(normalizedIp)
+            ? (global.PlcIpAddress ?? string.Empty).Trim()
+            : normalizedIp;
+        var resolvedPort = requestedPort > 0 ? requestedPort : global.PlcPort;
+        var resolvedProtocol = !string.IsNullOrWhiteSpace(global.Protocol)
+            ? global.Protocol
+            : fallbackProtocol;
+
+        if (string.IsNullOrWhiteSpace(resolvedIp))
+        {
+            throw new InvalidOperationException("PLC IP is not configured in operator parameters or global settings.");
+        }
+
+        if (resolvedPort <= 0 || resolvedPort > 65535)
+        {
+            throw new InvalidOperationException("PLC port is invalid in operator parameters and global settings.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedIp) || requestedPort <= 0)
+        {
+            Logger.LogInformation(
+                "[{OperatorType}] Connection fallback applied. Operator IP='{OperatorIp}', Port='{OperatorPort}', Global IP='{GlobalIp}', Port={GlobalPort}.",
+                OperatorType,
+                ipAddress,
+                port,
+                global.PlcIpAddress,
+                global.PlcPort);
+        }
+
+        return (resolvedIp, resolvedPort, resolvedProtocol ?? string.Empty);
+    }
+
+    private static int GetHeartbeatIntervalMs()
+    {
+        var intervalMs = GetGlobalCommunicationConfig().HeartbeatIntervalMs;
+        return intervalMs > 0 ? intervalMs : DefaultHeartbeatIntervalMs;
+    }
+
+    private static CommunicationConfig GetGlobalCommunicationConfig()
+    {
+        lock (_configLock)
+        {
+            var nowUtc = DateTime.UtcNow;
+            if (nowUtc - _cachedCommunicationConfigAtUtc < ConfigRefreshInterval)
+            {
+                return _cachedCommunicationConfig;
+            }
+
+            try
+            {
+                var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                if (File.Exists(configPath))
+                {
+                    var json = File.ReadAllText(configPath);
+                    var config = JsonSerializer.Deserialize<AppConfig>(json, _configJsonOptions);
+                    if (config?.Communication != null)
+                    {
+                        _cachedCommunicationConfig = config.Communication;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _heartbeatLogger?.LogDebug(ex, "[PLC Config] Failed to load global config, using cached defaults.");
+            }
+
+            _cachedCommunicationConfigAtUtc = nowUtc;
+            return _cachedCommunicationConfig;
+        }
+    }
+
     protected ushort GetReadElementCount(string dataType)
     {
         // 统一长度语义：ReadAsync 的 length 表示“元素个数/点数”

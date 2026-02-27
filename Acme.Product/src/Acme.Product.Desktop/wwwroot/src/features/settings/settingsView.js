@@ -21,6 +21,9 @@ class SettingsView {
         this.editingAiModelId = null;
         this._pendingFormEdits = {}; // 暂存表单中的未保存修改
         this.diskUsage = null;
+        this.plcMappings = [];
+        this.plcConnectionStatus = 'unknown';
+        this.plcMappingsLoaded = false;
 
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
     }
@@ -35,6 +38,7 @@ class SettingsView {
             console.error('[SettingsView] Container not found:', this.containerId);
             return;
         }
+        this.plcConnectionStatus = 'unknown';
         
         // 可选：添加统一骨架屏或加载提示
         this.container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">正在加载设置...</div>';
@@ -44,6 +48,8 @@ class SettingsView {
             console.log('[SettingsView] Fetching main config...');
             this.config = await httpClient.get('/settings');
             this.cameraBindings = this.config.cameras || [];
+            this.plcMappings = this.config?.communication?.mappings || [];
+            this.plcMappingsLoaded = false;
             
             if (this.isAdmin) {
                 console.log('[SettingsView] Fetching users list...');
@@ -53,6 +59,8 @@ class SettingsView {
             console.error('[SettingsView] Failed to load data:', error);
             showToast('加载系统配置失败: ' + error.message, 'error');
             this.config = this.getDefaultConfig();
+            this.plcMappings = this.config?.communication?.mappings || [];
+            this.plcMappingsLoaded = false;
         }
         
         await this.loadAiModels();
@@ -189,6 +197,8 @@ class SettingsView {
             this.refreshUserTable();
         } else if (tabName === 'cameras') {
             this.loadCameraBindings();
+        } else if (tabName === 'communication') {
+            this.loadPlcMappings();
         }
     }
 
@@ -222,6 +232,7 @@ class SettingsView {
 
         // 绑定 AI 设置事件
         this.bindAiSettingsEvents();
+        this.bindPlcSettingsEvents();
 
         // 存储路径变化后刷新磁盘容量卡片
         const imageSavePathInput = this.container.querySelector('#cfg-imageSavePath');
@@ -232,6 +243,287 @@ class SettingsView {
         }
     }
     
+    bindPlcSettingsEvents() {
+        const communicationTab = this.container?.querySelector('[data-section="communication"]');
+        if (!communicationTab || communicationTab.dataset.boundPlcEvents === 'true') return;
+
+        communicationTab.dataset.boundPlcEvents = 'true';
+
+        communicationTab.addEventListener('click', async (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            if (button.id === 'btn-plc-test') {
+                await this.testPlcConnection();
+                return;
+            }
+
+            if (button.id === 'btn-add-plc-mapping') {
+                this.addPlcMapping();
+                return;
+            }
+
+            if (button.id === 'btn-save-plc') {
+                await this.savePlcMappings();
+                return;
+            }
+
+            if (button.dataset.action === 'delete-mapping') {
+                const index = Number.parseInt(button.dataset.index || '-1', 10);
+                if (index >= 0) {
+                    this.deletePlcMapping(index);
+                }
+            }
+        });
+
+        const updateField = (target) => {
+            const row = target.closest('tr.plc-mapping-row');
+            if (!row) return;
+            const field = target.dataset.field;
+            if (!field) return;
+            const index = Number.parseInt(row.dataset.index || '-1', 10);
+            if (index < 0) return;
+            this.updatePlcMappingField(index, field, target);
+        };
+
+        communicationTab.addEventListener('input', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+            updateField(target);
+        });
+
+        communicationTab.addEventListener('change', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+            updateField(target);
+        });
+    }
+
+    async loadPlcMappings({ force = false } = {}) {
+        if (!force && this.plcMappingsLoaded) {
+            this.renderPlcMappingsTable();
+            return;
+        }
+
+        try {
+            const mappings = await httpClient.get('/plc/mappings');
+            this.plcMappings = Array.isArray(mappings)
+                ? mappings.map(item => ({
+                    name: item?.name || '',
+                    address: item?.address || '',
+                    dataType: item?.dataType || 'Bool',
+                    description: item?.description || '',
+                    canWrite: !!item?.canWrite
+                }))
+                : [];
+
+            this.plcMappingsLoaded = true;
+            if (this.config?.communication) {
+                this.config.communication.mappings = [...this.plcMappings];
+            }
+            this.renderPlcMappingsTable();
+        } catch (error) {
+            console.error('[SettingsView] Failed to load PLC mappings:', error);
+            showToast('加载PLC映射失败: ' + error.message, 'error');
+        }
+    }
+
+    renderPlcMappingsTable() {
+        const tbody = this.container?.querySelector('#plc-mapping-tbody');
+        if (!tbody) return;
+
+        if (!Array.isArray(this.plcMappings) || this.plcMappings.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align:center; padding: 24px; color: #94a3b8;">
+                        暂无映射，点击“添加变量”创建首个 PLC 地址映射。
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const dataTypeOptions = ['Bool', 'Int16', 'Int32', 'Float', 'Double', 'String', 'Word', 'DWord'];
+        const rowsHtml = this.plcMappings.map((mapping, index) => {
+            const name = this.escapeHtml(mapping?.name || '');
+            const address = this.escapeHtml(mapping?.address || '');
+            const description = this.escapeHtml(mapping?.description || '');
+            const dataType = (mapping?.dataType || 'Bool').trim();
+            const canWrite = !!mapping?.canWrite;
+            const optionsHtml = dataTypeOptions.map(type =>
+                `<option value="${type}" ${dataType === type ? 'selected' : ''}>${type}</option>`
+            ).join('');
+
+            return `
+                <tr class="plc-mapping-row" data-index="${index}">
+                    <td><input type="text" class="cv-input" data-field="name" value="${name}" placeholder="变量名"></td>
+                    <td><input type="text" class="cv-input" data-field="address" value="${address}" placeholder="如 D100 / DB1.DBX0.0"></td>
+                    <td>
+                        <select class="cv-input" data-field="dataType">
+                            ${optionsHtml}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="cv-input" data-field="canWrite">
+                            <option value="false" ${canWrite ? '' : 'selected'}>R</option>
+                            <option value="true" ${canWrite ? 'selected' : ''}>W</option>
+                        </select>
+                    </td>
+                    <td><input type="text" class="cv-input" data-field="description" value="${description}" placeholder="说明"></td>
+                    <td>
+                        <button class="action-icon-btn" data-action="delete-mapping" data-index="${index}" title="删除">
+                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.innerHTML = rowsHtml;
+    }
+
+    addPlcMapping() {
+        if (!Array.isArray(this.plcMappings)) {
+            this.plcMappings = [];
+        }
+
+        this.plcMappings.push({
+            name: '',
+            address: '',
+            dataType: 'Bool',
+            description: '',
+            canWrite: false
+        });
+
+        this.renderPlcMappingsTable();
+    }
+
+    deletePlcMapping(index) {
+        if (!Array.isArray(this.plcMappings)) return;
+        if (index < 0 || index >= this.plcMappings.length) return;
+        this.plcMappings.splice(index, 1);
+        this.renderPlcMappingsTable();
+    }
+
+    updatePlcMappingField(index, field, element) {
+        if (!Array.isArray(this.plcMappings)) return;
+        if (!this.plcMappings[index]) return;
+
+        if (field === 'canWrite') {
+            this.plcMappings[index].canWrite = `${element.value}` === 'true';
+            return;
+        }
+
+        this.plcMappings[index][field] = element.value || '';
+    }
+
+    collectPlcMappingsFromTable() {
+        const rows = this.container?.querySelectorAll('#plc-mapping-tbody tr.plc-mapping-row') || [];
+        if (rows.length === 0) {
+            return (this.plcMappings || []).map(item => ({
+                name: item?.name || '',
+                address: item?.address || '',
+                dataType: item?.dataType || 'Bool',
+                description: item?.description || '',
+                canWrite: !!item?.canWrite
+            }));
+        }
+
+        return Array.from(rows).map(row => {
+            const name = row.querySelector('[data-field="name"]')?.value?.trim() || '';
+            const address = row.querySelector('[data-field="address"]')?.value?.trim() || '';
+            const dataType = row.querySelector('[data-field="dataType"]')?.value || 'Bool';
+            const description = row.querySelector('[data-field="description"]')?.value?.trim() || '';
+            const canWrite = row.querySelector('[data-field="canWrite"]')?.value === 'true';
+            return { name, address, dataType, description, canWrite };
+        }).filter(item => item.name || item.address || item.description);
+    }
+
+    async savePlcMappings({ silent = false } = {}) {
+        const mappings = this.collectPlcMappingsFromTable();
+        try {
+            await httpClient.put('/plc/mappings', mappings);
+            this.plcMappings = mappings;
+            this.plcMappingsLoaded = true;
+
+            if (this.config?.communication) {
+                this.config.communication.mappings = [...mappings];
+            }
+
+            this.renderPlcMappingsTable();
+            if (!silent) {
+                showToast('PLC映射已保存', 'success');
+            }
+            return true;
+        } catch (error) {
+            console.error('[SettingsView] Failed to save PLC mappings:', error);
+            if (!silent) {
+                showToast('保存PLC映射失败: ' + error.message, 'error');
+            }
+            return false;
+        }
+    }
+
+    async testPlcConnection() {
+        const protocol = this.container?.querySelector('#cfg-protocol')?.value || 'S7';
+        const ipAddress = this.container?.querySelector('#cfg-plcIpAddress')?.value?.trim() || '';
+        const port = Number.parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '0', 10);
+        const testButton = this.container?.querySelector('#btn-plc-test');
+
+        if (!ipAddress) {
+            showToast('请先填写 PLC IP 地址', 'warning');
+            return;
+        }
+
+        if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+            showToast('端口必须是 1-65535 之间的整数', 'warning');
+            return;
+        }
+
+        if (testButton) {
+            testButton.disabled = true;
+        }
+
+        try {
+            const result = await httpClient.post('/plc/test-connection', { protocol, ipAddress, port });
+            const isSuccess = !!result?.success;
+            const message = result?.message || (isSuccess ? '连接成功' : '连接失败');
+            this.updatePlcConnectionBadge(isSuccess ? 'connected' : 'failed', message);
+            showToast(message, isSuccess ? 'success' : 'error');
+        } catch (error) {
+            this.updatePlcConnectionBadge('failed', error.message);
+            showToast('连接测试失败: ' + error.message, 'error');
+        } finally {
+            if (testButton) {
+                testButton.disabled = false;
+            }
+        }
+    }
+
+    updatePlcConnectionBadge(status, message = '') {
+        this.plcConnectionStatus = status;
+        const badge = this.container?.querySelector('#plc-connection-badge');
+        if (!badge) return;
+
+        badge.classList.remove('status-connected', 'status-disconnected', 'status-error');
+        badge.classList.add(status === 'connected' ? 'status-connected' : 'status-disconnected');
+
+        const text = status === 'connected'
+            ? '连接正常'
+            : (status === 'failed' ? '连接失败' : '未测试');
+        badge.innerHTML = `<span class="status-dot"></span> ${text}`;
+        badge.title = message || '';
+    }
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     bindAiSettingsEvents() {
         const aiTab = this.container.querySelector('[data-section="ai"]');
         if (!aiTab) return;
@@ -891,7 +1183,7 @@ class SettingsView {
     getDefaultConfig() {
         return {
             general: { softwareTitle: 'ClearVision', theme: 'dark', autoStart: false },
-            communication: { plcIpAddress: '192.168.1.100', plcPort: 502, protocol: 'ModbusTcp', heartbeatIntervalMs: 1000 },
+            communication: { plcIpAddress: '192.168.1.100', plcPort: 502, protocol: 'ModbusTcp', heartbeatIntervalMs: 1000, mappings: [] },
             storage: { imageSavePath: 'D:\\VisionData\\Images', savePolicy: 'NgOnly', retentionDays: 30, minFreeSpaceGb: 5 },
             runtime: { autoRun: false, stopOnConsecutiveNg: 0 }
         };
@@ -959,8 +1251,8 @@ class SettingsView {
                         <span>通讯连接设置</span>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <div class="settings-status-badge status-connected">
-                            <span class="status-dot"></span> 已连接
+                        <div class="settings-status-badge status-disconnected" id="plc-connection-badge">
+                            <span class="status-dot"></span> 未测试
                         </div>
                         <div class="settings-status-badge status-disconnected" style="color:#b45309; border-color:#f59e0b; background:#fffbeb;">
                             开发中
@@ -989,7 +1281,7 @@ class SettingsView {
                         <input type="number" class="cv-input" id="cfg-plcPort" value="${comm.plcPort || 502}">
                     </div>
                     <div class="settings-fieldset-action">
-                        <button class="cv-btn settings-btn-dark" disabled title="功能开发中">
+                        <button class="cv-btn settings-btn-dark" id="btn-plc-test">
                             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                             连接测试
                         </button>
@@ -1007,7 +1299,7 @@ class SettingsView {
                     <div class="settings-header-actions">
                         <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg></button>
                         <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
-                        <button class="cv-btn settings-btn-light" style="padding: 4px 12px; margin-left: 8px;" disabled title="功能开发中">
+                        <button class="cv-btn settings-btn-light" style="padding: 4px 12px; margin-left: 8px;" id="btn-add-plc-mapping">
                             <span style="font-size: 16px; margin-right: 4px;">+</span> 添加变量
                         </button>
                     </div>
@@ -1025,7 +1317,7 @@ class SettingsView {
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="plc-mapping-tbody">
                             <tr>
                                 <td class="font-bold">Trigger_Start</td>
                                 <td class="font-mono">D1000</td>
@@ -1089,7 +1381,7 @@ class SettingsView {
             <!-- 底部浮动操作区 -->
             <div class="settings-floating-footer">
                 <button class="cv-btn settings-btn-light" style="width: 100px;" disabled title="功能开发中">取消</button>
-                <button class="cv-btn settings-btn-danger" style="width: 140px;" id="btn-save-plc" disabled title="功能开发中">
+                <button class="cv-btn settings-btn-danger" style="width: 140px;" id="btn-save-plc">
                     <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; margin-right: 6px; fill: currentColor;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg> 
                     同步配置
                 </button>
@@ -1817,6 +2109,7 @@ class SettingsView {
             ? parsedMinFreeSpaceGb
             : (this.config?.storage?.minFreeSpaceGb ?? defaultConfig.storage.minFreeSpaceGb);
         const activeCameraId = this.resolveActiveCameraId();
+        const plcMappings = this.collectPlcMappingsFromTable();
 
         // 保证“保存所有更改”也会带上当前选中相机的参数修改。
         if (this.selectedCameraBindingId) {
@@ -1852,7 +2145,8 @@ class SettingsView {
                 plcIpAddress: this.container?.querySelector('#cfg-plcIpAddress')?.value || '',
                 plcPort: parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '502', 10),
                 protocol: this.container?.querySelector('#cfg-protocol')?.value || 'ModbusTcp',
-                heartbeatIntervalMs
+                heartbeatIntervalMs,
+                mappings: plcMappings
             },
             storage: {
                 imageSavePath: this.container?.querySelector('#cfg-imageSavePath')?.value || '',
@@ -1877,6 +2171,9 @@ class SettingsView {
             if (!bindingsSaved) {
                 throw new Error('Camera bindings save failed');
             }
+
+            this.plcMappings = [...plcMappings];
+            this.plcMappingsLoaded = true;
 
             // 保存 AI 配置（通过后端 API 保存当前编辑的模型）
             await this._saveCurrentForm();

@@ -49,8 +49,9 @@ public class MitsubishiMcCommunicationOperator : PlcCommunicationOperatorBase
         CancellationToken cancellationToken)
     {
         // 获取参数
-        var ipAddress = GetStringParam(@operator, "IpAddress", "192.168.3.1");
-        var port = GetIntParam(@operator, "Port", 5002, 1, 65535);
+        var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
+        var operatorPort = GetIntParam(@operator, "Port", 0);
+        var (ipAddress, port, _) = ResolveConnectionSettings(operatorIpAddress, operatorPort, "MC");
         var address = GetStringParam(@operator, "Address", "D100");
         var length = GetIntParam(@operator, "Length", 1, 1, 960);
         var dataType = GetStringParam(@operator, "DataType", "Word");
@@ -132,17 +133,20 @@ public class MitsubishiMcCommunicationOperator : PlcCommunicationOperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var ipAddress = GetStringParam(@operator, "IpAddress", "");
-        var port = GetIntParam(@operator, "Port", 5002);
+        var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
+        var operatorPort = GetIntParam(@operator, "Port", 0);
         var address = GetStringParam(@operator, "Address", "");
         var length = GetIntParam(@operator, "Length", 1);
         var pollingMode = GetStringParam(@operator, "PollingMode", "None");
 
-        if (string.IsNullOrWhiteSpace(ipAddress))
-            return ValidationResult.Invalid("IP地址不能为空");
-
-        if (port < 1 || port > 65535)
-            return ValidationResult.Invalid("端口号必须在 1-65535 之间");
+        try
+        {
+            ResolveConnectionSettings(operatorIpAddress, operatorPort, "MC");
+        }
+        catch (Exception ex)
+        {
+            return ValidationResult.Invalid(ex.Message);
+        }
 
         if (string.IsNullOrWhiteSpace(address))
             return ValidationResult.Invalid("PLC地址不能为空");

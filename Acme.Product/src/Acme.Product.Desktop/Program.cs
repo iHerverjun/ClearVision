@@ -184,6 +184,7 @@ static class Program
             app.MapUserEndpoints();
             app.MapVisionApiEndpoints();
             app.MapSettingsEndpoints();
+            app.MapPlcEndpoints();
 
             // 结果分析和演示工程 API
             RegisterExtendedApiEndpoints(app);

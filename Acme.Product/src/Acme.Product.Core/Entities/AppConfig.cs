@@ -79,6 +79,17 @@ public class CommunicationConfig
     /// 心跳检测间隔（毫秒）
     /// </summary>
     public int HeartbeatIntervalMs { get; set; } = 1000;
+
+    public List<PlcAddressMapping> Mappings { get; set; } = new();
+}
+
+public class PlcAddressMapping
+{
+    public string Name { get; set; } = "";
+    public string Address { get; set; } = "";
+    public string DataType { get; set; } = "Bool";
+    public string Description { get; set; } = "";
+    public bool CanWrite { get; set; }
 }
 
 public class StorageConfig

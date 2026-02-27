@@ -52,8 +52,9 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         CancellationToken cancellationToken)
     {
         // 获取参数
-        var ipAddress = GetStringParam(@operator, "IpAddress", "192.168.0.1");
-        var port = GetIntParam(@operator, "Port", 102, 1, 65535);
+        var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
+        var operatorPort = GetIntParam(@operator, "Port", 0);
+        var (ipAddress, port, _) = ResolveConnectionSettings(operatorIpAddress, operatorPort, "S7");
         var cpuTypeStr = GetStringParam(@operator, "CpuType", "S71200");
         var rack = GetIntParam(@operator, "Rack", 0, 0, 15);
         var slot = GetIntParam(@operator, "Slot", 1, 0, 15);
@@ -238,16 +239,19 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var ipAddress = GetStringParam(@operator, "IpAddress", "");
-        var port = GetIntParam(@operator, "Port", 102);
+        var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
+        var operatorPort = GetIntParam(@operator, "Port", 0);
         var address = GetStringParam(@operator, "Address", "");
         var pollingMode = GetStringParam(@operator, "PollingMode", "None");
 
-        if (string.IsNullOrWhiteSpace(ipAddress))
-            return ValidationResult.Invalid("IP地址不能为空");
-
-        if (port < 1 || port > 65535)
-            return ValidationResult.Invalid("端口号必须在 1-65535 之间");
+        try
+        {
+            ResolveConnectionSettings(operatorIpAddress, operatorPort, "S7");
+        }
+        catch (Exception ex)
+        {
+            return ValidationResult.Invalid(ex.Message);
+        }
 
         if (string.IsNullOrWhiteSpace(address))
             return ValidationResult.Invalid("PLC地址不能为空");
