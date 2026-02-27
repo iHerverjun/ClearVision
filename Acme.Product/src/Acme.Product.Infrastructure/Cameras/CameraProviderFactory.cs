@@ -87,11 +87,20 @@ public static class CameraProviderFactory
             var devices = mv.EnumerateDevices();
             if (devices.Exists(d => d.SerialNumber == serialNumber))
             {
+                // 直接在 AutoDetect 内完成 Open，避免枚举与打开之间 SDK 全局状态变更
+                mv.Open(serialNumber);
                 return mv;
             }
             mv.Dispose();
         }
-        catch (Exception ex) { Debug.WriteLine($"[CameraProviderFactory] Huaray AutoDetect failed: {ex.Message}"); }
+        catch (InvalidOperationException)
+        {
+            throw; // 透传详细的相机打开故障（例如此相机被占用等直接原因）
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraProviderFactory] Huaray AutoDetect failed: {ex.Message}");
+        }
 
         // 尝试海康
         try
@@ -100,11 +109,19 @@ public static class CameraProviderFactory
             var devices = hik.EnumerateDevices();
             if (devices.Exists(d => d.SerialNumber == serialNumber))
             {
+                hik.Open(serialNumber);
                 return hik;
             }
             hik.Dispose();
         }
-        catch (Exception ex) { Debug.WriteLine($"[CameraProviderFactory] Hikvision AutoDetect failed: {ex.Message}"); }
+        catch (InvalidOperationException)
+        {
+            throw; // 同理透传海康的具体抛错
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraProviderFactory] Hikvision AutoDetect failed: {ex.Message}");
+        }
 
         return null;
     }
@@ -291,7 +308,8 @@ public class MockCameraProvider : ICameraProvider
 
     public bool Open(string serialNumber)
     {
-        if (_disposed) return false;
+        if (_disposed)
+            return false;
 
         int w = 1280, h = 1024;
         _dummyBuffer = new byte[w * h];
@@ -323,7 +341,8 @@ public class MockCameraProvider : ICameraProvider
 
     public bool StartGrabbing()
     {
-        if (!_isConnected) return false;
+        if (!_isConnected)
+            return false;
         _isGrabbing = true;
         return true;
     }
@@ -336,7 +355,8 @@ public class MockCameraProvider : ICameraProvider
 
     public CameraFrame? GetFrame(int timeoutMs = 1000)
     {
-        if (!_isConnected || !_isGrabbing || _dummyBuffer == null) return null;
+        if (!_isConnected || !_isGrabbing || _dummyBuffer == null)
+            return null;
 
         Thread.Sleep(50);
 
@@ -360,7 +380,8 @@ public class MockCameraProvider : ICameraProvider
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         Close();
         _disposed = true;
     }

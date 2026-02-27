@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Acme.Product.Desktop.Endpoints;
 using Acme.Product.Desktop.Middleware;
 using Acme.Product.Infrastructure.Services;
@@ -30,6 +31,9 @@ static class Program
     private static IHost? _host;
     private static int _webPort = 0;
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
     /// <summary>
     /// 获取服务提供者
     /// </summary>
@@ -41,6 +45,25 @@ static class Program
     [STAThread]
     static void Main()
     {
+        // 【最优先】注册程序集解析器，确保华睿 SDK 的托管依赖能从应用目录加载
+        // MVSDK_Net.dll (.NET Framework 4.0) 内部引用 CLIDelegate.dll，
+        // 但 .NET 8 的 deps.json 探测不知道它们的存在，需要手动解析
+        AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+        {
+            var assemblyName = new System.Reflection.AssemblyName(args.Name).Name;
+            var candidatePath = Path.Combine(AppContext.BaseDirectory, assemblyName + ".dll");
+            if (File.Exists(candidatePath))
+            {
+                try
+                { return Assembly.LoadFrom(candidatePath); }
+                catch { /* 加载失败则回退到默认解析 */ }
+            }
+            return null;
+        };
+
+        // 设置原生 DLL 搜索路径，确保华睿 SDK 的 MVSDKmd.dll 等可被找到
+        SetDllDirectory(AppContext.BaseDirectory);
+
         try
         {
             // 添加全局异常处理

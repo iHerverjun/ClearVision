@@ -50,12 +50,11 @@ public class CameraManager : ICameraManager, IDisposable
             return Task.FromResult(existingCamera);
         }
 
+        // AutoDetect 内部已完成 Open，返回的 provider 已处于已连接状态。
+        // 若 Open 失败，AutoDetect 内部会抛出 InvalidOperationException 并附带 SDK 错误码。
         var provider = CameraProviderFactory.AutoDetect(cameraId);
         if (provider == null)
-            throw new InvalidOperationException($"无法检测到相机: {cameraId}");
-
-        if (!provider.Open(cameraId))
-            throw new InvalidOperationException($"无法打开相机: {cameraId}");
+            throw new InvalidOperationException($"无法检测到相机: {cameraId}。请检查相机供电、网线连接，及 SDK 是否已安装。");
 
         var cameraAdapter = new CameraProviderAdapter(cameraId, provider);
         _cameras[cameraId] = cameraAdapter;
@@ -168,15 +167,26 @@ public class CameraProviderAdapter : IIndustrialCamera
 
     public async Task<byte[]> AcquireSingleFrameAsync()
     {
+        // 严格按照华睿 SDK 正确时序：
+        // 1) StartGrabbing → 2) TriggerMode=On,TriggerSource=Software → 3) ExecuteSoftwareTrigger → 4) GetFrame
+
+        // 1) 确保采集已启动
         if (!_provider.IsGrabbing)
             _provider.StartGrabbing();
-        var frame = _provider.GetFrame(5000);
+
+        // 2) 设置软件触发模式（TriggerMode=On, TriggerSource=Software）
+        _provider.SetTriggerMode(true);
+
+        // 3) 发送软触发命令
+        _provider.ExecuteSoftwareTrigger();
+
+        // 4) 获取帧（给 SDK 足够响应时间）
+        var frame = _provider.GetFrame(3000);
         if (frame == null)
             throw new TimeoutException("获取图像超时");
 
-        byte[] data = new byte[frame.Size];
-        Marshal.Copy(frame.DataPtr, data, 0, frame.Size);
-        return await Task.FromResult(data);
+        byte[] pngData = EncodeFrameToPngBytes(frame);
+        return await Task.FromResult(pngData);
     }
 
     public Task StartContinuousAcquisitionAsync(Func<byte[], Task> frameCallback)
@@ -196,11 +206,10 @@ public class CameraProviderAdapter : IIndustrialCamera
                 var frame = _provider.GetFrame(1000);
                 if (frame != null)
                 {
-                    byte[] data = new byte[frame.Size];
-                    Marshal.Copy(frame.DataPtr, data, 0, frame.Size);
+                    byte[] pngData = EncodeFrameToPngBytes(frame);
                     if (_frameCallback != null)
-                        await _frameCallback(data);
-                    FrameReceived?.Invoke(this, new CameraFrameReceivedEventArgs { ImageData = data, Width = frame.Width, Height = frame.Height });
+                        await _frameCallback(pngData);
+                    FrameReceived?.Invoke(this, new CameraFrameReceivedEventArgs { ImageData = pngData, Width = frame.Width, Height = frame.Height });
                 }
             }
         });
@@ -226,5 +235,63 @@ public class CameraProviderAdapter : IIndustrialCamera
     {
         StopContinuousAcquisitionAsync().Wait();
         _provider.Dispose();
+    }
+
+    private byte[] EncodeFrameToPngBytes(CameraFrame frame)
+    {
+        OpenCvSharp.MatType matType;
+        bool needConversion = false;
+        OpenCvSharp.ColorConversionCodes conversionCode = OpenCvSharp.ColorConversionCodes.BayerBG2BGR;
+
+        switch (frame.PixelFormat)
+        {
+            case CameraPixelFormat.Mono8:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                break;
+            case CameraPixelFormat.RGB8:
+                matType = OpenCvSharp.MatType.CV_8UC3;
+                needConversion = true;
+                conversionCode = OpenCvSharp.ColorConversionCodes.RGB2BGR;
+                break;
+            case CameraPixelFormat.BGR8:
+                matType = OpenCvSharp.MatType.CV_8UC3;
+                break;
+            case CameraPixelFormat.BayerRG8:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                needConversion = true;
+                conversionCode = OpenCvSharp.ColorConversionCodes.BayerRG2BGR;
+                break;
+            case CameraPixelFormat.BayerGB8:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                needConversion = true;
+                conversionCode = OpenCvSharp.ColorConversionCodes.BayerGB2BGR;
+                break;
+            case CameraPixelFormat.BayerGR8:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                needConversion = true;
+                conversionCode = OpenCvSharp.ColorConversionCodes.BayerGR2BGR;
+                break;
+            case CameraPixelFormat.BayerBG8:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                needConversion = true;
+                conversionCode = OpenCvSharp.ColorConversionCodes.BayerBG2BGR;
+                break;
+            default:
+                matType = OpenCvSharp.MatType.CV_8UC1;
+                break;
+        }
+
+        using var mat = new OpenCvSharp.Mat(frame.Height, frame.Width, matType, frame.DataPtr);
+
+        if (needConversion)
+        {
+            using var cvtMat = new OpenCvSharp.Mat();
+            OpenCvSharp.Cv2.CvtColor(mat, cvtMat, conversionCode);
+            return cvtMat.ToBytes(".png");
+        }
+        else
+        {
+            return mat.ToBytes(".png");
+        }
     }
 }

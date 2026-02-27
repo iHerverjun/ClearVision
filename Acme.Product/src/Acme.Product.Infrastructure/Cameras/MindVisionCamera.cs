@@ -1,12 +1,11 @@
 // MindVisionCamera.cs
-// 华睿 (Huaray) 工业相机实现
+// 华睿 (Huaray) 工业相机实现 — 直接引用 MVSDK_Net
 // 作者：蘅芜君
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Reflection;
 using Acme.Product.Core.Cameras;
-using Microsoft.Extensions.Logging;
+using MVSDK_Net;
 
 namespace Acme.Product.Infrastructure.Cameras;
 
@@ -16,270 +15,103 @@ namespace Acme.Product.Infrastructure.Cameras;
 /// </summary>
 public class MindVisionCamera : ICameraProvider
 {
-    // MVSDK_Net 类型引用 - 使用动态加载避免编译依赖
-    private object? _cam;
-    private static readonly object SdkLoadLock = new();
-    private static Assembly? _mvSdkAssembly;
-    private static string? _lastSdkLoadError;
-    private static string? _lastEnumerateError;
+    private MyCamera? _cam;
     private bool _disposed = false;
     private bool _isConnected = false;
     private bool _isGrabbing = false;
     private CameraDeviceInfo? _currentDevice;
     private List<CameraDeviceInfo> _cachedDevices = new();
 
-    public static bool IsSdkLoaded => _mvSdkAssembly != null;
-    public static string? LastSdkLoadError => _lastSdkLoadError;
-    public static string? LastEnumerateError => _lastEnumerateError;
-    public static string? SdkAssemblyLocation => _mvSdkAssembly?.Location;
+    // 最近一帧引用（用于释放）
+    private IMVDefine.IMV_Frame _lastFrame;
+    private bool _hasUnreleasedFrame = false;
+
+    // 原生 DLL 搜索路径设置
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
+    // 静态标记：确保 DLL 路径只设置一次
+    private static bool _nativePathConfigured = false;
 
     public string ProviderName => "Huaray";
     public bool IsConnected => _isConnected;
     public bool IsGrabbing => _isGrabbing;
     public CameraDeviceInfo? CurrentDevice => _currentDevice;
 
+    // 兼容性属性 —— 供 SettingsEndpoints 诊断接口使用
+    public static bool IsSdkLoaded => true;
+    public static string? LastSdkLoadError => null;
+    public static string? LastEnumerateError { get; private set; }
+    public static string? SdkAssemblyLocation => AppContext.BaseDirectory;
+
     public MindVisionCamera()
     {
-        // 延迟初始化MVSDK对象
+        EnsureNativeDllPath();
     }
 
-    private static bool EnsureMvSdkLoaded()
+    /// <summary>
+    /// 确保原生 SDK DLL（MVSDKmd.dll 等）的搜索路径已设置。
+    /// 必须在任何 MVSDK_Net 类型被使用之前调用。
+    /// </summary>
+    private static void EnsureNativeDllPath()
     {
-        if (_mvSdkAssembly != null) return true;
+        if (_nativePathConfigured)
+            return;
 
-        lock (SdkLoadLock)
+        try
         {
-            if (_mvSdkAssembly != null) return true;
-
-            try
-            {
-                _mvSdkAssembly = Assembly.Load("MVSDK_Net");
-                _lastSdkLoadError = null;
-                Debug.WriteLine("[MindVisionCamera] MVSDK_Net loaded via Assembly.Load");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _lastSdkLoadError = ex.Message;
-            }
-
-            foreach (var candidate in GetMvSdkCandidatePaths())
-            {
-                try
-                {
-                    if (!File.Exists(candidate))
-                    {
-                        continue;
-                    }
-
-                    _mvSdkAssembly = Assembly.LoadFrom(candidate);
-                    _lastSdkLoadError = null;
-                    Debug.WriteLine($"[MindVisionCamera] MVSDK_Net loaded from: {candidate}");
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    _lastSdkLoadError = ex.Message;
-                    Debug.WriteLine($"[MindVisionCamera] Failed to load MVSDK_Net from {candidate}: {ex.Message}");
-                }
-            }
+            // 优先使用应用程序目录（编译时已将原生 DLL 复制到此处）
+            SetDllDirectory(AppContext.BaseDirectory);
+            Debug.WriteLine($"[MindVisionCamera] SetDllDirectory: {AppContext.BaseDirectory}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[MindVisionCamera] SetDllDirectory failed: {ex.Message}");
         }
 
-        if (string.IsNullOrWhiteSpace(_lastSdkLoadError))
-        {
-            _lastSdkLoadError = "MVSDK_Net.dll not found in known locations.";
-        }
-
-        Debug.WriteLine($"[MindVisionCamera] {_lastSdkLoadError}");
-        return false;
-    }
-
-    private static IEnumerable<string> GetMvSdkCandidatePaths()
-    {
-        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        void AddPath(string? path)
-        {
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                candidates.Add(path);
-            }
-        }
-
-        AddPath(Path.Combine(AppContext.BaseDirectory, "MVSDK_Net.dll"));
-
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        AddPath(Path.Combine(programFiles, "HuarayTech", "MV Viewer", "Development", "DOTNET DLL", "IMV", "DOTNET_4.0", "x64", "MVSDK_Net.dll"));
-        AddPath(Path.Combine(programFiles, "HuarayTech", "MV Viewer", "Development", "DOTNET DLL", "IMV", "DOTNET_3.5", "x64", "MVSDK_Net.dll"));
-
-        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        foreach (var pathEntry in pathEnv.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            AddPath(Path.Combine(pathEntry, "MVSDK_Net.dll"));
-        }
-
-        return candidates;
-    }
-
-    private static Type? GetMvSdkType(string fullTypeName)
-    {
-        if (!EnsureMvSdkLoaded())
-        {
-            return null;
-        }
-
-        return _mvSdkAssembly?.GetType(fullTypeName, throwOnError: false)
-            ?? Type.GetType($"{fullTypeName}, MVSDK_Net", throwOnError: false);
+        _nativePathConfigured = true;
     }
 
     public List<CameraDeviceInfo> EnumerateDevices()
     {
         _cachedDevices.Clear();
-        _lastEnumerateError = null;
+        LastEnumerateError = null;
 
         try
         {
-            // 使用反射调用MVSDK_Net
-            var sdkType = GetMvSdkType("MVSDK_Net.MyCamera");
-            if (sdkType == null)
+            var deviceList = new IMVDefine.IMV_DeviceList();
+            int res = MyCamera.IMV_EnumDevices(ref deviceList, (uint)IMVDefine.IMV_EInterfaceType.interfaceTypeAll);
+
+            if (res != IMVDefine.IMV_OK)
             {
-                _lastEnumerateError = LastSdkLoadError ?? "MVSDK_Net type load failed.";
-                Debug.WriteLine($"[MindVisionCamera] MVSDK_Net not found: {LastSdkLoadError}");
+                LastEnumerateError = $"IMV_EnumDevices failed: {res}";
+                Debug.WriteLine($"[MindVisionCamera] IMV_EnumDevices failed: {res}");
                 return _cachedDevices;
             }
 
-            var deviceListType = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_DeviceList");
-            if (deviceListType == null)
+            if (deviceList.nDevNum == 0)
             {
-                _lastEnumerateError = "MVSDK_Net.IMVDefine+IMV_DeviceList not found.";
+                LastEnumerateError = "IMV_EnumDevices succeeded, but nDevNum is 0.";
+                Debug.WriteLine("[MindVisionCamera] IMV_EnumDevices: 0 devices");
                 return _cachedDevices;
             }
 
-            var deviceList = Activator.CreateInstance(deviceListType);
-            if (deviceList == null) return _cachedDevices;
+            int structSize = Marshal.SizeOf(typeof(IMVDefine.IMV_DeviceInfo));
 
-            // 调用 IMV_EnumDevices
-            var enumMethod = sdkType.GetMethod("IMV_EnumDevices", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            if (enumMethod == null)
+            for (int i = 0; i < (int)deviceList.nDevNum; i++)
             {
-                _lastEnumerateError = "IMV_EnumDevices method not found.";
-                return _cachedDevices;
-            }
+                var devInfoPtr = deviceList.pDevInfo + structSize * i;
+                if (devInfoPtr == IntPtr.Zero)
+                    continue;
 
-            var interfaceTypeAll = GetInterfaceTypeAll();
-            var args = new object[] { deviceList!, interfaceTypeAll };
-            var result = enumMethod.Invoke(null, args);
-            deviceList = args[0];
-            if (deviceList == null)
-            {
-                _lastEnumerateError = "IMV_EnumDevices returned null deviceList.";
-                return _cachedDevices;
-            }
-            var resultValue = (int)(result ?? -1);
+                var devInfo = (IMVDefine.IMV_DeviceInfo)Marshal.PtrToStructure(
+                    devInfoPtr, typeof(IMVDefine.IMV_DeviceInfo))!;
 
-            if (resultValue != 0) // IMV_OK = 0
-            {
-                _lastEnumerateError = $"IMV_EnumDevices failed: {resultValue}";
-                Debug.WriteLine($"[MindVisionCamera] IMV_EnumDevices failed: {resultValue}");
-                return _cachedDevices;
-            }
-
-            // 获取设备数量
-            var nDevNumProp = deviceListType.GetField("nDevNum");
-            var nDevNum = (uint)(nDevNumProp?.GetValue(deviceList) ?? 0u);
-
-            if (nDevNum == 0)
-            {
-                var retrySummaries = new List<string>();
-                var interfaceTypeEnum = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_EInterfaceType");
-                if (interfaceTypeEnum != null)
-                {
-                    var enumNames = Enum.GetNames(interfaceTypeEnum);
-                    var candidates = new[] { "interfaceTypeGige", "interfaceTypeUsb3", "interfaceTypeCL", "interfaceTypePCIe" };
-                    foreach (var ifaceName in candidates)
-                    {
-                        if (Array.IndexOf(enumNames, ifaceName) < 0)
-                        {
-                            continue;
-                        }
-
-                        try
-                        {
-                            var ifaceValue = Convert.ToUInt32(Enum.Parse(interfaceTypeEnum, ifaceName));
-                            var retryDeviceList = Activator.CreateInstance(deviceListType);
-                            if (retryDeviceList == null)
-                            {
-                                retrySummaries.Add($"{ifaceName}:deviceList=null");
-                                continue;
-                            }
-
-                            var retryArgs = new object[] { retryDeviceList, ifaceValue };
-                            var retryResult = enumMethod.Invoke(null, retryArgs);
-                            retryDeviceList = retryArgs[0];
-                            var retryResultValue = (int)(retryResult ?? -1);
-                            var retryDevNum = (uint)(nDevNumProp?.GetValue(retryDeviceList!) ?? 0u);
-                            retrySummaries.Add($"{ifaceName}:res={retryResultValue},n={retryDevNum}");
-
-                            if (retryResultValue == 0 && retryDevNum > 0)
-                            {
-                                deviceList = retryDeviceList;
-                                nDevNum = retryDevNum;
-                                break;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            retrySummaries.Add($"{ifaceName}:ex={ex.Message}");
-                        }
-                    }
-                }
-
-                if (nDevNum == 0)
-                {
-                    var retryDetail = retrySummaries.Count > 0
-                        ? $" Retried [{string.Join("; ", retrySummaries)}]."
-                        : string.Empty;
-                    _lastEnumerateError = $"IMV_EnumDevices succeeded, but nDevNum is 0.{retryDetail}";
-                    return _cachedDevices;
-                }
-            }
-
-            // 获取设备信息指针
-            var pDevInfoProp = deviceListType.GetField("pDevInfo");
-            var pDevInfo = (IntPtr)(pDevInfoProp?.GetValue(deviceList) ?? IntPtr.Zero);
-            if (pDevInfo == IntPtr.Zero)
-            {
-                _lastEnumerateError = "IMV_EnumDevices returned nDevNum > 0 but pDevInfo is null.";
-                return _cachedDevices;
-            }
-
-            var deviceInfoType = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_DeviceInfo");
-            if (deviceInfoType == null)
-            {
-                _lastEnumerateError = "MVSDK_Net.IMVDefine+IMV_DeviceInfo not found.";
-                return _cachedDevices;
-            }
-
-            var serialNumberField = deviceInfoType.GetField("serialNumber");
-            var vendorNameField = deviceInfoType.GetField("vendorName");
-            var modelNameField = deviceInfoType.GetField("modelName");
-            var cameraNameField = deviceInfoType.GetField("cameraName");
-            var interfaceNameField = deviceInfoType.GetField("interfaceName");
-            var deviceInfoSize = Marshal.SizeOf(Activator.CreateInstance(deviceInfoType)!);
-
-            for (int i = 0; i < nDevNum; i++)
-            {
-                var devInfoPtr = IntPtr.Add(pDevInfo, deviceInfoSize * i);
-                if (devInfoPtr == IntPtr.Zero) continue;
-
-                var devInfo = Marshal.PtrToStructure(devInfoPtr, deviceInfoType);
-                if (devInfo == null) continue;
-
-                var sn = serialNumberField?.GetValue(devInfo)?.ToString()?.Trim() ?? $"CAM_{i}";
-                var vendor = vendorNameField?.GetValue(devInfo)?.ToString()?.Trim();
-                var model = modelNameField?.GetValue(devInfo)?.ToString()?.Trim();
-                var cameraName = cameraNameField?.GetValue(devInfo)?.ToString()?.Trim();
-                var interfaceName = interfaceNameField?.GetValue(devInfo)?.ToString()?.Trim();
+                var sn = (devInfo.serialNumber ?? $"CAM_{i}").Trim();
+                var vendor = (devInfo.vendorName ?? string.Empty).Trim();
+                var model = (devInfo.modelName ?? string.Empty).Trim();
+                var cameraName = (devInfo.cameraName ?? string.Empty).Trim();
+                var interfaceName = (devInfo.interfaceName ?? string.Empty).Trim();
 
                 _cachedDevices.Add(new CameraDeviceInfo
                 {
@@ -291,61 +123,33 @@ public class MindVisionCamera : ICameraProvider
                 });
             }
 
-            if (_cachedDevices.Count == 0)
-            {
-                _lastEnumerateError = "Device list was returned, but no valid device entries were parsed.";
-            }
-
             Debug.WriteLine($"[MindVisionCamera] Found {_cachedDevices.Count} devices");
         }
         catch (Exception ex)
         {
-            _lastEnumerateError = ex.Message;
+            LastEnumerateError = ex.Message;
             Debug.WriteLine($"[MindVisionCamera] EnumerateDevices error: {ex.Message}");
         }
 
         return _cachedDevices;
     }
 
-    private static uint GetInterfaceTypeAll()
-    {
-        try
-        {
-            var enumType = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_EInterfaceType");
-            if (enumType == null) return uint.MaxValue;
-
-            var enumNames = Enum.GetNames(enumType);
-            foreach (var enumName in enumNames)
-            {
-                if (enumName.Contains("all", StringComparison.OrdinalIgnoreCase))
-                {
-                    var value = Enum.Parse(enumType, enumName);
-                    return Convert.ToUInt32(value);
-                }
-            }
-
-            // 部分 SDK 版本可能没有显式 all 枚举，回退到全 bitmask。
-            return uint.MaxValue;
-        }
-        catch
-        {
-            return uint.MaxValue;
-        }
-    }
-
     public bool Open(string serialNumber)
     {
-        if (IsConnected) Close();
+        // 打开前无条件执行完整资源释放，避免残留句柄导致失败
+        ForceRelease();
 
         try
         {
-            if (_cachedDevices.Count == 0)
-                EnumerateDevices();
+            // 每次 Open 前强制重新枚举，确保 SDK 全局设备列表与物理状态一致
+            EnumerateDevices();
 
+            // 按序列号找设备索引
+            string target = (serialNumber ?? string.Empty).Trim();
             int deviceIndex = -1;
             for (int i = 0; i < _cachedDevices.Count; i++)
             {
-                if (_cachedDevices[i].SerialNumber == serialNumber)
+                if (string.Equals(_cachedDevices[i].SerialNumber?.Trim(), target, StringComparison.OrdinalIgnoreCase))
                 {
                     deviceIndex = i;
                     break;
@@ -354,59 +158,34 @@ public class MindVisionCamera : ICameraProvider
 
             if (deviceIndex < 0)
             {
-                Debug.WriteLine($"[MindVisionCamera] Device not found: {serialNumber}");
-                return false;
+                var knownSerials = string.Join(", ", _cachedDevices.Select(d => d.SerialNumber));
+                throw new InvalidOperationException(
+                    $"SDK 枚举到 {_cachedDevices.Count} 台设备 [{knownSerials}]，但未找到序列号 '{target}'。" +
+                    "请检查相机供电、网线连接及网段配置。");
             }
 
-            var sdkType = GetMvSdkType("MVSDK_Net.MyCamera");
-            if (sdkType == null)
-            {
-                Debug.WriteLine($"[MindVisionCamera] MVSDK_Net not found: {LastSdkLoadError}");
-                return false;
-            }
+            // 创建实例
+            _cam = new MyCamera();
 
-            _cam = Activator.CreateInstance(sdkType);
-            if (_cam == null)
+            // 建句柄
+            int res = _cam.IMV_CreateHandle(IMVDefine.IMV_ECreateHandleMode.modeByIndex, deviceIndex);
+            if (res != IMVDefine.IMV_OK)
             {
-                Debug.WriteLine("[MindVisionCamera] Failed to create camera instance");
-                return false;
-            }
-
-            // 创建句柄
-            var createHandleMethod = sdkType.GetMethod("IMV_CreateHandle");
-            if (createHandleMethod == null)
-            {
-                Debug.WriteLine("[MindVisionCamera] IMV_CreateHandle not found");
-                return false;
-            }
-
-            var modeType = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_ECreateHandleMode");
-            var modeByIndex = modeType != null ? Enum.Parse(modeType, "modeByIndex") : 0;
-
-            var handleResult = createHandleMethod.Invoke(_cam, new object[] { modeByIndex, deviceIndex });
-            if ((int)(handleResult ?? -1) != 0)
-            {
-                Debug.WriteLine("[MindVisionCamera] CreateHandle failed");
                 _cam = null;
-                return false;
+                throw new InvalidOperationException(
+                    $"IMV_CreateHandle 失败 (错误码={res}, deviceIndex={deviceIndex}, SN={target})。" +
+                    "可能原因：设备已被其他进程占用，或 SDK 内部状态异常。");
             }
 
             // 打开设备
-            var openMethod = sdkType.GetMethod("IMV_Open");
-            if (openMethod == null)
+            res = _cam.IMV_Open();
+            if (res != IMVDefine.IMV_OK)
             {
-                Debug.WriteLine("[MindVisionCamera] IMV_Open not found");
+                _cam.IMV_DestroyHandle();
                 _cam = null;
-                return false;
-            }
-
-            var openResult = openMethod.Invoke(_cam, null);
-            if ((int)(openResult ?? -1) != 0)
-            {
-                Debug.WriteLine("[MindVisionCamera] Open failed");
-                DestroyHandle();
-                _cam = null;
-                return false;
+                throw new InvalidOperationException(
+                    $"IMV_Open 失败 (错误码={res}, SN={target})。" +
+                    "可能原因：相机已被其他软件占用、网络不可达、或 IP 子网不匹配。");
             }
 
             _isConnected = true;
@@ -414,44 +193,70 @@ public class MindVisionCamera : ICameraProvider
             Debug.WriteLine($"[MindVisionCamera] Opened: {serialNumber}");
             return true;
         }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"[MindVisionCamera] Open error: {ex.Message}");
-            return false;
+            throw new InvalidOperationException($"打开相机时异常: {ex.Message}", ex);
         }
     }
 
-    private void DestroyHandle()
+    /// <summary>
+    /// 无条件释放所有 SDK 资源（StopGrabbing → Close → DestroyHandle）
+    /// </summary>
+    private void ForceRelease()
     {
-        if (_cam == null) return;
-
         try
         {
-            var sdkType = _cam.GetType();
-            var destroyMethod = sdkType.GetMethod("IMV_DestroyHandle");
-            destroyMethod?.Invoke(_cam, null);
+            ReleaseLastFrame();
+
+            if (_cam != null)
+            {
+                if (_isGrabbing)
+                {
+                    try
+                    { _cam.IMV_StopGrabbing(); }
+                    catch { }
+                    _isGrabbing = false;
+                }
+
+                try
+                { _cam.IMV_Close(); }
+                catch { }
+                try
+                { _cam.IMV_DestroyHandle(); }
+                catch { }
+                _cam = null;
+            }
+
+            _isConnected = false;
+            _currentDevice = null;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[MindVisionCamera] ForceRelease error: {ex.Message}");
+        }
     }
 
     public bool Close()
     {
-        if (!_isConnected) return true;
+        if (!_isConnected)
+            return true;
 
         try
         {
+            ReleaseLastFrame();
+
             if (_isGrabbing)
                 StopGrabbing();
 
             if (_cam != null)
             {
-                var sdkType = _cam.GetType();
-
-                var closeMethod = sdkType.GetMethod("IMV_Close");
-                closeMethod?.Invoke(_cam, null);
-
-                DestroyHandle();
-
+                _cam.IMV_Close();
+                _cam.IMV_DestroyHandle();
                 _cam = null;
             }
 
@@ -469,20 +274,19 @@ public class MindVisionCamera : ICameraProvider
 
     public bool StartGrabbing()
     {
-        if (!_isConnected) return false;
-        if (_isGrabbing) return true;
-        if (_cam == null) return false;
+        if (!_isConnected)
+            return false;
+        if (_isGrabbing)
+            return true;
+        if (_cam == null)
+            return false;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var startMethod = sdkType.GetMethod("IMV_StartGrabbing");
-            if (startMethod == null) return false;
+            int res = _cam.IMV_StartGrabbing();
+            _isGrabbing = res == IMVDefine.IMV_OK;
 
-            var result = startMethod.Invoke(_cam, null);
-            _isGrabbing = (int)(result ?? -1) == 0;
-
-            Debug.WriteLine($"[MindVisionCamera] StartGrabbing: {(_isGrabbing ? "OK" : "Failed")}");
+            Debug.WriteLine($"[MindVisionCamera] StartGrabbing: {(_isGrabbing ? "OK" : $"Failed({res})")}");
             return _isGrabbing;
         }
         catch (Exception ex)
@@ -494,18 +298,16 @@ public class MindVisionCamera : ICameraProvider
 
     public bool StopGrabbing()
     {
-        if (!_isConnected) return true;
-        if (!_isGrabbing) return true;
-        if (_cam == null) return true;
+        if (!_isConnected)
+            return true;
+        if (!_isGrabbing)
+            return true;
+        if (_cam == null)
+            return true;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var stopMethod = sdkType.GetMethod("IMV_StopGrabbing");
-            if (stopMethod != null)
-            {
-                stopMethod.Invoke(_cam, null);
-            }
+            _cam.IMV_StopGrabbing();
             _isGrabbing = false;
             return true;
         }
@@ -518,52 +320,35 @@ public class MindVisionCamera : ICameraProvider
 
     public CameraFrame? GetFrame(int timeoutMs = 1000)
     {
-        if (!_isConnected || !_isGrabbing || _cam == null) return null;
+        if (!_isConnected || !_isGrabbing || _cam == null)
+            return null;
 
         try
         {
-            var sdkType = _cam.GetType();
+            // 释放上一帧
+            ReleaseLastFrame();
 
-            // 获取IMV_Frame类型
-            var frameType = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_Frame");
-            if (frameType == null) return null;
+            var frame = new IMVDefine.IMV_Frame();
+            int res = _cam.IMV_GetFrame(ref frame, (uint)timeoutMs);
+            if (res != IMVDefine.IMV_OK)
+                return null;
 
-            var frame = Activator.CreateInstance(frameType);
-            if (frame == null) return null;
+            // 保存帧引用以供后续释放
+            _lastFrame = frame;
+            _hasUnreleasedFrame = true;
 
-            var getFrameMethod = sdkType.GetMethod("IMV_GetFrame");
-            if (getFrameMethod == null) return null;
-
-            var result = getFrameMethod.Invoke(_cam, new object[] { frame!, (uint)timeoutMs });
-            if ((int)(result ?? -1) != 0) return null;
-
-            // 读取帧信息
-            var frameInfoField = frameType.GetField("frameInfo");
-            var pDataField = frameType.GetField("pData");
-
-            var frameInfo = frameInfoField?.GetValue(frame);
-            var pData = pDataField?.GetValue(frame);
-
-            if (frameInfo == null) return null;
-
-            var frameInfoType = frameInfo.GetType();
-            var widthField = frameInfoType.GetField("width");
-            var heightField = frameInfoType.GetField("height");
-            var sizeField = frameInfoType.GetField("size");
-            var pixelFormatField = frameInfoType.GetField("pixelFormat");
-
-            var width = (uint)(widthField?.GetValue(frameInfo) ?? 0u);
-            var height = (uint)(heightField?.GetValue(frameInfo) ?? 0u);
-            var size = (uint)(sizeField?.GetValue(frameInfo) ?? 0u);
-            var pixelFormat = (uint)(pixelFormatField?.GetValue(frameInfo) ?? 0u);
+            var width = frame.frameInfo.width;
+            var height = frame.frameInfo.height;
+            var size = frame.frameInfo.size;
+            var pixelFormat = frame.frameInfo.pixelFormat;
 
             return new CameraFrame
             {
-                DataPtr = (IntPtr)(pData ?? IntPtr.Zero),
+                DataPtr = frame.pData,
                 Width = (int)width,
                 Height = (int)height,
                 Size = (int)size,
-                PixelFormat = ConvertPixelFormat(pixelFormat),
+                PixelFormat = ConvertPixelFormat((uint)pixelFormat),
                 FrameNumber = 0,
                 Timestamp = 0,
                 NeedsNativeRelease = true
@@ -576,107 +361,93 @@ public class MindVisionCamera : ICameraProvider
         }
     }
 
-    private static CameraPixelFormat ConvertPixelFormat(uint pixelType)
+    /// <summary>
+    /// 释放上一次 GetFrame 获取的帧资源
+    /// </summary>
+    private void ReleaseLastFrame()
     {
+        if (!_hasUnreleasedFrame || _cam == null)
+            return;
+
         try
         {
-            var pixelTypeEnum = GetMvSdkType("MVSDK_Net.IMVDefine+IMV_EPixelType");
-            if (pixelTypeEnum == null) return CameraPixelFormat.Unknown;
-
-            var mono8Value = Enum.Parse(pixelTypeEnum, "gvspPixelMono8");
-            var mono8Int = (int)mono8Value;
-
-            return pixelType == mono8Int ? CameraPixelFormat.Mono8 : CameraPixelFormat.Unknown;
+            _cam.IMV_ReleaseFrame(ref _lastFrame);
         }
-        catch
+        catch (Exception ex)
         {
-            return CameraPixelFormat.Unknown;
+            Debug.WriteLine($"[MindVisionCamera] ReleaseFrame error: {ex.Message}");
         }
+        finally
+        {
+            _hasUnreleasedFrame = false;
+        }
+    }
+
+    private static CameraPixelFormat ConvertPixelFormat(uint pixelType)
+    {
+        // gvspPixelMono8 = 0x01080001
+        return pixelType == 0x01080001 ? CameraPixelFormat.Mono8 : CameraPixelFormat.Unknown;
     }
 
     public bool SetExposure(double microseconds)
     {
-        if (!_isConnected || _cam == null) return false;
+        if (!_isConnected || _cam == null)
+            return false;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var setMethod = sdkType.GetMethod("IMV_SetDoubleFeatureValue");
-            if (setMethod == null) return false;
-
-            var result = setMethod.Invoke(_cam, new object[] { "ExposureTime", microseconds });
-            return (int)(result ?? -1) == 0;
+            int res = _cam.IMV_SetDoubleFeatureValue("ExposureTime", microseconds);
+            return res == IMVDefine.IMV_OK;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     public bool SetGain(double value)
     {
-        if (!_isConnected || _cam == null) return false;
+        if (!_isConnected || _cam == null)
+            return false;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var setMethod = sdkType.GetMethod("IMV_SetDoubleFeatureValue");
-            if (setMethod == null) return false;
-
-            var result = setMethod.Invoke(_cam, new object[] { "GainRaw", value });
-            return (int)(result ?? -1) == 0;
+            int res = _cam.IMV_SetDoubleFeatureValue("GainRaw", value);
+            return res == IMVDefine.IMV_OK;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     public bool SetTriggerMode(bool softwareTrigger)
     {
-        if (!_isConnected || _cam == null) return false;
+        if (!_isConnected || _cam == null)
+            return false;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var setEnumMethod = sdkType.GetMethod("IMV_SetEnumFeatureSymbol");
-            if (setEnumMethod == null) return false;
-
             if (softwareTrigger)
             {
-                setEnumMethod.Invoke(_cam, new object[] { "TriggerMode", "On" });
-                var result = setEnumMethod.Invoke(_cam, new object[] { "TriggerSource", "Software" });
-                return (int)(result ?? -1) == 0;
+                _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "On");
+                int res = _cam.IMV_SetEnumFeatureSymbol("TriggerSource", "Software");
+                return res == IMVDefine.IMV_OK;
             }
             else
             {
-                var result = setEnumMethod.Invoke(_cam, new object[] { "TriggerMode", "Off" });
-                return (int)(result ?? -1) == 0;
+                int res = _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "Off");
+                return res == IMVDefine.IMV_OK;
             }
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     public bool ExecuteSoftwareTrigger()
     {
-        if (!_isConnected || _cam == null) return false;
+        if (!_isConnected || _cam == null)
+            return false;
 
         try
         {
-            var sdkType = _cam.GetType();
-            var execMethod = sdkType.GetMethod("IMV_ExecuteCommandFeature");
-            if (execMethod == null) return false;
-
-            var result = execMethod.Invoke(_cam, new object[] { "TriggerSoftware" });
-            return (int)(result ?? -1) == 0;
+            int res = _cam.IMV_ExecuteCommandFeature("TriggerSoftware");
+            return res == IMVDefine.IMV_OK;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     public void Dispose()
@@ -687,11 +458,12 @@ public class MindVisionCamera : ICameraProvider
 
     protected virtual void Dispose(bool disposing)
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
 
         try
         {
-            Close();
+            ForceRelease();
         }
         catch (Exception ex)
         {

@@ -256,28 +256,8 @@ public static class SettingsEndpoints
                 await camera.SetExposureTimeAsync(binding.ExposureTimeUs);
                 await camera.SetGainAsync(binding.GainDb);
 
-                var configuredTriggerMode = binding.TriggerMode?.Trim() ?? "Software";
-                var effectiveTriggerMode = configuredTriggerMode;
-                if (camera is IIndustrialCamera industrialCamera)
-                {
-                    try
-                    {
-                        // 软触发预览始终走软件触发，避免主配置为硬触发时无法返回预览图像。
-                        // Current adapter maps false -> software trigger mode in provider SDKs.
-                        await industrialCamera.SetTriggerModeAsync(false);
-                        await industrialCamera.ExecuteSoftwareTriggerAsync();
-                        effectiveTriggerMode = "Software";
-                    }
-                    catch (Exception)
-                    {
-                        // 若 SDK 不支持软件触发，退回绑定模式后继续采图。
-                        if (!configuredTriggerMode.Equals("Software", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await industrialCamera.SetTriggerModeAsync(true);
-                            effectiveTriggerMode = configuredTriggerMode;
-                        }
-                    }
-                }
+                // 软触发采图序列已内聚在 AcquireSingleFrameAsync 中
+                // （StartGrabbing → TriggerMode=On → TriggerSource=Software → ExecuteSoftwareTrigger → GetFrame）
 
                 var frameBytes = await camera.AcquireSingleFrameAsync();
                 using var frameMat = Cv2.ImDecode(frameBytes, ImreadModes.Color);
@@ -293,8 +273,7 @@ public static class SettingsEndpoints
                     width = frameMat.Width,
                     height = frameMat.Height,
                     cameraId = request.CameraBindingId,
-                    triggerMode = effectiveTriggerMode,
-                    configuredTriggerMode
+                    triggerMode = "Software"
                 });
             }
             catch (Exception ex)

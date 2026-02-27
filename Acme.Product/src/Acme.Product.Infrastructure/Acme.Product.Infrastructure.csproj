@@ -73,4 +73,21 @@
     <ProjectReference Include="..\Acme.PlcComm\Acme.PlcComm.csproj" />
   </ItemGroup>
 
+  <!-- 华睿相机 SDK -->
+  <ItemGroup>
+    <Reference Include="MVSDK_Net">
+      <HintPath>..\..\lib\HuaraySDK\x64\MVSDK_Net.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- 华睿 SDK 原生运行时依赖 → 复制到输出目录 -->
+  <ItemGroup>
+    <None Include="..\..\lib\HuaraySDK\x64\**\*.*"
+          Exclude="..\..\lib\HuaraySDK\x64\MVSDK_Net.dll;..\..\lib\HuaraySDK\x64\MVSDK_Net.XML">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
