@@ -121,13 +121,13 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
     private async Task<OperatorExecutionOutput> ExecuteReadAsync(
         IPlcClient client, string address, string dataType, CancellationToken ct)
     {
-        var length = GetDataLength(dataType);
+        var length = GetReadElementCount(dataType);
         var result = await client.ReadAsync(address, length, ct);
 
         if (!result.IsSuccess)
             return CreateFailureOutput($"读取失败: {result.Message}");
 
-        var value = ConvertBytesToValue(result.Content!, dataType);
+        var value = ConvertBytesToValue(client, result.Content!, dataType);
         Logger.LogInformation("[SiemensS7] 读取成功: {Address} = {Value}", address, value);
         return CreateSuccessOutput(value, dataType);
     }
@@ -138,7 +138,7 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         if (string.IsNullOrWhiteSpace(writeValue))
             return CreateFailureOutput("写入值不能为空");
 
-        var bytes = ConvertValueToBytes(writeValue, dataType);
+        var bytes = ConvertValueToBytes(client, writeValue, dataType);
         var result = await client.WriteAsync(address, bytes, ct);
 
         if (!result.IsSuccess)
@@ -175,7 +175,7 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
             ct.ThrowIfCancellationRequested();
 
             // 读取当前值
-            var length = GetDataLength(dataType);
+            var length = GetReadElementCount(dataType);
             var result = await client.ReadAsync(address, length, ct);
 
             if (!result.IsSuccess)
@@ -185,7 +185,7 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
                 continue;
             }
 
-            var currentValue = ConvertBytesToValue(result.Content!, dataType);
+            var currentValue = ConvertBytesToValue(client, result.Content!, dataType);
             readCount++;
 
             // 检查是否满足条件

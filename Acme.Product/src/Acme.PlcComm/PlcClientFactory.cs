@@ -95,8 +95,16 @@ public static class PlcClientFactory
         };
 
         // 解析Rack和Slot
-        var rack = int.Parse(queryParams["rack"] ?? "0");
-        var slot = int.Parse(queryParams["slot"] ?? "1");
+        var rackRaw = queryParams["rack"];
+        if (!string.IsNullOrWhiteSpace(rackRaw) && !int.TryParse(rackRaw, out _))
+            throw new ArgumentException($"S7连接字符串参数 rack 无效: '{rackRaw}'，必须为整数");
+
+        var slotRaw = queryParams["slot"];
+        if (!string.IsNullOrWhiteSpace(slotRaw) && !int.TryParse(slotRaw, out _))
+            throw new ArgumentException($"S7连接字符串参数 slot 无效: '{slotRaw}'，必须为整数");
+
+        var rack = string.IsNullOrWhiteSpace(rackRaw) ? 0 : int.Parse(rackRaw);
+        var slot = string.IsNullOrWhiteSpace(slotRaw) ? 1 : int.Parse(slotRaw);
 
         var client = new SiemensS7Client(ipAddress, cpuType, rack, slot, logger);
         

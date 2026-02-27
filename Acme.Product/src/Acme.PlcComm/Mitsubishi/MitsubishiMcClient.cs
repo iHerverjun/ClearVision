@@ -73,8 +73,8 @@ public class MitsubishiMcClient : PlcBaseClient
 
             // 读取响应头
             var headerBuffer = new byte[11]; // 最小响应头长度
-            var bytesRead = await _networkStream.ReadAsync(headerBuffer, 0, headerBuffer.Length, ct);
-            if (bytesRead < headerBuffer.Length)
+            var headerReadOk = await ReadExactAsync(_networkStream, headerBuffer, 0, headerBuffer.Length, ct);
+            if (!headerReadOk)
                 return OperateResult<byte[]>.Failure("读取响应头失败");
 
             // 计算响应数据长度
@@ -88,9 +88,9 @@ public class MitsubishiMcClient : PlcBaseClient
             var remainingBytes = totalResponseLength - headerBuffer.Length;
             if (remainingBytes > 0)
             {
-                bytesRead = await _networkStream.ReadAsync(
-                    responseBuffer, headerBuffer.Length, remainingBytes, ct);
-                if (bytesRead < remainingBytes)
+                var payloadReadOk = await ReadExactAsync(
+                    _networkStream, responseBuffer, headerBuffer.Length, remainingBytes, ct);
+                if (!payloadReadOk)
                     return OperateResult<byte[]>.Failure("读取响应数据不完整");
             }
 
@@ -143,8 +143,8 @@ public class MitsubishiMcClient : PlcBaseClient
 
             // 读取响应
             var responseBuffer = new byte[11]; // 写入响应最小长度
-            var bytesRead = await _networkStream.ReadAsync(responseBuffer, 0, responseBuffer.Length, ct);
-            if (bytesRead < responseBuffer.Length)
+            var responseReadOk = await ReadExactAsync(_networkStream, responseBuffer, 0, responseBuffer.Length, ct);
+            if (!responseReadOk)
                 return OperateResult.Failure("读取响应失败");
 
             LogFrame("RX", responseBuffer);

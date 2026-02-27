@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using System.Net.Sockets;
+using System.IO;
 using System.Text;
 using Acme.PlcComm.Common;
 using Acme.PlcComm.Core;
@@ -56,7 +57,7 @@ public abstract class PlcBaseClient : IPlcClient
     public ReconnectPolicy ReconnectPolicy { get; set; } = new();
 
     // ─── 字节序转换器（子类注入） ──────────────────────────
-    protected IByteTransform ByteTransform { get; set; } = BigEndianTransform.Instance;
+    public IByteTransform ByteTransform { get; protected set; } = BigEndianTransform.Instance;
 
     // ─── 事件 ──────────────────────────────────────────────
     public event EventHandler<ConnectionEventArgs>? Connected;
@@ -102,7 +103,10 @@ public abstract class PlcBaseClient : IPlcClient
                 var result = await ConnectCoreAsync(ct);
                 if (!result)
                 {
-                    await DisconnectAsync();
+                    await DisconnectInternalAsync(
+                        DisconnectionReason.ProtocolError,
+                        "协议握手失败，已关闭连接资源");
+                    RaiseError(-1, "协议握手失败", "Connect");
                     return false;
                 }
 
@@ -122,7 +126,10 @@ public abstract class PlcBaseClient : IPlcClient
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[{ClientType}] 连接失败: {Message}", GetType().Name, ex.Message);
-                await DisconnectAsync();
+                await DisconnectInternalAsync(
+                    DisconnectionReason.NetworkError,
+                    $"连接失败: {ex.Message}");
+                RaiseError(-1, $"连接失败: {ex.Message}", "Connect");
                 return false;
             }
         }
@@ -134,31 +141,14 @@ public abstract class PlcBaseClient : IPlcClient
 
     public async Task DisconnectAsync()
     {
-        if (_disposed) return;
+        if (_disposed && _tcpClient == null && _networkStream == null) return;
 
         await _connectLock.WaitAsync();
         try
         {
-            _logger.LogInformation("[{ClientType}] 正在断开连接...", GetType().Name);
-            
-            await DisconnectCoreAsync();
-            
-            _networkStream?.Close();
-            _networkStream?.Dispose();
-            _networkStream = null;
-            
-            _tcpClient?.Close();
-            _tcpClient?.Dispose();
-            _tcpClient = null;
-
-            Disconnected?.Invoke(this, new DisconnectionEventArgs
-            {
-                Timestamp = DateTime.Now,
-                Reason = DisconnectionReason.UserInitiated,
-                Message = "用户主动断开连接"
-            });
-
-            _logger.LogInformation("[{ClientType}] 已断开连接", GetType().Name);
+            await DisconnectInternalAsync(
+                DisconnectionReason.UserInitiated,
+                "用户主动断开连接");
         }
         finally
         {
@@ -175,6 +165,8 @@ public abstract class PlcBaseClient : IPlcClient
                 return OperateResult<byte[]>.Failure("PLC未连接");
 
             var result = await ReadCoreAsync(address, length, ct);
+            if (!result.IsSuccess)
+                RaiseError(result, "Read");
             if (result.IsSuccess)
                 _lastCommunicationTime = DateTime.Now;
             return result;
@@ -189,6 +181,8 @@ public abstract class PlcBaseClient : IPlcClient
                 return OperateResult.Failure("PLC未连接");
 
             var result = await WriteCoreAsync(address, value, ct);
+            if (!result.IsSuccess)
+                RaiseError(result, "Write");
             if (result.IsSuccess)
                 _lastCommunicationTime = DateTime.Now;
             return result;
@@ -210,6 +204,7 @@ public abstract class PlcBaseClient : IPlcClient
         }
         catch (Exception ex)
         {
+            RaiseError(-1, $"读取类型数据失败: {ex.Message}", "ReadTyped");
             return OperateResult<T>.Failure($"读取类型数据失败: {ex.Message}");
         }
     }
@@ -224,6 +219,7 @@ public abstract class PlcBaseClient : IPlcClient
         }
         catch (Exception ex)
         {
+            RaiseError(-1, $"写入类型数据失败: {ex.Message}", "WriteTyped");
             return OperateResult.Failure($"写入类型数据失败: {ex.Message}");
         }
     }
@@ -300,12 +296,11 @@ public abstract class PlcBaseClient : IPlcClient
                 {
                     if (retry < ReconnectPolicy.MaxRetries)
                     {
-                        var delay = ReconnectPolicy.ExponentialBackoff
-                            ? TimeSpan.FromSeconds(Math.Pow(2, retry))
-                            : ReconnectPolicy.RetryInterval;
+                        var delay = GetRetryDelay(retry);
                         await Task.Delay(delay, ct);
                         continue;
                     }
+                    RaiseError(-1, "重连失败，超过最大重试次数", "Reconnect");
                     return OperateResult.Failure("重连失败，超过最大重试次数");
                 }
             }
@@ -319,45 +314,101 @@ public abstract class PlcBaseClient : IPlcClient
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "[{ClientType}] 通信IO异常，准备重试", GetType().Name);
+                RaiseError(-1, $"通信IO异常: {ex.Message}", "Communication");
                 await DisconnectAsync();
                 
                 if (retry < ReconnectPolicy.MaxRetries)
                 {
-                    var delay = ReconnectPolicy.ExponentialBackoff
-                        ? TimeSpan.FromSeconds(Math.Pow(2, retry))
-                        : ReconnectPolicy.RetryInterval;
+                    var delay = GetRetryDelay(retry);
                     await Task.Delay(delay, ct);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[{ClientType}] 执行操作异常", GetType().Name);
+                RaiseError(-1, $"执行失败: {ex.Message}", "Operation");
                 return OperateResult.Failure($"执行失败: {ex.Message}");
             }
         }
 
+        RaiseError(-1, "超过最大重试次数", "Reconnect");
         return OperateResult.Failure("超过最大重试次数");
     }
 
     protected async Task<OperateResult<T>> ExecuteWithReconnectAsync<T>(
         Func<Task<OperateResult<T>>> operation, CancellationToken ct)
     {
-        var result = await ExecuteWithReconnectAsync(async () =>
+        if (!ReconnectPolicy.Enabled)
         {
-            var r = await operation();
-            return r.IsSuccess 
-                ? OperateResult.Success() 
-                : OperateResult.Failure(r.ErrorCode, r.Message);
-        }, ct);
+            await _communicationLock.WaitAsync(ct);
+            try { return await operation(); }
+            finally { _communicationLock.Release(); }
+        }
 
-        if (!result.IsSuccess)
-            return OperateResult<T>.Failure(result.ErrorCode, result.Message);
+        for (int retry = 0; retry <= ReconnectPolicy.MaxRetries; retry++)
+        {
+            if (!IsConnected)
+            {
+                _logger.LogWarning("[{ClientType}] 连接断开，尝试重连... (第{Retry}次)", GetType().Name, retry + 1);
+                var connected = await ConnectAsync(ct);
+                if (!connected)
+                {
+                    if (retry < ReconnectPolicy.MaxRetries)
+                    {
+                        await Task.Delay(GetRetryDelay(retry), ct);
+                        continue;
+                    }
 
-        // 这里会有问题，需要重构
-        // 为了简化，直接执行一次操作
-        await _communicationLock.WaitAsync(ct);
-        try { return await operation(); }
-        finally { _communicationLock.Release(); }
+                    RaiseError(-1, "重连失败，超过最大重试次数", "Reconnect");
+                    return OperateResult<T>.Failure("重连失败，超过最大重试次数");
+                }
+            }
+
+            try
+            {
+                await _communicationLock.WaitAsync(ct);
+                try { return await operation(); }
+                finally { _communicationLock.Release(); }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "[{ClientType}] 通信IO异常，准备重试", GetType().Name);
+                RaiseError(-1, $"通信IO异常: {ex.Message}", "Communication");
+                await DisconnectAsync();
+
+                if (retry < ReconnectPolicy.MaxRetries)
+                    await Task.Delay(GetRetryDelay(retry), ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[{ClientType}] 执行操作异常", GetType().Name);
+                RaiseError(-1, $"执行失败: {ex.Message}", "Operation");
+                return OperateResult<T>.Failure($"执行失败: {ex.Message}");
+            }
+        }
+
+        RaiseError(-1, "超过最大重试次数", "Reconnect");
+        return OperateResult<T>.Failure("超过最大重试次数");
+    }
+
+    protected static async Task<bool> ReadExactAsync(
+        Stream stream,
+        byte[] buffer,
+        int offset,
+        int count,
+        CancellationToken ct)
+    {
+        var totalRead = 0;
+        while (totalRead < count)
+        {
+            var read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, ct);
+            if (read == 0)
+                return false;
+
+            totalRead += read;
+        }
+
+        return true;
     }
 
     // ─── 报文日志 ──────────────────────────────────────────
@@ -370,6 +421,82 @@ public abstract class PlcBaseClient : IPlcClient
     }
 
     // ─── 辅助方法 ──────────────────────────────────────────
+    protected void RaiseError(OperateResult result, string operationType)
+    {
+        if (!result.IsSuccess)
+            RaiseError(result.ErrorCode, result.Message, operationType);
+    }
+
+    protected void RaiseError(int errorCode, string message, string operationType)
+    {
+        ErrorOccurred?.Invoke(this, new PlcErrorEventArgs
+        {
+            Timestamp = DateTime.Now,
+            ErrorCode = errorCode,
+            Message = message,
+            OperationType = operationType
+        });
+    }
+
+    private TimeSpan GetRetryDelay(int retry)
+    {
+        var calculatedDelay = ReconnectPolicy.ExponentialBackoff
+            ? TimeSpan.FromSeconds(Math.Pow(2, retry))
+            : ReconnectPolicy.RetryInterval;
+
+        return calculatedDelay <= ReconnectPolicy.MaxRetryInterval
+            ? calculatedDelay
+            : ReconnectPolicy.MaxRetryInterval;
+    }
+
+    private async Task DisconnectInternalAsync(DisconnectionReason reason, string message)
+    {
+        _logger.LogInformation("[{ClientType}] 正在断开连接...", GetType().Name);
+
+        try
+        {
+            await DisconnectCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[{ClientType}] 协议层断开连接异常: {Message}", GetType().Name, ex.Message);
+            RaiseError(-1, $"协议层断开连接异常: {ex.Message}", "Disconnect");
+        }
+
+        try
+        {
+            _networkStream?.Close();
+            _networkStream?.Dispose();
+            _networkStream = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[{ClientType}] 关闭网络流异常: {Message}", GetType().Name, ex.Message);
+            RaiseError(-1, $"关闭网络流异常: {ex.Message}", "Disconnect");
+        }
+
+        try
+        {
+            _tcpClient?.Close();
+            _tcpClient?.Dispose();
+            _tcpClient = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[{ClientType}] 关闭TCP连接异常: {Message}", GetType().Name, ex.Message);
+            RaiseError(-1, $"关闭TCP连接异常: {ex.Message}", "Disconnect");
+        }
+
+        Disconnected?.Invoke(this, new DisconnectionEventArgs
+        {
+            Timestamp = DateTime.Now,
+            Reason = reason,
+            Message = message
+        });
+
+        _logger.LogInformation("[{ClientType}] 已断开连接", GetType().Name);
+    }
+
     private static (ushort length, PlcDataType dataType) GetTypeInfo<T>()
     {
         var type = typeof(T);
@@ -436,11 +563,17 @@ public abstract class PlcBaseClient : IPlcClient
     public void Dispose()
     {
         if (_disposed) return;
-        
-        _disposed = true;
-        DisconnectAsync().GetAwaiter().GetResult();
-        _communicationLock.Dispose();
-        _connectLock.Dispose();
-        GC.SuppressFinalize(this);
+
+        try
+        {
+            DisconnectAsync().GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _disposed = true;
+            _communicationLock.Dispose();
+            _connectLock.Dispose();
+            GC.SuppressFinalize(this);
+        }
     }
 }

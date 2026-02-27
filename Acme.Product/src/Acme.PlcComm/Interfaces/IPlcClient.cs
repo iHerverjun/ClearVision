@@ -47,6 +47,11 @@ public interface IPlcClient : IDisposable
     /// </summary>
     ReconnectPolicy ReconnectPolicy { get; set; }
 
+    /// <summary>
+    /// 字节序转换器（协议感知）
+    /// </summary>
+    IByteTransform ByteTransform { get; }
+
     // ─── 生命周期 ───────────────────────────────────────────
     /// <summary>
     /// 异步连接

@@ -23,6 +23,10 @@ public class S7AddressParser : IAddressParser
         @"^(?<prefix>[MIQETC])(?<offset>\d+)(?:\.(?<bit>\d+))?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex TypedSimpleAddressRegex = new(
+        @"^(?<prefix>[MIQEA])(?<type>[BWD])(?<offset>\d+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public OperateResult<PlcAddress> Parse(string address)
     {
         if (string.IsNullOrWhiteSpace(address))
@@ -42,6 +46,13 @@ public class S7AddressParser : IAddressParser
         if (simpleMatch.Success)
         {
             return ParseSimpleAddress(simpleMatch);
+        }
+
+        // 尝试匹配带类型前缀的简单地址(MB/MW/MD 等)
+        var typedSimpleMatch = TypedSimpleAddressRegex.Match(address);
+        if (typedSimpleMatch.Success)
+        {
+            return ParseTypedSimpleAddress(typedSimpleMatch);
         }
 
         return OperateResult<PlcAddress>.Failure($"不支持的地址格式: {address}");
@@ -69,7 +80,9 @@ public class S7AddressParser : IAddressParser
         if (string.IsNullOrWhiteSpace(address)) return false;
         
         address = address.Trim().ToUpper();
-        return DbAddressRegex.IsMatch(address) || SimpleAddressRegex.IsMatch(address);
+        return DbAddressRegex.IsMatch(address)
+               || SimpleAddressRegex.IsMatch(address)
+               || TypedSimpleAddressRegex.IsMatch(address);
     }
 
     private OperateResult<PlcAddress> ParseDbAddress(Match match)
@@ -150,6 +163,55 @@ public class S7AddressParser : IAddressParser
         catch (Exception ex)
         {
             return OperateResult<PlcAddress>.Failure($"解析地址失败: {ex.Message}");
+        }
+    }
+
+    private OperateResult<PlcAddress> ParseTypedSimpleAddress(Match match)
+    {
+        try
+        {
+            var prefix = match.Groups["prefix"].Value.ToUpper();
+            var typeCode = match.Groups["type"].Value.ToUpper();
+            var offset = int.Parse(match.Groups["offset"].Value);
+
+            var plcAddress = new PlcAddress
+            {
+                AreaType = prefix,
+                StartAddress = offset,
+                BitOffset = -1
+            };
+
+            (plcAddress.DeviceCode, plcAddress.DataType) = prefix switch
+            {
+                "M" => ((byte)0x83, typeCode switch
+                {
+                    "B" => PlcDataType.Byte,
+                    "W" => PlcDataType.Word,
+                    "D" => PlcDataType.DWord,
+                    _ => PlcDataType.Word
+                }),
+                "I" or "E" => ((byte)0x81, typeCode switch
+                {
+                    "B" => PlcDataType.Byte,
+                    "W" => PlcDataType.Word,
+                    "D" => PlcDataType.DWord,
+                    _ => PlcDataType.Word
+                }),
+                "Q" or "A" => ((byte)0x82, typeCode switch
+                {
+                    "B" => PlcDataType.Byte,
+                    "W" => PlcDataType.Word,
+                    "D" => PlcDataType.DWord,
+                    _ => PlcDataType.Word
+                }),
+                _ => ((byte)0x00, PlcDataType.Word)
+            };
+
+            return OperateResult<PlcAddress>.Success(plcAddress);
+        }
+        catch (Exception ex)
+        {
+            return OperateResult<PlcAddress>.Failure($"解析带类型地址失败: {ex.Message}");
         }
     }
 

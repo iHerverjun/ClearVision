@@ -108,24 +108,22 @@ public class SiemensS7Client : PlcBaseClient
                 return OperateResult<byte[]>.Failure(addressResult.ErrorCode, addressResult.Message);
 
             var plcAddress = addressResult.Content!;
-            byte[]? result;
+            // 位访问需要按 bit offset 处理，不能直接把整字节当作 bool。
+            if (plcAddress.DataType == PlcDataType.Bit && plcAddress.BitOffset >= 0)
+            {
+                if (length != 1)
+                    return OperateResult<byte[]>.Failure("S7 位读取当前仅支持单点读取");
 
-            if (plcAddress.AreaType == "DB")
-            {
-                result = await _s7Plc.ReadBytesAsync(
-                    DataType.DataBlock,
-                    plcAddress.DbNumber,
-                    plcAddress.StartAddress,
-                    GetDataLength(plcAddress.DataType, length),
-                    ct);
+                var rawByte = await ReadS7BytesAsync(plcAddress, 1, ct);
+                if (rawByte == null || rawByte.Length == 0)
+                    return OperateResult<byte[]>.Failure("读取返回空数据");
+
+                var bitValue = (rawByte[0] & (1 << plcAddress.BitOffset)) != 0;
+                return OperateResult<byte[]>.Success(new[] { bitValue ? (byte)1 : (byte)0 });
             }
-            else
-            {
-                var dataType = GetS7DataType(plcAddress.AreaType);
-                result = await _s7Plc.ReadBytesAsync(
-                    dataType, 0, plcAddress.StartAddress,
-                    GetDataLength(plcAddress.DataType, length), ct);
-            }
+
+            var byteCount = GetDataLength(plcAddress.DataType, length);
+            var result = await ReadS7BytesAsync(plcAddress, byteCount, ct);
 
             if (result == null)
                 return OperateResult<byte[]>.Failure("读取返回空数据");
@@ -153,19 +151,24 @@ public class SiemensS7Client : PlcBaseClient
 
             var plcAddress = addressResult.Content!;
 
-            if (plcAddress.AreaType == "DB")
+            if (plcAddress.DataType == PlcDataType.Bit && plcAddress.BitOffset >= 0)
             {
-                await _s7Plc.WriteBytesAsync(
-                    DataType.DataBlock, plcAddress.DbNumber,
-                    plcAddress.StartAddress, value, ct);
-            }
-            else
-            {
-                var dataType = GetS7DataType(plcAddress.AreaType);
-                await _s7Plc.WriteBytesAsync(
-                    dataType, 0, plcAddress.StartAddress, value, ct);
+                // 位写采用读改写，避免覆盖同一字节内其他位。
+                var currentByte = await ReadS7BytesAsync(plcAddress, 1, ct);
+                if (currentByte == null || currentByte.Length == 0)
+                    return OperateResult.Failure("读取位地址所在字节失败");
+
+                var bitToWrite = value.Length > 0 && value[0] != 0;
+                if (bitToWrite)
+                    currentByte[0] = (byte)(currentByte[0] | (1 << plcAddress.BitOffset));
+                else
+                    currentByte[0] = (byte)(currentByte[0] & ~(1 << plcAddress.BitOffset));
+
+                await WriteS7BytesAsync(plcAddress, currentByte, ct);
+                return OperateResult.Success();
             }
 
+            await WriteS7BytesAsync(plcAddress, value, ct);
             return OperateResult.Success();
         }
         catch (Exception ex)
@@ -183,7 +186,7 @@ public class SiemensS7Client : PlcBaseClient
                 return false;
 
             // 使用 MW0 (Merker区) 而非 DB1.DBW0，因为所有 S7 CPU 型号都有 M 区
-            var result = await ReadAsync("MW0", 2, ct);
+            var result = await ReadAsync("MW0", 1, ct);
             return result.IsSuccess;
         }
         catch
@@ -218,6 +221,47 @@ public class SiemensS7Client : PlcBaseClient
             _ => 2
         };
         return typeSize * count;
+    }
+
+    private async Task<byte[]?> ReadS7BytesAsync(PlcAddress plcAddress, int byteCount, CancellationToken ct)
+    {
+        if (_s7Plc == null)
+            return null;
+
+        if (plcAddress.AreaType == "DB")
+        {
+            return await _s7Plc.ReadBytesAsync(
+                DataType.DataBlock,
+                plcAddress.DbNumber,
+                plcAddress.StartAddress,
+                byteCount,
+                ct);
+        }
+
+        var dataType = GetS7DataType(plcAddress.AreaType);
+        return await _s7Plc.ReadBytesAsync(
+            dataType, 0, plcAddress.StartAddress, byteCount, ct);
+    }
+
+    private async Task WriteS7BytesAsync(PlcAddress plcAddress, byte[] value, CancellationToken ct)
+    {
+        if (_s7Plc == null)
+            throw new InvalidOperationException("S7 连接对象未初始化");
+
+        if (plcAddress.AreaType == "DB")
+        {
+            await _s7Plc.WriteBytesAsync(
+                DataType.DataBlock,
+                plcAddress.DbNumber,
+                plcAddress.StartAddress,
+                value,
+                ct);
+            return;
+        }
+
+        var dataType = GetS7DataType(plcAddress.AreaType);
+        await _s7Plc.WriteBytesAsync(
+            dataType, 0, plcAddress.StartAddress, value, ct);
     }
 
     private static S7.Net.DataType GetS7DataType(string areaType)

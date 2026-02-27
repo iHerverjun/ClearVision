@@ -259,36 +259,32 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// <summary>
     /// 根据数据类型获取长度
     /// </summary>
-    protected ushort GetDataLength(string dataType)
+    protected ushort GetReadElementCount(string dataType)
     {
-        return dataType.ToUpper() switch
-        {
-            "BIT" or "BOOL" => 1,
-            "BYTE" => 1,
-            "WORD" or "INT16" or "SHORT" or "USHORT" => 2,
-            "DWORD" or "INT32" or "INT" or "UINT" or "FLOAT" => 4,
-            "LWORD" or "INT64" or "LONG" or "ULONG" or "DOUBLE" => 8,
-            _ => 2
-        };
+        // 统一长度语义：ReadAsync 的 length 表示“元素个数/点数”
+        // 算子单值读取固定读取 1 个元素，避免协议层重复按类型大小扩展导致过读。
+        return 1;
     }
 
     /// <summary>
     /// 将字节数组转换为指定类型的值
     /// </summary>
-    protected object ConvertBytesToValue(byte[] data, string dataType)
+    protected object ConvertBytesToValue(IPlcClient client, byte[] data, string dataType)
     {
+        var transform = client.ByteTransform;
+
         return dataType.ToUpper() switch
         {
             "BIT" or "BOOL" => data[0] != 0,
             "BYTE" => data[0],
-            "WORD" or "USHORT" => BitConverter.ToUInt16(data, 0),
-            "INT16" or "SHORT" => BitConverter.ToInt16(data, 0),
-            "DWORD" or "UINT" => BitConverter.ToUInt32(data, 0),
-            "INT32" or "INT" => BitConverter.ToInt32(data, 0),
-            "FLOAT" => BitConverter.ToSingle(data, 0),
-            "LWORD" or "ULONG" => BitConverter.ToUInt64(data, 0),
-            "INT64" or "LONG" => BitConverter.ToInt64(data, 0),
-            "DOUBLE" => BitConverter.ToDouble(data, 0),
+            "WORD" or "USHORT" => transform.ToUInt16(data, 0),
+            "INT16" or "SHORT" => transform.ToInt16(data, 0),
+            "DWORD" or "UINT" => transform.ToUInt32(data, 0),
+            "INT32" or "INT" => transform.ToInt32(data, 0),
+            "FLOAT" => transform.ToFloat(data, 0),
+            "LWORD" or "ULONG" => transform.ToUInt64(data, 0),
+            "INT64" or "LONG" => transform.ToInt64(data, 0),
+            "DOUBLE" => transform.ToDouble(data, 0),
             "STRING" => System.Text.Encoding.ASCII.GetString(data).TrimEnd('\0'),
             _ => data
         };
@@ -297,20 +293,22 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// <summary>
     /// 将值转换为字节数组
     /// </summary>
-    protected byte[] ConvertValueToBytes(object value, string dataType)
+    protected byte[] ConvertValueToBytes(IPlcClient client, object value, string dataType)
     {
+        var transform = client.ByteTransform;
+
         return dataType.ToUpper() switch
         {
             "BIT" or "BOOL" => new byte[] { Convert.ToBoolean(value) ? (byte)1 : (byte)0 },
             "BYTE" => new byte[] { Convert.ToByte(value) },
-            "WORD" or "USHORT" => BitConverter.GetBytes(Convert.ToUInt16(value)),
-            "INT16" or "SHORT" => BitConverter.GetBytes(Convert.ToInt16(value)),
-            "DWORD" or "UINT" => BitConverter.GetBytes(Convert.ToUInt32(value)),
-            "INT32" or "INT" => BitConverter.GetBytes(Convert.ToInt32(value)),
-            "FLOAT" => BitConverter.GetBytes(Convert.ToSingle(value)),
-            "LWORD" or "ULONG" => BitConverter.GetBytes(Convert.ToUInt64(value)),
-            "INT64" or "LONG" => BitConverter.GetBytes(Convert.ToInt64(value)),
-            "DOUBLE" => BitConverter.GetBytes(Convert.ToDouble(value)),
+            "WORD" or "USHORT" => transform.GetBytes(Convert.ToUInt16(value)),
+            "INT16" or "SHORT" => transform.GetBytes(Convert.ToInt16(value)),
+            "DWORD" or "UINT" => transform.GetBytes(Convert.ToUInt32(value)),
+            "INT32" or "INT" => transform.GetBytes(Convert.ToInt32(value)),
+            "FLOAT" => transform.GetBytes(Convert.ToSingle(value)),
+            "LWORD" or "ULONG" => transform.GetBytes(Convert.ToUInt64(value)),
+            "INT64" or "LONG" => transform.GetBytes(Convert.ToInt64(value)),
+            "DOUBLE" => transform.GetBytes(Convert.ToDouble(value)),
             "STRING" => System.Text.Encoding.ASCII.GetBytes(Convert.ToString(value) ?? ""),
             _ => throw new NotSupportedException($"不支持的数据类型: {dataType}")
         };

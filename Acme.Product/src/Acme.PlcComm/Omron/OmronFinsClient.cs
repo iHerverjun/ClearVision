@@ -49,8 +49,8 @@ public class OmronFinsClient : PlcBaseClient
 
             // 读取节点地址响应
             var responseBuffer = new byte[24];
-            var bytesRead = await _networkStream.ReadAsync(responseBuffer, 0, responseBuffer.Length, ct);
-            if (bytesRead < 24)
+            var handshakeReadOk = await ReadExactAsync(_networkStream, responseBuffer, 0, responseBuffer.Length, ct);
+            if (!handshakeReadOk)
             {
                 _logger.LogError("[OmronFINS] 握手响应太短");
                 return false;
@@ -124,8 +124,8 @@ public class OmronFinsClient : PlcBaseClient
 
             // 读取响应(先读取头部以确定总长度)
             var headerBuffer = new byte[16];
-            var bytesRead = await _networkStream.ReadAsync(headerBuffer, 0, headerBuffer.Length, ct);
-            if (bytesRead < 16)
+            var headerReadOk = await ReadExactAsync(_networkStream, headerBuffer, 0, headerBuffer.Length, ct);
+            if (!headerReadOk)
                 return OperateResult<byte[]>.Failure("读取响应头失败");
 
             // 计算剩余数据长度
@@ -139,9 +139,8 @@ public class OmronFinsClient : PlcBaseClient
 
             if (remainingBytes > 0)
             {
-                bytesRead = await _networkStream.ReadAsync(
-                    responseBuffer, 16, remainingBytes, ct);
-                if (bytesRead < remainingBytes)
+                var payloadReadOk = await ReadExactAsync(_networkStream, responseBuffer, 16, remainingBytes, ct);
+                if (!payloadReadOk)
                     return OperateResult<byte[]>.Failure("读取响应数据不完整");
             }
 
@@ -178,11 +177,13 @@ public class OmronFinsClient : PlcBaseClient
 
             // 构建写入请求
             var bitAddress = (byte)(plcAddress.BitOffset >= 0 ? plcAddress.BitOffset : 0);
+            var isBitAccess = plcAddress.DataType == PlcDataType.Bit;
             var requestFrame = _frameBuilder.BuildMemoryWriteRequest(
                 plcAddress.DeviceCode,
                 (ushort)plcAddress.StartAddress,
                 bitAddress,
                 value,
+                isBitAccess,
                 _clientNode,
                 _serverNode);
 
@@ -196,8 +197,8 @@ public class OmronFinsClient : PlcBaseClient
 
             // 读取响应
             var headerBuffer = new byte[16];
-            var bytesRead = await _networkStream.ReadAsync(headerBuffer, 0, headerBuffer.Length, ct);
-            if (bytesRead < 16)
+            var headerReadOk = await ReadExactAsync(_networkStream, headerBuffer, 0, headerBuffer.Length, ct);
+            if (!headerReadOk)
                 return OperateResult.Failure("读取响应头失败");
 
             var dataLength = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(headerBuffer.AsSpan(4, 4));
@@ -209,9 +210,8 @@ public class OmronFinsClient : PlcBaseClient
 
             if (remainingBytes > 0)
             {
-                bytesRead = await _networkStream.ReadAsync(
-                    responseBuffer, 16, remainingBytes, ct);
-                if (bytesRead < remainingBytes)
+                var payloadReadOk = await ReadExactAsync(_networkStream, responseBuffer, 16, remainingBytes, ct);
+                if (!payloadReadOk)
                     return OperateResult.Failure("读取响应数据不完整");
             }
 

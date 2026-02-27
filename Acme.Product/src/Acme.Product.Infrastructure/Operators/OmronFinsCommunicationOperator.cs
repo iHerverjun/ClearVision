@@ -96,7 +96,7 @@ public class OmronFinsCommunicationOperator : PlcCommunicationOperatorBase
         if (!result.IsSuccess)
             return CreateFailureOutput($"读取失败: {result.Message}");
 
-        var value = ConvertBytesToValue(result.Content!, dataType);
+        var value = ConvertBytesToValue(client, result.Content!, dataType);
         Logger.LogInformation("[OmronFINS] 读取成功: {Address} = {Value}", address, value);
         return CreateSuccessOutput(value, dataType);
     }
@@ -107,7 +107,7 @@ public class OmronFinsCommunicationOperator : PlcCommunicationOperatorBase
         if (string.IsNullOrWhiteSpace(writeValue))
             return CreateFailureOutput("写入值不能为空");
 
-        var bytes = ConvertValueToBytes(writeValue, dataType);
+        var bytes = ConvertValueToBytes(client, writeValue, dataType);
         var result = await client.WriteAsync(address, bytes, ct);
 
         if (!result.IsSuccess)

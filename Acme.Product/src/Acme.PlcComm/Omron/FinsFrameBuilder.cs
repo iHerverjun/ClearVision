@@ -187,9 +187,24 @@ public class FinsFrameBuilder
     /// 构建内存区写入请求
     /// </summary>
     public byte[] BuildMemoryWriteRequest(byte areaCode, ushort startAddress, byte bitAddress, byte[] data,
-        byte clientNode, byte serverNode)
+        bool isBitAccess, byte clientNode, byte serverNode)
     {
-        var length = (ushort)(data.Length / 2); // 字数
+        if (data == null || data.Length == 0)
+            throw new ArgumentException("写入数据不能为空", nameof(data));
+
+        ushort length;
+        if (isBitAccess)
+        {
+            // 位写：长度直接表示位点数
+            length = (ushort)data.Length;
+        }
+        else
+        {
+            // 字写：长度表示字数，每字 2 字节
+            if (data.Length % 2 != 0)
+                throw new ArgumentException("FINS 字写入数据长度必须是 2 的倍数", nameof(data));
+            length = (ushort)(data.Length / 2);
+        }
 
         // FINS头部
         var header = new byte[]

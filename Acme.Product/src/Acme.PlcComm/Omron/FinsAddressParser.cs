@@ -34,7 +34,7 @@ public class FinsAddressParser : IAddressParser
 
     // 地址解析正则
     private static readonly Regex AddressRegex = new(
-        @"^(?<prefix>[A-Z]+)(?<bank>[0-9]*)\s*(?<address>\d+)(?:\.(?<bit>\d+))?$",
+        @"^(?:(?<prefix>EM)(?<bank>\d+)\s*(?<address>\d+)|(?<prefix>CIO|WR|HR|AR|DM|TIM|CNT)\s*(?<address>\d+))(?:\.(?<bit>\d+))?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public OperateResult<PlcAddress> Parse(string address)
