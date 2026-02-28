@@ -20,6 +20,8 @@ export class AiPanel {
         this.sessionId = this._loadSessionId();
         this.currentResult = null;
         this.attachments = [];
+        this._streamBuffer = { thinking: '', content: '' };
+        this._streamFlushPending = false;
         
         // 绑定方法
         this._handleGenerate = this._handleGenerate.bind(this);
@@ -247,6 +249,8 @@ export class AiPanel {
         const thinkingEl = this.container.querySelector('#ai-result-thinking');
         if (reasoningEl) reasoningEl.innerHTML = '';
         if (thinkingEl) thinkingEl.innerHTML = '';
+        this._streamBuffer = { thinking: '', content: '' };
+        this._streamFlushPending = false;
 
         if (attachmentPaths.length > 0) {
             this.attachments = this.attachments.map(item =>
@@ -352,24 +356,58 @@ export class AiPanel {
         if (!content) return;
 
         if (chunkType === 'thinking') {
-            const thinkingEl = this.container.querySelector('#ai-result-thinking');
-            if (thinkingEl) {
-                // Clear shimmer if present
-                if (thinkingEl.querySelector('.streaming-hint')) {
-                    thinkingEl.innerHTML = '';
-                }
-                thinkingEl.textContent += content;
-            }
+            this._streamBuffer.thinking += content;
         } else if (chunkType === 'content') {
-            const reasoningEl = this.container.querySelector('#ai-result-reasoning');
-            if (reasoningEl) {
-                // Clear shimmer if present
-                if (reasoningEl.querySelector('.streaming-hint')) {
-                    reasoningEl.innerHTML = '';
-                }
-                reasoningEl.textContent += content;
-            }
+            this._streamBuffer.content += content;
+        } else {
+            return;
         }
+
+        if (!this._streamFlushPending) {
+            this._streamFlushPending = true;
+            requestAnimationFrame(() => this._flushStreamBuffer());
+        }
+    }
+
+    _flushStreamBuffer() {
+        this._streamFlushPending = false;
+        const thinkingText = this._streamBuffer?.thinking || '';
+        const reasoningText = this._streamBuffer?.content || '';
+
+        this._streamBuffer.thinking = '';
+        this._streamBuffer.content = '';
+
+        if (thinkingText) {
+            const thinkingEl = this.container.querySelector('#ai-result-thinking');
+            this._appendStreamText(thinkingEl, thinkingText);
+        }
+        if (reasoningText) {
+            const reasoningEl = this.container.querySelector('#ai-result-reasoning');
+            this._appendStreamText(reasoningEl, reasoningText);
+        }
+
+        if ((this._streamBuffer.thinking || this._streamBuffer.content) && !this._streamFlushPending) {
+            this._streamFlushPending = true;
+            requestAnimationFrame(() => this._flushStreamBuffer());
+        }
+    }
+
+    _appendStreamText(targetEl, text) {
+        if (!targetEl || !text) return;
+
+        const shouldFollowBottom = this._isNearBottom(targetEl);
+        if (targetEl.querySelector('.streaming-hint')) {
+            targetEl.innerHTML = '';
+        }
+        targetEl.textContent += text;
+        if (shouldFollowBottom) {
+            targetEl.scrollTop = targetEl.scrollHeight;
+        }
+    }
+
+    _isNearBottom(targetEl, threshold = 24) {
+        if (!targetEl) return false;
+        return (targetEl.scrollHeight - targetEl.scrollTop - targetEl.clientHeight) <= threshold;
     }
     
     _normalizeIntent(intent) {
@@ -387,6 +425,10 @@ export class AiPanel {
     }
 
     _handleResult(data) {
+        if (this._streamFlushPending) {
+            this._flushStreamBuffer();
+        }
+
         this._setGeneratingState(false);
         const payload = data.payload || data;
         this.sessionId = payload.sessionId || this.sessionId;
@@ -396,10 +438,19 @@ export class AiPanel {
         if (container) {
             const activeStep = container.querySelector('.stepper-item.active');
             if (activeStep) {
-                activeStep.classList.remove('active');
-                activeStep.classList.add('completed');
-                activeStep.querySelector('.check-icon').style.display = 'block';
-                activeStep.querySelector('.dot-icon').style.display = 'none';
+                activeStep.classList.remove('active', 'completed', 'failed');
+                activeStep.classList.add(payload.success ? 'completed' : 'failed');
+                const icon = activeStep.querySelector('.check-icon');
+                if (icon) {
+                    if (payload.success) {
+                        icon.innerHTML = '<path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>';
+                    } else {
+                        icon.innerHTML = '<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>';
+                    }
+                    icon.style.display = 'block';
+                }
+                const dot = activeStep.querySelector('.dot-icon');
+                if (dot) dot.style.display = 'none';
                 activeStep.querySelector('.stepper-title').innerHTML = (payload.success ? '生成成功' : '生成失败');
                 const bar = activeStep.querySelector('.stepper-bar-container');
                 if(bar) bar.style.display = 'none';
@@ -725,6 +776,8 @@ export class AiPanel {
         const e4 = this.container.querySelector('#ai-result-ops'); if(e4) e4.innerHTML = '';
         const progress = this.container.querySelector('#ai-progress-container');
         if(progress) progress.innerHTML = '';
+        this._streamBuffer = { thinking: '', content: '' };
+        this._streamFlushPending = false;
     }
     
     _scrollToBottom() {

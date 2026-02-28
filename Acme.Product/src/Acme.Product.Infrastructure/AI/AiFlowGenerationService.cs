@@ -60,8 +60,8 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         CancellationToken cancellationToken = default,
         Action<GenerateFlowAttachmentReport>? onAttachmentReport = null)
     {
-        // 鎺ㄩ€侊細鏋勫缓鎻愮ず璇?
-        onProgress?.Invoke("姝ｅ湪鍒嗘瀽闇€姹傚苟鏋勫缓鎻愮ず璇?..");
+        // 推送：构建提示词
+        onProgress?.Invoke("正在分析需求并构建提示词...");
         var conversationContext = _conversationalFlowService.PrepareContext(request);
         var systemPrompt = _promptBuilder.BuildSystemPrompt(request.Description);
         var userMessage = BuildUserMessage(
@@ -76,7 +76,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
         var initialUserMessage = BuildUserChatMessage(userMessage, attachmentSelection.SendablePaths);
 
-        // 璇诲彇褰撳墠閰嶇疆蹇収
+        // 读取当前配置快照
         var options = _configStore.Get();
 
         AiGeneratedFlowJson? generatedFlow = null;
@@ -89,20 +89,20 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             {
                 _logger.LogInformation("Calling AI API, attempt {Attempt}", attempt + 1);
 
-                // 鎺ㄩ€侊細姝ｅ湪璋冪敤 AI (甯﹂噸璇曟鏁?
+                // 推送：正在调用 AI（带重试次数）
                 if (attempt > 0)
-                    onProgress?.Invoke($"AI 鍝嶅簲鏈€氳繃鏍￠獙鎴栧嚭閿欙紝姝ｅ湪閲嶈瘯锛堢 {attempt + 1}/{options.MaxRetries} 娆★級...");
+                    onProgress?.Invoke($"AI 响应未通过校验或出错，正在重试（第 {attempt + 1}/{options.MaxRetries} 次）...");
                 else
-                    onProgress?.Invoke("姝ｅ湪璇锋眰 AI 妯″瀷鐢熸垚鏂规...");
+                    onProgress?.Invoke("正在请求 AI 模型生成方案...");
 
-                // 鏋勫缓瀹屾暣鐨勪笂涓嬫枃娑堟伅
+                // 构建完整的上下文消息
                 var messages = new List<ChatMessage> { initialUserMessage };
                 if (attempt > 0)
                 {
                     messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!)));
                 }
 
-                // 璋冪敤 API (浣跨敤娴佸紡鎺ュ彛)
+                // 调用 API（使用流式接口）
                 var completionResult = await _apiClient.StreamCompleteAsync(
                     systemPrompt,
                     messages,
@@ -110,44 +110,44 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     null,
                     cancellationToken);
                 var rawResponse = completionResult.Content;
-                _logger.LogDebug("AI 鍘熷鍝嶅簲闀垮害锛歿Length}", rawResponse.Length);
+                _logger.LogDebug("AI 原始响应长度：{Length}", rawResponse.Length);
                 if (!string.IsNullOrEmpty(completionResult.Reasoning))
                 {
-                    _logger.LogDebug("AI 鎬濈淮閾撅細{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");
+                    _logger.LogDebug("AI 思维链：{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");
                 }
 
-                // 鎺ㄩ€侊細瑙ｆ瀽缁撴灉
-                onProgress?.Invoke("鏀跺埌 AI 鍝嶅簲锛屾鍦ㄨВ鏋?JSON 鏁版嵁...");
-                // 瑙ｆ瀽 AI 杈撳嚭鐨?JSON
+                // 推送：解析结果
+                onProgress?.Invoke("收到 AI 响应，正在解析 JSON 数据...");
+                // 解析 AI 输出的 JSON
                 generatedFlow = ParseAiResponse(rawResponse);
                 if (generatedFlow == null)
                 {
                     lastValidation = new AiValidationResult();
-                    lastValidation.AddError("AI 杩斿洖鐨勫唴瀹逛笉鏄悎娉曠殑 JSON 鏍煎紡");
+                    lastValidation.AddError("AI 返回的内容不是合法的 JSON 格式");
                     retryCount++;
                     continue;
                 }
 
-                // 鎺ㄩ€侊細鏍￠獙缁撴灉
-                onProgress?.Invoke("姝ｅ湪鏍￠獙鐢熸垚鐨勭畻瀛愬拰鍙傛暟鏈夋晥鎬?..");
-                // 鏍￠獙
+                // 推送：校验结果
+                onProgress?.Invoke("正在校验生成的算子和参数有效性...");
+                // 校验
                 lastValidation = _validator.Validate(generatedFlow);
                 if (lastValidation.IsValid)
                 {
-                    // 鏍￠獙閫氳繃锛岃浆鎹负 DTO 骞惰繑鍥?
+                    // 校验通过，转换为 DTO 并返回
                     var flowDto = ConvertToFlowDto(generatedFlow, request.Description);
                     _layoutService.ApplyLayout(flowDto);
 
-                    onProgress?.Invoke("姝ｅ湪杩涜 Dry-Run 娌欑洅瀹夊叏鏍￠獙涓庡垎鏀鐩栫巼缁熻...");
+                    onProgress?.Invoke("正在进行 Dry-Run 沙箱安全校验与分支覆盖率统计...");
 
-                    // S6-003: 杞崲骞跺湪铏氭嫙娌欑洅涓繍琛屼互鏀堕泦瑕嗙洊鐜?
+                    // S6-003: 转换并在虚拟沙箱中运行以收集覆盖率
                     object? dryRunReport = null;
                     try
                     {
-                        var flowEntity = ConvertDtoToEntity(flowDto); // 鏆傛椂闇€杞崲涓?Entity 渚涗豢鐪熶娇鐢?
+                        var flowEntity = ConvertDtoToEntity(flowDto); // 暂时需转换为 Entity 供仿真使用
                         var drResult = await _dryRunService.RunAsync(
                             flowEntity,
-                            new Dictionary<string, object>(), // 绌鸿緭鍏?
+                            new Dictionary<string, object>(), // 空输入
                             new DryRunStubRegistry(),
                             cancellationToken);
 
@@ -161,7 +161,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "DryRun 棰勬紨闃舵寮傚父锛岃烦杩囪鐩栫巼閲囬泦");
+                        _logger.LogWarning(ex, "DryRun 预演阶段异常，跳过覆盖率采集");
                     }
 
                     _conversationalFlowService.RecordAssistantResponse(
@@ -183,13 +183,13 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     };
                 }
 
-                _logger.LogWarning("AI 鐢熸垚鍐呭鏍￠獙澶辫触锛岄敊璇細{Errors}",
+                _logger.LogWarning("AI 生成内容校验失败，错误：{Errors}",
                     string.Join("; ", lastValidation.Errors));
                 retryCount++;
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning("AI API 璋冪敤瓒呮椂");
+                _logger.LogWarning("AI API 调用超时");
                 return new AiFlowGenerationResult
                 {
                     Success = false,
@@ -198,7 +198,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AI API 璋冪敤澶辫触");
+                _logger.LogError(ex, "AI API 调用失败");
                 return new AiFlowGenerationResult
                 {
                     Success = false,
@@ -207,7 +207,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             }
         }
 
-        // 鎵€鏈夐噸璇曞潎澶辫触
+        // 所有重试均失败
         return new AiFlowGenerationResult
         {
             Success = false,
@@ -246,14 +246,14 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         if (!string.IsNullOrWhiteSpace(promptContext))
         {
             sb.AppendLine();
-            sb.AppendLine("浼氳瘽涓婁笅鏂囷細");
+            sb.AppendLine("会话上下文：");
             sb.AppendLine(promptContext);
         }
 
         if (!string.IsNullOrWhiteSpace(existingFlow))
         {
             sb.AppendLine();
-            sb.AppendLine("浠ヤ笅鏄敤鎴峰綋鍓嶇殑宸ヤ綔娴?JSON锛岃鍦ㄦ鍩虹涓婂鐞嗭細");
+            sb.AppendLine("以下是用户当前的工作流 JSON，请在此基础上处理：");
             sb.AppendLine("```json");
             sb.AppendLine(existingFlow);
             sb.AppendLine("```");
@@ -516,10 +516,10 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         try
         {
-            _logger.LogDebug("AI 鍘熷鍝嶅簲鍓?500 瀛楃锛歿Preview}",
+            _logger.LogDebug("AI 原始响应前 500 字符：{Preview}",
                 rawResponse.Length > 500 ? rawResponse[..500] + "..." : rawResponse);
 
-            // 娓呯悊鍙兘鐨?Markdown 浠ｇ爜鍧楀寘瑁?
+            // 清理可能的 Markdown 代码块包装
             var json = rawResponse.Trim();
             if (json.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
                 json = json[7..];
@@ -531,11 +531,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
             json = json.Trim();
 
-            // 濡傛灉娓呯悊鍚庝粛涓嶆槸浠?{ 寮€澶达紝灏濊瘯浠庡搷搴斾腑鎻愬彇 JSON 瀵硅薄
-            // 锛堟帹鐞嗘ā鍨嬪彲鑳藉湪 JSON 鍓嶅悗鍔犱簡瑙ｉ噴鏂囧瓧锛?
+            // 如果清理后仍不是以 { 开头，尝试从响应中提取 JSON 对象
+            // （推理模型可能在 JSON 前后附带解释文字）
             if (!json.StartsWith("{"))
             {
-                _logger.LogWarning("AI 鍝嶅簲涓嶆槸绾?JSON锛屽皾璇曟彁鍙栧祵鍏ョ殑 JSON 瀵硅薄...");
+                _logger.LogWarning("AI 响应不是纯 JSON，尝试提取嵌入的 JSON 对象...");
                 var match = Regex.Match(json, @"\{[\s\S]*\}", RegexOptions.Singleline);
                 if (match.Success)
                 {
@@ -544,7 +544,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 }
                 else
                 {
-                    _logger.LogError(null, "AI 鍝嶅簲涓壘涓嶅埌 JSON 瀵硅薄锛屽搷搴斿唴瀹瑰墠 200 瀛楃锛歿Content}",
+                    _logger.LogError(null, "AI 响应中找不到 JSON 对象，响应内容前 200 字符：{Content}",
                         json.Length > 200 ? json.Substring(0, 200) : json);
                     return null;
                 }
@@ -554,7 +554,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning("瑙ｆ瀽 AI 鍝嶅簲 JSON 澶辫触锛歿Error}锛屽搷搴斿唴瀹瑰墠 300 瀛楃锛歿Content}",
+            _logger.LogWarning("解析 AI 响应 JSON 失败：{Error}，响应内容前 300 字符：{Content}",
                 ex.Message,
                 rawResponse.Length > 300 ? rawResponse[..300] + "..." : rawResponse);
             return null;
@@ -597,7 +597,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 Id = operatorId,
                 Name = op.DisplayName,
                 Type = metadata.Type,
-                X = 0, // 鐢?AutoLayoutService 濉厖
+                X = 0, // 由 AutoLayoutService 填充
                 Y = 0,
                 IsEnabled = true,
                 InputPorts = metadata.InputPorts.Select(p => new PortDto
@@ -636,20 +636,20 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
         var connections = generated.Connections?.Select(conn =>
         {
-            // 婧愮鍙ｅ繀椤讳粠 OutputPorts 鏌ユ壘
+            // 源端口必须从 OutputPorts 查找
             var outputs = portMapping[conn.SourceTempId].Outputs;
             if (!outputs.TryGetValue(conn.SourcePortName, out var srcPortId))
             {
                 throw new InvalidOperationException(
-                   $"婧愮畻瀛?{conn.SourceTempId} 涓嶅瓨鍦ㄨ緭鍑虹鍙?'{conn.SourcePortName}'");
+                   $"源算子 {conn.SourceTempId} 不存在输出端口 '{conn.SourcePortName}'");
             }
 
-            // 鐩爣绔彛蹇呴』浠?InputPorts 鏌ユ壘
+            // 目标端口必须从 InputPorts 查找
             var inputs = portMapping[conn.TargetTempId].Inputs;
             if (!inputs.TryGetValue(conn.TargetPortName, out var tgtPortId))
             {
                 throw new InvalidOperationException(
-                    $"鐩爣绠楀瓙 {conn.TargetTempId} 涓嶅瓨鍦ㄨ緭鍏ョ鍙?'{conn.TargetPortName}'");
+                    $"目标算子 {conn.TargetTempId} 不存在输入端口 '{conn.TargetPortName}'");
             }
 
             return new OperatorConnectionDto
@@ -665,7 +665,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return new OperatorFlowDto
         {
             Id = Guid.NewGuid(),
-            Name = $"AI鐢熸垚 - {userDescription}",
+            Name = $"AI生成 - {userDescription}",
             Operators = operators,
             Connections = connections
         };
@@ -673,7 +673,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
     private OperatorFlow ConvertDtoToEntity(OperatorFlowDto dto)
     {
-        // 绠€鍗曡浆鎹负鐢ㄤ簬娴嬭瘯璺戝垎鐨勫唴閮ㄧ粨鏋?
+        // 简单转换为用于测试跑分的内部结构
         var flow = new OperatorFlow(dto.Name);
         typeof(OperatorFlow).GetProperty("Id")?.SetValue(flow, dto.Id);
 
@@ -682,7 +682,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             var op = _operatorFactory.CreateOperator(o.Type, o.Name, o.X, o.Y);
             typeof(Operator).GetProperty("Id")?.SetValue(op, o.Id);
 
-            // 绠€鍗曞鍒朵竴涓嬫牳蹇冨弬鏁?
+            // 简单复制核心参数
             foreach (var pDto in o.Parameters)
             {
                 var targetParam = op.Parameters.FirstOrDefault(p => p.Name == pDto.Name);

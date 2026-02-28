@@ -533,8 +533,13 @@
     background: var(--success-jade);
 }
 
+.stepper-item.failed:not(:last-child)::after {
+    background: #e74c3c;
+}
+
 .stepper-item.active  { opacity: 1; }
 .stepper-item.completed { opacity: 0.85; }
+.stepper-item.failed { opacity: 0.85; }
 
 .stepper-icon {
     width: 28px;
@@ -553,6 +558,11 @@
 .stepper-item.completed .stepper-icon {
     background: var(--success-jade);
     box-shadow: var(--neon-jade);
+}
+
+.stepper-item.failed .stepper-icon {
+    background: #e74c3c;
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.4);
 }
 
 .stepper-item.active .stepper-icon {
