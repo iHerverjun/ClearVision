@@ -1,7 +1,6 @@
-// HikvisionCamera.cs
+﻿// HikvisionCamera.cs
 // 海康威视工业相机实现
-// 作者：蘅芜君
-
+// 作者：蘅芜�?
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Acme.Product.Core.Cameras;
@@ -14,8 +13,7 @@ namespace Acme.Product.Infrastructure.Cameras;
 /// </summary>
 public class HikvisionCamera : ICameraProvider
 {
-    #region 海康SDK常量和结构
-
+    #region 海康SDK常量和结�?
     private const uint MV_OK = 0x00000000;
     private const uint MV_GIGE_DEVICE = 0x00000001;
     private const uint MV_USB_DEVICE = 0x00000004;
@@ -144,8 +142,8 @@ public class HikvisionCamera : ICameraProvider
     private CameraDeviceInfo? _currentDevice;
     private List<CameraDeviceInfo> _cachedDevices = new();
     private MV_CC_DEVICE_INFO_LIST _deviceList;
-    private byte[]? _frameBuffer;
-    private GCHandle _frameBufferHandle;
+    private IntPtr _frameBufferPtr = IntPtr.Zero;
+    private int _frameBufferSize;
     private int _targetDeviceIndex = -1;
 
     public string ProviderName => "Hikvision";
@@ -322,6 +320,24 @@ public class HikvisionCamera : ICameraProvider
         return text.Trim();
     }
 
+    private void AllocateFrameBuffer(int bufferSize)
+    {
+        FreeFrameBuffer();
+        _frameBufferPtr = Marshal.AllocHGlobal(bufferSize);
+        _frameBufferSize = bufferSize;
+    }
+
+    private void FreeFrameBuffer()
+    {
+        if (_frameBufferPtr != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_frameBufferPtr);
+            _frameBufferPtr = IntPtr.Zero;
+        }
+
+        _frameBufferSize = 0;
+    }
+
     public bool Open(string serialNumber)
     {
         if (IsConnected) Close();
@@ -363,9 +379,10 @@ public class HikvisionCamera : ICameraProvider
                 return false;
             }
 
-            int bufferSize = 4096 * 3000 * 3;
-            _frameBuffer = new byte[bufferSize];
-            _frameBufferHandle = GCHandle.Alloc(_frameBuffer, GCHandleType.Pinned);
+            uint payloadSize = 0;
+            int payloadResult = MV_CC_GetIntValue(_handle, "PayloadSize", ref payloadSize);
+            int bufferSize = (payloadResult == MV_OK && payloadSize > 0) ? checked((int)payloadSize) : 4096 * 3000 * 3;
+            AllocateFrameBuffer(bufferSize);
 
             _isConnected = true;
             _currentDevice = _cachedDevices[_targetDeviceIndex];
@@ -374,6 +391,7 @@ public class HikvisionCamera : ICameraProvider
         }
         catch (Exception ex)
         {
+            FreeFrameBuffer();
             Debug.WriteLine($"[HikvisionCamera] Open error: {ex.Message}");
             return false;
         }
@@ -381,7 +399,11 @@ public class HikvisionCamera : ICameraProvider
 
     public bool Close()
     {
-        if (!IsConnected) return true;
+        if (!IsConnected)
+        {
+            FreeFrameBuffer();
+            return true;
+        }
 
         try
         {
@@ -394,9 +416,7 @@ public class HikvisionCamera : ICameraProvider
             _isConnected = false;
             _currentDevice = null;
 
-            if (_frameBufferHandle.IsAllocated)
-                _frameBufferHandle.Free();
-            _frameBuffer = null;
+            FreeFrameBuffer();
 
             Debug.WriteLine("[HikvisionCamera] Closed");
             return true;
@@ -431,15 +451,15 @@ public class HikvisionCamera : ICameraProvider
 
     public CameraFrame? GetFrame(int timeoutMs = 1000)
     {
-        if (!IsConnected || !_isGrabbing || _frameBuffer == null) return null;
+        if (!IsConnected || !_isGrabbing || _frameBufferPtr == IntPtr.Zero || _frameBufferSize <= 0) return null;
 
         try
         {
             var frameInfo = new MV_FRAME_OUT_INFO_EX();
             int result = MV_CC_GetOneFrameTimeout(
                 _handle,
-                _frameBufferHandle.AddrOfPinnedObject(),
-                (uint)_frameBuffer.Length,
+                _frameBufferPtr,
+                (uint)_frameBufferSize,
                 ref frameInfo,
                 timeoutMs);
 
@@ -450,7 +470,7 @@ public class HikvisionCamera : ICameraProvider
 
             return new CameraFrame
             {
-                DataPtr = _frameBufferHandle.AddrOfPinnedObject(),
+                DataPtr = _frameBufferPtr,
                 Width = frameInfo.nWidth,
                 Height = frameInfo.nHeight,
                 Size = (int)frameInfo.nFrameLen,
@@ -541,3 +561,4 @@ public class HikvisionCamera : ICameraProvider
 
     ~HikvisionCamera() => Dispose(false);
 }
+

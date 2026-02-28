@@ -1,7 +1,6 @@
-// CameraManager.cs
-// 相机管理器实现 - 支持硬件绑定与逻辑ID映射
-// 作者：蘅芜君
-
+﻿// CameraManager.cs
+// 相机管理器实�?- 支持硬件绑定与逻辑ID映射
+// 作者：蘅芜�?
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -11,8 +10,7 @@ using Acme.Product.Core.Entities;
 namespace Acme.Product.Infrastructure.Cameras;
 
 /// <summary>
-/// 相机管理器实现
-/// </summary>
+/// 相机管理器实�?/// </summary>
 public class CameraManager : ICameraManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, ICamera> _cameras = new();
@@ -22,8 +20,7 @@ public class CameraManager : ICameraManager, IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// 枚举所有可用相机设备
-    /// </summary>
+    /// 枚举所有可用相机设�?    /// </summary>
     public Task<IEnumerable<CameraInfo>> EnumerateCamerasAsync()
     {
         var allDevices = CameraProviderFactory.DiscoverAll();
@@ -50,11 +47,10 @@ public class CameraManager : ICameraManager, IDisposable
             return Task.FromResult(existingCamera);
         }
 
-        // AutoDetect 内部已完成 Open，返回的 provider 已处于已连接状态。
-        // 若 Open 失败，AutoDetect 内部会抛出 InvalidOperationException 并附带 SDK 错误码。
+        // AutoDetect internally opens the camera and returns a connected provider.
         var provider = CameraProviderFactory.AutoDetect(cameraId);
         if (provider == null)
-            throw new InvalidOperationException($"无法检测到相机: {cameraId}。请检查相机供电、网线连接，及 SDK 是否已安装。");
+            throw new InvalidOperationException($"Failed to detect camera: {cameraId}. Check power, connection, and SDK installation.");
 
         var cameraAdapter = new CameraProviderAdapter(cameraId, provider);
         _cameras[cameraId] = cameraAdapter;
@@ -139,8 +135,7 @@ public class CameraManager : ICameraManager, IDisposable
 }
 
 /// <summary>
-/// 相机提供器适配器
-/// </summary>
+/// 相机提供器适配�?/// </summary>
 public class CameraProviderAdapter : IIndustrialCamera
 {
     private readonly string _cameraId;
@@ -148,6 +143,7 @@ public class CameraProviderAdapter : IIndustrialCamera
     private bool _isAcquiring;
     private Func<byte[], Task>? _frameCallback;
     private CancellationTokenSource? _acquisitionCts;
+    private Task? _acquisitionTask;
 
     public string CameraId => _cameraId;
     public string Name => _provider.CurrentDevice?.UserDefinedName ?? _cameraId;
@@ -167,25 +163,25 @@ public class CameraProviderAdapter : IIndustrialCamera
 
     public async Task<byte[]> AcquireSingleFrameAsync()
     {
-        // 严格按照华睿 SDK 正确时序：
-        // 1) StartGrabbing → 2) TriggerMode=On,TriggerSource=Software → 3) ExecuteSoftwareTrigger → 4) GetFrame
+        // 严格按照华睿 SDK 正确时序�?
+        // 1) StartGrabbing -> 2) TriggerMode=On,TriggerSource=Software -> 3) ExecuteSoftwareTrigger -> 4) GetFrame
 
-        // 1) 确保采集已启动
+        // 1) 确保采集已启�?
         if (!_provider.IsGrabbing)
             _provider.StartGrabbing();
 
-        // 2) 设置软件触发模式（TriggerMode=On, TriggerSource=Software）
+        // 2) 设置软件触发模式（TriggerMode=On, TriggerSource=Software�?
         _provider.SetTriggerMode(true);
 
         // 3) 发送软触发命令
         _provider.ExecuteSoftwareTrigger();
 
-        // 4) 获取帧（给 SDK 足够响应时间）
+        // 4) 获取帧（�?SDK 足够响应时间�?
         var frame = _provider.GetFrame(3000);
         if (frame == null)
             throw new TimeoutException("获取图像超时");
 
-        byte[] pngData = EncodeFrameToPngBytes(frame);
+        byte[] pngData = EncodeFrameToBytes(frame);
         return await Task.FromResult(pngData);
     }
 
@@ -193,35 +189,77 @@ public class CameraProviderAdapter : IIndustrialCamera
     {
         if (_isAcquiring)
             return Task.CompletedTask;
+
         _frameCallback = frameCallback;
         _isAcquiring = true;
-        _acquisitionCts = new CancellationTokenSource();
 
-        _ = Task.Run(async () =>
+        _acquisitionCts?.Dispose();
+        _acquisitionCts = new CancellationTokenSource();
+        var token = _acquisitionCts.Token;
+
+        _acquisitionTask = Task.Run(async () =>
         {
-            if (!_provider.IsGrabbing)
-                _provider.StartGrabbing();
-            while (!_acquisitionCts.Token.IsCancellationRequested)
+            try
             {
-                var frame = _provider.GetFrame(1000);
-                if (frame != null)
+                if (!_provider.IsGrabbing)
+                    _provider.StartGrabbing();
+
+                while (!token.IsCancellationRequested)
                 {
-                    byte[] pngData = EncodeFrameToPngBytes(frame);
+                    var frame = _provider.GetFrame(1000);
+                    if (frame == null)
+                        continue;
+
+                    byte[] imageData = EncodeFrameToBytes(frame, useFastEncoding: true);
                     if (_frameCallback != null)
-                        await _frameCallback(pngData);
-                    FrameReceived?.Invoke(this, new CameraFrameReceivedEventArgs { ImageData = pngData, Width = frame.Width, Height = frame.Height });
+                        await _frameCallback(imageData);
+
+                    FrameReceived?.Invoke(this, new CameraFrameReceivedEventArgs { ImageData = imageData, Width = frame.Width, Height = frame.Height });
                 }
             }
-        });
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CameraProviderAdapter] Continuous acquisition error: {ex.Message}");
+            }
+        }, token);
+
         return Task.CompletedTask;
     }
 
-    public Task StopContinuousAcquisitionAsync()
+    public async Task StopContinuousAcquisitionAsync()
     {
         _isAcquiring = false;
-        _acquisitionCts?.Cancel();
+
+        if (_acquisitionCts != null)
+        {
+            _acquisitionCts.Cancel();
+        }
+
+        if (_acquisitionTask != null)
+        {
+            try
+            {
+                await _acquisitionTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CameraProviderAdapter] Stop acquisition wait error: {ex.Message}");
+            }
+            finally
+            {
+                _acquisitionTask = null;
+            }
+        }
+
+        _acquisitionCts?.Dispose();
+        _acquisitionCts = null;
         _provider.StopGrabbing();
-        return Task.CompletedTask;
     }
 
     public Task SetExposureTimeAsync(double exposureTime) { _provider.SetExposure(exposureTime); return Task.CompletedTask; }
@@ -233,11 +271,11 @@ public class CameraProviderAdapter : IIndustrialCamera
 
     public void Dispose()
     {
-        StopContinuousAcquisitionAsync().Wait();
+        StopContinuousAcquisitionAsync().GetAwaiter().GetResult();
         _provider.Dispose();
     }
 
-    private byte[] EncodeFrameToPngBytes(CameraFrame frame)
+    private byte[] EncodeFrameToBytes(CameraFrame frame, bool useFastEncoding = false)
     {
         OpenCvSharp.MatType matType;
         bool needConversion = false;
@@ -287,11 +325,16 @@ public class CameraProviderAdapter : IIndustrialCamera
         {
             using var cvtMat = new OpenCvSharp.Mat();
             OpenCvSharp.Cv2.CvtColor(mat, cvtMat, conversionCode);
+            if (useFastEncoding)
+                return cvtMat.ToBytes(".jpg", new int[] { (int)OpenCvSharp.ImwriteFlags.JpegQuality, 85 });
             return cvtMat.ToBytes(".png");
         }
         else
         {
+            if (useFastEncoding)
+                return mat.ToBytes(".jpg", new int[] { (int)OpenCvSharp.ImwriteFlags.JpegQuality, 85 });
             return mat.ToBytes(".png");
         }
     }
 }
+

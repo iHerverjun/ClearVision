@@ -27,6 +27,14 @@ public sealed class ConversationSession
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
+public sealed class ConversationSessionSummary
+{
+    public string SessionId { get; set; } = string.Empty;
+    public string LastMessage { get; set; } = string.Empty;
+    public DateTime UpdatedAtUtc { get; set; }
+    public int TurnCount { get; set; }
+}
+
 public sealed class ConversationContext
 {
     public required string SessionId { get; init; }
@@ -41,6 +49,9 @@ public interface IConversationalFlowService
     ConversationIntent DetectIntent(string userDescription, bool hasExistingFlow);
     ConversationContext PrepareContext(AiFlowGenerationRequest request);
     void RecordAssistantResponse(string sessionId, string assistantMessage, string? latestFlowJson);
+    IReadOnlyList<ConversationSessionSummary> ListSessions();
+    ConversationSession? GetSession(string sessionId);
+    bool DeleteSession(string sessionId);
 }
 
 internal sealed class ConversationStore
@@ -53,6 +64,7 @@ public class ConversationalFlowService : IConversationalFlowService
     private const int MaxHistory = 20;
     private const int MaxPromptHistory = 6;
     private const int MaxPersistedSessions = 200;
+    private const int MaxLastMessagePreviewLength = 80;
     private static readonly TimeSpan SessionRetention = TimeSpan.FromDays(30);
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -194,6 +206,39 @@ public class ConversationalFlowService : IConversationalFlowService
         PersistSessions();
     }
 
+    public IReadOnlyList<ConversationSessionSummary> ListSessions()
+    {
+        return _sessions.Values
+            .Select(BuildSessionSummary)
+            .OrderByDescending(summary => summary.UpdatedAtUtc)
+            .ToList();
+    }
+
+    public ConversationSession? GetSession(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return null;
+
+        var normalizedSessionId = sessionId.Trim();
+        if (!_sessions.TryGetValue(normalizedSessionId, out var session))
+            return null;
+
+        return CloneSession(session);
+    }
+
+    public bool DeleteSession(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return false;
+
+        var normalizedSessionId = sessionId.Trim();
+        if (!_sessions.TryRemove(normalizedSessionId, out _))
+            return false;
+
+        PersistSessions();
+        return true;
+    }
+
     private static string BuildPromptContext(ConversationSession session, ConversationIntent intent)
     {
         var sb = new StringBuilder();
@@ -250,6 +295,27 @@ public class ConversationalFlowService : IConversationalFlowService
             return;
 
         session.History.RemoveRange(0, session.History.Count - MaxHistory);
+    }
+
+    private static ConversationSessionSummary BuildSessionSummary(ConversationSession session)
+    {
+        lock (session)
+        {
+            var latestTurn = session.History
+                .OrderByDescending(turn => turn.TimestampUtc)
+                .FirstOrDefault();
+            var latestMessage = latestTurn?.Message ?? string.Empty;
+            if (latestMessage.Length > MaxLastMessagePreviewLength)
+                latestMessage = latestMessage[..MaxLastMessagePreviewLength] + "...";
+
+            return new ConversationSessionSummary
+            {
+                SessionId = session.SessionId,
+                LastMessage = latestMessage,
+                UpdatedAtUtc = session.UpdatedAtUtc,
+                TurnCount = session.History.Count
+            };
+        }
     }
 
     private void LoadSessionsFromStore()

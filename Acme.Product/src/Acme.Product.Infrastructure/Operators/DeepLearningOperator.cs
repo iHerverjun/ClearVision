@@ -84,6 +84,10 @@ public class DeepLearningOperator : OperatorBase
     /// 线程锁 - 用于并发加载模型
     /// </summary>
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _modelLocks = new();
+    private const int MaxCachedModels = 3;
+    private static readonly LinkedList<string> _modelAccessOrder = new();
+    private static readonly Dictionary<string, LinkedListNode<string>> _modelAccessNodes = new();
+    private static readonly object _modelCacheEvictionLock = new();
 
     /// <summary>
     /// 默认输入尺寸（YOLO 模型常用 640x640）
@@ -236,26 +240,24 @@ public class DeepLearningOperator : OperatorBase
     /// </summary>
     private InferenceSession? LoadModel(string modelPath, bool useGpu = true, int gpuDeviceId = 0)
     {
-        // 检查缓存（包含GPU配置作为缓存键的一部分）
         var cacheKey = $"{modelPath}_gpu_{useGpu}_{gpuDeviceId}";
         if (_modelCache.TryGetValue(cacheKey, out var cachedSession))
         {
+            TouchModelCacheKey(cacheKey);
             return cachedSession;
         }
 
-        // 获取或创建锁
         var lockObj = _modelLocks.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
 
         lockObj.Wait();
         try
         {
-            // 双重检查
             if (_modelCache.TryGetValue(cacheKey, out cachedSession))
             {
+                TouchModelCacheKey(cacheKey);
                 return cachedSession;
             }
 
-            // 创建 Session 选项
             var sessionOptions = new SessionOptions
             {
                 InterOpNumThreads = 4,
@@ -263,21 +265,16 @@ public class DeepLearningOperator : OperatorBase
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
             };
 
-            // P3-O3.1: 启用GPU加速
             if (useGpu && GpuAvailabilityChecker.IsCudaAvailable)
             {
                 try
                 {
-                    // 尝试启用TensorRT（高性能推理）
                     if (GpuAvailabilityChecker.IsTensorRtAvailable)
                     {
-                        // 注意：需要Microsoft.ML.OnnxRuntime.TensorRT包
-                        // sessionOptions.AppendExecutionProvider_TensorRT(gpuDeviceId);
                         Logger.LogInformation("[DeepLearning] TensorRT加速已启用，设备ID: {DeviceId}", gpuDeviceId);
                     }
                     else
                     {
-                        // 启用CUDA
                         sessionOptions.AppendExecutionProvider_CUDA(gpuDeviceId);
                         Logger.LogInformation("[DeepLearning] CUDA GPU加速已启用，设备ID: {DeviceId}", gpuDeviceId);
                     }
@@ -285,7 +282,6 @@ public class DeepLearningOperator : OperatorBase
                 catch (Exception ex)
                 {
                     Logger.LogWarning(ex, "[DeepLearning] GPU加速启用失败，回退到CPU模式");
-                    // 保持CPU配置
                 }
             }
             else
@@ -293,13 +289,16 @@ public class DeepLearningOperator : OperatorBase
                 Logger.LogInformation("[DeepLearning] 使用CPU模式运行");
             }
 
-            // 加载模型
             var session = new InferenceSession(modelPath, sessionOptions);
-            _modelCache[cacheKey] = session;
 
-            // P3-O3.1: GPU配置完成
+            lock (_modelCacheEvictionLock)
+            {
+                EvictModelsIfNeeded();
+                _modelCache[cacheKey] = session;
+                TouchModelCacheKey(cacheKey);
+            }
+
             Logger.LogDebug("[DeepLearning] 模型加载成功，GPU加速: {GpuEnabled}", useGpu && GpuAvailabilityChecker.IsCudaAvailable);
-
             return session;
         }
         catch (Exception ex)
@@ -310,6 +309,66 @@ public class DeepLearningOperator : OperatorBase
         finally
         {
             lockObj.Release();
+        }
+    }
+
+    public static void UnloadModel(string modelPath)
+    {
+        if (string.IsNullOrWhiteSpace(modelPath))
+            return;
+
+        var keyPrefix = $"{modelPath}_gpu_";
+        var keysToRemove = _modelCache.Keys
+            .Where(k => k.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        lock (_modelCacheEvictionLock)
+        {
+            foreach (var key in keysToRemove)
+            {
+                if (_modelCache.TryRemove(key, out var session))
+                {
+                    session.Dispose();
+                }
+
+                _modelLocks.TryRemove(key, out _);
+                RemoveModelAccessNode(key);
+            }
+        }
+    }
+
+    private void TouchModelCacheKey(string cacheKey)
+    {
+        lock (_modelCacheEvictionLock)
+        {
+            RemoveModelAccessNode(cacheKey);
+            _modelAccessNodes[cacheKey] = _modelAccessOrder.AddLast(cacheKey);
+        }
+    }
+
+    private void EvictModelsIfNeeded()
+    {
+        while (_modelCache.Count >= MaxCachedModels && _modelAccessOrder.Count > 0)
+        {
+            var oldestKey = _modelAccessOrder.First!.Value;
+            RemoveModelAccessNode(oldestKey);
+
+            if (_modelCache.TryRemove(oldestKey, out var oldSession))
+            {
+                oldSession.Dispose();
+                Logger.LogInformation("[DeepLearning] 驱逐模型缓存: {Key}", oldestKey);
+            }
+
+            _modelLocks.TryRemove(oldestKey, out _);
+        }
+    }
+
+    private static void RemoveModelAccessNode(string cacheKey)
+    {
+        if (_modelAccessNodes.TryGetValue(cacheKey, out var node))
+        {
+            _modelAccessOrder.Remove(node);
+            _modelAccessNodes.Remove(cacheKey);
         }
     }
 

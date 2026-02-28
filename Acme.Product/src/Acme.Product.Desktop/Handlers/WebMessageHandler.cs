@@ -10,9 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Text.Json;
-using Acme.Product.Desktop.Handlers;
 using Acme.Product.Infrastructure.Services;
-using System.Text.Json;
 using System.Net.Http;
 using System.Linq;
 
@@ -167,6 +165,18 @@ public class WebMessageHandler
 
                 case nameof(PickFileCommand):
                     await HandlePickFileCommand(messageJson);
+                    break;
+
+                case "ListAiSessions":
+                    await HandleListAiSessionsCommand();
+                    break;
+
+                case "GetAiSession":
+                    await HandleGetAiSessionCommand(messageJson);
+                    break;
+
+                case "DeleteAiSession":
+                    await HandleDeleteAiSessionCommand(messageJson);
                     break;
 
                 case "GenerateFlow":
@@ -420,6 +430,168 @@ public class WebMessageHandler
         thread.Start();
 
         return tcs.Task;
+    }
+
+    /// <summary>
+    /// 处理列出 AI 历史会话请求
+    /// </summary>
+    private Task HandleListAiSessionsCommand()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var conversationalFlowService = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.IConversationalFlowService>();
+            var sessions = conversationalFlowService.ListSessions();
+
+            SendProgressMessage("ListAiSessionsResult", new
+            {
+                success = true,
+                sessions
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理 ListAiSessions 失败");
+            SendProgressMessage("ListAiSessionsResult", new
+            {
+                success = false,
+                errorMessage = $"获取历史会话失败：{ex.Message}",
+                sessions = Array.Empty<Acme.Product.Infrastructure.AI.ConversationSessionSummary>()
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 处理获取单个 AI 历史会话请求
+    /// </summary>
+    private Task HandleGetAiSessionCommand(string messageJson)
+    {
+        try
+        {
+            var sessionId = ExtractSessionId(messageJson);
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                SendProgressMessage("GetAiSessionResult", new
+                {
+                    success = false,
+                    errorMessage = "缺少 sessionId"
+                });
+                return Task.CompletedTask;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var conversationalFlowService = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.IConversationalFlowService>();
+            var session = conversationalFlowService.GetSession(sessionId);
+
+            if (session == null)
+            {
+                SendProgressMessage("GetAiSessionResult", new
+                {
+                    success = false,
+                    errorMessage = "会话不存在"
+                });
+                return Task.CompletedTask;
+            }
+
+            SendProgressMessage("GetAiSessionResult", new
+            {
+                success = true,
+                session
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理 GetAiSession 失败");
+            SendProgressMessage("GetAiSessionResult", new
+            {
+                success = false,
+                errorMessage = $"读取会话失败：{ex.Message}"
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 处理删除 AI 历史会话请求
+    /// </summary>
+    private Task HandleDeleteAiSessionCommand(string messageJson)
+    {
+        try
+        {
+            var sessionId = ExtractSessionId(messageJson);
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                SendProgressMessage("DeleteAiSessionResult", new
+                {
+                    success = false,
+                    errorMessage = "缺少 sessionId"
+                });
+                return Task.CompletedTask;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var conversationalFlowService = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.IConversationalFlowService>();
+            var deleted = conversationalFlowService.DeleteSession(sessionId);
+            if (!deleted)
+            {
+                SendProgressMessage("DeleteAiSessionResult", new
+                {
+                    success = false,
+                    errorMessage = "会话不存在",
+                    sessionId
+                });
+                return Task.CompletedTask;
+            }
+
+            SendProgressMessage("DeleteAiSessionResult", new
+            {
+                success = true,
+                sessionId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理 DeleteAiSession 失败");
+            SendProgressMessage("DeleteAiSessionResult", new
+            {
+                success = false,
+                errorMessage = $"删除会话失败：{ex.Message}"
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string? ExtractSessionId(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            if (doc.RootElement.TryGetProperty("payload", out var payload) &&
+                payload.ValueKind == JsonValueKind.Object)
+            {
+                if (payload.TryGetProperty("sessionId", out var payloadSessionId) ||
+                    payload.TryGetProperty("SessionId", out payloadSessionId))
+                {
+                    return payloadSessionId.GetString();
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("sessionId", out var sessionId) ||
+                doc.RootElement.TryGetProperty("SessionId", out sessionId))
+            {
+                return sessionId.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            // ignore invalid json
+        }
+
+        return null;
     }
 
     /// <summary>

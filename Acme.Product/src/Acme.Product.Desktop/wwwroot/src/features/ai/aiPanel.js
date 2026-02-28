@@ -15,10 +15,14 @@ export class AiPanel {
         
         // 状态
         this.isGenerating = false;
-        this.history = []; // { id, desc, time, result, error }
+        this.history = []; // { sessionId, lastMessage, updatedAtUtc, turnCount }
+        this.filteredHistory = [];
+        this.historyKeyword = '';
+        this.isHistoryPanelOpen = false;
         this.currentThinkingStep = null;
         this.sessionId = this._loadSessionId();
         this.currentResult = null;
+        this.lastUserPrompt = '';
         this.attachments = [];
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
@@ -30,6 +34,7 @@ export class AiPanel {
         this._handleAttachmentClick = this._handleAttachmentClick.bind(this);
         this._handleFilePickedEvent = this._handleFilePickedEvent.bind(this);
         this._handleAttachmentReport = this._handleAttachmentReport.bind(this);
+        this._toggleHistoryPanel = this._toggleHistoryPanel.bind(this);
         
         // 初始化
         this._init();
@@ -56,6 +61,7 @@ export class AiPanel {
         this.sessionId = null;
         this._saveSessionId(null);
         this.currentResult = null;
+        this.lastUserPrompt = '';
         this.attachments = [];
         this._clearResultPane();
         this._renderAttachments();
@@ -77,6 +83,19 @@ export class AiPanel {
                         <span class="pane-title">CO-PILOT 对话</span>
                         <span class="status-badge online" id="ai-conn-status"><span class="status-dot connected"></span>在线</span>
                         <button class="icon-btn" id="ai-btn-new-session" title="新建对话">新对话</button>
+                        <button class="icon-btn ai-btn-history" id="ai-btn-history" title="历史会话" aria-expanded="false">历史</button>
+                    </div>
+
+                    <div class="ai-history-panel" id="ai-history-panel">
+                        <div class="ai-history-panel-inner">
+                            <input
+                                type="text"
+                                class="ai-history-search"
+                                id="ai-history-search"
+                                placeholder="搜索历史会话..."
+                            />
+                            <div class="ai-history-list" id="ai-history-list"></div>
+                        </div>
                     </div>
                     
                     <div class="ai-chat-container" id="ai-chat-container">
@@ -167,6 +186,14 @@ export class AiPanel {
         if (attachBtn) attachBtn.addEventListener('click', this._handleAttachmentClick);
         const newSessionBtn = this.container.querySelector('#ai-btn-new-session');
         if (newSessionBtn) newSessionBtn.addEventListener('click', this._handleNewConversation);
+        const historyBtn = this.container.querySelector('#ai-btn-history');
+        if (historyBtn) historyBtn.addEventListener('click', this._toggleHistoryPanel);
+        const historySearch = this.container.querySelector('#ai-history-search');
+        if (historySearch) {
+            historySearch.addEventListener('input', (event) => {
+                this._filterHistory(event.target.value);
+            });
+        }
         
         this.container.querySelectorAll('.ai-tag').forEach(tag => {
             tag.addEventListener('click', () => {
@@ -217,6 +244,9 @@ export class AiPanel {
         webMessageBridge.on('GenerateFlowResult', (data) => this._handleResult(data));
         webMessageBridge.on('FilePickedEvent', this._handleFilePickedEvent);
         webMessageBridge.on('GenerateFlowAttachmentReport', this._handleAttachmentReport);
+        webMessageBridge.on('ListAiSessionsResult', (data) => this._handleListAiSessionsResult(data));
+        webMessageBridge.on('GetAiSessionResult', (data) => this._handleGetAiSessionResult(data));
+        webMessageBridge.on('DeleteAiSessionResult', (data) => this._handleDeleteAiSessionResult(data));
     }
     
     _getCurrentFlowJson() {
@@ -233,6 +263,7 @@ export class AiPanel {
         const input = this.container.querySelector('#ai-input');
         const description = input.value.trim();
         const attachmentPaths = this.attachments.map(item => item.path);
+        this.lastUserPrompt = description;
         
         if (!description) {
             this._addMessage('system', '请输入需求描述。');
@@ -461,6 +492,14 @@ export class AiPanel {
             return;
         }
         this.currentResult = payload;
+        if (this.sessionId) {
+            this._addToHistory({
+                sessionId: this.sessionId,
+                lastMessage: this.lastUserPrompt || payload.aiExplanation || '已生成流程',
+                updatedAtUtc: new Date().toISOString(),
+                turnCount: 0
+            });
+        }
         this._displayResult(payload);
     }
     
@@ -785,33 +824,265 @@ export class AiPanel {
         const container = this.container.querySelector('#ai-chat-container');
         if(container) container.scrollTop = container.scrollHeight;
     }
+
+    _toggleHistoryPanel() {
+        const panel = this.container.querySelector('#ai-history-panel');
+        const historyBtn = this.container.querySelector('#ai-btn-history');
+        if (!panel || !historyBtn) return;
+
+        this.isHistoryPanelOpen = !this.isHistoryPanelOpen;
+        panel.classList.toggle('expanded', this.isHistoryPanelOpen);
+        historyBtn.setAttribute('aria-expanded', this.isHistoryPanelOpen ? 'true' : 'false');
+
+        if (this.isHistoryPanelOpen) {
+            this._loadHistory();
+            const searchInput = this.container.querySelector('#ai-history-search');
+            if (searchInput) searchInput.focus();
+        }
+    }
     
     _addToHistory(entry) {
-        this.history.unshift(entry);
+        const normalized = this._normalizeSessionSummary(entry);
+        if (!normalized) return;
+
+        this.history = [normalized, ...this.history.filter(item => item.sessionId !== normalized.sessionId)]
+            .sort((a, b) => new Date(b.updatedAtUtc).getTime() - new Date(a.updatedAtUtc).getTime());
+        this._filterHistory(this.historyKeyword);
+    }
+
+    _normalizeSessionSummary(entry) {
+        const sessionId = String(entry?.sessionId ?? entry?.SessionId ?? '').trim();
+        if (!sessionId) return null;
+
+        const lastMessage = String(entry?.lastMessage ?? entry?.LastMessage ?? '').trim();
+        const updatedAtUtc = String(entry?.updatedAtUtc ?? entry?.UpdatedAtUtc ?? new Date().toISOString());
+        const turnCountRaw = Number(entry?.turnCount ?? entry?.TurnCount ?? 0);
+        return {
+            sessionId,
+            lastMessage: lastMessage || '（空会话）',
+            updatedAtUtc,
+            turnCount: Number.isFinite(turnCountRaw) ? turnCountRaw : 0
+        };
+    }
+
+    _filterHistory(keyword = '') {
+        this.historyKeyword = String(keyword || '').trim().toLowerCase();
+        if (!this.historyKeyword) {
+            this.filteredHistory = [...this.history];
+        } else {
+            this.filteredHistory = this.history.filter(item => {
+                const text = `${item.lastMessage} ${item.sessionId}`.toLowerCase();
+                return text.includes(this.historyKeyword);
+            });
+        }
+
         this._renderHistoryList();
     }
     
     _renderHistoryList() {
         const list = this.container.querySelector('#ai-history-list');
         if (!list) return;
-        if (this.history.length === 0) {
-            list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--ai-text-mute); font-size: 12px;">暂无历史记录</div>';
+        const rows = this.filteredHistory.length > 0 || this.historyKeyword
+            ? this.filteredHistory
+            : this.history;
+        if (rows.length === 0) {
+            list.innerHTML = '<div class="ai-history-empty">暂无历史记录</div>';
             return;
         }
         
-        list.innerHTML = this.history.map(item => `
-            <div class="ai-history-item">
-                <div class="history-desc">${item.desc}</div>
+        list.innerHTML = rows.map(item => `
+            <div class="ai-history-item ${item.sessionId === this.sessionId ? 'active' : ''}" data-session-id="${this._escapeHtml(item.sessionId)}">
+                <div class="history-desc">${this._escapeHtml(item.lastMessage)}</div>
                 <div class="history-meta">
-                    <span>${item.time.toLocaleTimeString()}</span>
-                    <span>${item.opCount} 算子</span>
+                    <span>${this._escapeHtml(this._formatHistoryTime(item.updatedAtUtc))}</span>
+                    <span>${this._escapeHtml(String(item.turnCount))} 轮</span>
                 </div>
+                <button class="ai-history-delete" type="button" data-session-id="${this._escapeHtml(item.sessionId)}" title="删除会话">删除</button>
             </div>
         `).join('');
+
+        list.querySelectorAll('.ai-history-item').forEach(itemEl => {
+            itemEl.addEventListener('click', (event) => {
+                if (event.target.closest('.ai-history-delete')) return;
+                const sessionId = itemEl.dataset.sessionId || '';
+                this._switchToSession(sessionId);
+            });
+        });
+
+        list.querySelectorAll('.ai-history-delete').forEach(btn => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this._deleteSession(btn.dataset.sessionId || '');
+            });
+        });
+    }
+
+    _formatHistoryTime(value) {
+        const timestamp = new Date(value);
+        if (Number.isNaN(timestamp.getTime())) return '--';
+        return timestamp.toLocaleString();
     }
     
     _loadHistory() {
-        this._renderHistoryList();
+        webMessageBridge.sendMessage('ListAiSessions');
+    }
+
+    _handleListAiSessionsResult(data) {
+        const payload = data?.payload || data || {};
+        if (!payload.success) {
+            if (payload.errorMessage) {
+                this._addMessage('system', `历史加载失败: ${payload.errorMessage}`);
+            }
+            return;
+        }
+
+        const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+        this.history = sessions
+            .map(item => this._normalizeSessionSummary(item))
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.updatedAtUtc).getTime() - new Date(a.updatedAtUtc).getTime());
+        this._filterHistory(this.historyKeyword);
+    }
+
+    _switchToSession(sessionId) {
+        if (!sessionId) return;
+        if (this.isGenerating) {
+            this._addMessage('system', '正在生成中，暂时无法切换历史会话。');
+            return;
+        }
+
+        webMessageBridge.sendMessage('GetAiSession', {
+            payload: { sessionId }
+        });
+    }
+
+    _handleGetAiSessionResult(data) {
+        const payload = data?.payload || data || {};
+        if (!payload.success) {
+            this._addMessage('system', `会话恢复失败: ${payload.errorMessage || '未知错误'}`);
+            return;
+        }
+
+        const session = payload.session;
+        if (!session) {
+            this._addMessage('system', '会话恢复失败: 会话数据为空');
+            return;
+        }
+
+        const sessionId = String(session.sessionId ?? session.SessionId ?? '').trim();
+        if (!sessionId) {
+            this._addMessage('system', '会话恢复失败: 会话 ID 无效');
+            return;
+        }
+
+        this.sessionId = sessionId;
+        this._saveSessionId(this.sessionId);
+        this.currentResult = null;
+        this._clearResultPane();
+
+        const chatContainer = this.container.querySelector('#ai-chat-container');
+        if (chatContainer) chatContainer.innerHTML = '';
+
+        const rawHistory = Array.isArray(session.history)
+            ? session.history
+            : (Array.isArray(session.History) ? session.History : []);
+        const normalizedHistory = rawHistory
+            .map(turn => ({
+                role: String(turn?.role ?? turn?.Role ?? '').trim().toLowerCase(),
+                message: String(turn?.message ?? turn?.Message ?? '')
+            }))
+            .filter(turn => turn.message.trim().length > 0);
+
+        if (normalizedHistory.length === 0) {
+            this._addMessage('ai', '已恢复历史会话（当前没有可展示的消息）。');
+        } else {
+            normalizedHistory.forEach(turn => {
+                const role = turn.role === 'user' ? 'user' : 'ai';
+                this._addMessage(role, turn.message);
+            });
+        }
+
+        const flowRaw = session.currentFlowJson ?? session.CurrentFlowJson;
+        let parsedFlow = null;
+        if (flowRaw) {
+            try {
+                parsedFlow = JSON.parse(flowRaw);
+            } catch {
+                parsedFlow = null;
+            }
+        }
+
+        const reasoningEl = this.container.querySelector('#ai-result-reasoning');
+        const thinkingEl = this.container.querySelector('#ai-result-thinking');
+        const summaryEl = this.container.querySelector('#ai-result-summary');
+        const opsEl = this.container.querySelector('#ai-result-ops');
+
+        const explanation = parsedFlow?.explanation || parsedFlow?.Explanation || '--';
+        if (reasoningEl) reasoningEl.textContent = explanation || '--';
+        if (thinkingEl) thinkingEl.textContent = '';
+
+        const operators = Array.isArray(parsedFlow?.operators)
+            ? parsedFlow.operators
+            : (Array.isArray(parsedFlow?.Operators) ? parsedFlow.Operators : []);
+        const connections = Array.isArray(parsedFlow?.connections)
+            ? parsedFlow.connections
+            : (Array.isArray(parsedFlow?.Connections) ? parsedFlow.Connections : []);
+
+        if (summaryEl) {
+            summaryEl.textContent = `该方案包含 ${operators.length} 个算子和 ${connections.length} 条连线。`;
+        }
+
+        if (opsEl) {
+            if (operators.length === 0) {
+                opsEl.innerHTML = '<div class="ai-history-empty">暂无算子数据</div>';
+            } else {
+                opsEl.innerHTML = operators.map(op => {
+                    const name = op?.displayName || op?.DisplayName || op?.name || op?.Name || '未命名算子';
+                    return `
+                        <div class="generated-op-item">
+                            <div class="op-dot"></div>
+                            <div class="op-name">${this._escapeHtml(String(name))}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        const updatedAtUtc = session.updatedAtUtc ?? session.UpdatedAtUtc ?? new Date().toISOString();
+        const latestMessage = normalizedHistory.length > 0
+            ? normalizedHistory[normalizedHistory.length - 1].message
+            : '（空会话）';
+        this._addToHistory({
+            sessionId,
+            lastMessage: latestMessage,
+            updatedAtUtc,
+            turnCount: normalizedHistory.length
+        });
+    }
+
+    _deleteSession(sessionId) {
+        if (!sessionId) return;
+        webMessageBridge.sendMessage('DeleteAiSession', {
+            payload: { sessionId }
+        });
+    }
+
+    _handleDeleteAiSessionResult(data) {
+        const payload = data?.payload || data || {};
+        if (!payload.success) {
+            this._addMessage('system', `删除会话失败: ${payload.errorMessage || '未知错误'}`);
+            return;
+        }
+
+        const deletedSessionId = String(payload.sessionId ?? payload.SessionId ?? '').trim();
+        if (!deletedSessionId) return;
+
+        this.history = this.history.filter(item => item.sessionId !== deletedSessionId);
+        this._filterHistory(this.historyKeyword);
+
+        if (this.sessionId === deletedSessionId) {
+            this._handleNewConversation();
+        }
     }
 
     _loadSessionId() {

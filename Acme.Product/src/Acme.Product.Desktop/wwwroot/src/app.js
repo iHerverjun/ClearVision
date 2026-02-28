@@ -1652,6 +1652,7 @@ let fpsCounter = {
     frames: 0,
     lastTime: performance.now()
 };
+let statusBarInterval = null;
 
 function updateFPS() {
     const now = performance.now();
@@ -1672,7 +1673,10 @@ function updateFPS() {
 // 启动状态栏更新
 function startStatusBarUpdates() {
     // 每秒更新内存
-    setInterval(updateStatusBar, 1000);
+    if (statusBarInterval !== null) {
+        clearInterval(statusBarInterval);
+    }
+    statusBarInterval = setInterval(updateStatusBar, 1000);
     // 启动 FPS 计数
     requestAnimationFrame(updateFPS);
 }

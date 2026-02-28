@@ -1,7 +1,5 @@
-// ConnectionPoolManager.cs
-// 连接池统计信息
-// 作者：蘅芜君
-
+﻿// ConnectionPoolManager.cs
+// 连接池统计信�?// 作者：蘅芜�?
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -11,8 +9,7 @@ namespace Acme.Product.Infrastructure.Services;
 
 /// <summary>
 /// 通信连接池管理器
-/// 管理Modbus和TCP连接的复用、心跳检测
-/// </summary>
+/// 管理Modbus和TCP连接的复用、心跳检�?/// </summary>
 public class ConnectionPoolManager : IDisposable
 {
     private readonly ILogger<ConnectionPoolManager> _logger;
@@ -49,7 +46,7 @@ public class ConnectionPoolManager : IDisposable
         }
 
         // 创建新连接
-        _logger.LogInformation("[ConnectionPool] 创建新Modbus连接: {Key}", key);
+        _logger.LogInformation("[ConnectionPool] Creating new Modbus connection: {Key}", key);
         var client = new TcpClient();
         
         try
@@ -105,7 +102,7 @@ public class ConnectionPoolManager : IDisposable
         }
 
         // 创建新连接
-        _logger.LogInformation("[ConnectionPool] 创建新TCP连接: {Key}", key);
+        _logger.LogInformation("[ConnectionPool] Creating new TCP connection: {Key}", key);
         var client = new TcpClient();
         
         try
@@ -156,8 +153,7 @@ public class ConnectionPoolManager : IDisposable
     }
 
     /// <summary>
-    /// 检查连接健康状态
-    /// </summary>
+    /// 检查连接健康状�?    /// </summary>
     private void CheckConnectionHealth(object? state)
     {
         var now = DateTime.UtcNow;
@@ -175,7 +171,7 @@ public class ConnectionPoolManager : IDisposable
                 continue;
             }
 
-            // 检查连接是否仍然有效
+            // 检查连接是否仍然有�?
             if (!IsConnectionAlive(connection))
             {
                 _logger.LogWarning("[ConnectionPool] 连接已断开，标记为无效: {Key}", kvp.Key);
@@ -195,20 +191,30 @@ public class ConnectionPoolManager : IDisposable
 
         if (keysToRemove.Count > 0)
         {
-            _logger.LogInformation("[ConnectionPool] 清理了 {Count} 个无效连接", keysToRemove.Count);
+            _logger.LogInformation("[ConnectionPool] Cleaned up {Count} invalid connections.", keysToRemove.Count);
         }
     }
 
     /// <summary>
-    /// 检查连接是否存活
-    /// </summary>
+    /// 检查连接是否存�?    /// </summary>
     private bool IsConnectionAlive(PooledConnection connection)
     {
         try
         {
             if (connection.Client is TcpClient tcpClient)
             {
-                return tcpClient.Connected;
+                var socket = tcpClient.Client;
+                if (socket == null || !socket.Connected)
+                {
+                    return false;
+                }
+
+                if (socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0)
+                {
+                    return false;
+                }
+
+                return true;
             }
             return false;
         }
@@ -219,8 +225,7 @@ public class ConnectionPoolManager : IDisposable
     }
 
     /// <summary>
-    /// 获取连接池统计信息
-    /// </summary>
+    /// 获取连接池统计信�?    /// </summary>
     public ConnectionPoolStats GetStats()
     {
         return new ConnectionPoolStats
@@ -249,8 +254,7 @@ public class ConnectionPoolManager : IDisposable
 }
 
 /// <summary>
-/// 连接池中的连接包装
-/// </summary>
+/// 连接池中的连接包�?/// </summary>
 public class PooledConnection : IDisposable
 {
     public string Key { get; set; } = string.Empty;
@@ -285,8 +289,7 @@ public enum ConnectionType
 }
 
 /// <summary>
-/// 连接池统计信息
-/// </summary>
+/// 连接池统计信�?/// </summary>
 public class ConnectionPoolStats
 {
     public int TotalConnections { get; set; }
@@ -294,3 +297,4 @@ public class ConnectionPoolStats
     public int TcpConnections { get; set; }
     public int ActiveConnections { get; set; }
 }
+

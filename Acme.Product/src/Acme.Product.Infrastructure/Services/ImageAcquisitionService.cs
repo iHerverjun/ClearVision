@@ -1,7 +1,6 @@
-// ImageAcquisitionService.cs
+﻿// ImageAcquisitionService.cs
 // 释放资源
-// 作者：蘅芜君
-
+// 作者：蘅芜�?
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
@@ -20,9 +19,12 @@ namespace Acme.Product.Infrastructure.Services;
 /// </summary>
 public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 {
+    private const int MaxCacheSize = 50;
     private readonly ICameraManager _cameraManager;
     private readonly ILogger<ImageAcquisitionService> _logger;
     private readonly Dictionary<Guid, Mat> _imageCache = new();
+    private readonly LinkedList<Guid> _cacheOrder = new();
+    private readonly Dictionary<Guid, LinkedListNode<Guid>> _cacheOrderNodes = new();
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _continuousAcquisitionTokens = new();
     private bool _disposed;
@@ -37,7 +39,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         if (!File.Exists(filePath))
         {
-            throw new FileNotFoundException("图像文件不存在", filePath);
+            throw new FileNotFoundException("Image file does not exist.", filePath);
         }
 
         var imageData = await File.ReadAllBytesAsync(filePath, cancellationToken);
@@ -48,20 +50,20 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
     public Task<ImageDto> LoadFromBytesAsync(byte[] imageData, string? fileName = null, CancellationToken cancellationToken = default)
     {
+        Mat? mat = null;
         try
         {
-            using var mat = Cv2.ImDecode(imageData, ImreadModes.Unchanged);
+            mat = Cv2.ImDecode(imageData, ImreadModes.Unchanged);
             if (mat.Empty())
             {
                 throw new ArgumentException("无法解码图像数据");
             }
 
             var imageId = Guid.NewGuid();
-
-            lock (_imageCache)
-            {
-                _imageCache[imageId] = mat.Clone();
-            }
+            var width = mat.Width;
+            var height = mat.Height;
+            AddToCache(imageId, mat, takeOwnership: true);
+            mat = null;
 
             var format = GetFormatFromFileName(fileName) ?? "unknown";
 
@@ -70,8 +72,8 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 Id = imageId,
                 Name = fileName ?? $"{imageId}.{format}",
                 Format = format,
-                Width = mat.Width,
-                Height = mat.Height,
+                Width = width,
+                Height = height,
                 DataBase64 = Convert.ToBase64String(imageData),
                 CreatedAt = DateTime.UtcNow
             });
@@ -79,6 +81,10 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         catch (Exception ex)
         {
             throw new InvalidOperationException($"加载图像失败: {ex.Message}", ex);
+        }
+        finally
+        {
+            mat?.Dispose();
         }
     }
 
@@ -91,7 +97,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         }
         catch (FormatException)
         {
-            throw new ArgumentException("无效的Base64字符串");
+            throw new ArgumentException("Invalid Base64 string.");
         }
     }
 
@@ -103,12 +109,12 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         var camera = _cameraManager.GetCamera(cameraId);
         if (camera == null)
         {
-            throw new CameraException($"相机未找到或未连接: {cameraId}", cameraId);
+            throw new CameraException($"Camera not found or disconnected: {cameraId}", cameraId);
         }
 
         if (!camera.IsConnected)
         {
-            throw new CameraException($"相机未连接: {cameraId}", cameraId);
+            throw new CameraException($"Camera not connected: {cameraId}", cameraId);
         }
 
         try
@@ -116,31 +122,36 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
             // 采集单帧图像
             var frameData = await camera.AcquireSingleFrameAsync();
 
-            // 解码图像数据
-            using var mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
-            if (mat.Empty())
+            Mat? mat = null;
+            try
             {
-                throw new ImageProcessingException("无法解码相机采集的图像数据");
+                mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
+                if (mat.Empty())
+                {
+                    throw new ImageProcessingException("Unable to decode camera image data.");
+                }
+
+                var imageId = Guid.NewGuid();
+                var width = mat.Width;
+                var height = mat.Height;
+                AddToCache(imageId, mat, takeOwnership: true);
+                mat = null;
+
+                return new ImageDto
+                {
+                    Id = imageId,
+                    Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}",
+                    Format = "png",
+                    Width = width,
+                    Height = height,
+                    DataBase64 = Convert.ToBase64String(frameData),
+                    CreatedAt = DateTime.UtcNow
+                };
             }
-
-            var imageId = Guid.NewGuid();
-
-            // 缓存图像
-            lock (_imageCache)
+            finally
             {
-                _imageCache[imageId] = mat.Clone();
+                mat?.Dispose();
             }
-
-            return new ImageDto
-            {
-                Id = imageId,
-                Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}",
-                Format = "png",
-                Width = mat.Width,
-                Height = mat.Height,
-                DataBase64 = Convert.ToBase64String(frameData),
-                CreatedAt = DateTime.UtcNow
-            };
         }
         catch (Exception ex) when (ex is not CameraException and not ImageProcessingException)
         {
@@ -153,7 +164,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(cameraId);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(frameRate, 0);
 
-        // 检查是否已有该相机的连续采集任务
+        // 检查是否已有该相机的连续采集任�?
         if (_continuousAcquisitionTokens.ContainsKey(cameraId))
         {
             throw new CameraException($"相机 {cameraId} 已经在连续采集模式中", cameraId);
@@ -163,21 +174,21 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         var camera = _cameraManager.GetCamera(cameraId);
         if (camera == null)
         {
-            throw new CameraException($"相机未找到或未连接: {cameraId}", cameraId);
+            throw new CameraException($"Camera not found or disconnected: {cameraId}", cameraId);
         }
 
         if (!camera.IsConnected)
         {
-            throw new CameraException($"相机未连接: {cameraId}", cameraId);
+            throw new CameraException($"Camera not connected: {cameraId}", cameraId);
         }
 
-        // 创建取消令牌源
+        // 创建取消令牌�?
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _continuousAcquisitionTokens[cameraId] = cts;
 
         try
         {
-            // 计算帧间隔（毫秒）
+            // 计算帧间隔（毫秒�?
             var frameInterval = TimeSpan.FromMilliseconds(1000.0 / frameRate);
 
             // 启动连续采集循环
@@ -193,30 +204,33 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                         var frameData = await camera.AcquireSingleFrameAsync();
 
                         // 解码图像
-                        using var mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
+                        var mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
                         if (!mat.Empty())
                         {
                             var imageId = Guid.NewGuid();
 
                             // 缓存图像
-                            lock (_imageCache)
-                            {
-                                _imageCache[imageId] = mat.Clone();
-                            }
+                            var width = mat.Width;
+                            var height = mat.Height;
+                            AddToCache(imageId, mat, takeOwnership: true);
 
                             var imageDto = new ImageDto
                             {
                                 Id = imageId,
                                 Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}",
                                 Format = "png",
-                                Width = mat.Width,
-                                Height = mat.Height,
+                                Width = width,
+                                Height = height,
                                 DataBase64 = Convert.ToBase64String(frameData),
                                 CreatedAt = DateTime.UtcNow
                             };
 
                             // 调用回调函数
                             await onFrameAcquired(imageDto);
+                        }
+                        else
+                        {
+                            mat.Dispose();
                         }
 
                         // 控制帧率
@@ -229,13 +243,11 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     }
                     catch (OperationCanceledException)
                     {
-                        // 正常取消，退出循环
                         break;
                     }
                     catch (Exception ex)
                     {
-                        // 记录错误但继续采集
-                        _logger.LogWarning(ex, "连续采集错误: {Message}. 将在 {Interval}ms 后重试", ex.Message, frameInterval.TotalMilliseconds);
+                        _logger.LogWarning(ex, "Continuous acquisition error: {Message}. Retrying after {Interval}ms.", ex.Message, frameInterval.TotalMilliseconds);
                         await Task.Delay(frameInterval, cts.Token);
                     }
                 }
@@ -277,7 +289,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
             if (!File.Exists(filePath))
             {
                 result.IsValid = false;
-                result.Errors.Add("文件不存在");
+                result.Errors.Add("File does not exist.");
                 return Task.FromResult(result);
             }
 
@@ -324,13 +336,13 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
     public Task<ImageDto> PreprocessAsync(Guid imageId, ImagePreprocessOptions options)
     {
-        // 从缓存获取图像
+        // 从缓存获取图�?
         Mat? sourceMat = null;
         lock (_imageCache)
         {
             if (!_imageCache.TryGetValue(imageId, out sourceMat))
             {
-                throw new ImageProcessingException($"图像不存在: {imageId}");
+                throw new ImageProcessingException($"Image not found: {imageId}");
             }
         }
 
@@ -361,7 +373,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
                     if (options.KeepAspectRatio)
                     {
-                        // 保持宽高比
+                        // 保持宽高�?
                         var scale = Math.Min(
                             (double)targetWidth / resultMat.Width,
                             (double)targetHeight / resultMat.Height);
@@ -424,7 +436,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     resultMat = flippedMat.Clone();
                 }
 
-                // 归一化
+                // 归一�?
                 if (options.Normalize)
                 {
                     using var normalizedMat = new Mat();
@@ -433,29 +445,25 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     resultMat = normalizedMat.Clone();
                 }
 
-                // 生成新的图像ID并缓存
                 var newImageId = Guid.NewGuid();
-                lock (_imageCache)
-                {
-                    _imageCache[newImageId] = resultMat.Clone();
-                }
-
-                // 编码为字节数组
                 var format = processedMat.Channels() == 1 ? ".png" : ".png";
                 var encodedData = resultMat.ToBytes(format);
+                var width = resultMat.Width;
+                var height = resultMat.Height;
+                AddToCache(newImageId, resultMat, takeOwnership: true);
+                resultMat = null;
 
                 var result = new ImageDto
                 {
                     Id = newImageId,
                     Name = $"Preprocessed_{imageId}",
                     Format = "png",
-                    Width = resultMat.Width,
-                    Height = resultMat.Height,
+                    Width = width,
+                    Height = height,
                     DataBase64 = Convert.ToBase64String(encodedData),
                     CreatedAt = DateTime.UtcNow
                 };
 
-                resultMat.Dispose();
                 return Task.FromResult(result);
             }
             catch
@@ -466,7 +474,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         }
         catch (Exception ex) when (ex is not ImageProcessingException)
         {
-            throw new ImageProcessingException($"预处理图像失败: {ex.Message}", ex);
+            throw new ImageProcessingException($"Image preprocessing failed: {ex.Message}", ex);
         }
     }
 
@@ -474,13 +482,13 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        // 从缓存获取图像
+        // 从缓存获取图�?
         Mat? sourceMat = null;
         lock (_imageCache)
         {
             if (!_imageCache.TryGetValue(imageId, out sourceMat))
             {
-                throw new ImageProcessingException($"图像不存在: {imageId}");
+                throw new ImageProcessingException($"Image not found: {imageId}");
             }
         }
 
@@ -504,7 +512,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 _ => ".png"
             };
 
-            // 如果是JPEG格式，设置质量参数
+            // 如果是JPEG格式，设置质量参�?
             if (saveFormat == ".jpg" || saveFormat == ".jpeg")
             {
                 var jpegParams = new int[]
@@ -565,6 +573,39 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
     public Task ReleaseImageAsync(Guid imageId)
     {
+        RemoveFromCache(imageId);
+        return Task.CompletedTask;
+    }
+
+    private void AddToCache(Guid imageId, Mat sourceMat, bool takeOwnership = false)
+    {
+        var matToCache = takeOwnership ? sourceMat : sourceMat.Clone();
+
+        lock (_imageCache)
+        {
+            if (_imageCache.TryGetValue(imageId, out var existing))
+            {
+                existing.Dispose();
+                _imageCache[imageId] = matToCache;
+                RemoveCacheOrderNode(imageId);
+            }
+            else
+            {
+                _imageCache.Add(imageId, matToCache);
+            }
+
+            var orderNode = _cacheOrder.AddLast(imageId);
+            _cacheOrderNodes[imageId] = orderNode;
+
+            while (_imageCache.Count > MaxCacheSize && _cacheOrder.First != null)
+            {
+                RemoveFromCache(_cacheOrder.First.Value);
+            }
+        }
+    }
+
+    private void RemoveFromCache(Guid imageId)
+    {
         lock (_imageCache)
         {
             if (_imageCache.TryGetValue(imageId, out var mat))
@@ -572,8 +613,18 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 mat.Dispose();
                 _imageCache.Remove(imageId);
             }
+
+            RemoveCacheOrderNode(imageId);
         }
-        return Task.CompletedTask;
+    }
+
+    private void RemoveCacheOrderNode(Guid imageId)
+    {
+        if (_cacheOrderNodes.TryGetValue(imageId, out var node))
+        {
+            _cacheOrder.Remove(node);
+            _cacheOrderNodes.Remove(imageId);
+        }
     }
 
     private string? GetFormatFromFileName(string? fileName)
@@ -592,7 +643,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         if (_disposed)
             return;
 
-        // 停止所有连续采集任务
+        // 停止所有连续采集任�?
         foreach (var cts in _continuousAcquisitionTokens.Values)
         {
             cts.Cancel();
@@ -608,9 +659,12 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 mat.Dispose();
             }
             _imageCache.Clear();
+            _cacheOrder.Clear();
+            _cacheOrderNodes.Clear();
         }
 
         _cacheLock.Dispose();
         _disposed = true;
     }
 }
+

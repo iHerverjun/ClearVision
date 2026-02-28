@@ -1,6 +1,6 @@
-// FlowExecutionService.cs
+﻿// FlowExecutionService.cs
 // 流程执行服务实现
-// 作者：蘅芜君
+// 作者：蘅芜�?
 
 using System.Collections;
 using System.Collections.Concurrent;
@@ -19,17 +19,22 @@ namespace Acme.Product.Infrastructure.Services;
 /// <summary>
 /// 流程执行服务实现
 /// </summary>
-public class FlowExecutionService : IFlowExecutionService
+public class FlowExecutionService : IFlowExecutionService, IDisposable
 {
+    private static readonly TimeSpan DebugCleanupInterval = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan DebugSessionTtl = TimeSpan.FromMinutes(30);
     private readonly ConcurrentDictionary<Guid, FlowExecutionStatus> _executionStatuses = new();
     private readonly Dictionary<OperatorType, IOperatorExecutor> _executors;
     private readonly ILogger<FlowExecutionService> _logger;
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _executionCancellations = new();
     private readonly IVariableContext _variableContext;
 
-    // 调试模式：缓存中间结果 - Key: (DebugSessionId, OperatorId)
+    // 调试模式：缓存中间结�?- Key: (DebugSessionId, OperatorId)
     private readonly ConcurrentDictionary<(Guid DebugSessionId, Guid OperatorId), Dictionary<string, object>> _debugCache = new();
     private readonly ConcurrentDictionary<Guid, DebugOptions> _debugOptions = new();
+    private readonly ConcurrentDictionary<Guid, DateTime> _debugSessionLastAccess = new();
+    private readonly Timer _debugCacheCleanupTimer;
+    private bool _disposed;
 
     public FlowExecutionService(
         IEnumerable<IOperatorExecutor> executors,
@@ -39,6 +44,7 @@ public class FlowExecutionService : IFlowExecutionService
         _executors = executors.ToDictionary(e => e.OperatorType);
         _logger = logger;
         _variableContext = variableContext;
+        _debugCacheCleanupTimer = new Timer(CleanupStaleDebugSessions, null, DebugCleanupInterval, DebugCleanupInterval);
     }
 
     public async Task<FlowExecutionResult> ExecuteFlowAsync(
@@ -47,26 +53,26 @@ public class FlowExecutionService : IFlowExecutionService
         bool enableParallel = false,
         CancellationToken cancellationToken = default)
     {
-        // 【第三优先级】递增循环计数器
+        // 【第三优先级】递增循环计数�?
         _variableContext.IncrementCycleCount();
         _logger.LogDebug("[FlowExecution] 循环计数: {CycleCount}", _variableContext.CycleCount);
 
         var result = new FlowExecutionResult();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        // 创建链接的 CancellationTokenSource
+        // 创建链接�?CancellationTokenSource
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _executionCancellations[flow.Id] = cts;
 
         try
         {
-            // Sprint 1 Task 1.1: 预分析扇出度，为 ImageWrapper 引用计数做准备
+            // Sprint 1 Task 1.1: 预分析扇出度，为 ImageWrapper 引用计数做准�?
             var fanOutDegrees = AnalyzeFanOutDegrees(flow);
 
             // 获取执行顺序（拓扑排序）
             var executionOrder = flow.GetExecutionOrder().ToList();
 
-            // 初始化执行状态
+            // 初始化执行状�?
             var status = new FlowExecutionStatus
             {
                 FlowId = flow.Id,
@@ -76,7 +82,7 @@ public class FlowExecutionService : IFlowExecutionService
             };
             _executionStatuses[flow.Id] = status;
 
-            // 存储每个算子的输出 - 使用 ConcurrentDictionary 支持并行执行
+            // 存储每个算子的输�?- 使用 ConcurrentDictionary 支持并行执行
             var operatorOutputs = new ConcurrentDictionary<Guid, Dictionary<string, object>>();
 
             // 设置初始输入数据
@@ -99,11 +105,11 @@ public class FlowExecutionService : IFlowExecutionService
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
 
-            // 检查是否因为取消而中止
+            // 检查是否因为取消而中�?
             if (cts.Token.IsCancellationRequested)
             {
                 result.IsSuccess = false;
-                result.ErrorMessage = "流程被取消";
+                result.ErrorMessage = "Flow was canceled.";
             }
             else
             {
@@ -128,7 +134,7 @@ public class FlowExecutionService : IFlowExecutionService
         {
             stopwatch.Stop();
             result.IsSuccess = false;
-            result.ErrorMessage = "流程被取消";
+            result.ErrorMessage = "Flow was canceled.";
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
             return result;
         }
@@ -149,10 +155,7 @@ public class FlowExecutionService : IFlowExecutionService
                 removedCts.Dispose();
             }
 
-            if (_executionStatuses.TryGetValue(flow.Id, out var status))
-            {
-                status.IsExecuting = false;
-            }
+            _executionStatuses.TryRemove(flow.Id, out _);
         }
     }
 
@@ -171,7 +174,7 @@ public class FlowExecutionService : IFlowExecutionService
         int completedCount = 0;
         foreach (var op in executionOrder)
         {
-            // 检查取消
+            // 检查取�?
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
@@ -189,7 +192,7 @@ public class FlowExecutionService : IFlowExecutionService
                 continue;
             }
 
-            // 更新当前执行状态
+            // 更新当前执行状�?
             status.CurrentOperatorId = op.Id;
             status.ProgressPercentage = (double)completedCount / executionOrder.Count * 100;
 
@@ -221,7 +224,7 @@ public class FlowExecutionService : IFlowExecutionService
     }
 
     /// <summary>
-    /// 并行执行流程 - 按层级并行执行无依赖的算子
+    /// 并行执行流程 - 按层级并行执行无依赖的算�?
     /// </summary>
     private async Task ExecuteFlowParallelAsync(
         OperatorFlow flow,
@@ -242,11 +245,11 @@ public class FlowExecutionService : IFlowExecutionService
             if (failed || cancellationToken.IsCancellationRequested)
                 break;
 
-            // 更新状态
+            // 更新状�?
             status.CurrentOperatorId = layer.First().Id;
             status.ProgressPercentage = (double)completedOperators.Count / executionOrder.Count * 100;
 
-            // 并行执行当前层的所有算子
+            // 并行执行当前层的所有算�?
             var layerTasks = layer.Select(async op =>
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -254,7 +257,7 @@ public class FlowExecutionService : IFlowExecutionService
                     return new OperatorExecutionResult
                     {
                         IsSuccess = false,
-                        ErrorMessage = "流程被取消",
+                        ErrorMessage = "Flow was canceled.",
                         OperatorId = op.Id,
                         OperatorName = op.Name
                     };
@@ -292,18 +295,18 @@ public class FlowExecutionService : IFlowExecutionService
                 return opResult;
             }).ToList();
 
-            // 等待当前层所有算子执行完成
+            // 等待当前层所有算子执行完�?
             var layerResults = await Task.WhenAll(layerTasks);
             result.OperatorResults.AddRange(layerResults);
 
-            // 检查是否有失败的算子
+            // 检查是否有失败的算�?
             if (layerResults.Any(r => !r.IsSuccess))
             {
                 failed = true;
                 var failedOp = layerResults.First(r => !r.IsSuccess);
                 result.IsSuccess = false;
                 result.ErrorMessage = cancellationToken.IsCancellationRequested
-                    ? "流程被取消"
+                    ? "Flow was canceled."
                     : $"算子 '{failedOp.OperatorName}' 执行失败: {failedOp.ErrorMessage}";
             }
 
@@ -328,7 +331,7 @@ public class FlowExecutionService : IFlowExecutionService
             // 找出当前可以执行的算子（所有依赖都已执行）
             var currentLayer = remaining.Where(op =>
             {
-                // 获取该算子的所有依赖（输入连接）
+                // 获取该算子的所有依赖（输入连接�?
                 var dependencies = flow.Connections
                     .Where(c => c.TargetOperatorId == op.Id)
                     .Select(c => c.SourceOperatorId);
@@ -340,7 +343,7 @@ public class FlowExecutionService : IFlowExecutionService
             if (!currentLayer.Any())
             {
                 // 如果没有可以执行的算子，说明有循环依赖或其他问题
-                // 将剩余的算子作为一个层级执行
+                // 将剩余的算子作为一个层级执�?
                 currentLayer = remaining.ToList();
             }
 
@@ -356,11 +359,11 @@ public class FlowExecutionService : IFlowExecutionService
         return layers;
     }
 
-    // 默认算子执行超时时间（30秒）
+    // 默认算子执行超时时间�?0秒）
     private const int DefaultOperatorTimeoutMs = 30000;
 
     /// <summary>
-    /// 内部执行单个算子（带超时保护）
+    /// 内部执行单个算子（带超时保护�?
     /// </summary>
     private async Task<OperatorExecutionResult> ExecuteOperatorInternalAsync(
         Operator op,
@@ -377,7 +380,7 @@ public class FlowExecutionService : IFlowExecutionService
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(DefaultOperatorTimeoutMs));
 
-            // O1.3: 传递 CancellationToken 给算子执行器，支持取消操作
+            // O1.3: 传�?CancellationToken 给算子执行器，支持取消操�?
             var opResult = await executor.ExecuteAsync(op, inputs, timeoutCts.Token);
             opStopwatch.Stop();
 
@@ -389,7 +392,7 @@ public class FlowExecutionService : IFlowExecutionService
                     OperatorName = op.Name,
                     IsSuccess = false,
                     ExecutionTimeMs = opStopwatch.ElapsedMilliseconds,
-                    ErrorMessage = "算子执行被取消"
+                    ErrorMessage = "Operator execution was canceled."
                 };
             }
 
@@ -427,7 +430,7 @@ public class FlowExecutionService : IFlowExecutionService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             opStopwatch.Stop();
-            op.MarkExecutionFailed($"算子执行超时 ({DefaultOperatorTimeoutMs / 1000}秒)");
+            op.MarkExecutionFailed($"Operator timed out ({DefaultOperatorTimeoutMs / 1000}s)");
             _logger.LogError("算子执行超时: {OperatorName} ({OperatorId})", op.Name, op.Id);
 
             return new OperatorExecutionResult
@@ -436,7 +439,7 @@ public class FlowExecutionService : IFlowExecutionService
                 OperatorName = op.Name,
                 IsSuccess = false,
                 ExecutionTimeMs = opStopwatch.ElapsedMilliseconds,
-                ErrorMessage = $"算子 '{op.Name}' 执行超时 ({DefaultOperatorTimeoutMs / 1000}秒)"
+                ErrorMessage = $"Operator '{op.Name}' timed out ({DefaultOperatorTimeoutMs / 1000}s)"
             };
         }
         catch (Exception ex)
@@ -511,7 +514,7 @@ public class FlowExecutionService : IFlowExecutionService
         // 检查是否有算子
         if (!flow.Operators.Any())
         {
-            result.Errors.Add("流程中没有任何算子");
+            result.Errors.Add("Flow contains no operators.");
             return result;
         }
 
@@ -529,7 +532,7 @@ public class FlowExecutionService : IFlowExecutionService
             result.Warnings.Add("流程缺少结果输出算子");
         }
 
-        // 验证每个算子的参数
+        // 验证每个算子的参�?
         foreach (var op in flow.Operators)
         {
             if (_executors.TryGetValue(op.Type, out var executor))
@@ -561,7 +564,7 @@ public class FlowExecutionService : IFlowExecutionService
             try
             {
                 cts.Cancel();
-                _logger.LogInformation("已请求取消流程: {FlowId}", flowId);
+                _logger.LogInformation("Cancellation requested for flow: {FlowId}", flowId);
             }
             catch (ObjectDisposedException)
             {
@@ -578,8 +581,7 @@ public class FlowExecutionService : IFlowExecutionService
     }
 
     /// <summary>
-    /// 规范化流程输出，避免将 OpenCvSharp.Mat 等非 JSON 安全对象直接暴露到上层。
-    /// </summary>
+    /// 规范化流程输出，避免�?OpenCvSharp.Mat 等非 JSON 安全对象直接暴露到上层�?    /// </summary>
     private Dictionary<string, object> ConvertImageWrappersToBytes(Dictionary<string, object>? outputData)
     {
         if (outputData == null)
@@ -696,8 +698,8 @@ public class FlowExecutionService : IFlowExecutionService
     #region Sprint 1 Task 1.1: 扇出预分析与引用计数管理
 
     /// <summary>
-    /// 预分析 DAG 中每个输出端口的扇出度（下游连接数）。
-    /// 用于决定 ImageWrapper 的引用计数初始值。
+    /// 预分�?DAG 中每个输出端口的扇出度（下游连接数）�?
+    /// 用于决定 ImageWrapper 的引用计数初始值�?
     /// </summary>
     private Dictionary<string, int> AnalyzeFanOutDegrees(OperatorFlow flow)
     {
@@ -711,8 +713,8 @@ public class FlowExecutionService : IFlowExecutionService
     }
 
     /// <summary>
-    /// 根据扇出度为算子输出的 ImageWrapper 设置引用计数。
-    /// 扇出度为 N 时，AddRef (N-1) 次，使总引用计数为 N。
+    /// 根据扇出度为算子输出�?ImageWrapper 设置引用计数�?
+    /// 扇出度为 N 时，AddRef (N-1) 次，使总引用计数为 N�?
     /// </summary>
     private void ApplyFanOutRefCounts(
         Operator op,
@@ -732,13 +734,13 @@ public class FlowExecutionService : IFlowExecutionService
 
             int fanOut = fanOutDegrees.GetValueOrDefault(portKey, 1);
 
-            // 引用计数初始为 1，每多一个下游消费者 AddRef 一次
+            // 引用计数初始�?1，每多一个下游消费�?AddRef 一�?
             for (int i = 1; i < fanOut; i++)
             {
                 img.AddRef();
             }
 
-            _logger.LogDebug("[FlowExecution] 设置引用计数: 算子={OperatorName}, 端口={PortName}, 扇出度={FanOut}, RefCount={RefCount}",
+            _logger.LogDebug("[FlowExecution] Set ref count: Operator={OperatorName}, Port={PortName}, FanOut={FanOut}, RefCount={RefCount}",
                 op.Name, portName, fanOut, img.RefCount);
         }
     }
@@ -749,8 +751,8 @@ public class FlowExecutionService : IFlowExecutionService
     {
         var inputs = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. 【基础注入】首先将算子自身的参数合并到输入中作为默认值
-        // 这确保了如果没有外部连线，算子依然能拿到 UI 属性面板设置的值 (如 filePath)
+        // 1. 【基础注入】首先将算子自身的参数合并到输入中作为默认�?
+        // 这确保了如果没有外部连线，算子依然能拿到 UI 属性面板设置的�?(�?filePath)
         foreach (var param in op.Parameters)
         {
             if (param.Value != null)
@@ -759,19 +761,19 @@ public class FlowExecutionService : IFlowExecutionService
             }
         }
 
-        // 查找连接到该算子的所有连接
+        // 查找连接到该算子的所有连�?
         var incomingConnections = flow.Connections
             .Where(c => c.TargetOperatorId == op.Id)
             .ToList();
 
-        // 如果没有输入连接,尝试从初始输入数据获取(Guid.Empty)
+        // 如果没有输入连接,尝试从初始输入数据获�?Guid.Empty)
         if (!incomingConnections.Any())
         {
             if (operatorOutputs.TryGetValue(Guid.Empty, out var initialInputs))
             {
                 foreach (var kvp in initialInputs)
                 {
-                    // 使用不区分大小写的键匹配，防止 "image" vs "Image" 问题
+                    // Use case-insensitive key matching to avoid "image" vs "Image" mismatches.
                     if (!inputs.ContainsKey(kvp.Key))
                     {
                         inputs[kvp.Key] = kvp.Value;
@@ -785,13 +787,13 @@ public class FlowExecutionService : IFlowExecutionService
             {
                 if (operatorOutputs.TryGetValue(connection.SourceOperatorId, out var sourceOutputs))
                 {
-                    // 【条件分支路由修复】检查源算子是否为条件分支
+                    // 【条件分支路由修复】检查源算子是否为条件分�?
                     var sourceOperator = flow.Operators.FirstOrDefault(o => o.Id == connection.SourceOperatorId);
 
                     if (sourceOperator?.Type == OperatorType.ConditionalBranch)
                     {
-                        // 对于条件分支算子，只传递与连接端口名称匹配的数据
-                        // 获取源端口名称（True 或 False）
+                        // 对于条件分支算子，只传递与连接端口名称匹配的数�?
+                        // 获取源端口名称（True �?False�?
                         var sourcePort = sourceOperator.OutputPorts.FirstOrDefault(p => p.Id == connection.SourcePortId);
                         if (sourcePort != null)
                         {
@@ -809,15 +811,15 @@ public class FlowExecutionService : IFlowExecutionService
                                 if (sourceOutputs.TryGetValue("ActualValue", out var actualValue))
                                     inputs["ActualValue"] = actualValue;
                             }
-                            // 如果端口数据为null，说明条件分支走的是另一分支，不传递任何数据
+                            // 如果端口数据为null，说明条件分支走的是另一分支，不传递任何数�?
                         }
                     }
                     else
                     {
                         // 普通算子：执行增强的端口映射逻辑
 
-                        // 尝试获取连线两端的端口定义
-                        // 注意：SourceOperator 可能不在当前上下文（虽然不太可能），但我们要防御性编程
+                        // 尝试获取连线两端的端口定�?
+                        // 注意：SourceOperator 可能不在当前上下文（虽然不太可能），但我们要防御性编�?
                         if (sourceOperator != null)
                         {
                             var sourcePort = sourceOperator.OutputPorts.FirstOrDefault(p => p.Id == connection.SourcePortId);
@@ -826,19 +828,19 @@ public class FlowExecutionService : IFlowExecutionService
                             // 【Bug 4 修复】基于端口名称的精确映射
                             if (sourcePort != null && targetPort != null)
                             {
-                                // 尝试从源输出中获取与源端口名匹配的数据
+                                // 尝试从源输出中获取与源端口名匹配的数�?
                                 if (sourceOutputs.TryGetValue(sourcePort.Name, out var data))
                                 {
-                                    // 将数据映射到目标端口名
+                                    // 将数据映射到目标端口�?
                                     // 例如：源输出 "Image" -> 目标输入 "Background"
                                     inputs[targetPort.Name] = data;
                                 }
                             }
                         }
 
-                        // 【兼容性兜底】
+                        // 【兼容性兜底�?
                         // 如果没有通过端口成功映射（可能是旧版数据、端口名未定义、或旨在传递隐式数据）
-                        // 或者为了向后兼容（防止某些未走端口定义的隐式数据丢失，如 ResultOutput 所需的额外信息）
+                        // 或者为了向后兼容（防止某些未走端口定义的隐式数据丢失，�?ResultOutput 所需的额外信息）
                         // 我们依然执行全量合并，但跳过已存在的键（避免覆盖精确映射的结果）
                         foreach (var kvp in sourceOutputs)
                         {
@@ -858,7 +860,7 @@ public class FlowExecutionService : IFlowExecutionService
     #region 调试功能实现
 
     /// <summary>
-    /// 调试执行流程 - 支持断点和单步执行
+    /// 调试执行流程 - 支持断点和单步执�?
     /// </summary>
     public async Task<FlowDebugExecutionResult> ExecuteFlowDebugAsync(
         OperatorFlow flow,
@@ -875,8 +877,9 @@ public class FlowExecutionService : IFlowExecutionService
 
         // 保存调试选项
         _debugOptions[options.DebugSessionId] = options;
+        TouchDebugSession(options.DebugSessionId);
 
-        // 创建链接的 CancellationTokenSource
+        // 创建链接�?CancellationTokenSource
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _executionCancellations[flow.Id] = cts;
 
@@ -886,7 +889,7 @@ public class FlowExecutionService : IFlowExecutionService
             var executionOrder = flow.GetExecutionOrder().ToList();
             var fanOutDegrees = AnalyzeFanOutDegrees(flow);
 
-            // 初始化执行状态
+            // 初始化执行状�?
             var status = new FlowExecutionStatus
             {
                 FlowId = flow.Id,
@@ -896,7 +899,7 @@ public class FlowExecutionService : IFlowExecutionService
             };
             _executionStatuses[flow.Id] = status;
 
-            // 存储每个算子的输出
+            // 存储每个算子的输�?
             var operatorOutputs = new ConcurrentDictionary<Guid, Dictionary<string, object>>();
 
             // 设置初始输入数据
@@ -905,19 +908,19 @@ public class FlowExecutionService : IFlowExecutionService
                 operatorOutputs[Guid.Empty] = inputData;
             }
 
-            // 顺序执行（调试模式不支持并行）
+            // 顺序执行（调试模式不支持并行�?
             int completedCount = 0;
             Guid? pausedOperatorId = null;
 
             foreach (var op in executionOrder)
             {
-                // 检查取消
+                // 检查取�?
                 if (cts.Token.IsCancellationRequested)
                 {
                     break;
                 }
 
-                // 检查是否命中断点
+                // 检查是否命中断�?
                 if (options.Breakpoints.Contains(op.Id))
                 {
                     pausedOperatorId = op.Id;
@@ -927,7 +930,7 @@ public class FlowExecutionService : IFlowExecutionService
 
                     if (options.StepMode)
                     {
-                        // 单步模式：暂停执行
+                        // 单步模式：暂停执�?
                         break;
                     }
                 }
@@ -948,7 +951,7 @@ public class FlowExecutionService : IFlowExecutionService
                     continue;
                 }
 
-                // 更新当前执行状态
+                // 更新当前执行状�?
                 status.CurrentOperatorId = op.Id;
                 status.ProgressPercentage = (double)completedCount / executionOrder.Count * 100;
 
@@ -993,24 +996,26 @@ public class FlowExecutionService : IFlowExecutionService
                 operatorOutputs[op.Id] = outputs;
                 ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
 
-                // 调试模式：缓存中间结果
+                // 调试模式：缓存中间结�?
                 if (options.EnableIntermediateCache && opResult.OutputData != null)
                 {
                     _debugCache[(options.DebugSessionId, op.Id)] = new Dictionary<string, object>(opResult.OutputData);
                     result.IntermediateResults[op.Id] = new Dictionary<string, object>(opResult.OutputData);
+                    TouchDebugSession(options.DebugSessionId);
                 }
 
+                TouchDebugSession(options.DebugSessionId);
                 completedCount++;
             }
 
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
 
-            // 检查是否因为取消而中止
+            // 检查是否因为取消而中�?
             if (cts.Token.IsCancellationRequested)
             {
                 result.IsSuccess = false;
-                result.ErrorMessage = "流程被取消";
+                result.ErrorMessage = "Flow was canceled.";
             }
             else
             {
@@ -1032,7 +1037,7 @@ public class FlowExecutionService : IFlowExecutionService
         {
             stopwatch.Stop();
             result.IsSuccess = false;
-            result.ErrorMessage = "流程被取消";
+            result.ErrorMessage = "Flow was canceled.";
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
             return result;
         }
@@ -1052,10 +1057,7 @@ public class FlowExecutionService : IFlowExecutionService
                 removedCts.Dispose();
             }
 
-            if (_executionStatuses.TryGetValue(flow.Id, out var status))
-            {
-                status.IsExecuting = false;
-            }
+            _executionStatuses.TryRemove(flow.Id, out _);
         }
     }
 
@@ -1066,6 +1068,7 @@ public class FlowExecutionService : IFlowExecutionService
     {
         if (_debugCache.TryGetValue((debugSessionId, operatorId), out var result))
         {
+            TouchDebugSession(debugSessionId);
             return new Dictionary<string, object>(result);
         }
         return null;
@@ -1076,7 +1079,7 @@ public class FlowExecutionService : IFlowExecutionService
     /// </summary>
     public Task ClearDebugCacheAsync(Guid debugSessionId)
     {
-        // 清除该会话的所有缓存
+        // 清除该会话的所有缓�?
         var keysToRemove = _debugCache.Keys.Where(k => k.DebugSessionId == debugSessionId).ToList();
         foreach (var key in keysToRemove)
         {
@@ -1084,10 +1087,47 @@ public class FlowExecutionService : IFlowExecutionService
         }
 
         _debugOptions.TryRemove(debugSessionId, out _);
+        _debugSessionLastAccess.TryRemove(debugSessionId, out _);
 
-        _logger.LogInformation("[调试] 已清除调试缓存: {DebugSessionId}", debugSessionId);
+        _logger.LogInformation("[Debug] Cleared debug cache: {DebugSessionId}", debugSessionId);
         return Task.CompletedTask;
+    }
+
+    private void TouchDebugSession(Guid debugSessionId)
+    {
+        _debugSessionLastAccess[debugSessionId] = DateTime.UtcNow;
+    }
+
+    private void CleanupStaleDebugSessions(object? state)
+    {
+        try
+        {
+            var staleBefore = DateTime.UtcNow - DebugSessionTtl;
+            foreach (var entry in _debugSessionLastAccess)
+            {
+                if (entry.Value < staleBefore)
+                {
+                    _ = ClearDebugCacheAsync(entry.Key);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "[Debug] Failed to cleanup stale debug sessions.");
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _debugCacheCleanupTimer.Dispose();
+        _disposed = true;
     }
 
     #endregion
 }
+
