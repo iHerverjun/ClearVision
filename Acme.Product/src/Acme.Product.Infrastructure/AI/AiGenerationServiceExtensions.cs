@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Acme.Product.Infrastructure.AI;
 
 using Acme.Product.Infrastructure.AI.Connectors;
+using Acme.Product.Infrastructure.AI.Runtime;
 
 public static class AiGenerationServiceExtensions
 {
@@ -34,6 +35,12 @@ public static class AiGenerationServiceExtensions
         services.AddScoped<AutoLayoutService>();
         services.AddScoped<IAiFlowGenerationService, AiFlowGenerationService>();
         services.AddScoped<GenerateFlowMessageHandler>();
+
+        // Stage A: unified AI runtime pipeline
+        services.AddScoped<IAiModelRegistry, AiModelRegistry>();
+        services.AddScoped<IAiModelSelector, ActiveAiModelSelector>();
+        services.AddScoped<IAiConnectorFactory, AiConnectorFactory>();
+        services.AddScoped<AiGenerationOrchestrator>();
 
         services.AddHttpClient("LLM", client =>
         {

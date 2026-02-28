@@ -456,7 +456,8 @@ public class WebMessageHandler
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.GenerateFlowMessageHandler>();
 
-            var resultJson = await handler.HandleAsync(
+            // 在后台线程执行 AI 生成，避免 WebView2/UI 线程被流式解析和回调压满。
+            var resultJson = await Task.Run(() => handler.HandleAsync(
                 description,
                 sessionId,
                 existingFlowJson,
@@ -464,32 +465,13 @@ public class WebMessageHandler
                 attachments,
                 onMessage: (type, payload) =>
                 {
-                    // 在 UI 线程推送进度消息
-                    var progressJson = JsonSerializer.Serialize(new
-                    {
-                        messageType = type,
-                        payload = JsonSerializer.Deserialize<object>(payload)
-                    }, _jsonOptions);
-
-                    if (_webViewControl?.InvokeRequired == true)
-                    {
-                        _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(progressJson));
-                    }
-                    else
-                    {
-                        _webView?.PostWebMessageAsJson(progressJson);
-                    }
-                });
+                    // payload 已是 JSON 字符串，直接拼接外层 envelope，避免反序列化再序列化的额外开销。
+                    var progressJson = $"{{\"messageType\":{JsonSerializer.Serialize(type)},\"payload\":{payload}}}";
+                    PostWebMessageJson(progressJson);
+                }));
 
             // 发回前端（原始 JSON）
-            if (_webViewControl?.InvokeRequired == true)
-            {
-                _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(resultJson));
-            }
-            else
-            {
-                _webView?.PostWebMessageAsJson(resultJson);
-            }
+            PostWebMessageJson(resultJson);
         }
         catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
         {
@@ -526,14 +508,7 @@ public class WebMessageHandler
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
-            if (_webViewControl?.InvokeRequired == true)
-            {
-                _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(json));
-            }
-            else
-            {
-                _webView?.PostWebMessageAsJson(json);
-            }
+            PostWebMessageJson(json);
         }
     }
 
@@ -620,15 +595,7 @@ public class WebMessageHandler
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
-            // 确保在 UI 线程执行
-            if (_webViewControl?.InvokeRequired == true)
-            {
-                _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(json));
-            }
-            else
-            {
-                _webView?.PostWebMessageAsJson(json);
-            }
+            PostWebMessageJson(json);
         }
         catch (Exception ex)
         {
@@ -644,13 +611,35 @@ public class WebMessageHandler
             payload
         }, _jsonOptions);
 
-        if (_webViewControl?.InvokeRequired == true)
+        PostWebMessageJson(json);
+    }
+
+    private void PostWebMessageJson(string json)
+    {
+        var webViewControl = _webViewControl;
+        var webView = _webView;
+        if (webViewControl == null || webView == null || webViewControl.IsDisposed)
+            return;
+
+        if (webViewControl.InvokeRequired)
         {
-            _webViewControl.Invoke(() => _webView?.PostWebMessageAsJson(json));
+            _ = webViewControl.BeginInvoke(new Action(() =>
+            {
+                if (webViewControl.IsDisposed)
+                    return;
+
+                try
+                {
+                    webView.PostWebMessageAsJson(json);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "[WebMessageHandler] 异步推送 WebMessage 失败");
+                }
+            }));
+            return;
         }
-        else
-        {
-            _webView?.PostWebMessageAsJson(json);
-        }
+
+        webView.PostWebMessageAsJson(json);
     }
 }

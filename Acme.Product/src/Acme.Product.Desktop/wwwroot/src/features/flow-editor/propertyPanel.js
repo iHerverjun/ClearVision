@@ -28,25 +28,41 @@ class PropertyPanel {
      */
     bindGlobalEvents() {
         webMessageBridge.on('FilePickedEvent', (event) => {
-            // 兼容 PascalCase 和 camelCase
-            const isCancelled = event.IsCancelled || event.isCancelled;
+            const payload = event?.payload || event?.data || event || {};
+            const isCancelled = Boolean(payload.IsCancelled ?? payload.isCancelled);
             if (isCancelled) return;
 
-            // 兼容 PascalCase 和 camelCase
-            const parameterName = event.ParameterName || event.parameterName;
-            const filePath = event.FilePath || event.filePath;
+            const parameterNameRaw = payload.ParameterName ?? payload.parameterName;
+            const filePathRaw = payload.FilePath ?? payload.filePath;
+            const parameterName = String(parameterNameRaw || '').trim();
+            const filePath = filePathRaw == null ? '' : String(filePathRaw);
 
-            console.log('[PropertyPanel] 收到文件选择事件:', parameterName, filePath);
-
-            const input = this.container.querySelector(`#param-${parameterName}`);
-            if (input) {
-                input.value = filePath || '';
-                // 触发 change 事件以更新状态
-                input.dispatchEvent(new Event('change'));
-
-                // 自动应用更改
-                this.applyChanges();
+            if (!parameterName) {
+                console.warn('[PropertyPanel] FilePickedEvent missing parameterName:', payload);
+                return;
             }
+
+            const escapedName = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
+                ? CSS.escape(parameterName)
+                : parameterName;
+
+            let input = this.container.querySelector(`#param-${escapedName}`);
+            if (!input) {
+                input = this.container.querySelector(`input[name="${escapedName}"], select[name="${escapedName}"]`);
+            }
+            if (!input) {
+                const allNamedInputs = this.container.querySelectorAll('input[name], select[name]');
+                input = Array.from(allNamedInputs).find(item =>
+                    String(item.name || '').toLowerCase() === parameterName.toLowerCase()) || null;
+            }
+            if (!input) {
+                console.warn('[PropertyPanel] File parameter input not found:', parameterName);
+                return;
+            }
+
+            input.value = filePath;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            this.applyChanges();
         });
     }
 

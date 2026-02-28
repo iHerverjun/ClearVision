@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using System.Buffers.Binary;
+using System.Text.Json;
 using System;
 using System.Linq;
 
@@ -82,7 +83,16 @@ public static class SettingsEndpoints
                 m.Model,
                 baseUrl = m.BaseUrl ?? "",
                 m.TimeoutMs,
-                m.IsActive
+                m.IsActive,
+                m.Protocol,
+                m.AuthMode,
+                m.AuthHeaderName,
+                m.ExtraHeaders,
+                m.ExtraQuery,
+                m.ExtraBody,
+                m.RoleBindings,
+                m.Priority,
+                m.Capabilities
             });
             return Results.Ok(result);
         });
@@ -96,12 +106,21 @@ public static class SettingsEndpoints
                 {
                     Id = $"model_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                     Name = request.Name ?? "新建模型",
-                    Provider = request.Provider ?? "OpenAI Compatible",
+                    Provider = request.Provider ?? AiModelConfig.GetLegacyProviderByProtocol(request.Protocol),
                     ApiKey = request.ApiKey ?? "",
-                    Model = request.Model ?? "",
+                    Model = request.Model ?? string.Empty,
                     BaseUrl = string.IsNullOrWhiteSpace(request.BaseUrl) ? null : request.BaseUrl,
                     TimeoutMs = request.TimeoutMs > 0 ? request.TimeoutMs : 120000,
-                    IsActive = false
+                    Protocol = request.Protocol,
+                    AuthMode = request.AuthMode,
+                    AuthHeaderName = request.AuthHeaderName,
+                    ExtraHeaders = CloneStringMap(request.ExtraHeaders),
+                    ExtraQuery = CloneStringMap(request.ExtraQuery),
+                    ExtraBody = CloneJsonMap(request.ExtraBody),
+                    RoleBindings = CloneStringList(request.RoleBindings),
+                    Priority = request.Priority,
+                    IsActive = false,
+                    Capabilities = request.Capabilities?.Clone()
                 };
                 configStore.Add(model);
                 return Results.Ok(new { Message = "模型已创建", model.Id });
@@ -119,12 +138,21 @@ public static class SettingsEndpoints
             {
                 var updated = new AiModelConfig
                 {
-                    Name = request.Name ?? "",
-                    Provider = request.Provider ?? "OpenAI Compatible",
+                    Name = request.Name!,
+                    Provider = request.Provider!,
                     ApiKey = request.ApiKey ?? "", // 空字符串 → 保留原值（由 AiConfigStore.Update 处理）
-                    Model = request.Model ?? "",
+                    Model = request.Model ?? string.Empty,
                     BaseUrl = request.BaseUrl,
-                    TimeoutMs = request.TimeoutMs
+                    TimeoutMs = request.TimeoutMs,
+                    Protocol = request.Protocol,
+                    AuthMode = request.AuthMode,
+                    AuthHeaderName = request.AuthHeaderName,
+                    ExtraHeaders = CloneStringMap(request.ExtraHeaders),
+                    ExtraQuery = CloneStringMap(request.ExtraQuery),
+                    ExtraBody = CloneJsonMap(request.ExtraBody),
+                    RoleBindings = CloneStringList(request.RoleBindings),
+                    Priority = request.Priority,
+                    Capabilities = request.Capabilities?.Clone()
                 };
                 var result = configStore.Update(id, updated);
                 if (result == null)
@@ -435,6 +463,36 @@ public static class SettingsEndpoints
             return false;
         }
     }
+
+    private static Dictionary<string, string>? CloneStringMap(Dictionary<string, string>? source)
+    {
+        if (source == null)
+            return null;
+
+        return source.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, JsonElement>? CloneJsonMap(Dictionary<string, JsonElement>? source)
+    {
+        if (source == null)
+            return null;
+
+        var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in source)
+        {
+            result[kv.Key] = kv.Value.Clone();
+        }
+
+        return result;
+    }
+
+    private static List<string>? CloneStringList(List<string>? source)
+    {
+        if (source == null)
+            return null;
+
+        return new List<string>(source);
+    }
 }
 
 /// <summary>创建模型请求</summary>
@@ -446,6 +504,15 @@ public class AiModelCreateRequest
     public string? Model { get; set; }
     public string? BaseUrl { get; set; }
     public int TimeoutMs { get; set; }
+    public string? Protocol { get; set; }
+    public string? AuthMode { get; set; }
+    public string? AuthHeaderName { get; set; }
+    public Dictionary<string, string>? ExtraHeaders { get; set; }
+    public Dictionary<string, string>? ExtraQuery { get; set; }
+    public Dictionary<string, JsonElement>? ExtraBody { get; set; }
+    public List<string>? RoleBindings { get; set; }
+    public int? Priority { get; set; }
+    public AiModelCapabilities? Capabilities { get; set; }
 }
 
 /// <summary>更新模型请求</summary>
@@ -457,6 +524,15 @@ public class AiModelUpdateRequest
     public string? Model { get; set; }
     public string? BaseUrl { get; set; }
     public int TimeoutMs { get; set; }
+    public string? Protocol { get; set; }
+    public string? AuthMode { get; set; }
+    public string? AuthHeaderName { get; set; }
+    public Dictionary<string, string>? ExtraHeaders { get; set; }
+    public Dictionary<string, string>? ExtraQuery { get; set; }
+    public Dictionary<string, JsonElement>? ExtraBody { get; set; }
+    public List<string>? RoleBindings { get; set; }
+    public int? Priority { get; set; }
+    public AiModelCapabilities? Capabilities { get; set; }
 }
 
 /// <summary>软触发抓图请求</summary>

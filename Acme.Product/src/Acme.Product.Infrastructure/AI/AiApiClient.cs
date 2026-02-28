@@ -168,7 +168,7 @@ public class AiApiClient
         cts.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
 
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessStatusCodeWithDetailsAsync(response, cts.Token);
 
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream);
@@ -374,7 +374,7 @@ public class AiApiClient
         cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessStatusCodeWithDetailsAsync(response, cts.Token);
 
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream);
@@ -666,6 +666,36 @@ public class AiApiClient
 
         chunk = sb.ToString();
         return !string.IsNullOrEmpty(chunk);
+    }
+
+    private static async Task EnsureSuccessStatusCodeWithDetailsAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        string errorContent = string.Empty;
+        try
+        {
+            errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch
+        {
+            // ignore body read failure
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorContent))
+        {
+            errorContent = errorContent.Trim();
+            if (errorContent.Length > 600)
+                errorContent = errorContent[..600] + "...";
+        }
+
+        var reason = response.ReasonPhrase ?? "Request Failed";
+        var message = string.IsNullOrWhiteSpace(errorContent)
+            ? $"Response status code does not indicate success: {(int)response.StatusCode} ({reason})."
+            : $"AI API 调用失败 ({(int)response.StatusCode} {reason}): {errorContent}";
+
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     public async Task<AiCompletionResult> CompleteAsync(

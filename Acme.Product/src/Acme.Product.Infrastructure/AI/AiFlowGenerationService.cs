@@ -7,21 +7,22 @@ using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Acme.Product.Core.Entities;
 using Acme.Product.Infrastructure.AI.DryRun;
+using Acme.Product.Infrastructure.AI.Runtime;
 using Acme.Product.Contracts.Messages;
 using OpenCvSharp;
 using System.Globalization;
+using System.Net;
 
 namespace Acme.Product.Infrastructure.AI;
 
 public class AiFlowGenerationService : IAiFlowGenerationService
 {
-    private readonly AiApiClient _apiClient;
+    private readonly AiGenerationOrchestrator _aiOrchestrator;
     private readonly PromptBuilder _promptBuilder;
     private readonly IConversationalFlowService _conversationalFlowService;
     private readonly IAiFlowValidator _validator;
     private readonly AutoLayoutService _layoutService;
     private readonly IOperatorFactory _operatorFactory;
-    private readonly AiConfigStore _configStore;
     private readonly DryRunService _dryRunService;
     private readonly Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> _logger;
 
@@ -29,26 +30,24 @@ public class AiFlowGenerationService : IAiFlowGenerationService
     {
         PropertyNameCaseInsensitive = true
     };
-    private const int MaxMultimodalAttachmentCount = 4;
+    private const int DefaultMaxMultimodalAttachmentCount = 4;
 
     public AiFlowGenerationService(
-        AiApiClient apiClient,
+        AiGenerationOrchestrator aiOrchestrator,
         PromptBuilder promptBuilder,
         IConversationalFlowService conversationalFlowService,
         IAiFlowValidator validator,
         AutoLayoutService layoutService,
         IOperatorFactory operatorFactory,
-        AiConfigStore configStore,
         DryRunService dryRunService,
         Microsoft.Extensions.Logging.ILogger<AiFlowGenerationService> logger)
     {
-        _apiClient = apiClient;
+        _aiOrchestrator = aiOrchestrator;
         _promptBuilder = promptBuilder;
         _conversationalFlowService = conversationalFlowService;
         _validator = validator;
         _layoutService = layoutService;
         _operatorFactory = operatorFactory;
-        _configStore = configStore;
         _dryRunService = dryRunService;
         _logger = logger;
     }
@@ -69,15 +68,36 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             conversationContext.ExistingFlowJson,
             conversationContext.Intent,
             conversationContext.PromptContext);
-        var attachmentSelection = AnalyzeMultimodalAttachments(request.Attachments, MaxMultimodalAttachmentCount);
+
+        // 读取当前激活模型快照
+        var activeModel = _aiOrchestrator.ResolveGenerationModel();
+        var options = activeModel.ToGenerationOptions();
+        var capabilities = _aiOrchestrator.ResolveCapabilities(activeModel);
+
+        var maxAttachmentCount = capabilities.MaxImageCount > 0
+            ? Math.Min(DefaultMaxMultimodalAttachmentCount, capabilities.MaxImageCount)
+            : 0;
+        var maxImageBytes = Math.Min(
+            AiApiClient.MaxImageBytes,
+            capabilities.MaxImageBytes > 0 ? capabilities.MaxImageBytes : AiApiClient.MaxImageBytes);
+
+        var attachmentSelection = AnalyzeMultimodalAttachments(request.Attachments, maxAttachmentCount, maxImageBytes);
         if (request.Attachments is { Count: > 0 })
         {
             onAttachmentReport?.Invoke(attachmentSelection.Report);
         }
-        var initialUserMessage = BuildUserChatMessage(userMessage, attachmentSelection.SendablePaths);
 
-        // 读取当前配置快照
-        var options = _configStore.Get();
+        IReadOnlyList<string> activeSendablePaths = attachmentSelection.SendablePaths;
+        if (activeSendablePaths.Count > 0 && !capabilities.SupportsVisionInput)
+        {
+            _logger.LogInformation(
+                "Model {Model} capability says vision input is unsupported. Falling back to text-only mode.",
+                options.Model);
+            activeSendablePaths = Array.Empty<string>();
+            onAttachmentReport?.Invoke(BuildFallbackAttachmentReport(attachmentSelection.Report, "model_not_support_image"));
+            onProgress?.Invoke("当前模型不支持图片输入，已自动切换为文本模式（附件仅用于元信息）。");
+        }
+        var currentUserMessage = BuildUserChatMessage(userMessage, activeSendablePaths);
 
         AiGeneratedFlowJson? generatedFlow = null;
         AiValidationResult? lastValidation = null;
@@ -96,18 +116,18 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     onProgress?.Invoke("正在请求 AI 模型生成方案...");
 
                 // 构建完整的上下文消息
-                var messages = new List<ChatMessage> { initialUserMessage };
+                var messages = new List<ChatMessage> { currentUserMessage };
                 if (attempt > 0)
                 {
                     messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!)));
                 }
 
                 // 调用 API（使用流式接口）
-                var completionResult = await _apiClient.StreamCompleteAsync(
+                var completionResult = await _aiOrchestrator.StreamCompleteAsync(
                     systemPrompt,
                     messages,
                     chunk => onStreamChunk?.Invoke(chunk),
-                    null,
+                    activeModel,
                     cancellationToken);
                 var rawResponse = completionResult.Content;
                 _logger.LogDebug("AI 原始响应长度：{Length}", rawResponse.Length);
@@ -198,6 +218,24 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             }
             catch (Exception ex)
             {
+                // 附件发送导致 400 时，自动降级为文本模式并重试一次，避免直接失败。
+                if (activeSendablePaths.Count > 0 && IsBadRequestHttpException(ex))
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Multimodal request failed with 400. Fallback to text-only mode. Model={Model}, Provider={Provider}",
+                        options.Model,
+                        options.Provider);
+
+                    activeSendablePaths = Array.Empty<string>();
+                    currentUserMessage = BuildUserChatMessage(userMessage, activeSendablePaths);
+                    onAttachmentReport?.Invoke(BuildFallbackAttachmentReport(attachmentSelection.Report, "model_not_support_image"));
+                    onProgress?.Invoke("图片附件暂不被当前模型/接口支持，已自动改为文本模式重试...");
+                    retryCount++;
+                    attempt--;
+                    continue;
+                }
+
                 _logger.LogError(ex, "AI API 调用失败");
                 return new AiFlowGenerationResult
                 {
@@ -287,7 +325,10 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return new ChatMessage("user", parts);
     }
 
-    private static AttachmentSelectionResult AnalyzeMultimodalAttachments(IReadOnlyList<string>? attachments, int maxCount)
+    private static AttachmentSelectionResult AnalyzeMultimodalAttachments(
+        IReadOnlyList<string>? attachments,
+        int maxCount,
+        int maxImageBytes)
     {
         if (attachments == null || attachments.Count == 0 || maxCount <= 0)
         {
@@ -346,7 +387,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             try
             {
                 var info = new FileInfo(normalizedPath);
-                if (info.Length <= 0 || info.Length > AiApiClient.MaxImageBytes)
+                if (info.Length <= 0 || info.Length > maxImageBytes)
                 {
                     skipped.Add(new GenerateFlowAttachmentSkippedItem
                     {
@@ -420,6 +461,37 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
 
         return normalizedPaths;
+    }
+
+    private static bool IsBadRequestHttpException(Exception ex)
+    {
+        if (ex is not HttpRequestException httpEx)
+            return false;
+
+        if (httpEx.StatusCode == HttpStatusCode.BadRequest)
+            return true;
+
+        return httpEx.Message.Contains("400", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static GenerateFlowAttachmentReport BuildFallbackAttachmentReport(GenerateFlowAttachmentReport originalReport, string reason)
+    {
+        var skipped = new List<GenerateFlowAttachmentSkippedItem>(originalReport.Skipped);
+        foreach (var sent in originalReport.Sent)
+        {
+            skipped.Add(new GenerateFlowAttachmentSkippedItem
+            {
+                Path = sent.Path,
+                Name = sent.Name,
+                Reason = reason
+            });
+        }
+
+        return new GenerateFlowAttachmentReport
+        {
+            Sent = new List<GenerateFlowAttachmentSentItem>(),
+            Skipped = skipped
+        };
     }
 
     private string BuildAttachmentContext(IReadOnlyList<string>? attachments)

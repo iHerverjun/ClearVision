@@ -754,6 +754,7 @@ export class AiPanel {
             case 'file_too_large': return '文件过大';
             case 'read_failed': return '读取失败';
             case 'limit_exceeded': return '超出数量上限';
+            case 'model_not_support_image': return '当前模型不支持图片';
             default: return reason || '';
         }
     }
