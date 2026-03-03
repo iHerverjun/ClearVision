@@ -1,4 +1,14 @@
-# ClearVision Phase 5 — 前端 UI 增强与端到端测试
+# ClearVision Phase 5 — 前端 UI 增强与端到端测试
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 5，已完成 0，未完成 5，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 
 > **适用于**: opencode / AI 编码助手  
 > **前置**: Phase 1-4 已完成（46 个算子、连接池、超时保护）  
@@ -269,10 +279,30 @@ public class OperatorPerformanceTests
 ```powershell
 cd c:\Users\11234\Desktop\ClearVision\Acme.Product
 
-# 全量构建
+# 全量构建
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 5，已完成 0，未完成 5，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet build
 
-# 全量测试（含集成测试）
+# 全量测试（含集成测试）
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 5，已完成 0，未完成 5，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet test --verbosity normal
 ```
 

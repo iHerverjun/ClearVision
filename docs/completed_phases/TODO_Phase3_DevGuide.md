@@ -1,4 +1,14 @@
-# ClearVision Phase 3 — 算法深度提升与遗留问题修复
+# ClearVision Phase 3 — 算法深度提升与遗留问题修复
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 7，已完成 0，未完成 7，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 
 > **适用于**: opencode / AI 编码助手  
 > **前置**: Phase 1（关键能力补齐）✅，Phase 2（测试基础设施）✅  
@@ -22,7 +32,17 @@
 
 ```powershell
 cd c:\Users\11234\Desktop\ClearVision\Acme.Product
-# 搜索所有 CreateProjectRequest 定义
+# 搜索所有 CreateProjectRequest 定义
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 7，已完成 0，未完成 7，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 Get-ChildItem -Recurse -Include *.cs | Select-String "class CreateProjectRequest" | ForEach-Object { $_.Path + ":" + $_.LineNumber }
 ```
 
@@ -594,13 +614,43 @@ catch (Exception ex)
 ```powershell
 cd c:\Users\11234\Desktop\ClearVision\Acme.Product
 
-# 全量构建 — 必须 0 errors
+# 全量构建 — 必须 0 errors
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 7，已完成 0，未完成 7，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet build
 
-# 运行所有测试
+# 运行所有测试
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 7，已完成 0，未完成 7，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet test
 
-# 单独测试新增算子
+# 单独测试新增算子
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 7，已完成 0，未完成 7，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet test --filter "FullyQualifiedName~ColorDetection"
 dotnet test --filter "FullyQualifiedName~SerialCommunication"
 ```

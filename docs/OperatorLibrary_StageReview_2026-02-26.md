@@ -1,4 +1,13 @@
-﻿# 算子库阶段复审报告 / Operator Library Stage Review
+# 算子库阶段复审报告 / Operator Library Stage Review
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 0，已完成 0，未完成 0，待办关键词命中 1
+- 判定依据：检测到待办关键词（TODO/待办/未完成/TBD/FIXME/WIP）
+<!-- DOC_AUDIT_STATUS_END -->
+
 
 - Date: 2026-02-26
 - Scope: `docs/operators` 文档清理复审（忽略用户指定的 3 个外部新增脚本）

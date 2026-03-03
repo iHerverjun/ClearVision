@@ -1,4 +1,13 @@
-﻿# ClearVision Sprint 6 开发路线图与计划
+# ClearVision Sprint 6 开发路线图与计划
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 54，已完成 0，未完成 54，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
 
 > **作者**: 蘅芜君
 > **版本**: V1.0
@@ -465,11 +474,30 @@ public class FlowDiff
 
 ---
 
-# 第二部分：Sprint 6 详细开发计划
+# 第二部分：Sprint 6 详细开发计划
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 54，已完成 0，未完成 54，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
 
 > 以下内容来自原 `ClearVision_Sprint6_开发计划.md`，提供了 Sprint 6 的细化任务分解和具体实施指导。
 
-# ClearVision Sprint 6 开发计划
+# ClearVision Sprint 6 开发计划
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 54，已完成 0，未完成 54，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 
 > **版本**: V1.0  
 > **制定日期**: 2026-02-20  

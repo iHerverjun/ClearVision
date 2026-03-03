@@ -1488,8 +1488,11 @@ class FlowCanvas {
             if (x >= node.x && x <= node.x + node.width &&
                 y >= node.y && y <= node.y + node.height) {
                 this.selectedNode = id;
-                this.draggedNode = id;
-                this.dragOffset = { x: x - node.x, y: y - node.y };
+                // 仅左键启动节点拖拽，避免右键菜单期间触发意外拖拽
+                if (e.button === 0) {
+                    this.draggedNode = id;
+                    this.dragOffset = { x: x - node.x, y: y - node.y };
+                }
 
                 // 触发节点选中回调
                 if (this.onNodeSelected) {
@@ -1569,6 +1572,8 @@ class FlowCanvas {
                 node.x = Math.round(dragX / 10) * 10; // 对齐网格
                 node.y = Math.round(dragY / 10) * 10;
             }
+            this.canvas.style.cursor = 'grabbing';
+            this.hoveredPort = null;
             return;
         }
 
@@ -1590,8 +1595,19 @@ class FlowCanvas {
                 this.hoveredPort = port;
             }
         } else {
-            this.canvas.style.cursor = 'default';
             this.hoveredPort = null;
+
+            // 端口优先级更高；只有不在端口上时才检测节点悬停
+            let isHoveringNode = false;
+            for (const [, node] of this.nodes) {
+                if (x >= node.x && x <= node.x + node.width &&
+                    y >= node.y && y <= node.y + node.height) {
+                    isHoveringNode = true;
+                    break;
+                }
+            }
+
+            this.canvas.style.cursor = isHoveringNode ? 'grab' : 'default';
         }
     }
 
@@ -1600,6 +1616,9 @@ class FlowCanvas {
      */
     handleMouseUp() {
         this.draggedNode = null;
+        if (!this.isConnecting) {
+            this.canvas.style.cursor = 'default';
+        }
     }
 
     /**

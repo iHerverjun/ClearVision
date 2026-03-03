@@ -1,0 +1,73 @@
+# ============================================================
+# ClearVision × Qwen3.5-0.8B LoRA 微调配置
+# 兼容 LLaMA-Factory 训练框架
+# ============================================================
+#
+# 使用方法:
+#   1. 安装 LLaMA-Factory:
+#      git clone https://github.com/hiyouga/LLaMA-Factory.git
+#      cd LLaMA-Factory && pip install -e ".[torch,metrics]"
+#
+#   2. 注册数据集（将以下内容添加到 LLaMA-Factory/data/dataset_info.json）:
+#      "clearvision_flow": {
+#        "file_name": "clearvision_sft_data.jsonl",
+#        "formatting": "sharegpt",
+#        "columns": { "messages": "messages" }
+#      }
+#
+#   3. 启动训练:
+#      llamafactory-cli train tools/sft/lora_config.yaml
+#
+#   4. 合并权重:
+#      llamafactory-cli export tools/sft/merge_config.yaml
+#
+#   5. 转换为 GGUF (用于 Ollama):
+#      python llama.cpp/convert_hf_to_gguf.py \
+#        ./qwen-clearvision-merged --outfile qwen-clearvision.gguf --outtype q4_k_m
+#
+#   6. 导入 Ollama:
+#      创建 Modelfile:
+#        FROM ./qwen-clearvision.gguf
+#        TEMPLATE "{{ .System }}\n{{ .Prompt }}"
+#        PARAMETER temperature 0.3
+#        PARAMETER top_p 0.9
+#        PARAMETER stop "<|im_end|>"
+#      ollama create clearvision-flow -f Modelfile
+
+### 模型配置 ###
+model_name_or_path: Qwen/Qwen3.5-0.8B-Instruct
+
+### 训练方法 ###
+stage: sft
+do_train: true
+finetuning_type: lora
+
+### LoRA 超参数 ###
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target: all # 对所有线性层做 LoRA
+
+### 数据集 ###
+dataset: clearvision_flow
+template: qwen
+cutoff_len: 4096 # 足够覆盖最长的工作流 JSON
+
+### 训练超参数 ###
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-4
+num_train_epochs: 5
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+max_grad_norm: 1.0
+logging_steps: 10
+save_steps: 100
+
+### 精度 ###
+bf16: true # Qwen3.5 推荐 bf16
+
+### 输出 ###
+output_dir: ./output/qwen-clearvision-lora
+overwrite_output_dir: true
+report_to: none # 不上报到 wandb（可改为 wandb）

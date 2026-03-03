@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace Acme.Product.Infrastructure.Cameras;
 
@@ -15,9 +16,17 @@ public class CameraManager : ICameraManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, ICamera> _cameras = new();
     private readonly ConcurrentDictionary<string, ICameraProvider> _providers = new();
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<CameraManager> _logger;
     private List<CameraBindingConfig> _bindings = new();
     private string _activeCameraId = "";
     private bool _disposed;
+
+    public CameraManager(ILoggerFactory loggerFactory)
+    {
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<CameraManager>();
+    }
 
     /// <summary>
     /// 枚举所有可用相机设�?    /// </summary>
@@ -52,7 +61,7 @@ public class CameraManager : ICameraManager, IDisposable
         if (provider == null)
             throw new InvalidOperationException($"Failed to detect camera: {cameraId}. Check power, connection, and SDK installation.");
 
-        var cameraAdapter = new CameraProviderAdapter(cameraId, provider);
+        var cameraAdapter = new CameraProviderAdapter(cameraId, provider, _loggerFactory.CreateLogger<CameraProviderAdapter>());
         _cameras[cameraId] = cameraAdapter;
         _providers[cameraId] = provider;
 
@@ -111,7 +120,7 @@ public class CameraManager : ICameraManager, IDisposable
     {
         _bindings = bindings ?? new List<CameraBindingConfig>();
         _activeCameraId = activeCameraId ?? "";
-        Debug.WriteLine($"[CameraManager] Loaded {_bindings.Count} camera bindings");
+        _logger.LogDebug("[CameraManager] 已加载 {Count} 个相机绑定", _bindings.Count);
     }
 
     public List<CameraBindingConfig> GetBindings() => _bindings;
@@ -120,7 +129,7 @@ public class CameraManager : ICameraManager, IDisposable
     {
         _bindings = bindings ?? new List<CameraBindingConfig>();
         _activeCameraId = activeCameraId ?? "";
-        Debug.WriteLine($"[CameraManager] Updated bindings, active camera: {_activeCameraId}");
+        _logger.LogDebug("[CameraManager] 已更新绑定，活动相机: {ActiveCameraId}", _activeCameraId);
     }
 
     public void Dispose()
@@ -152,10 +161,13 @@ public class CameraProviderAdapter : IIndustrialCamera
 
     public event EventHandler<CameraFrameReceivedEventArgs>? FrameReceived;
 
-    public CameraProviderAdapter(string cameraId, ICameraProvider provider)
+    private readonly ILogger<CameraProviderAdapter> _logger;
+
+    public CameraProviderAdapter(string cameraId, ICameraProvider provider, ILogger<CameraProviderAdapter> logger)
     {
         _cameraId = cameraId;
         _provider = provider;
+        _logger = logger;
     }
 
     public Task ConnectAsync() => Task.CompletedTask;
@@ -222,7 +234,7 @@ public class CameraProviderAdapter : IIndustrialCamera
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CameraProviderAdapter] Continuous acquisition error: {ex.Message}");
+                _logger.LogWarning(ex, "[CameraProviderAdapter] 连续采集异常，相机可能已断线。CameraId={CameraId}", _cameraId);
             }
         }, token);
 
@@ -249,7 +261,7 @@ public class CameraProviderAdapter : IIndustrialCamera
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CameraProviderAdapter] Stop acquisition wait error: {ex.Message}");
+                _logger.LogWarning(ex, "[CameraProviderAdapter] 停止采集等待异常。CameraId={CameraId}", _cameraId);
             }
             finally
             {

@@ -1,4 +1,14 @@
-# ClearVision Phase 2 — 测试基础设施建设 开发指导手册
+# ClearVision Phase 2 — 测试基础设施建设 开发指导手册
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 6，已完成 0，未完成 6，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 
 > **适用于**: opencode / AI 编码助手  
 > **前置**: Phase 1（关键能力补齐）已完成  
@@ -246,13 +256,43 @@ public class MedianBlurOperatorTests
 ```powershell
 cd c:\Users\11234\Desktop\ClearVision\Acme.Product
 
-# 编译测试项目
+# 编译测试项目
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 6，已完成 0，未完成 6，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet build tests\Acme.Product.Tests\Acme.Product.Tests.csproj
 
-# 运行所有测试
+# 运行所有测试
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 6，已完成 0，未完成 6，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet test tests\Acme.Product.Tests\Acme.Product.Tests.csproj --verbosity normal
 
-# 按组运行
+# 按组运行
+
+<!-- DOC_AUDIT_STATUS_START -->
+## 文档审计状态（自动更新）
+- 审计日期：2026-03-02
+- 完成状态：未完成
+- 任务统计：总计 6，已完成 0，未完成 6，待办关键词命中 0
+- 判定依据：任务清单尚未开始勾选
+<!-- DOC_AUDIT_STATUS_END -->
+
+
 dotnet test --filter "FullyQualifiedName~MedianBlur"
 dotnet test --filter "FullyQualifiedName~BilateralFilter"
 ```

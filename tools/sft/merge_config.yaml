@@ -1,0 +1,14 @@
+# ClearVision SFT 模型合并配置（LoRA → 完整模型）
+# 用法: llamafactory-cli export tools/sft/merge_config.yaml
+
+### 模型 ###
+model_name_or_path: Qwen/Qwen3.5-0.8B-Instruct
+adapter_name_or_path: ./output/qwen-clearvision-lora
+template: qwen
+
+### 合并 ###
+finetuning_type: lora
+export_dir: ./output/qwen-clearvision-merged
+export_size: 2 # 最大分片 2GB
+export_device: cpu
+export_legacy_format: false

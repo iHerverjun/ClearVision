@@ -12,9 +12,18 @@ export class FlowEditorInteraction {
         this.isConnecting = false;
         this.connectionStart = null;
         this.connectionEnd = null;
+        this.connectionAnchor = null;
+        this.connectionDidDrag = false;
         this.isSelecting = false;
         this.selectionBox = null;
         this.selectionStart = null;
+        this.isPanning = false;
+        this.panStart = null;
+        this.panStartOffset = null;
+        this.isDraggingNodes = false;
+        this.dragStartPos = null;
+        this.dragInitialPositions = new Map();
+        this.hasNodeDragMoved = false;
         this.multiSelectedNodes = new Set();
         this.copiedNodes = [];
         this.history = [];
@@ -92,49 +101,91 @@ export class FlowEditorInteraction {
 
         // 重写鼠标按下事件
         this.canvas.handleMouseDown = (e) => {
-            const rect = this.canvas.canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
-            const y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
+            const { x, y } = this.getCanvasWorldPoint(e);
+            const isLeftClick = e.button === 0;
+            const isMiddleClick = e.button === 1;
+            const isMultiSelectModifier = e.shiftKey || e.ctrlKey || e.metaKey;
 
-            // 检测点击的端口
-            const clickedPort = this.getPortAt(x, y);
-            
-            if (clickedPort) {
-                // 开始连线
-                this.startConnection(clickedPort, e);
+            // 右键交由 contextmenu 事件处理，避免触发基础层的端口/拖拽副作用
+            if (e.button === 2) {
                 return;
             }
 
-            // 检测点击的节点
+            // 仅左键触发连线
+            const clickedPort = isLeftClick ? this.getPortAt(x, y) : null;
+            if (clickedPort) {
+                if (this.isConnecting) {
+                    if (clickedPort.type !== this.connectionStart?.type) {
+                        this.endConnection(null, clickedPort);
+                    } else {
+                        this.startConnection(clickedPort, e);
+                    }
+                } else {
+                    this.startConnection(clickedPort, e);
+                }
+                return;
+            }
+
+            if (this.isConnecting && isLeftClick) {
+                this.cancelConnection();
+                return;
+            }
+
             const clickedNode = this.getNodeAt(x, y);
 
-            if (e.shiftKey || e.ctrlKey) {
-                // 多选模式
+            // 空白区域中键拖拽平移（备用）
+            if (isMiddleClick && !clickedNode) {
+                this.startPan(e);
+                return;
+            }
+
+            // 仅处理左键主交互
+            if (!isLeftClick) {
+                return;
+            }
+
+            if (isMultiSelectModifier) {
                 if (clickedNode) {
                     this.toggleNodeSelection(clickedNode.id);
                 } else {
-                    // 开始框选
                     this.startSelection(e);
                 }
-            } else {
-                if (clickedNode) {
-                    if (!this.multiSelectedNodes.has(clickedNode.id)) {
-                        this.clearSelection();
-                        this.selectNode(clickedNode.id);
-                    }
-                    // 调用原生的拖拽逻辑
-                    originalMouseDown(e);
-                } else {
-                    this.clearSelection();
-                    this.startSelection(e);
-                }
+                return;
             }
+
+            if (clickedNode) {
+                if (!this.multiSelectedNodes.has(clickedNode.id)) {
+                    this.clearSelection();
+                    this.selectNode(clickedNode.id);
+                } else {
+                    this.canvas.selectedNode = clickedNode.id;
+                    this.updateSelection();
+                }
+
+                if (this.canvas.onNodeSelected) {
+                    const selectedNode = this.canvas.nodes.get(clickedNode.id) || null;
+                    this.canvas.onNodeSelected(selectedNode);
+                }
+
+                this.startNodeDrag(e, clickedNode.id);
+                return;
+            }
+
+            this.clearSelection();
+            if (this.canvas.onNodeSelected) {
+                this.canvas.onNodeSelected(null);
+            }
+            this.startPan(e);
         };
 
         // 重写鼠标移动事件
         this.canvas.handleMouseMove = (e) => {
             if (this.isConnecting) {
                 this.updateConnectionPreview(e);
+            } else if (this.isDraggingNodes) {
+                this.updateNodeDrag(e);
+            } else if (this.isPanning) {
+                this.updatePan(e);
             } else if (this.isSelecting) {
                 this.updateSelectionBox(e);
             } else {
@@ -145,7 +196,13 @@ export class FlowEditorInteraction {
         // 重写鼠标释放事件
         this.canvas.handleMouseUp = (e) => {
             if (this.isConnecting) {
-                this.endConnection(e);
+                if (this.connectionDidDrag) {
+                    this.endConnection(e);
+                }
+            } else if (this.isDraggingNodes) {
+                this.endNodeDrag(e);
+            } else if (this.isPanning) {
+                this.endPan(e);
             } else if (this.isSelecting) {
                 this.endSelection();
             } else {
@@ -156,6 +213,177 @@ export class FlowEditorInteraction {
                 originalMouseUp(e);
             }
         };
+
+        // 重新绑定事件监听，确保包装后的处理器生效
+        if (this.canvas.canvas && this.canvas._mouseDownHandler && this.canvas._mouseMoveHandler && this.canvas._mouseUpHandler) {
+            this.canvas.canvas.removeEventListener('mousedown', this.canvas._mouseDownHandler);
+            this.canvas.canvas.removeEventListener('mousemove', this.canvas._mouseMoveHandler);
+            this.canvas.canvas.removeEventListener('mouseup', this.canvas._mouseUpHandler);
+
+            this.canvas._mouseDownHandler = this.canvas.handleMouseDown;
+            this.canvas._mouseMoveHandler = this.canvas.handleMouseMove;
+            this.canvas._mouseUpHandler = this.canvas.handleMouseUp;
+
+            this.canvas.canvas.addEventListener('mousedown', this.canvas._mouseDownHandler);
+            this.canvas.canvas.addEventListener('mousemove', this.canvas._mouseMoveHandler);
+            this.canvas.canvas.addEventListener('mouseup', this.canvas._mouseUpHandler);
+        }
+    }
+
+    /**
+     * 获取画布世界坐标
+     */
+    getCanvasWorldPoint(e) {
+        const rect = this.canvas.canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x,
+            y: (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y
+        };
+    }
+
+    /**
+     * 开始画布平移
+     */
+    startPan(e) {
+        const rect = this.canvas.canvas.getBoundingClientRect();
+        this.isPanning = true;
+        this.panStart = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        this.panStartOffset = {
+            x: this.canvas.offset.x,
+            y: this.canvas.offset.y
+        };
+        this.canvas.canvas.style.cursor = 'move';
+        e.preventDefault();
+    }
+
+    /**
+     * 更新画布平移
+     */
+    updatePan(e) {
+        if (!this.isPanning || !this.panStart || !this.panStartOffset) return;
+
+        const rect = this.canvas.canvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+
+        const deltaX = (currentX - this.panStart.x) / this.canvas.scale;
+        const deltaY = (currentY - this.panStart.y) / this.canvas.scale;
+
+        this.canvas.offset.x = this.panStartOffset.x - deltaX;
+        this.canvas.offset.y = this.panStartOffset.y - deltaY;
+        this.canvas.canvas.style.cursor = 'move';
+        this.canvas.render();
+    }
+
+    /**
+     * 结束画布平移
+     */
+    endPan(e) {
+        if (!this.isPanning) return;
+        this.isPanning = false;
+        this.panStart = null;
+        this.panStartOffset = null;
+        this.syncCursorToPointer(e);
+        this.canvas.render();
+    }
+
+    /**
+     * 开始节点拖拽（支持多选批量拖拽）
+     */
+    startNodeDrag(e, clickedNodeId) {
+        const clickedNode = this.canvas.nodes.get(clickedNodeId);
+        if (!clickedNode) return;
+
+        if (!this.multiSelectedNodes.has(clickedNodeId)) {
+            this.multiSelectedNodes.add(clickedNodeId);
+        }
+
+        this.dragInitialPositions.clear();
+        for (const nodeId of this.multiSelectedNodes) {
+            const node = this.canvas.nodes.get(nodeId);
+            if (node) {
+                this.dragInitialPositions.set(nodeId, { x: node.x, y: node.y });
+            }
+        }
+
+        if (this.dragInitialPositions.size === 0) {
+            this.dragInitialPositions.set(clickedNodeId, { x: clickedNode.x, y: clickedNode.y });
+        }
+
+        const { x, y } = this.getCanvasWorldPoint(e);
+        this.isDraggingNodes = true;
+        this.dragStartPos = { x, y };
+        this.hasNodeDragMoved = false;
+        this.canvas.draggedNode = clickedNodeId;
+        this.canvas.canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+    }
+
+    /**
+     * 更新节点拖拽（批量）
+     */
+    updateNodeDrag(e) {
+        if (!this.isDraggingNodes || !this.dragStartPos) return;
+
+        const { x, y } = this.getCanvasWorldPoint(e);
+        const deltaX = x - this.dragStartPos.x;
+        const deltaY = y - this.dragStartPos.y;
+
+        this.hasNodeDragMoved = this.hasNodeDragMoved || Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0;
+
+        for (const [nodeId, initialPos] of this.dragInitialPositions) {
+            const node = this.canvas.nodes.get(nodeId);
+            if (!node) continue;
+            node.x = Math.round((initialPos.x + deltaX) / 10) * 10;
+            node.y = Math.round((initialPos.y + deltaY) / 10) * 10;
+        }
+
+        this.canvas.canvas.style.cursor = 'grabbing';
+        this.canvas.render();
+    }
+
+    /**
+     * 结束节点拖拽
+     */
+    endNodeDrag(e) {
+        if (!this.isDraggingNodes) return;
+
+        const shouldSave = this.hasNodeDragMoved;
+
+        this.isDraggingNodes = false;
+        this.dragStartPos = null;
+        this.dragInitialPositions.clear();
+        this.hasNodeDragMoved = false;
+        this.canvas.draggedNode = null;
+        this.syncCursorToPointer(e);
+        this.canvas.render();
+
+        if (shouldSave) {
+            this.saveState();
+        }
+    }
+
+    /**
+     * 按当前位置同步空闲光标
+     */
+    syncCursorToPointer(e) {
+        if (!e) {
+            this.canvas.canvas.style.cursor = 'default';
+            return;
+        }
+
+        const { x, y } = this.getCanvasWorldPoint(e);
+        const port = this.getPortAt(x, y);
+        if (port) {
+            this.canvas.canvas.style.cursor = 'pointer';
+            return;
+        }
+
+        const node = this.getNodeAt(x, y);
+        this.canvas.canvas.style.cursor = node ? 'grab' : 'default';
     }
 
     /**
@@ -348,8 +576,28 @@ export class FlowEditorInteraction {
      * 获取端口
      */
     getPortAt(x, y) {
+        if (typeof this.canvas.getPortAt === 'function') {
+            const hitPort = this.canvas.getPortAt(x, y);
+            if (hitPort) {
+                const node = this.canvas.nodes.get(hitPort.nodeId);
+                if (!node) {
+                    return null;
+                }
+
+                const isOutput = Boolean(hitPort.isOutput);
+                const ports = isOutput ? (node.outputs || []) : (node.inputs || []);
+                return {
+                    nodeId: hitPort.nodeId,
+                    portIndex: hitPort.portIndex,
+                    isOutput,
+                    type: isOutput ? 'output' : 'input',
+                    port: ports[hitPort.portIndex] || { type: 'Any' }
+                };
+            }
+        }
+
+        // fallback for legacy data shape
         for (const [id, node] of this.canvas.nodes) {
-            // 输入端口
             for (let i = 0; i < node.inputs.length; i++) {
                 const input = node.inputs[i];
                 const px = node.x;
@@ -360,7 +608,6 @@ export class FlowEditorInteraction {
                 }
             }
 
-            // 输出端口
             for (let i = 0; i < node.outputs.length; i++) {
                 const output = node.outputs[i];
                 const px = node.x + node.width;
@@ -371,11 +618,11 @@ export class FlowEditorInteraction {
                 }
             }
         }
+
         return null;
     }
 
-    /**
-     * 获取节点
+    /**     * 获取节点
      */
     getNodeAt(x, y) {
         for (const [id, node] of this.canvas.nodes) {
@@ -393,16 +640,18 @@ export class FlowEditorInteraction {
     startConnection(port, e) {
         this.isConnecting = true;
         this.connectionStart = port;
+        this.canvas.canvas.style.cursor = 'crosshair';
         
         const rect = this.canvas.canvas.getBoundingClientRect();
         this.connectionEnd = {
             x: (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x,
             y: (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y
         };
+        this.connectionAnchor = { ...this.connectionEnd };
+        this.connectionDidDrag = false;
     }
 
-    /**
-     * 更新连线预览
+    /**     * 更新连线预览
      */
     updateConnectionPreview(e) {
         const rect = this.canvas.canvas.getBoundingClientRect();
@@ -410,60 +659,90 @@ export class FlowEditorInteraction {
             x: (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x,
             y: (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y
         };
+
+        if (this.connectionAnchor) {
+            const dx = this.connectionEnd.x - this.connectionAnchor.x;
+            const dy = this.connectionEnd.y - this.connectionAnchor.y;
+            const threshold = 2 / Math.max(this.canvas.scale, 0.01);
+            if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+                this.connectionDidDrag = true;
+            }
+        }
+
+        this.canvas.canvas.style.cursor = 'crosshair';
         this.canvas.render();
 
-        // 绘制预览线
-        const startNode = this.canvas.nodes.get(this.connectionStart.nodeId);
-        if (startNode) {
-            const startX = startNode.x + (this.connectionStart.type === 'output' ? startNode.width : 0);
-            const startY = startNode.y + startNode.height / 2;
-
-            this.canvas.ctx.beginPath();
-            this.canvas.ctx.strokeStyle = '#1890ff';
-            this.canvas.ctx.lineWidth = 2;
-            this.canvas.ctx.setLineDash([5, 5]);
-            this.drawBezierCurve(
-                (startX - this.canvas.offset.x) * this.canvas.scale,
-                (startY - this.canvas.offset.y) * this.canvas.scale,
-                (this.connectionEnd.x - this.canvas.offset.x) * this.canvas.scale,
-                (this.connectionEnd.y - this.canvas.offset.y) * this.canvas.scale
-            );
-            this.canvas.ctx.stroke();
-            this.canvas.ctx.setLineDash([]);
+        const startPos = this.canvas.getPortPosition?.(
+            this.connectionStart.nodeId,
+            this.connectionStart.portIndex,
+            this.connectionStart.type === 'output'
+        );
+        if (!startPos) {
+            return;
         }
+
+        this.canvas.ctx.beginPath();
+        this.canvas.ctx.strokeStyle = '#1890ff';
+        this.canvas.ctx.lineWidth = 2;
+        this.canvas.ctx.setLineDash([8, 6]);
+        this.canvas.ctx.lineDashOffset = -(Date.now() / 40) % 14;
+        this.drawBezierCurve(
+            startPos.x,
+            startPos.y,
+            (this.connectionEnd.x - this.canvas.offset.x) * this.canvas.scale,
+            (this.connectionEnd.y - this.canvas.offset.y) * this.canvas.scale
+        );
+        this.canvas.ctx.stroke();
+        this.canvas.ctx.setLineDash([]);
+        this.canvas.ctx.lineDashOffset = 0;
     }
 
-    /**
-     * 结束连线
+    /**     * 结束连线
      */
-    endConnection(e) {
+    endConnection(e, overrideEndPort = null) {
         console.log('[DEBUG endConnection] === START CONNECTION ===');
         console.log('[DEBUG endConnection] connectionStart:', JSON.stringify(this.connectionStart));
-        
-        const rect = this.canvas.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
-        const y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
 
-        console.log(`[DEBUG endConnection] Mouse position: x=${x}, y=${y}`);
+        let x = null;
+        let y = null;
+        let endPort = overrideEndPort;
 
-        const endPort = this.getPortAt(x, y);
-        
-        console.log('[DEBUG endConnection] getPortAt result:', JSON.stringify(endPort));
-        console.log('[DEBUG endConnection] connectionEnd will be:', JSON.stringify({x, y, port: endPort}));
-
-        if (endPort && endPort.type !== this.connectionStart.type) {
-            // 确保从输出连接到输入
-            const source = this.connectionStart.type === 'output' ? this.connectionStart : endPort;
-            const target = this.connectionStart.type === 'input' ? this.connectionStart : endPort;
-
-            // 检查端口数据类型兼容性
-            if (source.port.type !== 'any' && target.port.type !== 'any' && source.port.type !== target.port.type) {
-                showToast(`类型不匹配: ${source.port.type} -> ${target.port.type}`, 'warning');
+        if (!endPort) {
+            if (!e) {
                 this.cancelConnection();
                 return;
             }
 
-            // 检查是否已存在连接
+            const rect = this.canvas.canvas.getBoundingClientRect();
+            x = (e.clientX - rect.left) / this.canvas.scale + this.canvas.offset.x;
+            y = (e.clientY - rect.top) / this.canvas.scale + this.canvas.offset.y;
+            endPort = this.getPortAt(x, y);
+        }
+
+        console.log(`[DEBUG endConnection] Mouse position: x=${x}, y=${y}`);
+        console.log('[DEBUG endConnection] getPortAt result:', JSON.stringify(endPort));
+        console.log('[DEBUG endConnection] connectionEnd will be:', JSON.stringify({ x, y, port: endPort }));
+
+        if (endPort && endPort.type !== this.connectionStart.type) {
+            const source = this.connectionStart.type === 'output' ? this.connectionStart : endPort;
+            const target = this.connectionStart.type === 'input' ? this.connectionStart : endPort;
+
+            const sourceType = source?.port?.type ?? 'Any';
+            const targetType = target?.port?.type ?? 'Any';
+            const isTypeCompatible = typeof this.canvas.checkTypeCompatibility === 'function'
+                ? this.canvas.checkTypeCompatibility(sourceType, targetType)
+                : (
+                    String(sourceType).toLowerCase() === 'any' ||
+                    String(targetType).toLowerCase() === 'any' ||
+                    sourceType === targetType
+                );
+
+            if (!isTypeCompatible) {
+                showToast(`Type mismatch: ${sourceType} -> ${targetType}`, 'warning');
+                this.cancelConnection();
+                return;
+            }
+
             const exists = this.canvas.connections.some(conn =>
                 conn.source === source.nodeId &&
                 conn.target === target.nodeId &&
@@ -480,10 +759,10 @@ export class FlowEditorInteraction {
                 console.log(`[DEBUG endConnection] Adding connection: ${source.nodeId}:${source.portIndex} -> ${target.nodeId}:${target.portIndex}`);
                 this.canvas.addConnection(source.nodeId, source.portIndex, target.nodeId, target.portIndex);
                 this.saveState();
-                showToast('连接成功', 'success');
+                showToast('Connected', 'success');
             } else {
                 console.log('[DEBUG endConnection] Connection skipped - exists or invalid');
-                showToast('连接已存在或无效', 'warning');
+                showToast('Connection already exists or invalid', 'warning');
             }
         } else {
             console.log('[DEBUG endConnection] No valid end port found or same type port');
@@ -493,18 +772,19 @@ export class FlowEditorInteraction {
         this.cancelConnection();
     }
 
-    /**
-     * 取消连线
+    /**     * 取消连线
      */
     cancelConnection() {
         this.isConnecting = false;
         this.connectionStart = null;
         this.connectionEnd = null;
+        this.connectionAnchor = null;
+        this.connectionDidDrag = false;
+        this.canvas.canvas.style.cursor = 'default';
         this.canvas.render();
     }
 
-    /**
-     * 开始框选
+    /**     * 开始框选
      */
     startSelection(e) {
         this.isSelecting = true;
