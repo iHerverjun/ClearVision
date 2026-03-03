@@ -14,12 +14,11 @@
 > English: Fits image-to-robot transform from calibration point pairs..
 
 ## 实现策略 / Implementation Strategy
-> 中文：采用“输入校验 -> 参数解析 -> 核心算法执行 -> 结果封装”的统一链路，优先复用 OpenCV 与现有算子基类能力，确保与主项目运行时行为一致。
-> English: Uses a consistent pipeline of input validation, parameter parsing, core algorithm execution, and result packaging, reusing OpenCV and existing operator infrastructure for runtime consistency.
+> 中文：TODO：补充实现策略与方案对比。
+> English: TODO: Add implementation strategy and alternatives comparison.
 
 ## 核心 API 调用链 / Core API Call Chain
-- `Cv2.Circle`
-- `Cv2.PutText`
+- TODO：补充关键 API 调用链
 
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
@@ -44,21 +43,18 @@
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
 |------|------|
-| 时间复杂度 (Time Complexity) | 约 `O(N)` 到 `O(N*I)`（样本点数与迭代次数相关） |
-| 典型耗时 (Typical Latency) | 离线标定秒级；在线应用通常 `<5 ms` |
-| 内存特征 (Memory Profile) | 主要为标定参数矩阵与点集缓存，额外开销较小 |
+| 时间复杂度 (Time Complexity) | O(?) |
+| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
+| 内存特征 (Memory Profile) | ? |
 
 ## 适用场景 / Use Cases
-- 适合 (Suitable)：相机内外参建立、像素到物理坐标映射、畸变矫正。
-- 不适合 (Not Suitable)：样本点数量不足或采样覆盖不均的快速一次性标定。
+- 适合 (Suitable)：TODO
+- 不适合 (Not Suitable)：TODO
 
 ## 已知限制 / Known Limitations
-1. 当前实现遵循统一输入/输出协议，输入类型、维度或关键字段不符合约定时会返回失败。
-2. 标定质量受样本覆盖度影响明显，建议覆盖全视场并分布均匀。
+1. TODO
 
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 0.1.0 | 2026-02-26 | 自动生成文档骨架 / Generated skeleton |
-
-| 0.2.0 | 2026-02-26 | 完成 Phase 2.5 文档补全 / Completed Phase 2.5 documentation enrichment |
+| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |

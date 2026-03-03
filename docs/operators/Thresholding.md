@@ -10,18 +10,15 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：将灰度图按阈值规则映射到前景/背景，可选 Otsu 自动阈值以适配双峰直方图。
-> English: Converts grayscale intensities into binary/thresholded output, with optional Otsu automatic thresholding.
+> 中文：全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离。
+> English: 全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离.
 
 ## 实现策略 / Implementation Strategy
-> 中文：先保证输入为单通道灰度，再依据 `Type` 与 `UseOtsu` 组合阈值类型执行 `Cv2.Threshold`；输出阶段将单通道结果转为 BGR 以提升前端显示兼容性。
-> English: Converts input to grayscale, combines `Type` with `UseOtsu`, runs `Cv2.Threshold`, and converts the single-channel result to BGR for viewer compatibility.
+> 中文：TODO：补充实现策略与方案对比。
+> English: TODO: Add implementation strategy and alternatives comparison.
 
 ## 核心 API 调用链 / Core API Call Chain
-- `Cv2.CvtColor(..., BGR2GRAY)`（必要时）
-- `Cv2.Threshold(gray, binary, thresh, maxVal, thresholdType)`
-- `Cv2.CvtColor(binary, dst, GRAY2BGR)`
-- 输出附带 `ActualThreshold` / `OtsuThreshold`
+- TODO：补充关键 API 调用链
 
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
@@ -45,22 +42,18 @@
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
 |------|------|
-| 时间复杂度 (Time Complexity) | `O(W*H)` |
-| 典型耗时 (Typical Latency) | 约 `0.2-1.2 ms`（1920x1080） |
-| 内存特征 (Memory Profile) | 灰度图 + 二值图 + BGR 输出图 |
+| 时间复杂度 (Time Complexity) | O(?) |
+| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
+| 内存特征 (Memory Profile) | ? |
 
 ## 适用场景 / Use Cases
-- 适合 (Suitable)：前景提取、缺陷区域初筛、轮廓检测前的快速二值化。
-- 不适合 (Not Suitable)：光照强不均且局部对比度变化大的场景（优先自适应阈值）。
+- 适合 (Suitable)：TODO
+- 不适合 (Not Suitable)：TODO
 
 ## 已知限制 / Known Limitations
-1. Otsu 仅在直方图双峰较明显时效果稳定。
-2. 输出固定转为三通道 BGR，若下游期望单通道需自行转换。
-3. 不包含噪声抑制步骤，通常需要与滤波或形态学组合使用。
+1. TODO
 
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 0.1.0 | 2026-02-26 | 自动生成文档骨架 / Generated skeleton |
-
-| 0.2.0 | 2026-02-26 | 完成 Phase 2.3 P1 文档补全 / Completed Phase 2.3 P1 documentation enrichment |
+| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
