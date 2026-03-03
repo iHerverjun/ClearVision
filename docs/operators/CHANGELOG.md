@@ -127,6 +127,12 @@
 
 ## 历史变更 / Historical Changes
 
+### OperatorType.DeepLearning / 深度学习
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-02-28T20:04:47.7041096+08:00` | `EE655353AE8F` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `CB4801A37985` |
+
 ### OperatorType.ImageAcquisition / 图像采集
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
