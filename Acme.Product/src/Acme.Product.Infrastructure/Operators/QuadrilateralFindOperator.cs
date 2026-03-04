@@ -1,3 +1,7 @@
+// QuadrilateralFindOperator.cs
+// 四边形查找算子
+// 在图像中检测并输出四边形轮廓结果
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -135,4 +139,3 @@ public class QuadrilateralFindOperator : OperatorBase
         return ValidationResult.Valid();
     }
 }
-

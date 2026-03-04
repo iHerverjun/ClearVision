@@ -1,3 +1,7 @@
+// TextSaveOperator.cs
+// 文本保存算子
+// 将流程文本结果按格式写入文件系统
+// 作者：蘅芜君
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;

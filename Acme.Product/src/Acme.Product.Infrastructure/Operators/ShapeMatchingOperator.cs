@@ -1,3 +1,7 @@
+// ShapeMatchingOperator.cs
+// 形状匹配算子
+// 对目标轮廓与模板轮廓进行匹配评分
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

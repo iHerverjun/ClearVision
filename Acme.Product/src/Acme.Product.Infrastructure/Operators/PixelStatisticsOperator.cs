@@ -1,3 +1,7 @@
+// PixelStatisticsOperator.cs
+// 像素统计算子
+// 统计图像像素均值、方差与分位数指标
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

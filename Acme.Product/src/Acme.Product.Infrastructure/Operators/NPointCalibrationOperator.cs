@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// NPointCalibrationOperator.cs
+// N 点标定算子
+// 通过多点对应关系求解坐标映射参数
+// 作者：蘅芜君
+using System.Collections;
 using System.Globalization;
 using System.Text.Json;
 using Acme.Product.Core.Entities;
@@ -508,3 +512,4 @@ public class NPointCalibrationOperator : OperatorBase
 
     private readonly record struct PointPair(Position ImagePoint, Position WorldPoint);
 }
+

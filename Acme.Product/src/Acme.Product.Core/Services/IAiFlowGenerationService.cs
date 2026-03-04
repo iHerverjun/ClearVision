@@ -1,3 +1,7 @@
+// IAiFlowGenerationService.cs
+// AI 流程生成服务接口
+// 定义 AI 流程生成与验证的服务契约
+// 作者：蘅芜君
 using Acme.Product.Core.DTOs;
 using Acme.Product.Contracts.Messages;
 

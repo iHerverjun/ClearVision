@@ -1,3 +1,7 @@
+// ImageNormalizeOperator.cs
+// 图像归一化算子
+// 对图像像素进行范围或分布归一化处理
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -115,4 +119,3 @@ public class ImageNormalizeOperator : OperatorBase
         return ValidationResult.Valid();
     }
 }
-

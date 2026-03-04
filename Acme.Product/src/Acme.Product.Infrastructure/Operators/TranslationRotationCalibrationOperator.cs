@@ -1,4 +1,8 @@
-﻿using System.Globalization;
+﻿// TranslationRotationCalibrationOperator.cs
+// 平移旋转标定算子
+// 求解平移与旋转参数用于坐标系标定
+// 作者：蘅芜君
+using System.Globalization;
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -363,3 +367,4 @@ public class TranslationRotationCalibrationOperator : OperatorBase
 
     private sealed record CalibrationPoint(double ImageX, double ImageY, double RobotX, double RobotY, double Angle);
 }
+

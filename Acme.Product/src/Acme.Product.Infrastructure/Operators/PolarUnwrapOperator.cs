@@ -1,3 +1,7 @@
+// PolarUnwrapOperator.cs
+// 极坐标展开算子
+// 将圆环区域转换为极坐标展开图像
+// 作者：蘅芜君
 using System.Collections;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;

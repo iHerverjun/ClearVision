@@ -1,3 +1,7 @@
+// GeoMeasurementOperator.cs
+// 几何测量算子
+// 计算点线圆等几何元素之间的距离与角度
+// 作者：蘅芜君
 using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -497,4 +501,3 @@ public class GeoMeasurementOperator : OperatorBase
 
     private sealed record CircleSpec(double CenterX, double CenterY, double Radius);
 }
-

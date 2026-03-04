@@ -1,3 +1,7 @@
+// EdgeIntersectionOperator.cs
+// 边缘交点算子
+// 计算两条边缘或线段的交点坐标
+// 作者：蘅芜君
 using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -154,4 +158,3 @@ public class EdgeIntersectionOperator : OperatorBase
         };
     }
 }
-

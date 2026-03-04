@@ -1,3 +1,7 @@
+// OperatorModuleCatalog.cs
+// 算子模块目录
+// 定义系统支持的算子模块枚举与目录结构
+// 作者：蘅芜君
 using System.Collections.Generic;
 using System.Linq;
 using Acme.Product.Core.Enums;

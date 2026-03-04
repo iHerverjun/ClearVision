@@ -186,7 +186,11 @@ public class InspectionService : IInspectionService
     private readonly Dictionary<Guid, Task> _realtimeTasks = new();
     private readonly object _realtimeLock = new();
 
-    public async Task StartRealtimeInspectionAsync(Guid projectId, string? cameraId, CancellationToken cancellationToken)
+    public async Task StartRealtimeInspectionAsync(
+        Guid projectId,
+        string? cameraId,
+        CancellationToken cancellationToken,
+        Action<InspectionResult>? onResultReady = null)
     {
         // 加载工程
         var project = await _projectRepository.GetWithFlowAsync(projectId);
@@ -194,10 +198,15 @@ public class InspectionService : IInspectionService
             throw new ProjectNotFoundException(projectId);
 
         // 调用流程驱动模式
-        await StartRealtimeInspectionFlowAsync(projectId, project.Flow, cameraId, cancellationToken);
+        await StartRealtimeInspectionFlowAsync(projectId, project.Flow, cameraId, cancellationToken, onResultReady);
     }
 
-    public async Task StartRealtimeInspectionFlowAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
+    public async Task StartRealtimeInspectionFlowAsync(
+        Guid projectId,
+        OperatorFlow flow,
+        string? cameraId,
+        CancellationToken cancellationToken,
+        Action<InspectionResult>? onResultReady = null)
     {
         // 检查是否已有正在运行的实时检测
         lock (_realtimeLock)
@@ -226,7 +235,7 @@ public class InspectionService : IInspectionService
         {
             try
             {
-                await RunRealtimeInspectionLoopAsync(projectId, flow, cameraId, cts.Token);
+                await RunRealtimeInspectionLoopAsync(projectId, flow, cameraId, cts.Token, onResultReady);
             }
             catch (OperationCanceledException)
             {
@@ -272,7 +281,12 @@ public class InspectionService : IInspectionService
     /// 实时检测循环 - 【改造】从固定间隔轮询改为循环执行完整流程
     /// 流程中的第一个算子（如PLC读取）负责等待触发信号
     /// </summary>
-    private async Task RunRealtimeInspectionLoopAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
+    private async Task RunRealtimeInspectionLoopAsync(
+        Guid projectId,
+        OperatorFlow flow,
+        string? cameraId,
+        CancellationToken cancellationToken,
+        Action<InspectionResult>? onResultReady)
     {
         // 配置参数
         const int minIntervalMs = 100; // 最小检测间隔 100ms
@@ -298,7 +312,19 @@ public class InspectionService : IInspectionService
                 //  ③ 检测链 → 深度学习/测量/匹配
                 //  ④ 结果判定 → OK/NG判定
                 //  ⑤ PLC写入 → 回写判定结果
-                var cycleStatus = await ExecuteFlowCycleAsync(projectId, flow, cameraId, cancellationToken);
+                var (cycleStatus, cycleResult) = await ExecuteFlowCycleAsync(projectId, flow, cameraId, cancellationToken);
+
+                if (cycleResult != null && onResultReady != null)
+                {
+                    try
+                    {
+                        onResultReady(cycleResult);
+                    }
+                    catch (Exception callbackEx)
+                    {
+                        _logger.LogWarning(callbackEx, "[InspectionService] 实时检测结果回调异常: ProjectId={ProjectId}", projectId);
+                    }
+                }
 
                 if (cycleStatus == InspectionStatus.NG)
                 {
@@ -353,7 +379,11 @@ public class InspectionService : IInspectionService
     /// <summary>
     /// 执行单轮检测流程（完整流程执行）
     /// </summary>
-    private async Task<InspectionStatus> ExecuteFlowCycleAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken)
+    private async Task<(InspectionStatus status, InspectionResult? result)> ExecuteFlowCycleAsync(
+        Guid projectId,
+        OperatorFlow flow,
+        string? cameraId,
+        CancellationToken cancellationToken)
     {
         // 准备初始输入数据
         var inputData = new Dictionary<string, object>();
@@ -388,7 +418,10 @@ public class InspectionService : IInspectionService
     /// <summary>
     /// 处理流程执行结果
     /// </summary>
-    private async Task<InspectionStatus> ProcessFlowResultAsync(Guid projectId, FlowExecutionResult flowResult, CancellationToken cancellationToken)
+    private async Task<(InspectionStatus status, InspectionResult result)> ProcessFlowResultAsync(
+        Guid projectId,
+        FlowExecutionResult flowResult,
+        CancellationToken cancellationToken)
     {
         var result = new InspectionResult(projectId);
 
@@ -409,9 +442,8 @@ public class InspectionService : IInspectionService
 
             result.SetResult(status, flowResult.ExecutionTimeMs, null, flowResult.ErrorMessage);
 
-            // 提取输出图像
-            if (flowResult.OutputData?.TryGetValue("Image", out var outputImage) == true
-                && outputImage is byte[] imageBytes)
+            // 提取输出图像，优先流程最终输出，缺失时回退到最近成功算子输出。
+            if (TryGetOutputImageBytes(flowResult) is byte[] imageBytes)
             {
                 result.SetOutputImage(imageBytes);
             }
@@ -446,15 +478,47 @@ public class InspectionService : IInspectionService
             _logger.LogInformation(
                 "[InspectionService] 检测完成: Status={Status}, Defects={DefectCount}, Time={TimeMs}ms",
                 status, result.Defects.Count, flowResult.ExecutionTimeMs);
-            return status;
+            return (status, result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[InspectionService] 处理流程结果异常");
             result.MarkAsError(ex.Message);
             await _resultRepository.AddAsync(result);
-            return InspectionStatus.Error;
+            return (InspectionStatus.Error, result);
         }
+    }
+
+    private static byte[]? TryGetOutputImageBytes(FlowExecutionResult flowResult)
+    {
+        if (flowResult.OutputData?.TryGetValue("Image", out var outputImage) == true
+            && outputImage is byte[] imageBytes
+            && imageBytes.Length > 0)
+        {
+            return imageBytes;
+        }
+
+        if (flowResult.OperatorResults == null || flowResult.OperatorResults.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var operatorResult in flowResult.OperatorResults.AsEnumerable().Reverse())
+        {
+            if (!operatorResult.IsSuccess || operatorResult.OutputData == null)
+            {
+                continue;
+            }
+
+            if (operatorResult.OutputData.TryGetValue("Image", out var operatorImage)
+                && operatorImage is byte[] operatorImageBytes
+                && operatorImageBytes.Length > 0)
+            {
+                return operatorImageBytes;
+            }
+        }
+
+        return null;
     }
 
     private int GetStopOnConsecutiveNgThreshold()
@@ -759,14 +823,44 @@ public class InspectionService : IInspectionService
             return isOkBool ? InspectionStatus.OK : InspectionStatus.NG;
         }
 
-        // 3. 兼容旧逻辑：检查DefectCount
+        // 3. 兼容 ConditionalBranch 透传到 ResultOutput 的布尔判定
+        // 典型字段：Result（ResultOutput.Result）/ConditionResult（分支条件结果）
+        if (TryGetBooleanDecision(outputData, out var decision))
+        {
+            return decision ? InspectionStatus.OK : InspectionStatus.NG;
+        }
+
+        // 4. 兼容旧逻辑：检查DefectCount（仅缺陷检测模式输出此字段）
         if (outputData.TryGetValue("DefectCount", out var dc) && dc is int defectCount)
         {
             return defectCount > 0 ? InspectionStatus.NG : InspectionStatus.OK;
         }
 
+        // 注意：ObjectCount（目标检测模式）不在此判定
+        // 目标检测模式下的 OK/NG 由用户流程中的 结果判定算子 控制
         // 默认OK
         return InspectionStatus.OK;
+    }
+
+    private static bool TryGetBooleanDecision(Dictionary<string, object> outputData, out bool decision)
+    {
+        decision = false;
+
+        // 优先读取 Result（用户常把 ConditionalBranch 的输出接到 ResultOutput.Result）
+        if (outputData.TryGetValue("Result", out var resultVal) && resultVal is bool resultBool)
+        {
+            decision = resultBool;
+            return true;
+        }
+
+        // 兼容分支路由透传字段
+        if (outputData.TryGetValue("ConditionResult", out var conditionVal) && conditionVal is bool conditionBool)
+        {
+            decision = conditionBool;
+            return true;
+        }
+
+        return false;
     }
 
     public async Task<IEnumerable<InspectionResult>> GetInspectionHistoryAsync(

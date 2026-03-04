@@ -1,6 +1,7 @@
 ﻿// ImageAcquisitionService.cs
-// 释放资源
-// 作者：蘅芜�?
+// 图像采集服务实现
+// 负责图像加载、采集缓存与连续采集任务管理
+// 作者：蘅芜君
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;

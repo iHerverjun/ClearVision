@@ -1,3 +1,7 @@
+// GeometricToleranceOperator.cs
+// 几何公差算子
+// 对平行度、垂直度等几何公差进行判定
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

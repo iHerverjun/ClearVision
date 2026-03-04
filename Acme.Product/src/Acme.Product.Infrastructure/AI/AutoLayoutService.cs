@@ -1,3 +1,7 @@
+// AutoLayoutService.cs
+// 自动布局服务
+// 负责流程节点的自动排版与布局计算
+// 作者：蘅芜君
 using Acme.Product.Application.DTOs;
 
 namespace Acme.Product.Infrastructure.AI;

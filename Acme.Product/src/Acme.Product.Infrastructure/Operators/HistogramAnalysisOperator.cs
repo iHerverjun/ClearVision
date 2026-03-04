@@ -1,3 +1,7 @@
+// HistogramAnalysisOperator.cs
+// 直方图分析算子
+// 输出图像灰度或通道直方图统计结果
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -269,4 +273,3 @@ public class HistogramAnalysisOperator : OperatorBase
         return image;
     }
 }
-

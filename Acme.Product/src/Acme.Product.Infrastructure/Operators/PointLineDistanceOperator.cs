@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// PointLineDistanceOperator.cs
+// 点线距离算子
+// 计算点到线段或直线的距离与投影
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -215,4 +219,5 @@ public class PointLineDistanceOperator : OperatorBase
         return double.TryParse(raw.ToString(), out value);
     }
 }
+
 

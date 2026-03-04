@@ -1,3 +1,7 @@
+// AiGenerationOrchestrator.cs
+// AI 生成编排器
+// 统一编排模型选择、调用链路与结果落地
+// 作者：蘅芜君
 using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Infrastructure.AI.Runtime;

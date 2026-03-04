@@ -1,4 +1,8 @@
-﻿using System.Globalization;
+﻿// AffineTransformOperator.cs
+// 仿射变换算子
+// 执行旋转、缩放、平移等仿射变换
+// 作者：蘅芜君
+using System.Globalization;
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -217,3 +221,4 @@ public class AffineTransformOperator : OperatorBase
         return 0f;
     }
 }
+

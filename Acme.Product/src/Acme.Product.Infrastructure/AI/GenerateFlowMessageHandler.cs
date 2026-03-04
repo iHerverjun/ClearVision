@@ -1,3 +1,7 @@
+// GenerateFlowMessageHandler.cs
+// 流程生成消息处理器
+// 处理生成流程消息并协调 AI 服务输出结果
+// 作者：蘅芜君
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Acme.Product.Contracts.Messages;

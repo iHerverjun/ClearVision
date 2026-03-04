@@ -1,3 +1,7 @@
+// BlobLabelingOperator.cs
+// 连通域标记算子
+// 对二值图像中的连通区域进行标记与筛选
+// 作者：蘅芜君
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -218,4 +222,3 @@ public class BlobLabelingOperator : OperatorBase
 
     private sealed record LabelThreshold(string Name, double Min, double Max);
 }
-

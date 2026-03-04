@@ -1,3 +1,7 @@
+// AiGenerationOptions.cs
+// AI 生成参数选项
+// 定义模型参数、温度与输出约束配置
+// 作者：蘅芜君
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>

@@ -1,3 +1,7 @@
+// AiRuntimeDefaults.cs
+// AI 运行时默认实现
+// 提供运行时适配器、默认连接器与基础策略
+// 作者：蘅芜君
 using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Infrastructure.AI.Runtime;
@@ -93,4 +97,3 @@ public sealed class ActiveAiModelSelector : IAiModelSelector
         return _registry.GetActiveModel();
     }
 }
-

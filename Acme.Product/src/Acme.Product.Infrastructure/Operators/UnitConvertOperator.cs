@@ -1,4 +1,8 @@
-﻿using System.Globalization;
+﻿// UnitConvertOperator.cs
+// 单位转换算子
+// 执行像素、毫米等测量单位之间转换
+// 作者：蘅芜君
+using System.Globalization;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -176,3 +180,4 @@ public class UnitConvertOperator : OperatorBase
         };
     }
 }
+

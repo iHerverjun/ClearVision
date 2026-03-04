@@ -1,3 +1,7 @@
+// HandEyeCalibrationService.cs
+// 手眼标定服务
+// 提供手眼标定点管理、求解与结果输出能力
+// 作者：蘅芜君
 using System;
 using System.Collections.Generic;
 using System.IO;

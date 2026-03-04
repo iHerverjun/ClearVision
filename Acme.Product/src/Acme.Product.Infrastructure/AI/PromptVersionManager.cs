@@ -1,3 +1,7 @@
+// PromptVersionManager.cs
+// 提示词版本管理器
+// 管理提示词模板版本、指标与兼容策略
+// 作者：蘅芜君
 using System;
 using System.Collections.Generic;
 using System.IO;

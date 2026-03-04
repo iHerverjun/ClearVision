@@ -471,8 +471,13 @@ class InspectionPanel {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id);
                 const result = getRecentResults().find(r => r.id === id);
-                if (result && result.imageData && window.imageViewer) {
-                    window.imageViewer.loadImage(`data:image/png;base64,${result.imageData}`);
+                if (result && result.imageData) {
+                    const imageData = `data:image/png;base64,${result.imageData}`;
+                    if (window.inspectionImageViewer) {
+                        window.inspectionImageViewer.loadImage(imageData);
+                    } else if (window.imageViewer) {
+                        window.imageViewer.loadImage(imageData);
+                    }
                 }
             });
         });

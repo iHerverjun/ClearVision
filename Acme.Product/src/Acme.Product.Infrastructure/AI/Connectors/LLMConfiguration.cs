@@ -1,3 +1,7 @@
+// LLMConfiguration.cs
+// LLM 配置定义
+// 定义模型提供方、密钥与连接参数结构
+// 作者：蘅芜君
 using System.Text.Json.Serialization;
 
 namespace Acme.Product.Infrastructure.AI.Connectors;

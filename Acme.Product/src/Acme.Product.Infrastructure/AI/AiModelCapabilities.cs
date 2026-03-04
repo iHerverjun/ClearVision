@@ -1,3 +1,7 @@
+// AiModelCapabilities.cs
+// AI 模型能力定义
+// 描述模型支持的功能范围与限制项
+// 作者：蘅芜君
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
@@ -68,4 +72,3 @@ public class AiModelCapabilities
         return caps.Normalize();
     }
 }
-

@@ -1,3 +1,7 @@
+// MorphologyOperator.cs
+// 形态学算子
+// 提供标准形态学处理入口与参数映射
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

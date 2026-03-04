@@ -1,3 +1,7 @@
+// InputPortAttribute.cs
+// 输入端口特性
+// 定义算子输入端口的名称、类型与约束信息
+// 作者：蘅芜君
 using System;
 using Acme.Product.Core.Enums;
 

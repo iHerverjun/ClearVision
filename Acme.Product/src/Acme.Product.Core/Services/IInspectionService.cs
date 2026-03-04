@@ -44,7 +44,11 @@ public interface IInspectionService
     /// <param name="projectId">工程ID</param>
     /// <param name="cameraId">相机ID（可选，为空则使用流程内图像采集算子）</param>
     /// <param name="cancellationToken">取消令牌</param>
-    Task StartRealtimeInspectionAsync(Guid projectId, string? cameraId, CancellationToken cancellationToken);
+    Task StartRealtimeInspectionAsync(
+        Guid projectId,
+        string? cameraId,
+        CancellationToken cancellationToken,
+        Action<InspectionResult>? onResultReady = null);
 
     /// <summary>
     /// 开始实时检测（流程驱动模式）
@@ -55,7 +59,12 @@ public interface IInspectionService
     /// <param name="flow">流程数据</param>
     /// <param name="cameraId">相机ID（可选）</param>
     /// <param name="cancellationToken">取消令牌</param>
-    Task StartRealtimeInspectionFlowAsync(Guid projectId, OperatorFlow flow, string? cameraId, CancellationToken cancellationToken);
+    Task StartRealtimeInspectionFlowAsync(
+        Guid projectId,
+        OperatorFlow flow,
+        string? cameraId,
+        CancellationToken cancellationToken,
+        Action<InspectionResult>? onResultReady = null);
 
     /// <summary>
     /// 停止实时检测

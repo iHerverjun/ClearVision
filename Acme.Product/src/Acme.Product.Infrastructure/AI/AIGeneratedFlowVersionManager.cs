@@ -1,3 +1,7 @@
+// AIGeneratedFlowVersionManager.cs
+// AI 生成流程版本管理器
+// 管理生成流程版本、回滚与版本元数据
+// 作者：蘅芜君
 using System;
 using System.Collections.Generic;
 using System.IO;

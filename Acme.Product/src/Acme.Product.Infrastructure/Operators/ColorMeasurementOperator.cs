@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// ColorMeasurementOperator.cs
+// 颜色测量算子
+// 统计目标区域颜色特征并输出测量结果
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -236,3 +240,4 @@ public class ColorMeasurementOperator : OperatorBase
         };
     }
 }
+

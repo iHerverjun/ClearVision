@@ -1,3 +1,7 @@
+// AiGenerationServiceExtensions.cs
+// AI 服务注入扩展
+// 提供 AI 相关服务的依赖注入扩展方法
+// 作者：蘅芜君
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

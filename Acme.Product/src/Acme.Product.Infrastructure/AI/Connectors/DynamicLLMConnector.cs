@@ -1,3 +1,7 @@
+// DynamicLLMConnector.cs
+// 动态 LLM 连接器
+// 按配置动态路由并调用不同大模型提供方
+// 作者：蘅芜君
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;

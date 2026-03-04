@@ -1,3 +1,7 @@
+// MorphologicalOperationOperator.cs
+// 形态学操作算子
+// 执行腐蚀、膨胀、开闭等形态学处理
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// WidthMeasurementOperator.cs
+// 宽度测量算子
+// 基于边缘或线段测量目标宽度参数
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -346,4 +350,5 @@ public class WidthMeasurementOperator : OperatorBase
         };
     }
 }
+
 

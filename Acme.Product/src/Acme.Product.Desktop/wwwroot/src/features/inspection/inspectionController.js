@@ -258,15 +258,29 @@ class InspectionController {
             status: result.status === 'Error' ? 'error' : 'completed'
         });
 
-        // 显示处理后的图像
-        if (result.outputImage && window.imageViewer) {
-            const imageData = `data:image/png;base64,${result.outputImage}`;
-            window.imageViewer.loadImage(imageData);
+        // 显示处理后的图像，检测页 viewer 优先，通用 viewer 保持兼容更新。
+        const outputImage = result.outputImage || result.resultImageBase64;
+        if (outputImage) {
+            const imageData = `data:image/png;base64,${outputImage}`;
+
+            if (window.inspectionImageViewer) {
+                window.inspectionImageViewer.loadImage(imageData);
+            }
+
+            if (window.imageViewer) {
+                window.imageViewer.loadImage(imageData);
+            }
         }
 
         // 触发所有已注册的完成回调
         if (this._onCompletedCallbacks) {
-            this._onCompletedCallbacks.forEach(cb => cb(result));
+            this._onCompletedCallbacks.forEach(cb => {
+                try {
+                    cb(result);
+                } catch (callbackError) {
+                    console.error('[InspectionController] 完成回调执行失败:', callbackError);
+                }
+            });
         }
     }
 
@@ -283,7 +297,13 @@ class InspectionController {
 
         // 触发所有已注册的错误回调
         if (this._onErrorCallbacks) {
-            this._onErrorCallbacks.forEach(cb => cb(error));
+            this._onErrorCallbacks.forEach(cb => {
+                try {
+                    cb(error);
+                } catch (callbackError) {
+                    console.error('[InspectionController] 错误回调执行失败:', callbackError);
+                }
+            });
         }
     }
 

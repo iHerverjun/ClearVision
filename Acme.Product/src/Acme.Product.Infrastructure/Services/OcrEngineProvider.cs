@@ -1,3 +1,7 @@
+// OcrEngineProvider.cs
+// OCR 引擎提供器
+// 负责 OCR 引擎初始化、缓存与生命周期管理
+// 作者：蘅芜君
 using Microsoft.Extensions.Logging;
 using PaddleOCRSharp;
 

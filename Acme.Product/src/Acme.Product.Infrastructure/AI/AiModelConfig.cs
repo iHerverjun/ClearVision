@@ -1,3 +1,7 @@
+// AiModelConfig.cs
+// AI 模型配置
+// 定义模型连接、鉴权与能力参数配置
+// 作者：蘅芜君
 using System.Text.Json;
 
 namespace Acme.Product.Infrastructure.AI;

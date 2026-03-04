@@ -1,3 +1,7 @@
+// PointSetToolOperator.cs
+// 点集工具算子
+// 对点集执行合并、排序、筛选与几何运算
+// 作者：蘅芜君
 using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -241,4 +245,3 @@ public class PointSetToolOperator : OperatorBase
         };
     }
 }
-

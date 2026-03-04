@@ -1,3 +1,7 @@
+// PlcEndpoints.cs
+// PLC 接口端点
+// 提供 PLC 通信能力相关的桌面端接口映射
+// 作者：蘅芜君
 using Acme.PlcComm;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;

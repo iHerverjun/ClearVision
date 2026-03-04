@@ -1,3 +1,7 @@
+// CannyEdgeOperator.cs
+// Canny 边缘检测算子
+// 对输入图像执行 Canny 边缘提取处理
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

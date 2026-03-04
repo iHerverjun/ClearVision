@@ -13,7 +13,8 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -63,12 +64,15 @@ public enum YoloVersion
 [OutputPort("Image", "结果图像", PortDataType.Image)]
 [OutputPort("Defects", "缺陷列表", PortDataType.DetectionList)]
 [OutputPort("DefectCount", "缺陷数量", PortDataType.Integer)]
+[OutputPort("Objects", "目标列表", PortDataType.DetectionList)]
+[OutputPort("ObjectCount", "目标数量", PortDataType.Integer)]
 [OperatorParam("ModelPath", "模型路径", "file", DefaultValue = "")]
 [OperatorParam("Confidence", "置信度阈值", "double", DefaultValue = 0.5, Min = 0.0, Max = 1.0)]
 [OperatorParam("ModelVersion", "YOLO版本", "enum", DefaultValue = "Auto", Options = new[] { "Auto|自动检测", "YOLOv5|YOLOv5", "YOLOv6|YOLOv6", "YOLOv8|YOLOv8", "YOLOv11|YOLOv11" })]
 [OperatorParam("InputSize", "输入尺寸", "int", DefaultValue = 640, Min = 320, Max = 1280)]
 [OperatorParam("TargetClasses", "目标类别", "string", Description = "检测目标类别（逗号分隔，如 person,car），为空则检测所有类别", DefaultValue = "")]
 [OperatorParam("LabelFile", "标签文件路径", "file", Description = "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt", DefaultValue = "")]
+[OperatorParam("DetectionMode", "检测模式", "enum", Description = "缺陷检测：检出目标视为缺陷(NG)；目标检测：检出目标视为正常(OK)", DefaultValue = "Defect", Options = new[] { "Defect|缺陷检测", "Object|目标检测" })]
 public class DeepLearningOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.DeepLearning;
@@ -223,12 +227,26 @@ public class DeepLearningOperator : OperatorBase
             })
         );
 
+        var detectionMode = GetStringParam(@operator, "DetectionMode", "Defect");
+        var isObjectMode = detectionMode.Equals("Object", StringComparison.OrdinalIgnoreCase);
+
         var additionalData = new Dictionary<string, object>
         {
-            { "DefectCount", detections.Count },
-            { "Defects", detectionList }, // 升级为 DetectionList 类型
-            { "DetectionList", detectionList } // 新增标准输出端口
+            { "DetectionList", detectionList }
         };
+
+        if (isObjectMode)
+        {
+            // 目标检测模式：检出目标不算缺陷
+            additionalData["ObjectCount"] = detections.Count;
+            additionalData["Objects"] = detectionList;
+        }
+        else
+        {
+            // 缺陷检测模式（默认）：检出目标视为缺陷
+            additionalData["DefectCount"] = detections.Count;
+            additionalData["Defects"] = detectionList;
+        }
 
         Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);
 

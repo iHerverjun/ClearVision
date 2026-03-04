@@ -1,3 +1,7 @@
+// CameraCalibrationOperator.cs
+// 相机标定算子
+// 根据标定板样本估计内参与畸变参数
+// 作者：蘅芜君
 using System.Text.Json;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;

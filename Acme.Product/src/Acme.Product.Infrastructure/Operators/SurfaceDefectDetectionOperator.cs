@@ -1,4 +1,8 @@
-﻿using Acme.Product.Core.Entities;
+﻿// SurfaceDefectDetectionOperator.cs
+// 表面缺陷检测算子
+// 检测划痕、污点等表面缺陷并输出结果
+// 作者：蘅芜君
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
@@ -214,3 +218,4 @@ public class SurfaceDefectDetectionOperator : OperatorBase
         }
     }
 }
+

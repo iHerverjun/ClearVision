@@ -1,3 +1,7 @@
+// StatisticsOperator.cs
+// 统计算子
+// 对输入数据执行统计聚合与指标输出
+// 作者：蘅芜君
 using System.Collections.Concurrent;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;

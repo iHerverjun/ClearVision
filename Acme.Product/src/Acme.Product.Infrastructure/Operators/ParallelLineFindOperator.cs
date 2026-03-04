@@ -1,3 +1,7 @@
+// ParallelLineFindOperator.cs
+// 平行线查找算子
+// 在图像中检测满足约束的平行线对
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -184,4 +188,3 @@ public class ParallelLineFindOperator : OperatorBase
         return Math.Abs(a * px + b * py + c) / denominator;
     }
 }
-

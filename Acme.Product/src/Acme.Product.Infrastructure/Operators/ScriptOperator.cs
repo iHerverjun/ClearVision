@@ -1,4 +1,8 @@
-﻿using System.Data;
+﻿// ScriptOperator.cs
+// 脚本算子
+// 执行内嵌脚本并输出脚本运行结果
+// 作者：蘅芜君
+using System.Data;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Acme.Product.Core.Entities;
@@ -293,3 +297,4 @@ public class ScriptOperator : OperatorBase
         };
     }
 }
+

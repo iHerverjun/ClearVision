@@ -1,4 +1,8 @@
-﻿using System.Text.Json;
+﻿// CalibrationLoaderOperator.cs
+// 标定文件加载算子
+// 加载并解析标定参数供后续算子使用
+// 作者：蘅芜君
+using System.Text.Json;
 using System.Xml.Linq;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -317,3 +321,4 @@ public class CalibrationLoaderOperator : OperatorBase
         return values;
     }
 }
+

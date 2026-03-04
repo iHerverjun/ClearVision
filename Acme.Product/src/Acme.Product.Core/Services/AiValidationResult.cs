@@ -1,3 +1,7 @@
+// AiValidationResult.cs
+// AI 校验结果模型
+// 封装 AI 输出的校验状态与错误详情
+// 作者：蘅芜君
 namespace Acme.Product.Core.Services;
 
 public class AiValidationResult

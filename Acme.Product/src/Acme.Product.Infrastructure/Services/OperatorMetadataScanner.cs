@@ -1,3 +1,7 @@
+// OperatorMetadataScanner.cs
+// 算子元数据扫描器
+// 通过反射扫描算子定义并构建元数据索引
+// 作者：蘅芜君
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Acme.Product.Core.Attributes;

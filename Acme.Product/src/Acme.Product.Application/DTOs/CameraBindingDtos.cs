@@ -1,3 +1,7 @@
+// CameraBindingDtos.cs
+// 相机绑定 DTO 定义
+// 定义相机绑定配置请求与响应的数据传输结构
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 
 namespace Acme.Product.Application.DTOs;

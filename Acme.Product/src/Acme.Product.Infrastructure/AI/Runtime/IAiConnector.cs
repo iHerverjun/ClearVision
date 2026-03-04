@@ -1,3 +1,7 @@
+// IAiConnector.cs
+// AI 连接器接口
+// 定义 AI 模型连接器统一调用契约
+// 作者：蘅芜君
 using Acme.Product.Contracts.Messages;
 
 namespace Acme.Product.Infrastructure.AI.Runtime;
@@ -18,4 +22,3 @@ public interface IAiConnector
         Action<AiStreamChunk> onChunk,
         CancellationToken cancellationToken = default);
 }
-

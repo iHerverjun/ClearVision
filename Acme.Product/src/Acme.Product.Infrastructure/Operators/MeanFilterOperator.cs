@@ -1,3 +1,7 @@
+// MeanFilterOperator.cs
+// 均值滤波算子
+// 使用均值核对图像进行平滑降噪处理
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

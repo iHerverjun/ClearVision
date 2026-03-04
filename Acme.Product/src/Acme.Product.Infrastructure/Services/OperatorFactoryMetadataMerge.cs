@@ -1,3 +1,7 @@
+// OperatorFactoryMetadataMerge.cs
+// 算子元数据合并器
+// 合并扫描结果与运行时元数据配置
+// 作者：蘅芜君
 using System.Diagnostics;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;

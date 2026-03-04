@@ -1,3 +1,7 @@
+// ImageStitchingOperator.cs
+// 图像拼接算子
+// 使用特征匹配将多图配准并拼接成全景
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

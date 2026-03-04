@@ -1,3 +1,7 @@
+// DelayOperator.cs
+// 延时算子
+// 按配置阻塞或延迟流程执行指定时间
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

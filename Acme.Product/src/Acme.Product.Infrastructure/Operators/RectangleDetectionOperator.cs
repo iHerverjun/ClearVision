@@ -1,4 +1,8 @@
-﻿using Acme.Product.Core.Entities;
+﻿// RectangleDetectionOperator.cs
+// 矩形检测算子
+// 检测图像中的矩形轮廓并输出几何参数
+// 作者：蘅芜君
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
@@ -190,3 +194,4 @@ public class RectangleDetectionOperator : OperatorBase
 
     private sealed record RectangleResult(RotatedRect Rect, Point2f[] Points, double Area);
 }
+

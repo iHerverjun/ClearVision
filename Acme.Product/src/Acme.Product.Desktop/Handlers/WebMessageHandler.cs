@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using Acme.Product.Contracts.Messages;
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Extensions;
 using Microsoft.Extensions.DependencyInjection;
@@ -314,30 +315,7 @@ public class WebMessageHandler
                 ? await inspectionService.ExecuteSingleAsync(command.ProjectId, imageData)
                 : await inspectionService.ExecuteSingleAsync(command.ProjectId, command.CameraId ?? "default");
 
-            // 发送检测完成事件
-            var eventData = new InspectionCompletedEvent
-            {
-                ResultId = result.Id,
-                ProjectId = command.ProjectId,
-                Status = result.Status.ToString(),
-                Defects = result.Defects.Select(d => new Contracts.Messages.DefectData
-                {
-                    Type = d.Type.ToString(),
-                    X = d.X,
-                    Y = d.Y,
-                    Width = d.Width,
-                    Height = d.Height,
-                    Confidence = d.ConfidenceScore,
-                    Description = d.Description ?? string.Empty
-                }).ToList(),
-                ProcessingTimeMs = result.ProcessingTimeMs,
-                ResultImageBase64 = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
-                OutputData = string.IsNullOrEmpty(result.OutputDataJson)
-                                ? null
-                                : JsonSerializer.Deserialize<Dictionary<string, object>>(result.OutputDataJson, (JsonSerializerOptions?)null)
-            };
-
-            SendEvent(eventData);
+            NotifyInspectionResult(result, command.ProjectId);
         }
         catch (Exception ex)
         {
@@ -754,6 +732,54 @@ public class WebMessageHandler
         {
             _logger.LogError(ex, "保存手眼标定文件失败");
             SendProgressMessage("handeye:save:result", new { success = false, message = ex.Message });
+        }
+    }
+
+    public void NotifyInspectionResult(InspectionResult result, Guid projectId)
+    {
+        try
+        {
+            Dictionary<string, object>? outputData = null;
+            if (!string.IsNullOrEmpty(result.OutputDataJson))
+            {
+                try
+                {
+                    outputData = JsonSerializer.Deserialize<Dictionary<string, object>>(result.OutputDataJson, (JsonSerializerOptions?)null);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "[WebMessageHandler] 解析 OutputDataJson 失败: ResultId={ResultId}", result.Id);
+                }
+            }
+
+            var message = new
+            {
+                type = "inspectionCompleted",
+                messageType = "inspectionCompleted",
+                resultId = result.Id,
+                projectId,
+                status = result.Status.ToString(),
+                defects = result.Defects.Select(d => new
+                {
+                    type = d.Type.ToString(),
+                    x = d.X,
+                    y = d.Y,
+                    width = d.Width,
+                    height = d.Height,
+                    confidence = d.ConfidenceScore,
+                    description = d.Description ?? string.Empty
+                }).ToList(),
+                processingTimeMs = result.ProcessingTimeMs,
+                outputImage = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
+                outputData,
+                outputDataJson = result.OutputDataJson
+            };
+
+            PostWebMessageJson(JsonSerializer.Serialize(message, _jsonOptions));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WebMessageHandler] 推送检测结果失败: ResultId={ResultId}", result.Id);
         }
     }
 

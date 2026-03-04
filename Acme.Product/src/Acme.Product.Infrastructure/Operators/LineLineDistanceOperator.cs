@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// LineLineDistanceOperator.cs
+// 线线距离算子
+// 计算两条线段或直线之间的最短距离
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -219,4 +223,5 @@ public class LineLineDistanceOperator : OperatorBase
         };
     }
 }
+
 

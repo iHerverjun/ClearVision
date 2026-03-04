@@ -1,3 +1,7 @@
+// LLMConnectorFactory.cs
+// LLM 连接器工厂
+// 根据配置创建并返回对应模型连接器实例
+// 作者：蘅芜君
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

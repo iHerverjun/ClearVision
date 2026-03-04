@@ -109,6 +109,31 @@ public class ConversationalFlowServiceTests : IDisposable
         reloadedService.ListSessions().Should().NotContain(summary => summary.SessionId == "session-delete");
     }
 
+    [Fact]
+    public void TryBackfillCanvasFlowJson_ShouldPersistCanvasSnapshotForLegacySession()
+    {
+        var service = new ConversationalFlowService(_tempRoot);
+
+        var context = service.PrepareContext(new AiFlowGenerationRequest(
+            "恢复历史会话",
+            SessionId: "session-legacy"));
+
+        const string legacyAiRawJson = "{\"Explanation\":\"legacy\",\"Operators\":[{\"TempId\":\"op_1\",\"OperatorType\":\"ImageAcquisition\",\"DisplayName\":\"采集\",\"Parameters\":{}}],\"Connections\":[]}";
+        service.RecordAssistantResponse(context.SessionId, "assistant legacy", legacyAiRawJson);
+
+        const string canvasJson = "{\"operators\":[{\"id\":\"op-1\",\"type\":\"ImageAcquisition\",\"name\":\"采集\",\"inputPorts\":[],\"outputPorts\":[]}],\"connections\":[]}";
+        service.TryBackfillCanvasFlowJson(context.SessionId, canvasJson).Should().BeTrue();
+
+        var session = service.GetSession(context.SessionId);
+        session.Should().NotBeNull();
+        session!.CurrentCanvasFlowJson.Should().Be(canvasJson);
+
+        var reloadedService = new ConversationalFlowService(_tempRoot);
+        var reloaded = reloadedService.GetSession(context.SessionId);
+        reloaded.Should().NotBeNull();
+        reloaded!.CurrentCanvasFlowJson.Should().Be(canvasJson);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))

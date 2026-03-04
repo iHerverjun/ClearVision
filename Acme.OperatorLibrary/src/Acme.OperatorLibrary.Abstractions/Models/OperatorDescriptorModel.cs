@@ -1,3 +1,7 @@
+// OperatorDescriptorModel.cs
+// 算子描述模型
+// 提供 IOperatorDescriptor 的默认实现与序列化载体
+// 作者：蘅芜君
 using System.Collections.Generic;
 using Acme.OperatorLibrary.Abstractions.Contracts;
 

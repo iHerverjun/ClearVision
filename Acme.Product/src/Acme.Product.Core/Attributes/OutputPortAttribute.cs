@@ -1,3 +1,7 @@
+// OutputPortAttribute.cs
+// 输出端口特性
+// 定义算子输出端口的名称、类型与描述信息
+// 作者：蘅芜君
 using System;
 using Acme.Product.Core.Enums;
 

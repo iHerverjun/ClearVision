@@ -1,3 +1,7 @@
+// AggregatorOperator.cs
+// 聚合算子
+// 对多路输入数据进行合并、汇总与统计处理
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

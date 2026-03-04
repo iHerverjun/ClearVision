@@ -1,3 +1,7 @@
+// ImageSubtractOperator.cs
+// 图像相减算子
+// 计算两幅图像差分并输出差值结果
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

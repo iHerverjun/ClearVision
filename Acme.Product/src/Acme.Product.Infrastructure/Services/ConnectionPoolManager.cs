@@ -1,5 +1,7 @@
 ﻿// ConnectionPoolManager.cs
-// 连接池统计信�?// 作者：蘅芜�?
+// 通信连接池管理器
+// 负责 Modbus/TCP 连接复用、健康检查与空闲回收
+// 作者：蘅芜君
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;

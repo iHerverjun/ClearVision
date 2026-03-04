@@ -1,3 +1,7 @@
+// AiConfigStore.cs
+// AI 配置存储
+// 负责 AI 配置的读取、写入与默认值管理
+// 作者：蘅芜君
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

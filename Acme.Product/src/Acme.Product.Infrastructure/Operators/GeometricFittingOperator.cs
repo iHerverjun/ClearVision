@@ -1,3 +1,7 @@
+// GeometricFittingOperator.cs
+// 几何拟合算子
+// 对输入点集执行直线、圆或椭圆拟合
+// 作者：蘅芜君
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;

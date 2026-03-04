@@ -1112,6 +1112,12 @@ export class AiPanel {
             return false;
         }
 
+        const hasValue = (value) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === 'string') return value.trim().length > 0;
+            return true;
+        };
+
         if (operators.length === 0) {
             return connections.length === 0;
         }
@@ -1119,14 +1125,14 @@ export class AiPanel {
         const hasOperatorId = operators.every(op => {
             const id = op?.id ?? op?.Id;
             const type = op?.type ?? op?.Type;
-            return !!id && !!type;
+            return hasValue(id) && hasValue(type);
         });
         if (!hasOperatorId) return false;
 
         return connections.every(conn => {
             const source = conn?.sourceOperatorId ?? conn?.SourceOperatorId ?? conn?.source;
             const target = conn?.targetOperatorId ?? conn?.TargetOperatorId ?? conn?.target;
-            return !!source && !!target;
+            return hasValue(source) && hasValue(target);
         });
     }
 

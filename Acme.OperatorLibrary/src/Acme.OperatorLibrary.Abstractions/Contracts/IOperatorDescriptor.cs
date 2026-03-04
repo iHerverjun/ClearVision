@@ -1,3 +1,7 @@
+// IOperatorDescriptor.cs
+// 算子描述接口
+// 定义算子元数据与端口信息的统一契约
+// 作者：蘅芜君
 using System.Collections.Generic;
 
 namespace Acme.OperatorLibrary.Abstractions.Contracts;

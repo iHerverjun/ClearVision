@@ -1,3 +1,7 @@
+// AiGenerationDto.cs
+// AI 生成 DTO 定义
+// 定义 AI 流程生成请求与结果传输结构
+// 作者：蘅芜君
 namespace Acme.Product.Core.DTOs;
 
 /// <summary>

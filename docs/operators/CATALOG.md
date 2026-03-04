@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-04 11:07:12 +08:00`
+> 生成时间 / Generated At: `2026-03-04 19:17:03 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -41,7 +41,7 @@
 ### AI检测 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.DeepLearning` | 深度学习 | 1 | 3 | 6 | 90 (A) | `1.0.0` | - | [DeepLearning](./DeepLearning.md) |
+| `OperatorType.DeepLearning` | 深度学习 | 1 | 5 | 7 | 90 (A) | `1.0.0` | - | [DeepLearning](./DeepLearning.md) |
 | `OperatorType.DualModalVoting` | 双模态投票 | 2 | 3 | 6 | 80 (B) | `1.0.0` | - | [DualModalVoting](./DualModalVoting.md) |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | 3 | 4 | 4 | 84 (B) | `1.0.0` | - | [EdgePairDefect](./EdgePairDefect.md) |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | 2 | 4 | 5 | 84 (B) | `1.0.0` | - | [SurfaceDefectDetection](./SurfaceDefectDetection.md) |

@@ -1,3 +1,7 @@
+// ConversationalFlowService.cs
+// 会话式流程服务
+// 提供多轮对话下的流程生成、上下文维护与意图识别
+// 作者：蘅芜君
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
@@ -56,6 +60,7 @@ public interface IConversationalFlowService
         string? latestCanvasFlowJson = null);
     IReadOnlyList<ConversationSessionSummary> ListSessions();
     ConversationSession? GetSession(string sessionId);
+    bool TryBackfillCanvasFlowJson(string sessionId, string canvasFlowJson);
     bool DeleteSession(string sessionId);
 }
 
@@ -242,6 +247,27 @@ public class ConversationalFlowService : IConversationalFlowService
             return null;
 
         return CloneSession(session);
+    }
+
+    public bool TryBackfillCanvasFlowJson(string sessionId, string canvasFlowJson)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(canvasFlowJson))
+            return false;
+
+        var normalizedSessionId = sessionId.Trim();
+        if (!_sessions.TryGetValue(normalizedSessionId, out var session))
+            return false;
+
+        lock (session)
+        {
+            if (!string.IsNullOrWhiteSpace(session.CurrentCanvasFlowJson))
+                return false;
+
+            session.CurrentCanvasFlowJson = canvasFlowJson;
+        }
+
+        PersistSessions();
+        return true;
     }
 
     public bool DeleteSession(string sessionId)

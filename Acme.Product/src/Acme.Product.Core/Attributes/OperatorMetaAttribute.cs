@@ -1,3 +1,7 @@
+// OperatorMetaAttribute.cs
+// 算子元数据特性
+// 定义算子展示信息、分类与运行标记
+// 作者：蘅芜君
 using System;
 
 namespace Acme.Product.Core.Attributes;

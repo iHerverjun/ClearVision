@@ -1,3 +1,7 @@
+// FlowTemplate.cs
+// 流程模板实体
+// 定义流程模板的标识、内容与版本信息
+// 作者：蘅芜君
 namespace Acme.Product.Core.Entities;
 
 /// <summary>

@@ -287,11 +287,9 @@ function switchView(view) {
                 
                 // 如果有已保存的检测结果但图像还没显示，重新加载
                 if (window._lastInspectionResult?.outputImage && window.inspectionImageViewer) {
-                    if (!window.inspectionImageViewer.imageCanvas?.image) {
-                        console.log('[App] 切换到检测视图，加载已保存的检测结果图像');
-                        const imageData = `data:image/png;base64,${window._lastInspectionResult.outputImage}`;
-                        window.inspectionImageViewer.loadImage(imageData);
-                    }
+                    console.log('[App] 切换到检测视图，加载已保存的检测结果图像');
+                    const imageData = `data:image/png;base64,${window._lastInspectionResult.outputImage}`;
+                    window.inspectionImageViewer.loadImage(imageData);
                     
                     // 更新检测面板
                     if (inspectionPanel) {

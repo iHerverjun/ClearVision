@@ -1,3 +1,7 @@
+// OperatorFactory.cs
+// 算子工厂
+// 负责按算子类型创建并组装执行实例
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;

@@ -1,3 +1,7 @@
+// FlowTemplateService.cs
+// 流程模板服务
+// 负责流程模板加载、查询与模板化生成支持
+// 作者：蘅芜君
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 

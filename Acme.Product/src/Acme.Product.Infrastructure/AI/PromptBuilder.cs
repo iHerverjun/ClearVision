@@ -1,3 +1,7 @@
+// PromptBuilder.cs
+// 提示词构建器
+// 根据业务上下文拼装模型调用所需提示词内容
+// 作者：蘅芜君
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;

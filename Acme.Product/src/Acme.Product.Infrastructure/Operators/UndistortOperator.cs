@@ -1,3 +1,7 @@
+// UndistortOperator.cs
+// 去畸变算子
+// 根据标定参数对图像执行畸变校正
+// 作者：蘅芜君
 using System.Text.Json;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;

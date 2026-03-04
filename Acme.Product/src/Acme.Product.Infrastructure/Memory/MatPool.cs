@@ -1,7 +1,7 @@
 ﻿// MatPool.cs
 // OpenCvSharp.Mat 的分桶内存池 - Sprint 1 Task 1.1
 // 按图像规格分桶管理，避免高频堆申请导致的非托管内存碎片化
-// 作者：蘅芜�?
+// 作者：蘅芜君
 using System.Collections.Concurrent;
 using OpenCvSharp;
 

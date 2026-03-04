@@ -1,3 +1,7 @@
+// OperatorMetadataLocalization.cs
+// 算子元数据本地化
+// 提供算子元数据的本地化映射与文本转换
+// 作者：蘅芜君
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
 

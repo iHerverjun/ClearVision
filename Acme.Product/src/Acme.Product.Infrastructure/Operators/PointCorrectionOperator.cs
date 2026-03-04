@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// PointCorrectionOperator.cs
+// 点位修正算子
+// 根据参考点对输入坐标执行偏移修正
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -218,3 +222,4 @@ public class PointCorrectionOperator : OperatorBase
         };
     }
 }
+

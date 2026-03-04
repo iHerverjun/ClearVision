@@ -1,4 +1,8 @@
-﻿using Acme.Product.Core.Entities;
+﻿// TriggerModuleOperator.cs
+// 触发模块算子
+// 管理软件触发、定时触发与外部触发流程
+// 作者：蘅芜君
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
@@ -160,3 +164,4 @@ public class TriggerModuleOperator : OperatorBase
         };
     }
 }
+

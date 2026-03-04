@@ -1,3 +1,7 @@
+// OperatorExecutionResultModel.cs
+// 算子执行结果模型
+// 提供 IOperatorExecutionResult 的默认实现与传输结构
+// 作者：蘅芜君
 using System.Collections.Generic;
 using Acme.OperatorLibrary.Abstractions.Contracts;
 

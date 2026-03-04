@@ -1,3 +1,7 @@
+// TypeConvertOperator.cs
+// 类型转换算子
+// 在常见数据类型之间执行安全转换
+// 作者：蘅芜君
 using System.Globalization;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;

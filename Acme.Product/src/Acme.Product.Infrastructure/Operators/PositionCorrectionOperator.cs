@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// PositionCorrectionOperator.cs
+// 位置修正算子
+// 基于偏差模型对目标位置进行校正
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -223,3 +227,4 @@ public class PositionCorrectionOperator : OperatorBase
         };
     }
 }
+

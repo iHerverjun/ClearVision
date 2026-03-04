@@ -12,6 +12,7 @@ using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Data;
 using Acme.Product.Infrastructure.AI;
 using Acme.Product.Infrastructure.Services;
+using Acme.Product.Desktop.Handlers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -241,7 +242,7 @@ public static class ApiEndpoints
         app.MapPost("/api/inspection/realtime/start", async (
             StartRealtimeInspectionRequest request,
             Core.Services.IInspectionService service,
-            ProjectService projectService,
+            WebMessageHandler webMessageHandler,
             CancellationToken cancellationToken) =>
         {
             try
@@ -262,7 +263,8 @@ public static class ApiEndpoints
                         request.ProjectId,
                         flow,
                         request.CameraId,
-                        cancellationToken);
+                        cancellationToken,
+                        result => webMessageHandler.NotifyInspectionResult(result, request.ProjectId));
 
                     return Results.Ok(new
                     {
@@ -278,7 +280,8 @@ public static class ApiEndpoints
                     await service.StartRealtimeInspectionAsync(
                         request.ProjectId,
                         request.CameraId,
-                        cancellationToken);
+                        cancellationToken,
+                        result => webMessageHandler.NotifyInspectionResult(result, request.ProjectId));
 
                     return Results.Ok(new
                     {

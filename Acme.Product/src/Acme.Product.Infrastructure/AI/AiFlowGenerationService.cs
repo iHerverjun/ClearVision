@@ -1,4 +1,8 @@
-﻿using System.Text.Json;
+﻿// AiFlowGenerationService.cs
+// AI 流程生成服务实现
+// 负责流程草案生成、修正与结果封装
+// 作者：蘅芜君
+using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Enums;
@@ -780,4 +784,5 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return flow;
     }
 }
+
 

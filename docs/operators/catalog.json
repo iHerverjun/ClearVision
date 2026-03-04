@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-04T11:07:12.6855371+08:00",
+  "generatedAt": "2026-03-04T19:17:03.2031512+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -1248,6 +1248,18 @@
           "displayName": "缺陷数量",
           "dataType": "Integer",
           "isRequired": null
+        },
+        {
+          "name": "Objects",
+          "displayName": "目标列表",
+          "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
+          "name": "ObjectCount",
+          "displayName": "目标数量",
+          "dataType": "Integer",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -1337,6 +1349,26 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "DetectionMode",
+          "displayName": "检测模式",
+          "dataType": "enum",
+          "description": "缺陷检测：检出目标视为缺陷(NG)；目标检测：检出目标视为正常(OK)",
+          "defaultValue": "Defect",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Defect",
+              "label": "缺陷检测"
+            },
+            {
+              "value": "Object",
+              "label": "目标检测"
+            }
+          ]
         }
       ],
       "quality": {

@@ -1,3 +1,7 @@
+// JsonLLMConfigurationStore.cs
+// JSON LLM 配置存储
+// 使用 JSON 文件持久化模型连接配置
+// 作者：蘅芜君
 using System.Text.Json;
 
 namespace Acme.Product.Infrastructure.AI.Connectors;

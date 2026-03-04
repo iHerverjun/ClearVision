@@ -1,3 +1,7 @@
+// CopyMakeBorderOperator.cs
+// 图像扩边算子
+// 为图像添加边框并支持多种填充策略
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -118,4 +122,3 @@ public class CopyMakeBorderOperator : OperatorBase
         return new Scalar(b, g, r);
     }
 }
-

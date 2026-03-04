@@ -1,4 +1,8 @@
-﻿using Acme.Product.Core.Entities;
+﻿// FrameAveragingOperator.cs
+// 帧平均算子
+// 对连续帧进行平均或中值融合降噪
+// 作者：蘅芜君
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
@@ -214,3 +218,4 @@ public class FrameAveragingOperator : OperatorBase
         }
     }
 }
+

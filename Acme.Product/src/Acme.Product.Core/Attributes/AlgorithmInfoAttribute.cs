@@ -1,3 +1,7 @@
+// AlgorithmInfoAttribute.cs
+// 算法信息特性
+// 为算法类型提供说明、分类与元数据标注
+// 作者：蘅芜君
 using System;
 
 namespace Acme.Product.Core.Attributes;

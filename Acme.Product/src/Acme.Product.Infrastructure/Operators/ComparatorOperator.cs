@@ -1,3 +1,7 @@
+// ComparatorOperator.cs
+// 比较算子
+// 对数值或文本输入执行条件比较与分支判断
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;

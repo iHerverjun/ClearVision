@@ -1,3 +1,7 @@
+// AiCompletionResult.cs
+// AI 完成结果模型
+// 定义 AI 请求返回的文本、状态与统计信息
+// 作者：蘅芜君
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>

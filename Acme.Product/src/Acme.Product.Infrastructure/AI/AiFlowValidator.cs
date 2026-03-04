@@ -1,3 +1,7 @@
+// AiFlowValidator.cs
+// AI 流程校验器
+// 对 AI 生成流程进行结构与规则校验
+// 作者：蘅芜君
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;

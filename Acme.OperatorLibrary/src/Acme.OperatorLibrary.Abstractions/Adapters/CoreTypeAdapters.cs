@@ -1,3 +1,7 @@
+// CoreTypeAdapters.cs
+// 核心类型适配器
+// 提供 OperatorLibrary 与核心类型之间的适配转换工具
+// 作者：蘅芜君
 using System.Collections.Generic;
 using System.Linq;
 using Acme.OperatorLibrary.Abstractions.Contracts;

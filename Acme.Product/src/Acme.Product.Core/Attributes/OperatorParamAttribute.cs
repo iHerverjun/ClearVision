@@ -1,3 +1,7 @@
+// OperatorParamAttribute.cs
+// 算子参数特性
+// 描述算子参数类型、默认值与配置项
+// 作者：蘅芜君
 using System;
 
 namespace Acme.Product.Core.Attributes;

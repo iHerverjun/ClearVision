@@ -1,3 +1,7 @@
+// ImageComposeOperator.cs
+// 图像拼接合成算子
+// 按布局规则将多张图像组合为一张输出
+// 作者：蘅芜君
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -223,4 +227,3 @@ public class ImageComposeOperator : OperatorBase
         return new Scalar(b, g, r);
     }
 }
-

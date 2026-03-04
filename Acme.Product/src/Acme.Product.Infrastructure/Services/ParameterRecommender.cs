@@ -1,3 +1,7 @@
+// ParameterRecommender.cs
+// 参数推荐器
+// 根据算子类型与上下文推荐默认参数配置
+// 作者：蘅芜君
 using Acme.Product.Core.Enums;
 using OpenCvSharp;
 

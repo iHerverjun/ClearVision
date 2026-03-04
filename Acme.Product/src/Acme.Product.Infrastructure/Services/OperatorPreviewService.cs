@@ -1,3 +1,7 @@
+// OperatorPreviewService.cs
+// 算子预览服务
+// 提供算子预览执行与结果格式化输出能力
+// 作者：蘅芜君
 using System.Collections;
 using System.Text.Json;
 using Acme.Product.Core.Entities;

@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿// BoxNmsOperator.cs
+// 非极大值抑制算子
+// 对候选框执行 NMS 去重并保留最优结果
+// 作者：蘅芜君
+using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -305,4 +309,5 @@ public class BoxNmsOperator : OperatorBase
         return true;
     }
 }
+
 

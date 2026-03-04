@@ -1,3 +1,7 @@
+// MorphologyExecutionHelper.cs
+// 形态学执行辅助器
+// 封装形态学操作执行过程中的公共计算逻辑
+// 作者：蘅芜君
 using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Operators;
