@@ -23,6 +23,10 @@ const DEFECT_KEYS = new Set([
     'BlobCount', 'blobCount', 'DetectionResults', 'detectionResults'
 ]);
 
+const OBJECT_DETECTION_KEYS = new Set([
+    'Objects', 'objects', 'ObjectCount', 'objectCount'
+]);
+
 const MATCH_KEYS = new Set([
     'Score', 'score', 'IsMatch', 'isMatch', 'Position', 'position',
     'MatchScore', 'matchScore', 'Confidence', 'confidence'
@@ -30,6 +34,16 @@ const MATCH_KEYS = new Set([
 
 // 跳过的键（图像数据不在卡片中展示）
 const SKIP_KEYS = new Set(['Image', 'image', 'OutputImage', 'outputImage']);
+
+// 缺陷检测场景下的从属字段（检测框属性）
+// 当 outputData 中同时存在 DEFECT_KEYS 时，这些键不应独立归入测量/匹配卡片
+const DETECTION_CONTEXT_SUBORDINATES = new Set([
+    'Width', 'width', 'Height', 'height',
+    'Confidence', 'confidence',
+    'Area', 'area',
+    'X', 'x', 'Y', 'y',
+    'CenterX', 'centerX', 'CenterY', 'centerY'
+]);
 
 // 测量单位映射
 const UNIT_MAP = {
@@ -56,6 +70,7 @@ const ICONS = {
     ocr: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>`,
     barcode: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"></path><path d="M8 5v14"></path><path d="M12 5v14"></path><path d="M17 5v14"></path><path d="M21 5v14"></path></svg>`,
     defect: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+    target: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line></svg>`,
     match: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>`,
     generic: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`,
     check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
@@ -118,26 +133,47 @@ class AnalysisCardsPanel {
 
     /**
      * 将 outputData 分类为不同的卡片组
+     * 【修复】引入上下文感知：当存在缺陷检测上下文时，
+     * 检测框属性字段（Width/Height/Confidence/Area等）不再被错误归类为测量/匹配卡片
      */
     _classifyOutputData(outputData, status, processingTimeMs) {
         const groups = {
             measurements: [],   // 测量数据
             ocrCodes: [],       // OCR/条码
             defects: [],        // 缺陷
+            objectDetections: [], // 目标检测
             matches: [],        // 匹配
             generic: []         // 通用
         };
+
+        // 上下文感知：预扫描是否存在缺陷检测/目标检测场景
+        const keys = Object.keys(outputData);
+        const hasDefectContext = keys.some(k => DEFECT_KEYS.has(k));
+        const hasObjectContext = keys.some(k => OBJECT_DETECTION_KEYS.has(k));
 
         for (const [key, value] of Object.entries(outputData)) {
             // 跳过图像和超长 base64 字符串
             if (SKIP_KEYS.has(key)) continue;
             if (typeof value === 'string' && value.length > 500) continue;
 
+            // 上下文感知：在缺陷/目标检测场景中，检测框属性字段不应独立归入其他卡片
+            if ((hasDefectContext || hasObjectContext) && DETECTION_CONTEXT_SUBORDINATES.has(key)) {
+                continue;
+            }
+
             if (MEASUREMENT_KEYS.has(key)) {
                 groups.measurements.push({ key, value, status });
             } else if (OCR_CODE_KEYS.has(key)) {
                 groups.ocrCodes.push({ key, value, status });
             } else if (DEFECT_KEYS.has(key)) {
+                groups.defects.push({ key, value, status });
+            } else if (OBJECT_DETECTION_KEYS.has(key)) {
+                groups.objectDetections.push({ key, value, status });
+            } else if ((key === 'DetectionList' || key === 'detectionList') && hasObjectContext) {
+                // 目标检测模式下，兼容通用输出键 DetectionList
+                groups.objectDetections.push({ key, value, status });
+            } else if ((key === 'DetectionList' || key === 'detectionList') && hasDefectContext) {
+                // 缺陷检测模式下，兼容通用输出键 DetectionList
                 groups.defects.push({ key, value, status });
             } else if (MATCH_KEYS.has(key)) {
                 groups.matches.push({ key, value, status });
@@ -171,12 +207,17 @@ class AnalysisCardsPanel {
             fragments.push(this._renderDefectCard(groups.defects));
         }
 
-        // 4. 匹配卡片
+        // 4. 目标检测卡片
+        if (groups.objectDetections.length > 0) {
+            fragments.push(this._renderObjectDetectionCard(groups.objectDetections));
+        }
+
+        // 5. 匹配卡片
         if (groups.matches.length > 0) {
             fragments.push(this._renderMatchCard(groups.matches));
         }
 
-        // 5. 通用数据卡片
+        // 6. 通用数据卡片
         if (groups.generic.length > 0) {
             fragments.push(this._renderGenericCard(groups.generic));
         }
@@ -201,6 +242,8 @@ class AnalysisCardsPanel {
             const displayVal = isNaN(val) ? item.value : (Number.isInteger(val) ? val : val.toFixed(2));
             const unit = UNIT_MAP[item.key] || '';
             const icon = MEASUREMENT_ICON_MAP[item.key] || ICONS.ruler;
+            const status = item.status || 'OK';
+            const isNG = status === 'NG' || status === 'Error';
             const statusBadge = isNG
                 ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
                 : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
@@ -297,28 +340,27 @@ class AnalysisCardsPanel {
      * 缺陷检测卡片
      */
     _renderDefectCard(items) {
-        const defectsItem = items.find(i => i.key === 'Defects' || i.key === 'defects' || i.key === 'DetectionResults');
+        const defectsItem = items.find(i =>
+            i.key === 'Defects' ||
+            i.key === 'defects' ||
+            i.key === 'DetectionResults' ||
+            i.key === 'detectionResults' ||
+            i.key === 'DetectionList' ||
+            i.key === 'detectionList'
+        );
         const countItem = items.find(i => i.key === 'DefectCount' || i.key === 'defectCount' || i.key === 'BlobCount' || i.key === 'blobCount');
 
-        let defects = [];
-        if (defectsItem && Array.isArray(defectsItem.value)) {
-            defects = defectsItem.value;
-        } else if (defectsItem && typeof defectsItem.value === 'string') {
-            try {
-                // 有时候后端传过来的是 JSON 字符串
-                defects = JSON.parse(defectsItem.value);
-            } catch (e) {
-                console.warn('解析缺陷列表 JSON 失败', e);
-            }
-        }
+        const defects = defectsItem ? this._extractDetectionArray(defectsItem.value) : [];
 
         const count = countItem ? countItem.value : (Array.isArray(defects) ? defects.length : 0);
         const isNG = count > 0;
 
         const defectListHtml = defects.length > 0 ? defects.slice(0, 5).map(d => {
-            const name = d.className || d.type || d.label || d.description || '未知缺陷';
-            const conf = d.confidence || d.confidenceScore || d.score;
-            const confText = conf ? `${(conf > 1 ? conf : conf * 100).toFixed(1)}%` : '';
+            const name = d.className || d.ClassName || d.type || d.label || d.Label || d.description || '未知缺陷';
+            const conf = d.confidence || d.Confidence || d.confidenceScore || d.score;
+            const confText = typeof conf === 'number'
+                ? `${(conf > 1 ? conf : conf * 100).toFixed(1)}%`
+                : '';
 
             return `
                 <div class="ac-defect-item">
@@ -340,6 +382,54 @@ class AnalysisCardsPanel {
         `;
 
         return this._wrapCard('defect', ICONS.defect, '缺陷检测', content, isNG ? 'ng' : 'ok');
+    }
+
+    /**
+     * 目标检测卡片
+     */
+    _renderObjectDetectionCard(items) {
+        const objectsItem = items.find(i =>
+            i.key === 'Objects' ||
+            i.key === 'objects' ||
+            i.key === 'DetectionList' ||
+            i.key === 'detectionList'
+        );
+        const countItem = items.find(i => i.key === 'ObjectCount' || i.key === 'objectCount');
+
+        const objects = objectsItem ? this._extractDetectionArray(objectsItem.value) : [];
+
+        const fallbackCount = Array.isArray(objects) ? objects.length : 0;
+        const countRaw = countItem ? Number(countItem.value) : fallbackCount;
+        const count = Number.isFinite(countRaw) ? countRaw : fallbackCount;
+
+        const objectListHtml = objects.length > 0 ? objects.slice(0, 8).map(obj => {
+            const name = obj.label || obj.Label || obj.className || obj.ClassName || obj.type || obj.description || '未知目标';
+            const conf = obj.confidence || obj.Confidence || obj.confidenceScore || obj.score;
+            const confText = typeof conf === 'number'
+                ? `${(conf > 1 ? conf : conf * 100).toFixed(1)}%`
+                : '';
+
+            return `
+                <div class="ac-defect-item">
+                    <span class="ac-defect-dot ok"></span>
+                    <span class="ac-defect-name">${this._escapeHtml(String(name))}</span>
+                    ${confText ? `<span class="ac-defect-conf">${confText}</span>` : ''}
+                </div>
+            `;
+        }).join('') : `<p class="empty-text" style="margin: 8px 0; font-size: 12px; color: var(--text-secondary);">未检出目标</p>`;
+
+        const content = `
+            <div class="ac-defect-summary">
+                <span class="ac-defect-count-label">检出数量</span>
+                <span class="ac-defect-count ok">${count}</span>
+            </div>
+            <div class="ac-defect-list">
+                ${objectListHtml}
+            </div>
+        `;
+
+        // 目标检测模式下，检出目标不代表 NG，卡片保持 OK 视觉。
+        return this._wrapCard('object', ICONS.target, '目标检测', content, 'ok');
     }
 
     /**
@@ -489,6 +579,7 @@ class AnalysisCardsPanel {
             'Diameter': '直径', 'Width': '宽度', 'Height': '高度',
             'Text': '识别文本', 'CodeType': '码制类型', 'CodeCount': '识别数量',
             'DefectCount': '缺陷数量', 'BlobCount': 'Blob数量',
+            'ObjectCount': '目标数量', 'Objects': '目标列表',
             'Score': '匹配分数', 'IsMatch': '匹配结果', 'Position': '位置',
             'Confidence': '置信度', 'CircleCount': '圆数量',
             'LineCount': '直线数量', 'ContourCount': '轮廓数量',
@@ -505,6 +596,37 @@ class AnalysisCardsPanel {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * 兼容多种检测结果结构，统一提取为数组
+     */
+    _extractDetectionArray(rawValue) {
+        if (!rawValue) return [];
+
+        if (Array.isArray(rawValue)) {
+            return rawValue;
+        }
+
+        if (typeof rawValue === 'string') {
+            try {
+                return this._extractDetectionArray(JSON.parse(rawValue));
+            } catch (e) {
+                console.warn('解析检测列表 JSON 失败', e);
+                return [];
+            }
+        }
+
+        if (typeof rawValue === 'object') {
+            if (Array.isArray(rawValue.Detections)) return rawValue.Detections;
+            if (Array.isArray(rawValue.detections)) return rawValue.detections;
+            if (Array.isArray(rawValue.Results)) return rawValue.Results;
+            if (Array.isArray(rawValue.results)) return rawValue.results;
+            if (Array.isArray(rawValue.Items)) return rawValue.Items;
+            if (Array.isArray(rawValue.items)) return rawValue.items;
+        }
+
+        return [];
     }
 
     /**
