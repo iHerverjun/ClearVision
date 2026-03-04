@@ -381,13 +381,26 @@ public class AiApiClient
 
         var fullContent = new StringBuilder();
         var fullReasoning = new StringBuilder();
+        var nonSseBuffer = new StringBuilder();
+        var sawSsePayload = false;
 
         while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data: "))
+            if (string.IsNullOrWhiteSpace(line))
                 continue;
 
+            if (!line.StartsWith("data: ", StringComparison.Ordinal))
+            {
+                // Some OpenAI-compatible gateways return plain JSON even when stream=true.
+                if (!sawSsePayload)
+                {
+                    nonSseBuffer.AppendLine(line);
+                }
+                continue;
+            }
+
+            sawSsePayload = true;
             var dataStr = line["data: ".Length..].Trim();
             if (dataStr == "[DONE]")
                 break;
@@ -395,28 +408,66 @@ public class AiApiClient
             try
             {
                 using var doc = JsonDocument.Parse(dataStr);
-                if (!doc.RootElement.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
-                    continue;
-
-                var delta = choices[0].GetProperty("delta");
-
-                if (delta.TryGetProperty("reasoning_content", out var thinkingEl))
+                if (TryExtractReasoningChunk(doc.RootElement, out var reasoningChunk) &&
+                    !string.IsNullOrEmpty(reasoningChunk))
                 {
-                    var chunk = thinkingEl.GetString() ?? "";
-                    if (!string.IsNullOrEmpty(chunk))
-                    {
-                        fullReasoning.Append(chunk);
-                        onChunk(new AiStreamChunk(AiStreamChunkType.Thinking, chunk));
-                    }
+                    fullReasoning.Append(reasoningChunk);
+                    onChunk(new AiStreamChunk(AiStreamChunkType.Thinking, reasoningChunk));
                 }
 
-                if (TryExtractDeltaContent(delta, out var contentChunk) && !string.IsNullOrEmpty(contentChunk))
+                if (TryProcessOpenAiStreamPayload(doc.RootElement, out var contentChunk) &&
+                    !string.IsNullOrEmpty(contentChunk))
                 {
                     fullContent.Append(contentChunk);
                     onChunk(new AiStreamChunk(AiStreamChunkType.Content, contentChunk));
                 }
             }
             catch (JsonException) { }
+        }
+
+        if (fullContent.Length == 0)
+        {
+            if (TryExtractJsonObject(fullReasoning.ToString(), out var recoveredJson))
+            {
+                fullContent.Append(recoveredJson);
+                onChunk(new AiStreamChunk(AiStreamChunkType.Content, recoveredJson));
+            }
+            else if (!sawSsePayload &&
+                TryParseOpenAiNonStreamingPayload(nonSseBuffer.ToString(), out var payloadContent, out var payloadReasoning))
+            {
+                if (!string.IsNullOrWhiteSpace(payloadContent))
+                {
+                    fullContent.Append(payloadContent);
+                    onChunk(new AiStreamChunk(AiStreamChunkType.Content, payloadContent));
+                }
+
+                if (fullReasoning.Length == 0 && !string.IsNullOrWhiteSpace(payloadReasoning))
+                {
+                    fullReasoning.Append(payloadReasoning);
+                }
+            }
+            else
+            {
+                // Last resort: if stream returned no content chunk at all, fallback to non-stream call once.
+                try
+                {
+                    var fallback = await CallOpenAiAsync(systemPrompt, messages, options, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(fallback.Content))
+                    {
+                        fullContent.Append(fallback.Content);
+                        onChunk(new AiStreamChunk(AiStreamChunkType.Content, fallback.Content));
+                    }
+
+                    if (fullReasoning.Length == 0 && !string.IsNullOrWhiteSpace(fallback.Reasoning))
+                    {
+                        fullReasoning.Append(fallback.Reasoning);
+                    }
+                }
+                catch
+                {
+                    // Keep legacy behavior if fallback request also fails: return empty content and let caller retry.
+                }
+            }
         }
 
         onChunk(new AiStreamChunk(AiStreamChunkType.Done, string.Empty));
@@ -635,37 +686,274 @@ public class AiApiClient
     {
         chunk = string.Empty;
 
-        if (!delta.TryGetProperty("content", out var contentElement))
-            return false;
+        if (TryExtractTextProperty(delta, "content", out chunk))
+            return !string.IsNullOrEmpty(chunk);
 
-        if (contentElement.ValueKind == JsonValueKind.String)
+        if (TryExtractTextProperty(delta, "text", out chunk))
+            return !string.IsNullOrEmpty(chunk);
+
+        if (TryExtractTextProperty(delta, "output_text", out chunk))
+            return !string.IsNullOrEmpty(chunk);
+
+        return false;
+    }
+
+    private static bool TryProcessOpenAiStreamPayload(JsonElement root, out string contentChunk)
+    {
+        contentChunk = string.Empty;
+
+        if (root.TryGetProperty("choices", out var choices) &&
+            choices.ValueKind == JsonValueKind.Array &&
+            choices.GetArrayLength() > 0)
         {
-            chunk = contentElement.GetString() ?? string.Empty;
+            var choice = choices[0];
+
+            if (choice.TryGetProperty("delta", out var delta) &&
+                delta.ValueKind == JsonValueKind.Object &&
+                TryExtractDeltaContent(delta, out contentChunk))
+            {
+                return !string.IsNullOrEmpty(contentChunk);
+            }
+
+            if (TryExtractChoiceContent(choice, out contentChunk))
+            {
+                return !string.IsNullOrEmpty(contentChunk);
+            }
+        }
+
+        if (root.TryGetProperty("type", out var typeEl) &&
+            typeEl.ValueKind == JsonValueKind.String)
+        {
+            var eventType = typeEl.GetString() ?? string.Empty;
+
+            if (eventType.Equals("response.output_text.delta", StringComparison.OrdinalIgnoreCase) &&
+                TryExtractTextProperty(root, "delta", out contentChunk))
+            {
+                return !string.IsNullOrEmpty(contentChunk);
+            }
+        }
+
+        if (TryExtractTextProperty(root, "output_text", out contentChunk))
+            return !string.IsNullOrEmpty(contentChunk);
+
+        return TryExtractTextProperty(root, "text", out contentChunk) && !string.IsNullOrEmpty(contentChunk);
+    }
+
+    private static bool TryExtractReasoningChunk(JsonElement root, out string reasoningChunk)
+    {
+        reasoningChunk = string.Empty;
+
+        if (root.TryGetProperty("choices", out var choices) &&
+            choices.ValueKind == JsonValueKind.Array &&
+            choices.GetArrayLength() > 0)
+        {
+            var choice = choices[0];
+            if (choice.TryGetProperty("delta", out var delta) &&
+                delta.ValueKind == JsonValueKind.Object)
+            {
+                if (TryExtractTextProperty(delta, "reasoning_content", out reasoningChunk))
+                    return !string.IsNullOrEmpty(reasoningChunk);
+
+                if (TryExtractTextProperty(delta, "reasoning", out reasoningChunk))
+                    return !string.IsNullOrEmpty(reasoningChunk);
+
+                if (TryExtractTextProperty(delta, "thinking", out reasoningChunk))
+                    return !string.IsNullOrEmpty(reasoningChunk);
+            }
+        }
+
+        if (root.TryGetProperty("type", out var typeEl) &&
+            typeEl.ValueKind == JsonValueKind.String)
+        {
+            var eventType = typeEl.GetString() ?? string.Empty;
+            if (eventType.Contains("reasoning", StringComparison.OrdinalIgnoreCase) ||
+                eventType.Contains("thinking", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryExtractTextProperty(root, "delta", out reasoningChunk))
+                    return !string.IsNullOrEmpty(reasoningChunk);
+            }
+        }
+
+        if (TryExtractTextProperty(root, "reasoning_content", out reasoningChunk))
+            return !string.IsNullOrEmpty(reasoningChunk);
+
+        if (TryExtractTextProperty(root, "reasoning", out reasoningChunk))
+            return !string.IsNullOrEmpty(reasoningChunk);
+
+        return TryExtractTextProperty(root, "thinking", out reasoningChunk) && !string.IsNullOrEmpty(reasoningChunk);
+    }
+
+    private static bool TryExtractChoiceContent(JsonElement choice, out string contentChunk)
+    {
+        contentChunk = string.Empty;
+
+        if (TryExtractTextProperty(choice, "text", out contentChunk))
+            return !string.IsNullOrEmpty(contentChunk);
+
+        if (choice.TryGetProperty("message", out var message) &&
+            message.ValueKind == JsonValueKind.Object &&
+            ExtractOpenAiMessageContent(message) is { } messageContent &&
+            !string.IsNullOrWhiteSpace(messageContent))
+        {
+            contentChunk = messageContent;
             return true;
         }
 
-        if (contentElement.ValueKind != JsonValueKind.Array)
+        return false;
+    }
+
+    private static bool TryExtractTextProperty(JsonElement element, string propertyName, out string text)
+    {
+        text = string.Empty;
+        if (!element.TryGetProperty(propertyName, out var property))
             return false;
 
-        var sb = new StringBuilder();
-        foreach (var part in contentElement.EnumerateArray())
+        return TryExtractTextValue(property, out text);
+    }
+
+    private static bool TryExtractTextValue(JsonElement element, out string text)
+    {
+        text = string.Empty;
+
+        switch (element.ValueKind)
         {
-            if (part.ValueKind == JsonValueKind.String)
+            case JsonValueKind.String:
+                text = element.GetString() ?? string.Empty;
+                return !string.IsNullOrEmpty(text);
+            case JsonValueKind.Array:
             {
-                sb.Append(part.GetString());
+                var sb = new StringBuilder();
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (TryExtractTextValue(item, out var itemText) && !string.IsNullOrEmpty(itemText))
+                    {
+                        sb.Append(itemText);
+                    }
+                }
+
+                text = sb.ToString();
+                return !string.IsNullOrEmpty(text);
+            }
+            case JsonValueKind.Object:
+            {
+                if (TryExtractTextProperty(element, "text", out text) && !string.IsNullOrEmpty(text))
+                    return true;
+                if (TryExtractTextProperty(element, "content", out text) && !string.IsNullOrEmpty(text))
+                    return true;
+                if (TryExtractTextProperty(element, "value", out text) && !string.IsNullOrEmpty(text))
+                    return true;
+                if (TryExtractTextProperty(element, "delta", out text) && !string.IsNullOrEmpty(text))
+                    return true;
+                if (TryExtractTextProperty(element, "output_text", out text) && !string.IsNullOrEmpty(text))
+                    return true;
+                return false;
+            }
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryExtractJsonObject(string text, out string jsonObject)
+    {
+        jsonObject = string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var firstBrace = text.IndexOf('{');
+        if (firstBrace < 0)
+            return false;
+
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var i = firstBrace; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (inString)
+            {
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+
+                if (ch == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+
+                if (ch == '"')
+                {
+                    inString = false;
+                }
+
                 continue;
             }
 
-            if (part.ValueKind == JsonValueKind.Object &&
-                part.TryGetProperty("text", out var textEl) &&
-                textEl.ValueKind == JsonValueKind.String)
+            if (ch == '"')
             {
-                sb.Append(textEl.GetString());
+                inString = true;
+                continue;
+            }
+
+            if (ch == '{')
+            {
+                depth++;
+            }
+            else if (ch == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    jsonObject = text[firstBrace..(i + 1)].Trim();
+                    return !string.IsNullOrWhiteSpace(jsonObject);
+                }
             }
         }
 
-        chunk = sb.ToString();
-        return !string.IsNullOrEmpty(chunk);
+        return false;
+    }
+
+    private static bool TryParseOpenAiNonStreamingPayload(string payload, out string content, out string reasoning)
+    {
+        content = string.Empty;
+        reasoning = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(payload))
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            if (!doc.RootElement.TryGetProperty("choices", out var choices) ||
+                choices.ValueKind != JsonValueKind.Array ||
+                choices.GetArrayLength() == 0)
+            {
+                return false;
+            }
+
+            var choice = choices[0];
+            if (choice.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.Object)
+            {
+                content = ExtractOpenAiMessageContent(message) ?? string.Empty;
+                if (TryExtractTextProperty(message, "reasoning_content", out var reasoningFromMessage))
+                {
+                    reasoning = reasoningFromMessage;
+                }
+            }
+            else
+            {
+                TryExtractChoiceContent(choice, out content);
+            }
+
+            return !string.IsNullOrWhiteSpace(content) || !string.IsNullOrWhiteSpace(reasoning);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static async Task EnsureSuccessStatusCodeWithDetailsAsync(HttpResponseMessage response, CancellationToken cancellationToken)

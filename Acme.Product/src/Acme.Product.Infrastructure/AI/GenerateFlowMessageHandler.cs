@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Acme.Product.Contracts.Messages;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Services;
@@ -16,7 +17,8 @@ public class GenerateFlowMessageHandler
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     public GenerateFlowMessageHandler(

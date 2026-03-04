@@ -135,6 +135,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 {
                     _logger.LogDebug("AI 思维链：{Reasoning}", completionResult.Reasoning[..Math.Min(200, completionResult.Reasoning.Length)] + "...");
                 }
+                if (string.IsNullOrWhiteSpace(rawResponse))
+                {
+                    var reasoningLength = completionResult.Reasoning?.Length ?? 0;
+                    _logger.LogWarning("AI 流式响应正文为空。ReasoningLength={ReasoningLength}", reasoningLength);
+                }
 
                 // 推送：解析结果
                 onProgress?.Invoke("收到 AI 响应，正在解析 JSON 数据...");

@@ -1293,9 +1293,9 @@ class FlowCanvas {
         if (operators) {
             operators.forEach(op => {
                 // 适配后端 DTO (PascalCase) 或前端 (camelCase)
-                const id = op.id || op.Id;
-                const type = op.type || op.Type;
-                const title = op.name || op.Name || op.title || type;
+                const id = op.id ?? op.Id;
+                const type = op.type ?? op.Type;
+                const title = op.name ?? op.Name ?? op.title ?? type;
                 
                 // 【修复】标准化端口数据，统一使用小写属性名（id/name/type）
                 const normalizePort = (p) => ({

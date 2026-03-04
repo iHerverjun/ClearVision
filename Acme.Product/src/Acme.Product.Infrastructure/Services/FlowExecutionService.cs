@@ -863,6 +863,19 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                         {
                             if (!inputs.ContainsKey(kvp.Key))
                             {
+                                // Never implicitly propagate reference-counted image payloads across
+                                // unrelated ports. This avoids hidden ImageWrapper consumers that are
+                                // invisible to fan-out analysis and can cause premature disposal.
+                                if (ShouldSkipImplicitFallbackValue(kvp.Key, kvp.Value, sourceOperator, connection.SourcePortId))
+                                {
+                                    _logger.LogDebug(
+                                        "[FlowExecution] Skip implicit fallback key '{Key}' from {SourceOperator} to {TargetOperator} to avoid hidden ImageWrapper propagation.",
+                                        kvp.Key,
+                                        sourceOperator?.Name ?? connection.SourceOperatorId.ToString(),
+                                        op.Name);
+                                    continue;
+                                }
+
                                 inputs[kvp.Key] = kvp.Value;
                             }
                         }
@@ -872,6 +885,64 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         }
 
         return inputs;
+    }
+
+    private static bool ShouldSkipImplicitFallbackValue(
+        string key,
+        object? value,
+        Operator? sourceOperator,
+        Guid sourcePortId)
+    {
+        if (!ContainsImageWrapperReference(value))
+            return false;
+
+        if (sourceOperator == null)
+            return true;
+
+        // If this key is exactly the explicitly connected source port, it is not an implicit
+        // propagation and should keep existing behavior.
+        var connectedSourcePort = sourceOperator.OutputPorts.FirstOrDefault(p => p.Id == sourcePortId);
+        return connectedSourcePort == null ||
+               !string.Equals(connectedSourcePort.Name, key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsImageWrapperReference(object? value, int depth = 0)
+    {
+        const int maxDepth = 6;
+        if (value == null || depth > maxDepth)
+            return false;
+
+        if (value is ImageWrapper)
+            return true;
+
+        if (value is string or byte[] or Mat)
+            return false;
+
+        if (value is IDictionary<string, object> typedDict)
+        {
+            return typedDict.Values.Any(child => ContainsImageWrapperReference(child, depth + 1));
+        }
+
+        if (value is IDictionary dict)
+        {
+            foreach (DictionaryEntry entry in dict)
+            {
+                if (ContainsImageWrapperReference(entry.Value, depth + 1))
+                    return true;
+            }
+            return false;
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                if (ContainsImageWrapperReference(item, depth + 1))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     #region 调试功能实现

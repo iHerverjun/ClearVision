@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Acme.Product.Infrastructure.Services;
 using System.Net.Http;
 using System.Linq;
@@ -30,7 +31,8 @@ public class WebMessageHandler
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
+        WriteIndented = false,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     public WebMessageHandler(

@@ -145,6 +145,58 @@ public class FlowConnectionScenariosTests
         sourceExecutor.LastOutputImage!.RefCount.Should().Be(0);
     }
 
+    [Fact]
+    public async Task ExecuteFlowAsync_NonImageConnections_ShouldNotImplicitlyForwardImageWrapper()
+    {
+        var sourceExecutor = new TestYoloLikeSourceOperator(NullLogger<TestYoloLikeSourceOperator>.Instance);
+        var service = CreateFlowService(
+            sourceExecutor,
+            new ConditionalBranchOperator(Substitute.For<ILogger<ConditionalBranchOperator>>()),
+            new ResultOutputOperator(Substitute.For<ILogger<ResultOutputOperator>>()));
+
+        var flow = new OperatorFlow();
+        var source = CreateOperator(
+            "yolo",
+            OperatorType.ImageAcquisition,
+            outputPorts:
+            [
+                ("Image", PortDataType.Image),
+                ("DefectCount", PortDataType.Integer),
+                ("Defects", PortDataType.DetectionList)
+            ]);
+        var branch = CreateOperator(
+            "branch",
+            OperatorType.ConditionalBranch,
+            inputPorts: [("Value", PortDataType.Any)],
+            outputPorts: [("True", PortDataType.Any), ("False", PortDataType.Any)]);
+        var result = CreateOperator(
+            "result",
+            OperatorType.ResultOutput,
+            inputPorts: [("Result", PortDataType.Any), ("Data", PortDataType.Any)],
+            outputPorts: [("Output", PortDataType.Any)]);
+
+        branch.AddParameter(new Parameter(Guid.NewGuid(), "Condition", "Condition", string.Empty, "string", "GreaterThan", null, null, true));
+        branch.AddParameter(new Parameter(Guid.NewGuid(), "CompareValue", "CompareValue", string.Empty, "string", "0", null, null, true));
+
+        flow.AddOperator(source);
+        flow.AddOperator(branch);
+        flow.AddOperator(result);
+
+        // Only non-image ports are explicitly connected. Image should not be implicitly propagated.
+        flow.AddConnection(CreateConnection(source, "DefectCount", branch, "Value"));
+        flow.AddConnection(CreateConnection(source, "Defects", result, "Result"));
+        flow.AddConnection(CreateConnection(source, "DefectCount", result, "Data"));
+
+        var output = await service.ExecuteFlowAsync(flow);
+
+        output.IsSuccess.Should().BeTrue(output.ErrorMessage);
+        output.OutputData.Should().ContainKey("Result");
+        output.OutputData!["Result"].Should().NotBeNull();
+        output.OutputData.Should().ContainKey("Data");
+        output.OutputData["Data"].Should().Be(1);
+        output.OutputData.Should().NotContainKey("Image");
+    }
+
     private static IFlowExecutionService CreateFlowService(params IOperatorExecutor[] executors)
     {
         return new FlowExecutionService(
@@ -246,6 +298,35 @@ public class FlowConnectionScenariosTests
             {
                 { "SameRef", ReferenceEquals(inputA, inputB) }
             }));
+        }
+
+        public override ValidationResult ValidateParameters(Operator @operator)
+        {
+            return ValidationResult.Valid();
+        }
+    }
+
+    private sealed class TestYoloLikeSourceOperator : OperatorBase
+    {
+        public override OperatorType OperatorType => OperatorType.ImageAcquisition;
+
+        public TestYoloLikeSourceOperator(ILogger<TestYoloLikeSourceOperator> logger) : base(logger)
+        {
+        }
+
+        protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+            Operator @operator,
+            Dictionary<string, object>? inputs,
+            CancellationToken cancellationToken)
+        {
+            var mat = new Mat(16, 16, MatType.CV_8UC3, Scalar.All(128));
+            var output = CreateImageOutput(mat, new Dictionary<string, object>
+            {
+                { "DefectCount", 1 },
+                { "Defects", new List<string> { "remote" } }
+            });
+
+            return Task.FromResult(OperatorExecutionOutput.Success(output));
         }
 
         public override ValidationResult ValidateParameters(Operator @operator)

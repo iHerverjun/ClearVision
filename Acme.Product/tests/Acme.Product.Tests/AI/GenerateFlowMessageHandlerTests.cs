@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Acme.Product.Application.DTOs;
 using Acme.Product.Core.DTOs;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
 using Acme.Product.Infrastructure.AI;
 using FluentAssertions;
@@ -117,5 +119,49 @@ public class GenerateFlowMessageHandlerTests
         payloadDoc.RootElement.GetProperty("skipped").GetArrayLength().Should().Be(1);
         payloadDoc.RootElement.GetProperty("skipped")[0].GetProperty("reason").GetString()
             .Should().Be("unsupported_format");
+    }
+
+    [Fact(DisplayName = "GenerateFlowMessageHandler should serialize OperatorType as string")]
+    public async Task HandleAsync_ShouldSerializeOperatorTypeAsString()
+    {
+        // Arrange
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = true,
+                Flow = new OperatorFlowDto
+                {
+                    Operators = new List<OperatorDto>
+                    {
+                        new()
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "华睿相机采集",
+                            Type = OperatorType.ImageAcquisition
+                        }
+                    }
+                }
+            }));
+
+        // Act
+        var resultJson = await handler.HandleAsync("用华睿相机做缺陷检测");
+
+        // Assert
+        using var doc = JsonDocument.Parse(resultJson);
+        var firstOp = doc.RootElement
+            .GetProperty("flow")
+            .GetProperty("operators")[0];
+
+        firstOp.GetProperty("type").ValueKind.Should().Be(JsonValueKind.String);
+        firstOp.GetProperty("type").GetString().Should().Be("ImageAcquisition");
     }
 }
