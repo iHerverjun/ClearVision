@@ -97,7 +97,7 @@ public class TemplateMatchOperator : OperatorBase
         double normalizedScore = isSqDiff ? 1.0 - matchValue : matchValue;
 
         // 绘制结果
-        using var resultImg = src.Clone();
+        var resultImg = src.Clone();
         bool found = normalizedScore >= threshold;
 
         if (found)

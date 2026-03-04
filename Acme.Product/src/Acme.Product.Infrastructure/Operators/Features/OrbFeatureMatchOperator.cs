@@ -248,7 +248,7 @@ public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
 
     private OperatorExecutionOutput CreateFailedOutput(Mat input, string reason, int score, int totalMatches)
     {
-        using var output = input.Clone();
+        var output = input.Clone();
         Cv2.PutText(output, $"NG: {reason}", new Point(10, 30),
             HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 0, 255), 2);
         Cv2.PutText(output, $"Score: {score}/{totalMatches}", new Point(10, 60),

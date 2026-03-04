@@ -258,7 +258,7 @@ public class ColorDetectionOperator : OperatorBase
         var resultImage = src.Clone();
         
         // 在原图上叠加掩膜
-        using var overlay = new Mat();
+        var overlay = new Mat();
         Cv2.AddWeighted(src, 0.7, coloredMask, 0.3, 0, overlay);
         
         // 显示信息

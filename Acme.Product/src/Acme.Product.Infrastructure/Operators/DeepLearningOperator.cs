@@ -208,7 +208,7 @@ public class DeepLearningOperator : OperatorBase
         Logger.LogInformation("[DeepLearning] 检测到目标数量: {DetectionCount}", detections.Count);
 
         // 10. 绘制结果
-        using var outputImage = DrawResults(src, detections);
+        var outputImage = DrawResults(src, detections);
 
         // 11. 构建输出 - Sprint 1 Task 1.2: 使用 DetectionList 类型
         var detectionList = new DetectionList(
