@@ -47,7 +47,7 @@ public class ResultOutputOperator : OperatorBase
             output["Image"] = PreserveOutputValue(image);
 
         if (inputs?.TryGetValue("Result", out var result) == true)
-            output["Result"] = result;
+            output["Result"] = PreserveOutputValue(result);
 
         // 透传其他可能的数据
         if (inputs != null)

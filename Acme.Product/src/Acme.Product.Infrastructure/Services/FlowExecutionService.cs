@@ -703,13 +703,22 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
     /// </summary>
     private Dictionary<string, int> AnalyzeFanOutDegrees(OperatorFlow flow)
     {
-        var degrees = new Dictionary<string, int>();
+        var targetsBySourcePort = new Dictionary<string, HashSet<Guid>>();
         foreach (var conn in flow.Connections)
         {
             var key = $"{conn.SourceOperatorId}:{conn.SourcePortId}";
-            degrees[key] = degrees.GetValueOrDefault(key, 0) + 1;
+            if (!targetsBySourcePort.TryGetValue(key, out var targets))
+            {
+                targets = new HashSet<Guid>();
+                targetsBySourcePort[key] = targets;
+            }
+
+            // One downstream operator executes once even if multiple input ports are wired
+            // to the same source output port, so fan-out should be counted by unique consumers.
+            targets.Add(conn.TargetOperatorId);
         }
-        return degrees;
+
+        return targetsBySourcePort.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Count);
     }
 
     /// <summary>
@@ -798,11 +807,19 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                         if (sourcePort != null)
                         {
                             var portName = sourcePort.Name;
+                            var targetPort = op.InputPorts.FirstOrDefault(p => p.Id == connection.TargetPortId);
                             // 检查输出数据中是否有对应端口的数据且不为null
                             if (sourceOutputs.TryGetValue(portName, out var portData) && portData != null)
                             {
-                                // 只传递该端口的数据以及通用信息
-                                inputs[portName] = portData;
+                                if (targetPort != null)
+                                {
+                                    inputs[targetPort.Name] = portData;
+                                }
+
+                                if (!inputs.ContainsKey(portName))
+                                {
+                                    inputs[portName] = portData;
+                                }
                                 // 同时传递判断结果等通用信息
                                 if (sourceOutputs.TryGetValue("Result", out var result))
                                     inputs["ConditionResult"] = result;
