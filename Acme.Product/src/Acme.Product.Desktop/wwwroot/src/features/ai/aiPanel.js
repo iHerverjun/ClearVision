@@ -590,11 +590,18 @@ export class AiPanel {
     }
     
     _handleApplyFlow() {
-        if (!this.currentResult || !this.flowCanvas) return;
+        if (!this.flowCanvas) return;
+
+        const flow = this.currentResult?.flow;
+        if (!flow) {
+            this._addMessage('system', '当前会话没有可应用的流程数据。');
+            return;
+        }
+
         try {
             const flowBtn = document.querySelector('.nav-btn[data-view="flow"]');
             if (flowBtn) flowBtn.click();
-            this.flowCanvas.deserialize(this.currentResult.flow);
+            this.flowCanvas.deserialize(flow);
             if (window.showToast) window.showToast('方案已应用到画布', 'success');
         } catch (err) {
             console.error('应用流程失败:', err);
@@ -1002,14 +1009,17 @@ export class AiPanel {
             });
         }
 
-        const flowRaw = session.currentFlowJson ?? session.CurrentFlowJson;
-        let parsedFlow = null;
-        if (flowRaw) {
-            try {
-                parsedFlow = JSON.parse(flowRaw);
-            } catch {
-                parsedFlow = null;
-            }
+        const canvasFlowRaw = session.currentCanvasFlowJson ?? session.CurrentCanvasFlowJson;
+        const aiFlowRaw = session.currentFlowJson ?? session.CurrentFlowJson;
+        const parsedCanvasFlow = this._parseFlowJson(canvasFlowRaw);
+        const parsedAiFlow = this._parseFlowJson(aiFlowRaw);
+        const parsedFlow = parsedCanvasFlow || parsedAiFlow;
+        const canvasFlow = this._normalizeSessionFlowForCanvas(parsedCanvasFlow, sessionId);
+
+        if (!canvasFlow && parsedAiFlow && !parsedCanvasFlow) {
+            console.warn('[AiPanel] 历史会话仅包含 AI 原始结构，未包含画布快照，无法直接应用到画布。', {
+                sessionId
+            });
         }
 
         const reasoningEl = this.container.querySelector('#ai-result-reasoning');
@@ -1017,16 +1027,13 @@ export class AiPanel {
         const summaryEl = this.container.querySelector('#ai-result-summary');
         const opsEl = this.container.querySelector('#ai-result-ops');
 
-        const explanation = parsedFlow?.explanation || parsedFlow?.Explanation || '--';
+        const explanation = parsedAiFlow?.explanation || parsedAiFlow?.Explanation ||
+            parsedFlow?.explanation || parsedFlow?.Explanation || '--';
         if (reasoningEl) reasoningEl.textContent = explanation || '--';
         if (thinkingEl) thinkingEl.textContent = '';
 
-        const operators = Array.isArray(parsedFlow?.operators)
-            ? parsedFlow.operators
-            : (Array.isArray(parsedFlow?.Operators) ? parsedFlow.Operators : []);
-        const connections = Array.isArray(parsedFlow?.connections)
-            ? parsedFlow.connections
-            : (Array.isArray(parsedFlow?.Connections) ? parsedFlow.Connections : []);
+        const operators = this._extractOperators(parsedFlow);
+        const connections = this._extractConnections(parsedFlow);
 
         if (summaryEl) {
             summaryEl.textContent = `该方案包含 ${operators.length} 个算子和 ${connections.length} 条连线。`;
@@ -1048,6 +1055,14 @@ export class AiPanel {
             }
         }
 
+        this.currentResult = canvasFlow
+            ? {
+                flow: canvasFlow,
+                aiExplanation: explanation,
+                sessionId
+            }
+            : null;
+
         const updatedAtUtc = session.updatedAtUtc ?? session.UpdatedAtUtc ?? new Date().toISOString();
         const latestMessage = normalizedHistory.length > 0
             ? normalizedHistory[normalizedHistory.length - 1].message
@@ -1058,6 +1073,73 @@ export class AiPanel {
             updatedAtUtc,
             turnCount: normalizedHistory.length
         });
+    }
+
+    _parseFlowJson(raw) {
+        if (!raw) return null;
+        if (typeof raw === 'object') return raw;
+        if (typeof raw !== 'string') return null;
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            console.warn('[AiPanel] 解析会话 flow JSON 失败。', {
+                rawLength: raw.length,
+                error: error?.message || String(error)
+            });
+            return null;
+        }
+    }
+
+    _extractOperators(flow) {
+        if (!flow) return [];
+        if (Array.isArray(flow.operators)) return flow.operators;
+        if (Array.isArray(flow.Operators)) return flow.Operators;
+        return [];
+    }
+
+    _extractConnections(flow) {
+        if (!flow) return [];
+        if (Array.isArray(flow.connections)) return flow.connections;
+        if (Array.isArray(flow.Connections)) return flow.Connections;
+        return [];
+    }
+
+    _isCanvasFlowLike(flow) {
+        if (!flow || typeof flow !== 'object') return false;
+        const operators = this._extractOperators(flow);
+        const connections = this._extractConnections(flow);
+        if (!Array.isArray(operators) || !Array.isArray(connections)) {
+            return false;
+        }
+
+        if (operators.length === 0) {
+            return connections.length === 0;
+        }
+
+        const hasOperatorId = operators.every(op => {
+            const id = op?.id ?? op?.Id;
+            const type = op?.type ?? op?.Type;
+            return !!id && !!type;
+        });
+        if (!hasOperatorId) return false;
+
+        return connections.every(conn => {
+            const source = conn?.sourceOperatorId ?? conn?.SourceOperatorId ?? conn?.source;
+            const target = conn?.targetOperatorId ?? conn?.TargetOperatorId ?? conn?.target;
+            return !!source && !!target;
+        });
+    }
+
+    _normalizeSessionFlowForCanvas(flow, sessionId = '') {
+        if (!flow || typeof flow !== 'object') return null;
+        if (this._isCanvasFlowLike(flow)) {
+            return flow;
+        }
+        console.warn('[AiPanel] 历史会话中的 flow 不是可直接反序列化的画布结构，已跳过应用兜底。', {
+            sessionId,
+            flowKeys: Object.keys(flow || {})
+        });
+        return null;
     }
 
     _deleteSession(sessionId) {

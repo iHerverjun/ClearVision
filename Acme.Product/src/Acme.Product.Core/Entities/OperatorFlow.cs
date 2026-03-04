@@ -196,7 +196,9 @@ public class OperatorFlow : Entity
 
     private bool WouldCreateCycle(OperatorConnection newConnection)
     {
-        // 简化的循环检测
+        if (newConnection.SourceOperatorId == newConnection.TargetOperatorId)
+            return true;
+
         var visited = new HashSet<Guid>();
         return HasCycle(newConnection.TargetOperatorId, newConnection.SourceOperatorId, visited);
     }
@@ -207,11 +209,12 @@ public class OperatorFlow : Entity
             return true;
 
         if (!visited.Add(current))
-            return true; // 已访问过，说明有环
+            return false;
 
         var nextOperators = Connections
             .Where(c => c.SourceOperatorId == current)
-            .Select(c => c.TargetOperatorId);
+            .Select(c => c.TargetOperatorId)
+            .Distinct();
 
         foreach (var next in nextOperators)
         {

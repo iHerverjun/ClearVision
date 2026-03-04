@@ -52,7 +52,8 @@ public class ConversationalFlowServiceTests : IDisposable
             SessionId: "session-detail"));
 
         const string latestFlowJson = "{\"explanation\":\"restored explanation\",\"operators\":[{\"displayName\":\"Threshold\"}] }";
-        service.RecordAssistantResponse(context.SessionId, "assistant detail", latestFlowJson);
+        const string latestCanvasFlowJson = "{\"operators\":[{\"id\":\"op-1\",\"type\":\"Thresholding\",\"name\":\"Threshold\",\"inputPorts\":[],\"outputPorts\":[]}],\"connections\":[]}";
+        service.RecordAssistantResponse(context.SessionId, "assistant detail", latestFlowJson, latestCanvasFlowJson);
 
         var session = service.GetSession("session-detail");
 
@@ -60,6 +61,25 @@ public class ConversationalFlowServiceTests : IDisposable
         session!.SessionId.Should().Be("session-detail");
         session.History.Should().HaveCount(2);
         session.CurrentFlowJson.Should().Be(latestFlowJson);
+        session.CurrentCanvasFlowJson.Should().Be(latestCanvasFlowJson);
+    }
+
+    [Fact]
+    public void RecordAssistantResponse_WhenLatestFlowIsCanvasJson_ShouldPopulateCanvasSnapshot()
+    {
+        var service = new ConversationalFlowService(_tempRoot);
+
+        var context = service.PrepareContext(new AiFlowGenerationRequest(
+            "创建流程",
+            SessionId: "session-canvas-only"));
+
+        const string canvasJson = "{\"operators\":[{\"id\":\"op-1\",\"type\":\"ResultOutput\"}],\"connections\":[]}";
+        service.RecordAssistantResponse(context.SessionId, "assistant canvas", canvasJson);
+
+        var session = service.GetSession(context.SessionId);
+        session.Should().NotBeNull();
+        session!.CurrentFlowJson.Should().Be(canvasJson);
+        session.CurrentCanvasFlowJson.Should().Be(canvasJson);
     }
 
     [Fact]

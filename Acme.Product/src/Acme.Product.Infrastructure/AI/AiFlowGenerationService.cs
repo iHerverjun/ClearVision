@@ -187,7 +187,8 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     _conversationalFlowService.RecordAssistantResponse(
                         conversationContext.SessionId,
                         generatedFlow.Explanation,
-                        JsonSerializer.Serialize(generatedFlow, _jsonOptions));
+                        JsonSerializer.Serialize(generatedFlow, _jsonOptions),
+                        JsonSerializer.Serialize(flowDto, _jsonOptions));
 
                     return new AiFlowGenerationResult
                     {

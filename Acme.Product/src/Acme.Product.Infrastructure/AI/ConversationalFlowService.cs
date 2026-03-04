@@ -23,6 +23,7 @@ public sealed class ConversationSession
 {
     public string SessionId { get; set; } = string.Empty;
     public string? CurrentFlowJson { get; set; }
+    public string? CurrentCanvasFlowJson { get; set; }
     public List<ConversationTurn> History { get; set; } = new();
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
@@ -48,7 +49,11 @@ public interface IConversationalFlowService
     ConversationSession GetOrCreateSession(string? sessionId);
     ConversationIntent DetectIntent(string userDescription, bool hasExistingFlow);
     ConversationContext PrepareContext(AiFlowGenerationRequest request);
-    void RecordAssistantResponse(string sessionId, string assistantMessage, string? latestFlowJson);
+    void RecordAssistantResponse(
+        string sessionId,
+        string assistantMessage,
+        string? latestFlowJson,
+        string? latestCanvasFlowJson = null);
     IReadOnlyList<ConversationSessionSummary> ListSessions();
     ConversationSession? GetSession(string sessionId);
     bool DeleteSession(string sessionId);
@@ -151,7 +156,11 @@ public class ConversationalFlowService : IConversationalFlowService
         lock (session)
         {
             if (!string.IsNullOrWhiteSpace(request.ExistingFlowJson))
+            {
                 session.CurrentFlowJson = request.ExistingFlowJson;
+                if (IsCanvasFlowJson(request.ExistingFlowJson))
+                    session.CurrentCanvasFlowJson = request.ExistingFlowJson;
+            }
 
             session.History.Add(new ConversationTurn
             {
@@ -182,7 +191,11 @@ public class ConversationalFlowService : IConversationalFlowService
         };
     }
 
-    public void RecordAssistantResponse(string sessionId, string assistantMessage, string? latestFlowJson)
+    public void RecordAssistantResponse(
+        string sessionId,
+        string assistantMessage,
+        string? latestFlowJson,
+        string? latestCanvasFlowJson = null)
     {
         if (!_sessions.TryGetValue(sessionId, out var session))
             return;
@@ -191,6 +204,11 @@ public class ConversationalFlowService : IConversationalFlowService
         {
             if (!string.IsNullOrWhiteSpace(latestFlowJson))
                 session.CurrentFlowJson = latestFlowJson;
+
+            if (!string.IsNullOrWhiteSpace(latestCanvasFlowJson))
+                session.CurrentCanvasFlowJson = latestCanvasFlowJson;
+            else if (IsCanvasFlowJson(latestFlowJson))
+                session.CurrentCanvasFlowJson = latestFlowJson;
 
             session.History.Add(new ConversationTurn
             {
@@ -387,6 +405,7 @@ public class ConversationalFlowService : IConversationalFlowService
             {
                 SessionId = session.SessionId,
                 CurrentFlowJson = session.CurrentFlowJson,
+                CurrentCanvasFlowJson = session.CurrentCanvasFlowJson,
                 UpdatedAtUtc = session.UpdatedAtUtc,
                 History = session.History
                     .Select(turn => new ConversationTurn
@@ -415,8 +434,60 @@ public class ConversationalFlowService : IConversationalFlowService
             })
             .ToList();
 
+        if (string.IsNullOrWhiteSpace(session.CurrentCanvasFlowJson) &&
+            IsCanvasFlowJson(session.CurrentFlowJson))
+        {
+            session.CurrentCanvasFlowJson = session.CurrentFlowJson;
+        }
+
         session.UpdatedAtUtc = session.UpdatedAtUtc == default ? DateTime.UtcNow : session.UpdatedAtUtc;
         session.SessionId = session.SessionId.Trim();
+    }
+
+    private static bool IsCanvasFlowJson(string? flowJson)
+    {
+        if (string.IsNullOrWhiteSpace(flowJson))
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(flowJson);
+            var root = doc.RootElement;
+            var operators = TryGetArray(root, "operators", "Operators");
+            var connections = TryGetArray(root, "connections", "Connections");
+            if (operators == null || connections == null)
+                return false;
+
+            if (operators.Value.GetArrayLength() == 0)
+                return true;
+
+            var first = operators.Value.EnumerateArray().FirstOrDefault();
+            if (first.ValueKind != JsonValueKind.Object)
+                return false;
+
+            if (first.TryGetProperty("tempId", out _) || first.TryGetProperty("TempId", out _))
+                return false;
+
+            if (first.TryGetProperty("operatorType", out _) || first.TryGetProperty("OperatorType", out _))
+                return false;
+
+            return first.TryGetProperty("id", out _) || first.TryGetProperty("Id", out _);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static JsonElement? TryGetArray(JsonElement root, string camelName, string pascalName)
+    {
+        if (root.TryGetProperty(camelName, out var camel) && camel.ValueKind == JsonValueKind.Array)
+            return camel;
+
+        if (root.TryGetProperty(pascalName, out var pascal) && pascal.ValueKind == JsonValueKind.Array)
+            return pascal;
+
+        return null;
     }
 
     private void PruneInMemorySessions()
