@@ -5,7 +5,7 @@
 > **创建日期**: 2026-02-20
 > **最后更新**: 2026-02-21
 > **文档编号**: plan-ocr-native-dependency
-> **状态**: 进行中
+> **状态**: 已完成（回填，2026-03-06）
 
 ---
 ## 1. 当前问题背景 (The Problem)
@@ -58,3 +58,8 @@ System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(
 一旦底层 DLL 和模型被接管正常打通，就能看到期望的报告了：
 1. 观察 `Integration_Accuracy_Should_Recognize_IndustrialText` (识别批号、日期等准确率是否达成 >= 95%)。
 2. 观察 `Performance_1920x1080_InferenceTime_ShouldBe_Under_500ms` (是否能被稳控在 500 ms 极速推理内)。
+
+
+## 5. 状态回填说明
+- 回填日期：2026-03-06
+- 回填依据：dotnet test OCR 相关子集通过（7/7），并已纳入全量测试通过基线。

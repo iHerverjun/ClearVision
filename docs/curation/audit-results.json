@@ -1872,7 +1872,7 @@
         "Actionable":  false
     },
     {
-        "Path":  "SYSTEM_CONFIG_AUDIT_2026-02-27.md",
+        "Path":  "docs/audits/SYSTEM_CONFIG_AUDIT_2026-02-27.md",
         "Ext":  "md",
         "Status":  "无核查项",
         "Checked":  0,
@@ -1881,7 +1881,7 @@
         "Actionable":  false
     },
     {
-        "Path":  "华睿相机连接详细指导.md",
+        "Path":  "docs/guides/hardware/华睿相机连接详细指导.md",
         "Ext":  "md",
         "Status":  "无核查项",
         "Checked":  0,
@@ -1890,3 +1890,4 @@
         "Actionable":  false
     }
 ]
+

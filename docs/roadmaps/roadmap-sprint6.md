@@ -1,21 +1,56 @@
-# ClearVision Sprint 6 开发路线图与计划
+﻿# ClearVision Sprint 6 开发路线图与计划
+
+
 
 <!-- DOC_AUDIT_STATUS_START -->
 ## 文档审计状态（自动更新）
-- 审计日期：2026-03-02
-- 完成状态：未完成
-- 任务统计：总计 54，已完成 0，未完成 54，待办关键词命中 0
-- 判定依据：任务清单尚未开始勾选
+- 审计日期：2026-03-06
+- 完成状态：部分完成，待验收闭环
+- 任务统计：Task 6.1 ~ 6.6 均已有落地文件；主要剩余项为 smoke / 回归 / 文档收口
+- 判定依据：代码实现已明显领先于原文勾选状态
 <!-- DOC_AUDIT_STATUS_END -->
 
 
 > **作者**: 蘅芜君
 > **版本**: V1.0
 > **创建日期**: 2026-02-19
-> **最后更新**: 2026-02-21
+> **最后更新**: 2026-03-06
 > **文档编号**: roadmap-sprint6
-> **状态**: 进行中
+> **状态**: 部分完成，待验收闭环
 > **前置文档**: [roadmap-main.md](roadmap-main.md)（V4.3 核查版）
+
+---
+## 2026-03-06 状态回填
+
+### 当前结论
+
+- 当前状态：`部分完成，待验收闭环`。
+- 判断说明：Task `6.1 ~ 6.6` 均已有对应实现文件，当前缺口主要集中在连接器 smoke、设置页配置流、AI 生成链路回归，而不是从零开发。
+
+### Task 6.1 ~ 6.6 实现矩阵
+
+| Task | 当前状态 | 代码证据 | 本周收口动作 |
+|---|---|---|---|
+| `6.1` OpenAI 连接器 | 已实现，待 smoke | `AI/Connectors/OpenAiConnector.cs` | 跑一轮 OpenAI 配置与错误处理冒烟 |
+| `6.2` Azure OpenAI 连接器 | 已实现，待 smoke | `AI/Connectors/AzureOpenAiConnector.cs` | 校验 Azure 配置路径与认证参数 |
+| `6.3` Ollama 连接器 | 已实现，待 smoke | `AI/Connectors/OllamaConnector.cs` | 本地模型可达性与超时回归 |
+| `6.4` 工厂与运行时配置 | 已实现，待统一验收 | `AI/Connectors/LLMConnectorFactory.cs`、`AI/Runtime/*`、`AI/AiConfigStore.cs` | 工厂选型与设置页持久化回归 |
+| `6.5` 提示词版本管理 | 已实现，缺文档化验收 | `AI/PromptVersionManager.cs` | 增补提示词版本 smoke 与验收记录 |
+| `6.6` AI 流程版本控制 | 已实现，缺文档化验收 | `AI/AIGeneratedFlowVersionManager.cs` | 增补历史版本/回滚链路回归 |
+
+### 连接器完成矩阵
+
+| 连接器 | 实现 | 工厂/配置接线 | 测试现状 | 结论 |
+|---|---|---|---|---|
+| OpenAI | `OpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
+| Azure OpenAI | `AzureOpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
+| Ollama | `OllamaConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
+
+### 本周验收动作
+
+- [ ] 连接器 smoke test：分别验证 OpenAI / Azure OpenAI / Ollama 的最小成功与失败路径。
+- [ ] 设置页配置流测试：验证模型切换、激活、持久化与读取回显。
+- [ ] AI 生成链路回归测试：验证编排入口、提示词版本、流程版本落盘与读取。
 
 ---
 ## 总览
@@ -474,7 +509,9 @@ public class FlowDiff
 
 ---
 
-# 第二部分：Sprint 6 详细开发计划
+# 第二部分：Sprint 6 详细开发计划
+
+
 
 <!-- DOC_AUDIT_STATUS_START -->
 ## 文档审计状态（自动更新）
@@ -487,7 +524,10 @@ public class FlowDiff
 
 > 以下内容来自原 `ClearVision_Sprint6_开发计划.md`，提供了 Sprint 6 的细化任务分解和具体实施指导。
 
-# ClearVision Sprint 6 开发计划
+# ClearVision Sprint 6 开发计划
+
+
+
 
 <!-- DOC_AUDIT_STATUS_START -->
 ## 文档审计状态（自动更新）

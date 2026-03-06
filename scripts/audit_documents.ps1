@@ -245,10 +245,10 @@ foreach ($group in ($results | Group-Object Ext | Sort-Object Name)) {
 $summaryLines.Add('') | Out-Null
 $summaryLines.Add('## 归纳目录') | Out-Null
 $summaryLines.Add('') | Out-Null
-$summaryLines.Add('- `文档归纳/已完成/<类型>/文件清单.md`') | Out-Null
-$summaryLines.Add('- `文档归纳/进行中/<类型>/文件清单.md`') | Out-Null
-$summaryLines.Add('- `文档归纳/未完成/<类型>/文件清单.md`') | Out-Null
-$summaryLines.Add('- `文档归纳/无核查项/<类型>/文件清单.md`') | Out-Null
+$summaryLines.Add('- `docs/curation/已完成/<类型>/文件清单.md`') | Out-Null
+$summaryLines.Add('- `docs/curation/进行中/<类型>/文件清单.md`') | Out-Null
+$summaryLines.Add('- `docs/curation/未完成/<类型>/文件清单.md`') | Out-Null
+$summaryLines.Add('- `docs/curation/无核查项/<类型>/文件清单.md`') | Out-Null
 
 [System.IO.File]::WriteAllLines(
     (Join-Path $archiveRoot '审计总览.md'),
@@ -269,3 +269,4 @@ $output = @(
 )
 
 $output -join "`n"
+
