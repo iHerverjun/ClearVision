@@ -23,6 +23,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 {
     private static readonly TimeSpan DebugCleanupInterval = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DebugSessionTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ExecutionStatusTtl = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<Guid, FlowExecutionStatus> _executionStatuses = new();
     private readonly Dictionary<OperatorType, IOperatorExecutor> _executors;
     private readonly ILogger<FlowExecutionService> _logger;
@@ -127,6 +128,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
             status.IsExecuting = false;
             status.ProgressPercentage = 100;
+            status.CompletedAt = DateTime.UtcNow;
 
             return result;
         }
@@ -155,7 +157,12 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 removedCts.Dispose();
             }
 
-            _executionStatuses.TryRemove(flow.Id, out _);
+            if (_executionStatuses.TryGetValue(flow.Id, out var finalStatus))
+            {
+                finalStatus.IsExecuting = false;
+                finalStatus.ProgressPercentage = 100;
+                finalStatus.CompletedAt ??= DateTime.UtcNow;
+            }
         }
     }
 
@@ -514,7 +521,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         // 检查是否有算子
         if (!flow.Operators.Any())
         {
-            result.Errors.Add("Flow contains no operators.");
+            result.Errors.Add("流程中没有任何算子");
             return result;
         }
 
@@ -575,6 +582,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         if (_executionStatuses.TryGetValue(flowId, out var status))
         {
             status.IsExecuting = false;
+            status.CompletedAt = DateTime.UtcNow;
         }
 
         return Task.CompletedTask;
@@ -899,11 +907,33 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         if (sourceOperator == null)
             return true;
 
-        // If this key is exactly the explicitly connected source port, it is not an implicit
-        // propagation and should keep existing behavior.
         var connectedSourcePort = sourceOperator.OutputPorts.FirstOrDefault(p => p.Id == sourcePortId);
-        return connectedSourcePort == null ||
-               !string.Equals(connectedSourcePort.Name, key, StringComparison.OrdinalIgnoreCase);
+        if (connectedSourcePort == null)
+            return true;
+
+        // Exact match: port name == key name (original logic)
+        if (string.Equals(connectedSourcePort.Name, key, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Supplemental match: if this operator has only one output port and the key is a
+        // well-known image output key produced by OperatorBase.CreateImageOutput, treat it
+        // as the port's actual output rather than an implicit propagation.
+        // This handles the common mismatch where port is named "Output" but the data key is "Image".
+        if (sourceOperator.OutputPorts.Count == 1 && IsStandardImageOutputKey(key))
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns true for well-known output keys produced by OperatorBase.CreateImageOutput
+    /// and other standard operator output methods.
+    /// </summary>
+    private static bool IsStandardImageOutputKey(string key)
+    {
+        return string.Equals(key, "Image", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Edges", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Mask", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ContainsImageWrapperReference(object? value, int depth = 0)
@@ -1118,6 +1148,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
             status.IsExecuting = false;
             status.ProgressPercentage = 100;
+            status.CompletedAt = DateTime.UtcNow;
 
             return result;
         }
@@ -1145,7 +1176,12 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 removedCts.Dispose();
             }
 
-            _executionStatuses.TryRemove(flow.Id, out _);
+            if (_executionStatuses.TryGetValue(flow.Id, out var finalStatus))
+            {
+                finalStatus.IsExecuting = false;
+                finalStatus.ProgressPercentage = 100;
+                finalStatus.CompletedAt ??= DateTime.UtcNow;
+            }
         }
     }
 
@@ -1198,10 +1234,28 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                     _ = ClearDebugCacheAsync(entry.Key);
                 }
             }
+
+            CleanupStaleExecutionStatuses(DateTime.UtcNow - ExecutionStatusTtl);
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "[Debug] Failed to cleanup stale debug sessions.");
+        }
+    }
+
+    private void CleanupStaleExecutionStatuses(DateTime staleBefore)
+    {
+        foreach (var entry in _executionStatuses)
+        {
+            if (entry.Value.IsExecuting)
+            {
+                continue;
+            }
+
+            if (entry.Value.CompletedAt is DateTime completedAt && completedAt < staleBefore)
+            {
+                _executionStatuses.TryRemove(entry.Key, out _);
+            }
         }
     }
 

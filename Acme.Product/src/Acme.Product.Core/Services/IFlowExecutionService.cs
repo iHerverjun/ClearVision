@@ -196,4 +196,9 @@ public class FlowExecutionStatus
     /// 开始时间
     /// </summary>
     public DateTime? StartTime { get; set; }
+
+    /// <summary>
+    /// 完成时间（执行结束时写入，用于状态延迟清理）
+    /// </summary>
+    public DateTime? CompletedAt { get; set; }
 }

@@ -1,4 +1,4 @@
-// FlowExecutionServiceTests.cs
+﻿// FlowExecutionServiceTests.cs
 // FlowExecutionService 集成测试
 // 作者：蘅芜君
 
@@ -731,25 +731,56 @@ public class FlowExecutionServiceIntegrationTests
         });
     }
 
-    [Fact(Skip = "CancelExecutionAsync尚未完全实现")]
+    [Fact]
     public async Task CancelExecutionAsync_DuringExecution_ShouldStop()
     {
-        // Arrange - 创建一个耗时较长的流程
-        var flow = Create5OperatorComplexFlow();
-        var testImage = CreateTestImageBytes();
-        var inputData = new Dictionary<string, object> { { "Image", testImage } };
+        // Arrange - 构造一个显式支持取消的慢执行器，确保取消链路可验证。
+        var executionStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var slowExecutor = Substitute.For<IOperatorExecutor>();
+        slowExecutor.OperatorType.Returns(OperatorType.Filtering);
+        slowExecutor.ValidateParameters(Arg.Any<Operator>()).Returns(ValidationResult.Valid());
+        slowExecutor
+            .ExecuteAsync(Arg.Any<Operator>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                var token = callInfo.ArgAt<CancellationToken>(2);
+                executionStarted.TrySetResult(true);
+                await Task.Delay(TimeSpan.FromSeconds(5), token);
+                return OperatorExecutionOutput.Success();
+            });
 
-        // Act - 启动流程
-        var executionTask = _flowExecutionService.ExecuteFlowAsync(flow, inputData);
+        using var flowExecutionService = new FlowExecutionService(
+            new[] { slowExecutor },
+            Substitute.For<ILogger<FlowExecutionService>>(),
+            Substitute.For<IVariableContext>());
 
-        // 取消功能待实现 - 需要添加CancelExecutionAsync方法到IFlowExecutionService接口
-        // 实现后取消下面这行的注释:
-        // await _flowExecutionService.CancelExecutionAsync(flow.Id);
+        var flow = new OperatorFlow();
+        flow.AddOperator(CreateOperatorWithPorts("长耗时算子", OperatorType.Filtering, 0, 0));
+        var inputData = new Dictionary<string, object> { { "Image", CreateTestImageBytes() } };
 
-        // Assert - 暂时只验证流程能正常完成
+        // Act - 启动流程并等待算子真正进入执行态。
+        var executionTask = flowExecutionService.ExecuteFlowAsync(flow, inputData);
+        await executionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var runningStatus = flowExecutionService.GetExecutionStatus(flow.Id);
+        runningStatus.Should().NotBeNull();
+        runningStatus!.IsExecuting.Should().BeTrue();
+
+        await flowExecutionService.CancelExecutionAsync(flow.Id);
         var result = await executionTask;
-        result.Should().NotBeNull();
+
+        // Assert - 返回取消结果，且最终状态保留到可查询窗口中。
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Flow was canceled.");
+        await slowExecutor.Received(1).ExecuteAsync(Arg.Any<Operator>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<CancellationToken>());
+
+        var finalStatus = flowExecutionService.GetExecutionStatus(flow.Id);
+        finalStatus.Should().NotBeNull();
+        finalStatus!.IsExecuting.Should().BeFalse();
+        finalStatus.CompletedAt.Should().NotBeNull();
     }
 
     #endregion
 }
+
+
