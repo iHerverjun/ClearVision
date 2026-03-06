@@ -15,13 +15,19 @@ namespace Acme.Product.Tests.AI;
 
 public class AiConfigStoreTests : IDisposable
 {
-    private readonly string _testModelsFile = Path.Combine(AppContext.BaseDirectory, "ai_models.json");
-    private readonly string _testLegacyFile = Path.Combine(AppContext.BaseDirectory, "ai_config.json");
+    private readonly string _testDir;
+    private readonly string _testModelsFile;
+    private readonly string _testLegacyFile;
     private readonly Microsoft.Extensions.Logging.ILogger<AiConfigStore> _mockLogger;
     private readonly IOptions<AiGenerationOptions> _mockOptions;
 
     public AiConfigStoreTests()
     {
+        _testDir = Path.Combine(Path.GetTempPath(), $"cv-ai-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testDir);
+        _testModelsFile = Path.Combine(_testDir, "ai_models.json");
+        _testLegacyFile = Path.Combine(_testDir, "ai_config.json");
+
         _mockLogger = Substitute.For<Microsoft.Extensions.Logging.ILogger<AiConfigStore>>();
         _mockOptions = Options.Create(new AiGenerationOptions
         {
@@ -37,7 +43,17 @@ public class AiConfigStoreTests : IDisposable
 
     public void Dispose()
     {
-        CleanupFiles();
+        try
+        {
+            if (Directory.Exists(_testDir))
+            {
+                Directory.Delete(_testDir, true);
+            }
+        }
+        catch
+        {
+            // ignore cleanup failures in tests
+        }
     }
 
     private void CleanupFiles()
@@ -48,11 +64,16 @@ public class AiConfigStoreTests : IDisposable
             File.Delete(_testLegacyFile);
     }
 
+    private AiConfigStore CreateStore()
+    {
+        return new AiConfigStore(_mockOptions, _mockLogger, _testDir);
+    }
+
     [Fact]
     public void Constructor_WhenNoFiles_CreatesDefaultFromOptions()
     {
         // Arrange & Act
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var all = store.GetAll();
 
         // Assert
@@ -70,7 +91,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Add_Model_Then_GetAll_ReturnsIt()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         store.GetAll(); // Ignore default
 
         var newModel = new AiModelConfig { Id = "test1", Name = "New Model" };
@@ -84,7 +105,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Delete_LastModel_ThrowsException()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var defaultModel = store.GetAll().First();
 
         var ex = Assert.Throws<InvalidOperationException>(() => store.Delete(defaultModel.Id));
@@ -94,7 +115,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Delete_ActiveModel_ActivatesFirstRemaining()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var defaultModel = store.GetAll().First();
 
         var secondModel = new AiModelConfig { Id = "test2", IsActive = false };
@@ -115,7 +136,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void SetActive_UpdatesActiveFlag()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var defaultModel = store.GetAll().First();
 
         var modelA = new AiModelConfig { Id = "A", IsActive = false };
@@ -135,7 +156,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Update_WithNullApiKey_PreservesOldKey()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var model = new AiModelConfig { Id = "test3", ApiKey = "RealSecretKey" };
         store.Add(model);
 
@@ -152,7 +173,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Update_WithEmptyApiKey_PreservesOldKey()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var model = new AiModelConfig { Id = "test4", ApiKey = "RealSecretKey" };
         store.Add(model);
 
@@ -168,7 +189,7 @@ public class AiConfigStoreTests : IDisposable
     [Fact]
     public void Get_ReturnsActiveModelAsOptions()
     {
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
         var modelA = new AiModelConfig { Id = "A", Provider = "ProviderA", Model = "ModelA", IsActive = false };
         var modelB = new AiModelConfig { Id = "B", Provider = "ProviderB", Model = "ModelB", IsActive = true };
 
@@ -188,7 +209,7 @@ public class AiConfigStoreTests : IDisposable
         var oldConfigJson = "{\"Provider\":\"LegacyProvider\",\"ApiKey\":\"LegacyKey\",\"Model\":\"LegacyModel\",\"BaseUrl\":\"http://legacy\",\"TimeoutSeconds\":120,\"MaxRetries\":3,\"MaxTokens\":2048,\"Temperature\":0.5}";
         File.WriteAllText(_testLegacyFile, oldConfigJson);
 
-        var store = new AiConfigStore(_mockOptions, _mockLogger);
+        var store = CreateStore();
 
         var all = store.GetAll();
         Assert.Single(all);

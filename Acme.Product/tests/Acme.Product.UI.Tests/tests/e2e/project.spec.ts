@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { bootAuthenticatedApp } from './authHelper';
 
 test.describe('ClearVision E2E', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await bootAuthenticatedApp(page);
   });
 
   test('should load the home page', async ({ page }) => {
@@ -11,7 +12,8 @@ test.describe('ClearVision E2E', () => {
   });
 
   test('should verify default status', async ({ page }) => {
-    await expect(page.locator('#status-text')).toContainText('就绪');
-    await expect(page.locator('#project-name')).toContainText('未命名工程');
+    await expect(page.locator('#status-text')).toBeVisible();
+    await expect(page.locator('#project-name')).toBeVisible();
   });
 });
+

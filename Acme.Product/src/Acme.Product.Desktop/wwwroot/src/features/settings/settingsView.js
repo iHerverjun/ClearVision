@@ -1,4 +1,4 @@
-import httpClient from '../../core/messaging/httpClient.js';
+﻿import httpClient from '../../core/messaging/httpClient.js';
 import { showToast, createModal } from '../../shared/components/uiComponents.js';
 
 class SettingsView {
@@ -24,6 +24,7 @@ class SettingsView {
         this.plcMappings = [];
         this.plcConnectionStatus = 'unknown';
         this.plcMappingsLoaded = false;
+        this.activeTab = null;
 
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
     }
@@ -168,6 +169,7 @@ class SettingsView {
 
     activateTab(tabName) {
         if (!this.container) return;
+        this.activeTab = tabName;
         
         // 侧边栏高亮
         const menuItems = this.container.querySelectorAll('.settings-menu-item');
@@ -647,6 +649,47 @@ class SettingsView {
         });
         
         setTimeout(() => this.refreshAiTableAndForm(), 0);
+    }
+
+    getActiveTabName() {
+        if (this.activeTab) {
+            return this.activeTab;
+        }
+
+        const activePanel = this.container?.querySelector('.settings-panel.active');
+        return activePanel?.dataset.section || null;
+    }
+
+    hasPendingAiChanges() {
+        const modelId = this.editingAiModelId;
+        if (!modelId) {
+            return false;
+        }
+
+        if (Object.keys(this._pendingFormEdits || {}).length > 0) {
+            return true;
+        }
+
+        const aiTab = this.container?.querySelector('[data-section="ai"]');
+        if (!aiTab) {
+            return false;
+        }
+
+        const model = this.aiModels.find(x => x.id === modelId);
+        if (!model) {
+            return false;
+        }
+
+        const currentTimeout = parseInt(aiTab.querySelector('#cfg-ai-timeout')?.value || '120000', 10);
+        const normalizedTimeout = Number.isFinite(currentTimeout) ? currentTimeout : 120000;
+        const pendingApiKey = aiTab.querySelector('#cfg-ai-apikey')?.value || '';
+
+        return (aiTab.querySelector('#cfg-ai-name')?.value || '') !== (model.name || '')
+            || (aiTab.querySelector('#cfg-ai-provider')?.value || 'OpenAI Compatible') !== (model.provider || 'OpenAI Compatible')
+            || (aiTab.querySelector('#cfg-ai-model')?.value || '') !== (model.model || '')
+            || (aiTab.querySelector('#cfg-ai-baseurl')?.value || '') !== (model.baseUrl || '')
+            || normalizedTimeout !== (model.timeoutMs ?? 120000)
+            || pendingApiKey.trim().length > 0;
     }
 
     /** 将当前编辑表单的值保存到后端 */
@@ -2175,11 +2218,19 @@ class SettingsView {
             this.plcMappings = [...plcMappings];
             this.plcMappingsLoaded = true;
 
-            // 保存 AI 配置（通过后端 API 保存当前编辑的模型）
-            await this._saveCurrentForm();
+            // 仅在 AI 页显式保存时同步当前模型，避免全局保存触发隐式副作用。
+            const activeTabName = this.getActiveTabName();
+            const hasPendingAiChanges = this.hasPendingAiChanges();
+            if (activeTabName === 'ai' && hasPendingAiChanges) {
+                await this._saveCurrentForm();
+            }
 
             console.log('[SettingsView] Config saved successfully');
-            showToast('所有设置已生效并保存。', 'success');
+            if (activeTabName !== 'ai' && hasPendingAiChanges) {
+                showToast('系统设置已保存；AI 模型草稿仍保留在 AI 页，需要单独保存。', 'warning');
+            } else {
+                showToast('所有设置已生效并保存。', 'success');
+            }
             await this.loadDiskUsage();
             
             // 仅在用户显式设置主题时才应用，避免“保存所有更改”意外切换深色模式。
@@ -2200,3 +2251,5 @@ window.initializeSettingsView = function() {
     window.cvSettingsView = new SettingsView('settings-view');
     window.cvSettingsView.refresh();
 };
+
+

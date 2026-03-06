@@ -9,8 +9,28 @@ using NSubstitute;
 
 namespace Acme.Product.Tests.AI;
 
-public class AiApiClientMultimodalTests
+public class AiApiClientMultimodalTests : IDisposable
 {
+    private readonly List<string> _tempConfigDirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempConfigDirs)
+        {
+            try
+            {
+                if (Directory.Exists(dir))
+                {
+                    Directory.Delete(dir, true);
+                }
+            }
+            catch
+            {
+                // ignore cleanup failures in tests
+            }
+        }
+    }
+
     [Fact(DisplayName = "AiApiClient should send OpenAI multimodal message content with text and image")]
     public async Task CompleteAsync_OpenAi_ShouldSerializeTextAndImageParts()
     {
@@ -41,9 +61,7 @@ public class AiApiClientMultimodalTests
             });
 
             using var httpClient = new HttpClient(handler);
-            var configStore = new AiConfigStore(
-                Options.Create(new AiGenerationOptions()),
-                Substitute.For<Microsoft.Extensions.Logging.ILogger<AiConfigStore>>());
+            var configStore = CreateIsolatedConfigStore();
             var apiClient = new AiApiClient(httpClient, configStore);
 
             var messages = new List<ChatMessage>
@@ -278,12 +296,22 @@ public class AiApiClientMultimodalTests
         result.Content.Should().Be("{\"ok\":true}");
     }
 
-    private static AiApiClient CreateApiClient(HttpClient httpClient)
+    private AiApiClient CreateApiClient(HttpClient httpClient)
     {
-        var configStore = new AiConfigStore(
-            Options.Create(new AiGenerationOptions()),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<AiConfigStore>>());
+        var configStore = CreateIsolatedConfigStore();
         return new AiApiClient(httpClient, configStore);
+    }
+
+    private AiConfigStore CreateIsolatedConfigStore()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"cv-ai-mm-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        _tempConfigDirs.Add(dir);
+
+        return new AiConfigStore(
+            Options.Create(new AiGenerationOptions()),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<AiConfigStore>>(),
+            dir);
     }
 
     private static string CreateTinyPngFile()

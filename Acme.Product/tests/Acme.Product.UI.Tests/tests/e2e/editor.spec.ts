@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { bootAuthenticatedApp } from './authHelper';
 
 test.describe('Flow Editor', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await bootAuthenticatedApp(page);
   });
 
   test('should have canvas visible', async ({ page }) => {
@@ -13,3 +14,4 @@ test.describe('Flow Editor', () => {
     await expect(page.locator('#operator-library')).toBeVisible();
   });
 });
+

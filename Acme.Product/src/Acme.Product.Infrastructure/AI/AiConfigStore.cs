@@ -28,10 +28,22 @@ public class AiConfigStore
     };
 
     public AiConfigStore(IOptions<AiGenerationOptions> initialOptions, Microsoft.Extensions.Logging.ILogger<AiConfigStore> logger)
+        : this(initialOptions, logger, AppContext.BaseDirectory)
+    {
+    }
+
+    public AiConfigStore(
+        IOptions<AiGenerationOptions> initialOptions,
+        Microsoft.Extensions.Logging.ILogger<AiConfigStore> logger,
+        string storageDirectory)
     {
         _logger = logger;
-        _modelsFilePath = Path.Combine(AppContext.BaseDirectory, "ai_models.json");
-        _legacyConfigFilePath = Path.Combine(AppContext.BaseDirectory, "ai_config.json");
+        if (string.IsNullOrWhiteSpace(storageDirectory))
+            throw new ArgumentException("Storage directory must not be empty.", nameof(storageDirectory));
+
+        Directory.CreateDirectory(storageDirectory);
+        _modelsFilePath = Path.Combine(storageDirectory, "ai_models.json");
+        _legacyConfigFilePath = Path.Combine(storageDirectory, "ai_config.json");
         _models = LoadOrMigrate(initialOptions.Value);
     }
 
@@ -141,7 +153,7 @@ public class AiConfigStore
         lock (_lock)
         {
             if (_models.Count <= 1)
-                throw new InvalidOperationException("至少需要保留一个模型配置");
+                throw new InvalidOperationException("至少需保留一个模型配置");
 
             var removed = _models.RemoveAll(x => x.Id == id);
             if (removed == 0)
