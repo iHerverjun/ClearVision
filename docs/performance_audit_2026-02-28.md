@@ -1,9 +1,22 @@
-# ClearVision 性能隐患排查报告
+﻿# ClearVision 性能隐患排查报告
 
 > **排查日期**：2026-02-28  
 > **排查范围**：后端 C# 核心模块 + 前端 JS  
 > **核心关注**：长时间运行是否会崩溃  
 > **审查文件数**：15+ 个核心文件，约 7000 行代码
+
+---
+## 2026-03-06 状态回填
+
+| 问题 | 当前状态 | 代码证据 | 备注 |
+|---|---|---|---|
+| `#1` Image cache 无限增长 | ✅ 已修复 | `ImageAcquisitionService.MaxCacheSize = 50` + `AddToCache()` 淘汰策略 | `_imageCache` 已有容量上限 |
+| `#2` 调试缓存 / 执行状态不清理 | ✅ 已修复 | `ExecutionStatusTtl`、`CleanupStaleExecutionStatuses()`、调试缓存清理计时器 | 长时间运行不再只增不减 |
+| `#3` ONNX 模型缓存不释放 | ✅ 已修复 | `DeepLearningOperator.MaxCachedModels`、LRU 驱逐、`UnloadModel()` | 模型切换已具备释放路径 |
+| `#4` 连续采集资源管理 | ✅ 已修复待回归 | `CameraManager` 持有 `_acquisitionTask/_acquisitionCts`，`Stop`/`Dispose` 中等待清理 | 建议补一轮连续采集稳定性压测 |
+| `#5` 每帧 PNG 编码掉帧 | ✅ 已修复 | `CameraManager.EncodeFrameToBytes(... useFastEncoding: true)` 走 JPEG 快路径 | 连续采集不再固定走 PNG |
+| `#6` 36MB pinned buffer | ✅ 已修复 | `HikvisionCamera` 改为 `AllocHGlobal` 非托管缓冲 | 不再长期 pin 36MB 托管数组 |
+| `#10` 每帧 Clone + Base64 | 🟡 部分完成 | `ImageAcquisitionService` 已限制缓存，但连续采集仍会 `Convert.ToBase64String(frameData)` | 当前主要剩余项 |
 
 ---
 
