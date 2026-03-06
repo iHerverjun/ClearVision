@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Infrastructure.Cameras;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 
 namespace Acme.Product.Desktop.Tests;
@@ -33,7 +34,7 @@ public class CameraProviderAdapterTests
                 Timestamp = 1
             });
 
-            var adapter = new CameraProviderAdapter("cam-1", provider);
+            var adapter = new CameraProviderAdapter("cam-1", provider, Substitute.For<ILogger<CameraProviderAdapter>>());
             var pngBytes = await adapter.AcquireSingleFrameAsync();
 
             pngBytes.Should().NotBeNullOrEmpty();
@@ -75,7 +76,7 @@ public class CameraProviderAdapterTests
                 PixelFormat = CameraPixelFormat.Mono8
             });
 
-            var adapter = new CameraProviderAdapter("cam-2", provider);
+            var adapter = new CameraProviderAdapter("cam-2", provider, Substitute.For<ILogger<CameraProviderAdapter>>());
             var pngBytes = await adapter.AcquireSingleFrameAsync();
 
             pngBytes.Should().NotBeNullOrEmpty();
@@ -97,7 +98,7 @@ public class CameraProviderAdapterTests
         provider.IsGrabbing.Returns(true);
         provider.GetFrame(3000).Returns((CameraFrame?)null);
 
-        var adapter = new CameraProviderAdapter("cam-3", provider);
+        var adapter = new CameraProviderAdapter("cam-3", provider, Substitute.For<ILogger<CameraProviderAdapter>>());
 
         var act = async () => await adapter.AcquireSingleFrameAsync();
 

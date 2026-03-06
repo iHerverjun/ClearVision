@@ -33,13 +33,13 @@
              Link="Acme.OperatorLibrary\%(RecursiveDir)%(Filename)%(Extension)" />
 
     <Compile Include="..\Acme.Product\src\Acme.Product.Contracts\**\*.cs"
-             Exclude="..\Acme.Product\src\Acme.Product.Contracts\bin\**;..\Acme.Product\src\Acme.Product.Contracts\obj\**"
+             Exclude="..\Acme.Product\src\Acme.Product.Contracts\bin\**;..\Acme.Product\src\Acme.Product.Contracts\obj\**;..\Acme.Product\src\Acme.Product.Contracts\artifacts\**"
              Link="Acme.Product.Contracts\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\Acme.Product\src\Acme.Product.Core\**\*.cs"
-             Exclude="..\Acme.Product\src\Acme.Product.Core\bin\**;..\Acme.Product\src\Acme.Product.Core\obj\**"
+             Exclude="..\Acme.Product\src\Acme.Product.Core\bin\**;..\Acme.Product\src\Acme.Product.Core\obj\**;..\Acme.Product\src\Acme.Product.Core\artifacts\**"
              Link="Acme.Product.Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\Acme.Product\src\Acme.PlcComm\**\*.cs"
-             Exclude="..\Acme.Product\src\Acme.PlcComm\bin\**;..\Acme.Product\src\Acme.PlcComm\obj\**"
+             Exclude="..\Acme.Product\src\Acme.PlcComm\bin\**;..\Acme.Product\src\Acme.PlcComm\obj\**;..\Acme.Product\src\Acme.PlcComm\artifacts\**"
              Link="Acme.PlcComm\%(RecursiveDir)%(Filename)%(Extension)" />
 
     <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Operators\**\*.cs" Link="Operators\%(RecursiveDir)%(Filename)%(Extension)" />
