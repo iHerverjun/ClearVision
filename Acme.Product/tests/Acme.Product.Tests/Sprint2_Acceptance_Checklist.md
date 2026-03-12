@@ -105,6 +105,11 @@
 - ✅ 字段不存在处理
 - ✅ JSON 解析错误处理
 
+### 自动化补充验证（2026-03-06）
+
+- ✅ `Sprint2_ForEachTests`、`Sprint2_ArrayIndexerTests`、`Sprint2_JsonExtractorTests` 定向回归通过
+- ✅ `Sprint4_FlowLinterTests` 已覆盖 `ForEach` + 通信算子场景下的 `SAFETY_002` 规则验证
+
 ---
 
 ## 验收标准对照
@@ -156,9 +161,9 @@
 - Task 3.6: 其他原子算子
 
 前置检查：
-- [ ] Sprint 2 所有单元测试通过
-- [ ] ForEach IoMode 双模式功能验证
-- [ ] FlowLinter SAFETY_002 规则验证
+- [x] Sprint 2 所有单元测试通过
+- [x] ForEach IoMode 双模式功能验证
+- [x] FlowLinter SAFETY_002 规则验证
 
 ---
 

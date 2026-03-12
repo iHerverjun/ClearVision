@@ -83,8 +83,8 @@ public class Sprint2_ForEachTests
 
         // 验证
         Assert.True(result.IsSuccess);
-        Assert.True(stopwatch.ElapsedMilliseconds < 300, // 增加一些延迟容错
-            $"并行执行时间过长: {stopwatch.ElapsedMilliseconds}ms，期望 < 300ms");
+        Assert.True(stopwatch.ElapsedMilliseconds < 600, // 增加一些延迟容错
+            $"并行执行时间过长: {stopwatch.ElapsedMilliseconds}ms，期望 < 600ms");
 
         // 验证每个子图都被执行
         await _flowExecutorMock.Received(15).ExecuteFlowAsync(

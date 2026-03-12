@@ -5,9 +5,9 @@
 <!-- DOC_AUDIT_STATUS_START -->
 ## 文档审计状态（自动更新）
 - 审计日期：2026-03-06
-- 完成状态：部分完成，待验收闭环
-- 任务统计：Task 6.1 ~ 6.6 均已有落地文件；主要剩余项为 smoke / 回归 / 文档收口
-- 判定依据：代码实现已明显领先于原文勾选状态
+- 完成状态：已完成本地验收，待实机联调
+- 任务统计：Task 6.1 ~ 6.6 均已有落地文件；本轮已补连接器 smoke、配置持久化回归、版本管理回归测试
+- 判定依据：已新增连接器 / 配置 / 版本管理定向测试并通过
 <!-- DOC_AUDIT_STATUS_END -->
 
 
@@ -16,7 +16,7 @@
 > **创建日期**: 2026-02-19
 > **最后更新**: 2026-03-06
 > **文档编号**: roadmap-sprint6
-> **状态**: 部分完成，待验收闭环
+> **状态**: 已完成本地验收，待实机联调
 > **前置文档**: [roadmap-main.md](roadmap-main.md)（V4.3 核查版）
 
 ---
@@ -24,33 +24,39 @@
 
 ### 当前结论
 
-- 当前状态：`部分完成，待验收闭环`。
-- 判断说明：Task `6.1 ~ 6.6` 均已有对应实现文件，当前缺口主要集中在连接器 smoke、设置页配置流、AI 生成链路回归，而不是从零开发。
+- 当前状态：`已完成本地验收，待实机联调`。
+- 判断说明：Task `6.1 ~ 6.6` 均已有对应实现文件；本轮已补连接器最小成功/失败路径 smoke、配置持久化回归、提示词/流程版本管理回归，剩余工作主要是带真实凭据与真实服务的联调验证。
 
 ### Task 6.1 ~ 6.6 实现矩阵
 
 | Task | 当前状态 | 代码证据 | 本周收口动作 |
 |---|---|---|---|
-| `6.1` OpenAI 连接器 | 已实现，待 smoke | `AI/Connectors/OpenAiConnector.cs` | 跑一轮 OpenAI 配置与错误处理冒烟 |
-| `6.2` Azure OpenAI 连接器 | 已实现，待 smoke | `AI/Connectors/AzureOpenAiConnector.cs` | 校验 Azure 配置路径与认证参数 |
-| `6.3` Ollama 连接器 | 已实现，待 smoke | `AI/Connectors/OllamaConnector.cs` | 本地模型可达性与超时回归 |
-| `6.4` 工厂与运行时配置 | 已实现，待统一验收 | `AI/Connectors/LLMConnectorFactory.cs`、`AI/Runtime/*`、`AI/AiConfigStore.cs` | 工厂选型与设置页持久化回归 |
-| `6.5` 提示词版本管理 | 已实现，缺文档化验收 | `AI/PromptVersionManager.cs` | 增补提示词版本 smoke 与验收记录 |
-| `6.6` AI 流程版本控制 | 已实现，缺文档化验收 | `AI/AIGeneratedFlowVersionManager.cs` | 增补历史版本/回滚链路回归 |
+| `6.1` OpenAI 连接器 | 已实现，已补本地 smoke | `AI/Connectors/OpenAiConnector.cs` | 带真实凭据做联调 |
+| `6.2` Azure OpenAI 连接器 | 已实现，已补本地 smoke | `AI/Connectors/AzureOpenAiConnector.cs` | 带真实 Azure 资源做联调 |
+| `6.3` Ollama 连接器 | 已实现，已补本地 smoke | `AI/Connectors/OllamaConnector.cs` | 带本地模型实例做联调 |
+| `6.4` 工厂与运行时配置 | 已实现，已补回归 | `AI/Connectors/LLMConnectorFactory.cs`、`AI/Runtime/*`、`AI/AiConfigStore.cs` | 设置页实机联调 |
+| `6.5` 提示词版本管理 | 已实现，已补回归 | `AI/PromptVersionManager.cs` | 与真实生成链路串联验证 |
+| `6.6` AI 流程版本控制 | 已实现，已补回归 | `AI/AIGeneratedFlowVersionManager.cs` | 与真实发布流程串联验证 |
 
 ### 连接器完成矩阵
 
 | 连接器 | 实现 | 工厂/配置接线 | 测试现状 | 结论 |
 |---|---|---|---|---|
-| OpenAI | `OpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
-| Azure OpenAI | `AzureOpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
-| Ollama | `OllamaConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 缺独立 smoke | 已实现，待验收 |
+| OpenAI | `OpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 已补最小成功/失败路径单测 | 已实现，已完成本地验收 |
+| Azure OpenAI | `AzureOpenAiConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 已补 API Key / Bearer + 成功/失败路径单测 | 已实现，已完成本地验收 |
+| Ollama | `OllamaConnector.cs` | `LLMConnectorFactory.cs` + `AiConfigStore.cs` | 已补最小成功/失败路径单测 | 已实现，已完成本地验收 |
 
 ### 本周验收动作
 
-- [ ] 连接器 smoke test：分别验证 OpenAI / Azure OpenAI / Ollama 的最小成功与失败路径。
-- [ ] 设置页配置流测试：验证模型切换、激活、持久化与读取回显。
-- [ ] AI 生成链路回归测试：验证编排入口、提示词版本、流程版本落盘与读取。
+- [x] 连接器 smoke test：已为 OpenAI / Azure OpenAI / Ollama 补最小成功与失败路径单测。
+- [x] 设置页配置流测试：已通过 `AiConfigStoreTests` + `LLMConnectorFactory` 定向测试覆盖模型切换、激活、持久化与读取回显。
+- [x] AI 生成链路回归测试：已通过 `PromptVersionManagerTests` 与 `AIGeneratedFlowVersionManagerTests` 覆盖提示词版本、流程版本落盘、读取与部署切换。
+
+### 本轮新增验证
+
+- `Acme.Product/tests/Acme.Product.Tests/AI/LLMConnectorSmokeTests.cs`
+- `Acme.Product/tests/Acme.Product.Tests/AI/PromptVersionManagerTests.cs`
+- `Acme.Product/tests/Acme.Product.Tests/AI/AIGeneratedFlowVersionManagerTests.cs`
 
 ---
 ## 总览

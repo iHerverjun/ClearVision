@@ -107,6 +107,13 @@
 - ✅ CircleData: 几何计算、距离计算
 - ✅ LineData: 长度/角度计算、点到线距离
 
+### 自动化补充验证（2026-03-06）
+
+- ✅ `Sprint1_MemoryPoolTests` + `Sprint1_ValueObjectTests` 定向回归通过
+- ✅ `PerformanceAcceptanceTests.LongRunningStability_ShouldExecute1000IterationsWithoutMemoryLeak` 通过
+- ✅ `PerformanceAcceptanceTests.DeepStability_6000x4000_WithFanOut_ShouldMaintainPoolHitRateAndP99` 通过
+- ✅ `OperatorBenchmarkTests.Benchmark_CoreOperators_ShouldGenerateBaselineReport` 已刷新基准报告
+
 ---
 
 ## 验收标准对照
@@ -117,7 +124,7 @@
 |------|----------|------|
 | 引用计数单元测试 | `Sprint1_MemoryPoolTests.ImageWrapper_RefCount_ThreeConsumers_CorrectLifecycle` | ✅ |
 | CoW 并发测试 | `Sprint1_MemoryPoolTests.ImageWriter_CoW_ConcurrentAccess_ReturnsIndependentCopies` | ✅ |
-| 内存稳定性测试 | 需 4 小时长时测试（CI/CD 环境执行） | ⏳ 待集成测试 |
+| 内存稳定性测试 | 自动化 1000 次 / Deep Stability 已通过，4 小时长时测试仍需 CI/CD 环境执行 | ⏳ 待集成测试 |
 | 内存池效率验证 | `Sprint1_MemoryPoolTests.MatPool_RentHitRate_AfterWarmup_ShouldBeHigh` | ✅ |
 
 ### Task 1.2 验收标准
@@ -177,9 +184,9 @@ return new ImageWrapper(dst);     // 输出，引用计数重置为 1
 - Task 2.2: ArrayIndexer 与 JsonExtractor
 
 前置检查：
-- [ ] 运行所有单元测试通过
-- [ ] 4 小时长时稳定性测试（内存稳定性）
-- [ ] 性能基准测试（P99 帧耗时）
+- [x] 运行所有单元测试通过
+- [ ] 4 小时长时稳定性测试（内存稳定性；当前已完成自动化 1000 次与 Deep Stability 验证）
+- [x] 性能基准测试（P99 帧耗时；`operator_benchmark_report.md` 已于 2026-03-06 刷新）
 
 ---
 
