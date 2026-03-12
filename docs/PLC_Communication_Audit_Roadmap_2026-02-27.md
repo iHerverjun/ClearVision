@@ -136,7 +136,7 @@
 | P2-1 | `ReadBatchAsync` 当前为串行逐条读取，无聚合优化 | `Core/PlcBaseClient.cs:235` | 高频多点位吞吐受限 | 同协议连续地址聚合读、分组策略、批读 API |
 | P2-2 | 字符串读写长度策略简单（写入按 `value.Length`） | `Core/PlcBaseClient.cs:257,259` | 固定长度字符串场景兼容性一般 | 提供 `WriteString(address, value, fixedLength, encoding)` |
 | P2-3 | FINS 算子暴露了轮询参数，但执行路径未使用轮询逻辑 | `Infrastructure/Operators/OmronFinsCommunicationOperator.cs:33-37,70-73` | 参数语义与行为不一致 | 要么实现轮询，要么移除参数并更新文档 |
-| P2-4 | PLC 相关自动化测试覆盖不足 | 代码检索结果（tests 中未发现 S7/MC/FINS 客户端与算子专项测试） | 回归风险高 | 建立协议单测 + 契约测试 + 故障注入测试 |
+| P2-4 | PLC 相关自动化测试仍不完整 | 当前已具备协议单测、半包集成、客户端行为测试与 MC/FINS 算子级集成，但 S7 算子级与更完整契约测试仍缺口 | 剩余协议回归风险主要集中在 S7 算子入口与长尾异常场景 | 继续补齐 S7 算子级集成、客户端契约测试与故障注入测试 |
 
 ---
 
@@ -180,34 +180,54 @@
 
 ### 任务清单
 
-- [ ] 修复 `Dispose`/`DisconnectAsync` 生命周期顺序问题（P0-1）
-- [ ] 统一端序转换路径，移除算子层 `BitConverter` 直转（P0-2）
-- [ ] 统一长度语义并修复 S7 过读风险（P0-3）
-- [ ] 修复 S7 心跳地址兼容（P0-4）
-- [ ] 实现 S7 位读写语义（P0-5）
-- [ ] 修复 FINS 位写长度计算（P0-6）
+- [x] 修复 `Dispose`/`DisconnectAsync` 生命周期顺序问题（P0-1）
+- [x] 统一端序转换路径，移除算子层 `BitConverter` 直转（P0-2）
+- [x] 统一长度语义并修复 S7 过读风险（P0-3）
+- [x] 修复 S7 心跳地址兼容（P0-4）
+- [x] 实现 S7 位读写语义（P0-5）
+- [x] 修复 FINS 位写长度计算（P0-6）
 
-### 阶段验收标准
+### 阶段验收状态（2026-03-07）
 
-1. S7/MC/FINS 的 Bool/Word/DWord/Float 在回归测试中一致通过。
-2. 心跳线程不再因地址语法问题误触发掉线重连。
-3. 连接对象在 `Dispose` 后被正确释放（无残留活动 socket）。
+- [x] S7/MC/FINS 的 Bool/Word/DWord/Float 在回归测试中一致通过。
+- [x] 心跳线程不再因地址语法问题误触发掉线重连。
+- [x] 连接对象在 `Dispose` 后被正确释放（无残留活动 socket）。
+
+### 回填证据（2026-03-07）
+
+- 回归命令：`dotnet test Acme.Product/tests/Acme.Product.Tests/Acme.Product.Tests.csproj --filter "FullyQualifiedName~PlcComm" --no-restore`
+- 回归结果：`38` 通过，`0` 失败，覆盖 `AddressParserTests`、`FrameCodecTests`、`HalfPacketIntegrationTests`、`PlcBaseClientBehaviorTests`、`PlcClientFactoryTests`、`SiemensS7ClientBehaviorTests`、`PlcCommunicationOperatorBaseBehaviorTests`
+- P0-1 证据：`Acme.Product/src/Acme.PlcComm/Core/PlcBaseClient.cs` 已增加重复断开保护；`Acme.Product/tests/Acme.Product.Tests/PlcComm/PlcBaseClientBehaviorTests.cs` 覆盖 `DisconnectAsync`/`Dispose` 资源释放与重复调用场景
+- P0-2 / P0-3 证据：`Acme.Product/src/Acme.Product.Infrastructure/Operators/PlcCommunicationOperatorBase.cs` 已统一走 `ByteTransform` 且 `ReadAsync(address, length)` 固定按“元素个数”读取；`Acme.Product/tests/Acme.Product.Tests/PlcComm/PlcCommunicationOperatorBaseBehaviorTests.cs` 覆盖大端/小端 `Bool`、`Word`、`DWord`、`Float` 编解码与长度语义
+- P0-4 / P0-5 证据：`Acme.Product/src/Acme.PlcComm/Siemens/S7AddressParser.cs` 已支持 `MW0` / `DBX` 等地址；`Acme.Product/src/Acme.PlcComm/Siemens/SiemensS7Client.cs` 已显式处理位读写与心跳地址；`Acme.Product/tests/Acme.Product.Tests/PlcComm/SiemensS7ClientBehaviorTests.cs` 覆盖心跳地址、位读掩码、位写读改写与长度计算
+- P0-6 证据：`Acme.Product/src/Acme.PlcComm/Omron/FinsFrameBuilder.cs` 已按位/字访问分别计算写入长度；`Acme.Product/tests/Acme.Product.Tests/PlcComm/FrameCodecTests.cs` 覆盖 FINS 位写/字写长度与异常输入
+
+> 注：以上闭环基于代码级回归、协议帧/半包模拟与单元测试完成；真机兼容性验证仍按文档后续“真机验证里程碑”推进，但不再阻塞阶段 A 的 Correctness 收口。
 
 ## 阶段 B：Reliability 与可观测性（P1，建议 1 周）
 
 ### 任务清单
 
-- [ ] 实现 `ReadExactAsync`，替换所有响应读取点（P1-1）
-- [ ] 重构 `ExecuteWithReconnectAsync<T>`，确保单次业务执行（P1-2）
-- [ ] 让 `MaxRetryInterval` 生效（P1-3）
-- [ ] 打通 `ErrorOccurred` 事件触发链路（P1-4）
-- [ ] 工厂 URI 参数改 `TryParse` 并增强错误信息（P1-5）
+- [x] 实现 `ReadExactAsync`，替换所有响应读取点（P1-1）
+- [x] 重构 `ExecuteWithReconnectAsync<T>`，确保单次业务执行（P1-2）
+- [x] 让 `MaxRetryInterval` 生效（P1-3）
+- [x] 打通 `ErrorOccurred` 事件触发链路（P1-4）
+- [x] 工厂 URI 参数改 `TryParse` 并增强错误信息（P1-5）
 
-### 阶段验收标准
+### 阶段验收状态（2026-03-07）
 
-1. 人工注入半包/抖动场景下不出现随机“读响应不完整”失败。
-2. 写操作回放日志中不存在重复发送同一业务写请求。
-3. 错误事件可被上层订阅并看到分类错误码。
+- [x] 人工注入半包/抖动场景下不出现随机“读响应不完整”失败。
+- [x] 写操作回放日志中不存在重复发送同一业务写请求。
+- [x] 错误事件可被上层订阅并看到分类错误码。
+
+### 回填证据（2026-03-07）
+
+- 回归命令：`dotnet test Acme.Product/tests/Acme.Product.Tests/Acme.Product.Tests.csproj --filter "FullyQualifiedName~PlcComm" --no-restore`
+- 回归结果：`48` 通过，`0` 失败
+- P1-1 证据：`Acme.Product/src/Acme.PlcComm/Core/PlcBaseClient.cs` 提供统一 `ReadExactAsync`；`Acme.Product/src/Acme.PlcComm/Mitsubishi/MitsubishiMcClient.cs` 与 `Acme.Product/src/Acme.PlcComm/Omron/OmronFinsClient.cs` 的响应读取点已全部切换；`Acme.Product/tests/Acme.Product.Tests/PlcComm/HalfPacketIntegrationTests.cs` 覆盖 `MC Write`、`MC Read`、`FINS Write`、`FINS Read` 的分片响应场景
+- P1-3 证据：`Acme.Product/src/Acme.PlcComm/Core/PlcBaseClient.cs` 的退避计算已使用 `Min(计算值, MaxRetryInterval)`；`Acme.Product/tests/Acme.Product.Tests/PlcComm/PlcBaseClientBehaviorTests.cs` 新增指数退避与固定间隔两组 `MaxRetryInterval` 钳制回归
+- P1-4 证据：`Acme.Product/src/Acme.PlcComm/Core/PlcBaseClient.cs` 已在连接失败、重连失败、读写失败、未连接读写场景统一触发 `RaiseError`；`Acme.Product/tests/Acme.Product.Tests/PlcComm/PlcBaseClientBehaviorTests.cs` 覆盖 `Read` / `Write` 失败、`PLC未连接` 场景的 `ErrorOccurred` 上抛
+- 额外修正：`Acme.Product/src/Acme.PlcComm/Mitsubishi/MitsubishiMcClient.cs` 已修复 MC 读响应 `dataLength` 取值偏移错误，避免分片读取时吞掉 payload
 
 ## 阶段 C：工程化补齐（P2，建议 1-2 周）
 
@@ -215,7 +235,8 @@
 
 - [ ] 增加 PLC 协议单元测试（地址解析、帧编解码、类型转换）
 - [ ] 增加协议客户端契约测试（含断连、超时、重连）
-- [ ] 增加算子级集成测试（S7/MC/FINS 读写流程）
+- [x] 增加 MC / FINS 算子级集成测试（Read / Write 端到端流程）
+- [ ] 补齐 S7 算子级集成测试（需模拟器或可注入连接缝）
 - [ ] 处理 FINS 轮询参数“暴露但未执行”问题（实现或收敛）
 - [ ] 评估批读聚合策略（按连续地址分组）
 
@@ -224,6 +245,13 @@
 1. `Acme.PlcComm` 至少具备协议层 + 客户端层 + 算子层三层自动化回归。
 2. 关键缺陷（P0/P1）有对应测试用例防回归。
 3. 文档与行为一致，无“参数存在但无效”的对外语义偏差。
+
+### 阶段进展（2026-03-07）
+- [x] 新增 `Acme.Product/tests/Acme.Product.Tests/PlcComm/PlcCommunicationOperatorIntegrationTests.cs`
+- [x] 已覆盖 `MC Read` / `MC Write` / `FINS Read` / `FINS Write` 的算子级端到端链路
+- [ ] `SiemensS7CommunicationOperator` 的算子级端到端集成仍待补齐
+- 回归命令：`dotnet test Acme.Product/tests/Acme.Product.Tests/Acme.Product.Tests.csproj --filter "FullyQualifiedName~PlcComm" --no-restore`
+- 回归结果：`48` 通过，`0` 失败
 
 ---
 
@@ -277,16 +305,16 @@
 ## 13. 当前基线记录
 
 1. 构建验证：`dotnet build Acme.Product/src/Acme.PlcComm/Acme.PlcComm.csproj` 成功。
-2. 当前警告：`PlcBaseClient.ErrorOccurred` 未使用（CS0067）。
-3. 测试现状：仓库中未发现针对 S7/MC/FINS 客户端与算子的专项自动化测试集。
+2. 当前状态：阶段 A（P0 Correctness）与阶段 B（P1 Reliability）均已完成代码与测试收口，后续主线转入阶段 C / 真机联调。
+3. 测试现状：当前 PLC 专项回归已包含 `AddressParserTests`、`FrameCodecTests`、`HalfPacketIntegrationTests`、`PlcBaseClientBehaviorTests`、`PlcClientFactoryTests`、`SiemensS7ClientBehaviorTests`、`PlcCommunicationOperatorBaseBehaviorTests`、`PlcCommunicationOperatorIntegrationTests`，共 `48` 个用例。
 
 ---
 
 ## 14. 建议的下一步执行顺序（可直接开工）
 
-1. 先开一个“P0 修复总任务”分支，按 P0-1 ~ P0-6 顺序提交小步 PR。
-2. 每修一个 P0 项，立即补对应测试，确保后续重构不回退。
-3. P0 全部完成后，再进入 P1 的可靠性重构与可观测性完善。
+1. 继续阶段 C：优先补齐 `SiemensS7CommunicationOperator` 的算子级集成测试。
+2. 在模拟器或真机环境执行一轮 S7 / MC / FINS 联调，作为阶段 C 的兼容性基线。
+3. 收口 FINS 轮询参数语义，并继续推进批读/字符串等工程化议题。
 
 ---
 

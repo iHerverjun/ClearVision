@@ -141,11 +141,17 @@ public abstract class PlcBaseClient : IPlcClient
 
     public async Task DisconnectAsync()
     {
-        if (_disposed && _tcpClient == null && _networkStream == null) return;
+        if (_disposed && !HasActiveConnectionResources()) return;
 
         await _connectLock.WaitAsync();
         try
         {
+            if (!HasActiveConnectionResources())
+            {
+                _logger.LogDebug("[{ClientType}] 已无活动连接，跳过重复断开", GetType().Name);
+                return;
+            }
+
             await DisconnectInternalAsync(
                 DisconnectionReason.UserInitiated,
                 "用户主动断开连接");
@@ -162,7 +168,11 @@ public abstract class PlcBaseClient : IPlcClient
         return await ExecuteWithReconnectAsync(async () =>
         {
             if (!IsConnected)
-                return OperateResult<byte[]>.Failure("PLC未连接");
+            {
+                const string message = "PLC未连接";
+                RaiseError(-1, message, "Read");
+                return OperateResult<byte[]>.Failure(message);
+            }
 
             var result = await ReadCoreAsync(address, length, ct);
             if (!result.IsSuccess)
@@ -178,7 +188,11 @@ public abstract class PlcBaseClient : IPlcClient
         return await ExecuteWithReconnectAsync(async () =>
         {
             if (!IsConnected)
-                return OperateResult.Failure("PLC未连接");
+            {
+                const string message = "PLC未连接";
+                RaiseError(-1, message, "Write");
+                return OperateResult.Failure(message);
+            }
 
             var result = await WriteCoreAsync(address, value, ct);
             if (!result.IsSuccess)
@@ -314,14 +328,10 @@ public abstract class PlcBaseClient : IPlcClient
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "[{ClientType}] 通信IO异常，准备重试", GetType().Name);
-                RaiseError(-1, $"通信IO异常: {ex.Message}", "Communication");
+                var message = $"通信IO异常: {ex.Message}";
+                RaiseError(-1, message, "Communication");
                 await DisconnectAsync();
-                
-                if (retry < ReconnectPolicy.MaxRetries)
-                {
-                    var delay = GetRetryDelay(retry);
-                    await Task.Delay(delay, ct);
-                }
+                return OperateResult.Failure(message);
             }
             catch (Exception ex)
             {
@@ -373,11 +383,10 @@ public abstract class PlcBaseClient : IPlcClient
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "[{ClientType}] 通信IO异常，准备重试", GetType().Name);
-                RaiseError(-1, $"通信IO异常: {ex.Message}", "Communication");
+                var message = $"通信IO异常: {ex.Message}";
+                RaiseError(-1, message, "Communication");
                 await DisconnectAsync();
-
-                if (retry < ReconnectPolicy.MaxRetries)
-                    await Task.Delay(GetRetryDelay(retry), ct);
+                return OperateResult<T>.Failure(message);
             }
             catch (Exception ex)
             {
@@ -447,6 +456,11 @@ public abstract class PlcBaseClient : IPlcClient
         return calculatedDelay <= ReconnectPolicy.MaxRetryInterval
             ? calculatedDelay
             : ReconnectPolicy.MaxRetryInterval;
+    }
+
+    protected virtual bool HasActiveConnectionResources()
+    {
+        return _tcpClient != null || _networkStream != null;
     }
 
     private async Task DisconnectInternalAsync(DisconnectionReason reason, string message)

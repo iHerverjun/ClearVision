@@ -92,6 +92,10 @@ public class SiemensS7Client : PlcBaseClient
         {
             _logger.LogWarning(ex, "[SiemensS7] 断开连接时发生异常: {Message}", ex.Message);
         }
+        finally
+        {
+            _s7Plc = null;
+        }
         return Task.CompletedTask;
     }
 
@@ -100,7 +104,7 @@ public class SiemensS7Client : PlcBaseClient
     {
         try
         {
-            if (_s7Plc == null || !_s7Plc.IsConnected)
+            if (!IsProtocolConnected())
                 return OperateResult<byte[]>.Failure("PLC未连接");
 
             var addressResult = _addressParser.Parse(address);
@@ -114,7 +118,7 @@ public class SiemensS7Client : PlcBaseClient
                 if (length != 1)
                     return OperateResult<byte[]>.Failure("S7 位读取当前仅支持单点读取");
 
-                var rawByte = await ReadS7BytesAsync(plcAddress, 1, ct);
+                var rawByte = await ReadProtocolBytesAsync(plcAddress, 1, ct);
                 if (rawByte == null || rawByte.Length == 0)
                     return OperateResult<byte[]>.Failure("读取返回空数据");
 
@@ -123,7 +127,7 @@ public class SiemensS7Client : PlcBaseClient
             }
 
             var byteCount = GetDataLength(plcAddress.DataType, length);
-            var result = await ReadS7BytesAsync(plcAddress, byteCount, ct);
+            var result = await ReadProtocolBytesAsync(plcAddress, byteCount, ct);
 
             if (result == null)
                 return OperateResult<byte[]>.Failure("读取返回空数据");
@@ -142,7 +146,7 @@ public class SiemensS7Client : PlcBaseClient
     {
         try
         {
-            if (_s7Plc == null || !_s7Plc.IsConnected)
+            if (!IsProtocolConnected())
                 return OperateResult.Failure("PLC未连接");
 
             var addressResult = _addressParser.Parse(address);
@@ -154,7 +158,7 @@ public class SiemensS7Client : PlcBaseClient
             if (plcAddress.DataType == PlcDataType.Bit && plcAddress.BitOffset >= 0)
             {
                 // 位写采用读改写，避免覆盖同一字节内其他位。
-                var currentByte = await ReadS7BytesAsync(plcAddress, 1, ct);
+                var currentByte = await ReadProtocolBytesAsync(plcAddress, 1, ct);
                 if (currentByte == null || currentByte.Length == 0)
                     return OperateResult.Failure("读取位地址所在字节失败");
 
@@ -164,11 +168,11 @@ public class SiemensS7Client : PlcBaseClient
                 else
                     currentByte[0] = (byte)(currentByte[0] & ~(1 << plcAddress.BitOffset));
 
-                await WriteS7BytesAsync(plcAddress, currentByte, ct);
+                await WriteProtocolBytesAsync(plcAddress, currentByte, ct);
                 return OperateResult.Success();
             }
 
-            await WriteS7BytesAsync(plcAddress, value, ct);
+            await WriteProtocolBytesAsync(plcAddress, value, ct);
             return OperateResult.Success();
         }
         catch (Exception ex)
@@ -182,17 +186,31 @@ public class SiemensS7Client : PlcBaseClient
     {
         try
         {
-            if (_s7Plc == null || !_s7Plc.IsConnected)
+            if (!IsProtocolConnected())
                 return false;
 
-            // 使用 MW0 (Merker区) 而非 DB1.DBW0，因为所有 S7 CPU 型号都有 M 区
-            var result = await ReadAsync("MW0", 1, ct);
+            var result = await ReadAsync(GetHeartbeatAddress(), 1, ct);
             return result.IsSuccess;
         }
         catch
         {
             return false;
         }
+    }
+
+    protected override bool HasActiveConnectionResources()
+    {
+        return base.HasActiveConnectionResources() || _s7Plc != null;
+    }
+
+    protected virtual bool IsProtocolConnected()
+    {
+        return _s7Plc?.IsConnected == true;
+    }
+
+    protected virtual string GetHeartbeatAddress()
+    {
+        return "MW0";
     }
 
     private static S7.Net.CpuType MapCpuType(SiemensCpuType cpuType)
@@ -223,7 +241,7 @@ public class SiemensS7Client : PlcBaseClient
         return typeSize * count;
     }
 
-    private async Task<byte[]?> ReadS7BytesAsync(PlcAddress plcAddress, int byteCount, CancellationToken ct)
+    protected virtual async Task<byte[]?> ReadProtocolBytesAsync(PlcAddress plcAddress, int byteCount, CancellationToken ct)
     {
         if (_s7Plc == null)
             return null;
@@ -243,7 +261,7 @@ public class SiemensS7Client : PlcBaseClient
             dataType, 0, plcAddress.StartAddress, byteCount, ct);
     }
 
-    private async Task WriteS7BytesAsync(PlcAddress plcAddress, byte[] value, CancellationToken ct)
+    protected virtual async Task WriteProtocolBytesAsync(PlcAddress plcAddress, byte[] value, CancellationToken ct)
     {
         if (_s7Plc == null)
             throw new InvalidOperationException("S7 连接对象未初始化");

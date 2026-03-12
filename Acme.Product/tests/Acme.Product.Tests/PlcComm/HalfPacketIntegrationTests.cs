@@ -38,6 +38,35 @@ public class HalfPacketIntegrationTests
     }
 
     [Fact]
+    public async Task MitsubishiMcClient_ReadAsync_WithFragmentedHeaderAndPayload_ShouldSucceed()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var serverTask = ServeMcReadAsync(listener, cts.Token);
+
+        using var client = new MitsubishiMcClient(IPAddress.Loopback.ToString())
+        {
+            Port = port,
+            ConnectTimeout = 2000,
+            ReadTimeout = 2000,
+            WriteTimeout = 2000
+        };
+
+        var connected = await client.ConnectAsync(cts.Token);
+        connected.Should().BeTrue();
+
+        var readResult = await client.ReadAsync("D100", 1, cts.Token);
+        readResult.IsSuccess.Should().BeTrue(readResult.Message);
+        readResult.Content.Should().Equal(0x12, 0x34);
+
+        await serverTask;
+    }
+
+    [Fact]
     public async Task OmronFinsClient_WriteAsync_WithFragmentedHandshakeAndResponse_ShouldSucceed()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -105,6 +134,16 @@ public class HalfPacketIntegrationTests
         await WriteInChunksAsync(stream, response, ct, 1, 2, 3);
     }
 
+    private static async Task ServeMcReadAsync(TcpListener listener, CancellationToken ct)
+    {
+        using var server = await listener.AcceptTcpClientAsync(ct);
+        using var stream = server.GetStream();
+
+        _ = await ReadMcFrameAsync(stream, ct);
+        var response = BuildMcReadResponse(0x12, 0x34);
+        await WriteInChunksAsync(stream, response, ct, 2, 2, 3, 1);
+    }
+
     private static async Task ServeFinsWriteAsync(TcpListener listener, CancellationToken ct)
     {
         using var server = await listener.AcceptTcpClientAsync(ct);
@@ -115,7 +154,7 @@ public class HalfPacketIntegrationTests
         var handshakeResponse = BuildFinsNodeAddressResponse(clientNode: 0x22, serverNode: 0x11);
         await WriteInChunksAsync(stream, handshakeResponse, ct, 3, 5, 4);
 
-        _ = await ReadFinsWrappedFrameAsync(stream, ct); // write request
+        _ = await ReadFinsWrappedFrameAsync(stream, ct);
         var writeResponse = BuildFinsWriteResponse();
         await WriteInChunksAsync(stream, writeResponse, ct, 2, 6, 4, 3);
     }
@@ -130,7 +169,7 @@ public class HalfPacketIntegrationTests
         var handshakeResponse = BuildFinsNodeAddressResponse(clientNode: 0x22, serverNode: 0x11);
         await WriteInChunksAsync(stream, handshakeResponse, ct, 4, 4, 4);
 
-        _ = await ReadFinsWrappedFrameAsync(stream, ct); // read request
+        _ = await ReadFinsWrappedFrameAsync(stream, ct);
         var readResponse = BuildFinsReadResponse(new byte[] { 0x12, 0x34 });
         await WriteInChunksAsync(stream, readResponse, ct, 5, 5, 5, 5);
     }
@@ -141,11 +180,12 @@ public class HalfPacketIntegrationTests
         await ReadExactAsync(stream, header, ct);
         var dataLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(7, 2));
 
-        var frame = new byte[9 + dataLength];
+        var trailingLength = 6 + dataLength;
+        var frame = new byte[header.Length + trailingLength];
         Array.Copy(header, frame, header.Length);
 
-        if (dataLength > 0)
-            await ReadExactAsync(stream, frame.AsMemory(9, dataLength), ct);
+        if (trailingLength > 0)
+            await ReadExactAsync(stream, frame.AsMemory(header.Length, trailingLength), ct);
 
         return frame;
     }
@@ -215,6 +255,24 @@ public class HalfPacketIntegrationTests
         BinaryPrimitives.WriteUInt16LittleEndian(response.AsSpan(7, 2), 2);
         response[9] = 0x00;
         response[10] = 0x00;
+        return response;
+    }
+
+    private static byte[] BuildMcReadResponse(params byte[] data)
+    {
+        var response = new byte[11 + data.Length];
+        response[0] = 0xD0;
+        response[1] = 0x00;
+        response[2] = 0x00;
+        response[3] = 0xFF;
+        response[4] = 0xFF;
+        response[5] = 0x03;
+        response[6] = 0x00;
+        BinaryPrimitives.WriteUInt16LittleEndian(response.AsSpan(7, 2), (ushort)(2 + data.Length));
+        response[9] = 0x00;
+        response[10] = 0x00;
+        if (data.Length > 0)
+            data.CopyTo(response, 11);
         return response;
     }
 

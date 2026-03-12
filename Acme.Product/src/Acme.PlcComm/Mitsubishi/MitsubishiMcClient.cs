@@ -77,15 +77,16 @@ public class MitsubishiMcClient : PlcBaseClient
             if (!headerReadOk)
                 return OperateResult<byte[]>.Failure("读取响应头失败");
 
-            // 计算响应数据长度
-            var dataLength = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(headerBuffer.AsSpan(9, 2));
-            var totalResponseLength = 11 + dataLength;
+            // 计算响应数据长度（长度字段包含结束代码 2 字节 + 实际数据）
+            var dataLength = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(headerBuffer.AsSpan(7, 2));
+            var payloadLength = Math.Max(0, dataLength - 2);
+            var totalResponseLength = headerBuffer.Length + payloadLength;
 
             // 读取完整响应
             var responseBuffer = new byte[totalResponseLength];
             Array.Copy(headerBuffer, responseBuffer, headerBuffer.Length);
             
-            var remainingBytes = totalResponseLength - headerBuffer.Length;
+            var remainingBytes = payloadLength;
             if (remainingBytes > 0)
             {
                 var payloadReadOk = await ReadExactAsync(

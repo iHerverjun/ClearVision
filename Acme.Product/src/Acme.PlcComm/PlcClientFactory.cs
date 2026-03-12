@@ -60,7 +60,20 @@ public static class PlcClientFactory
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("连接字符串不能为空", nameof(connectionString));
 
-        var uri = new Uri(connectionString);
+        if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
+        {
+            throw new ArgumentException(
+                $"无效的 PLC 连接字符串: '{connectionString}'。示例: S7://192.168.0.1:102?cpu=S7-1200&rack=0&slot=1",
+                nameof(connectionString));
+        }
+
+        if (string.IsNullOrWhiteSpace(uri.Host))
+        {
+            throw new ArgumentException(
+                $"PLC 连接字符串缺少主机地址: '{connectionString}'",
+                nameof(connectionString));
+        }
+
         var protocol = uri.Scheme.ToUpperInvariant();
         var ipAddress = uri.Host;
         var port = uri.Port;
