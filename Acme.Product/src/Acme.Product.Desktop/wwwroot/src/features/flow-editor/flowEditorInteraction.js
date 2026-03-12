@@ -114,6 +114,10 @@ export class FlowEditorInteraction {
             // 仅左键触发连线
             const clickedPort = isLeftClick ? this.getPortAt(x, y) : null;
             if (clickedPort) {
+                if (!this.isConnecting && this.tryDisconnectPortConnections(clickedPort)) {
+                    return;
+                }
+
                 if (this.isConnecting) {
                     if (clickedPort.type !== this.connectionStart?.type) {
                         this.endConnection(null, clickedPort);
@@ -228,6 +232,46 @@ export class FlowEditorInteraction {
             this.canvas.canvas.addEventListener('mousemove', this.canvas._mouseMoveHandler);
             this.canvas.canvas.addEventListener('mouseup', this.canvas._mouseUpHandler);
         }
+    }
+
+    tryDisconnectPortConnections(port) {
+        if (!port || this.isConnecting) {
+            return false;
+        }
+
+        if (port.isOutput) {
+            const existingConnections = typeof this.canvas.getConnectionsAtPort === 'function'
+                ? this.canvas.getConnectionsAtPort(port.nodeId, port.portIndex, true)
+                : [];
+
+            if (!Array.isArray(existingConnections) || existingConnections.length === 0) {
+                return false;
+            }
+
+            existingConnections.forEach(connection => {
+                this.canvas.removeConnection(connection.id);
+            });
+
+            this.saveState();
+            const message = existingConnections.length === 1
+                ? '连接已断开'
+                : `已断开 ${existingConnections.length} 个连接`;
+            showToast(message, 'info');
+            return true;
+        }
+
+        const existingConnection = typeof this.canvas.getConnectionAtPort === 'function'
+            ? this.canvas.getConnectionAtPort(port.nodeId, port.portIndex, false)
+            : null;
+
+        if (!existingConnection) {
+            return false;
+        }
+
+        this.canvas.removeConnection(existingConnection.id);
+        this.saveState();
+        showToast('连接已断开', 'info');
+        return true;
     }
 
     /**
