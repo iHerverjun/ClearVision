@@ -1,4 +1,7 @@
-# ClearVision UI 视觉升级开发计划
+# ClearVision UI 视觉升级开发计划
+
+
+
 
 <!-- DOC_AUDIT_STATUS_START -->
 ## 文档审计状态（自动更新）
@@ -656,6 +659,15 @@ graph TD
 - [ ] 属性面板显示选中算子
 - [ ] 状态栏更新正常
 - [ ] 控制台无 JavaScript 错误
+
+### 2026-03-06 最小回归证据补充
+
+- 证据文档：`Acme.Product/test_results/ui_flow_min_regression_2026-03-06.md`
+- 结构化结果：`Acme.Product/test_results/ui_flow_min_regression_2026-03-06.json`
+- 2026-03-07 复核：`Acme.Product/test_results/ui_flow_recheck_2026-03-07.md`
+- 已验证通过：登录进入工作区、工程/流程/检测/结果视图切换、新建工程、算子拖拽到画布、属性面板联动、端口连接/断连、保存、保存后重新打开、状态栏显示、登录后无新增页面错误日志。
+- 2026-03-07 补充核查：清理临时排查 spec 后，`Acme.Product/tests/Acme.Product.UI.Tests` 现有 Playwright smoke `4/4` 通过，说明工作区与基础 FlowCanvas 主路径稳定。
+- 暂未归档原因：真实浏览器 `Ctrl+Z` 恢复断连仍缺稳定证据，框选/更完整画布交互也尚未补齐；因此该项当前应判定为“部分闭环，暂不归档”。
 
 ---
 

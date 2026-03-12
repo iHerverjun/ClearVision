@@ -1,0 +1,28 @@
+# ClearVision TODO
+
+- 更新日期：2026-03-07
+- 当前进度：本轮“可闭环短项”已大多收口，剩余以 UI 窄口收尾、PLC 阶段 C 的 S7 算子集成与实机验证为主。
+
+## 已闭环（2026-03-07）
+
+- [x] AI 工作流生成缺口 P0~P2 回填并同步到 `docs/reports/report-ai-operator-gap.md`
+- [x] 算子库展开/收起与事件修复计划回填并同步到 `.sisyphus/plans/operator-library-expand-collapse.md`、`.sisyphus/plans/operator-expand-collapse-fix.md`
+- [x] 稳定性修复计划 Task 1~7 回填并补齐测试依据（含 `ImageAcquisitionService`、仓储校验）
+- [x] Sprint 1 / Sprint 2 验收结果、性能基准、长稳定向自动化结果回填
+- [x] Sprint 6 本地验收结论同步到 `docs/roadmaps/roadmap-sprint6.md`
+
+## 当前执行项（下一轮主线）
+
+- [ ] UI / FlowCanvas 收尾：官方 Playwright smoke 已通过，待补真实 `Ctrl+Z` 与框选/更完整画布交互证据
+- [ ] 端口断连交互最后缺口：`undo()` 内核已核对可恢复，但浏览器真实 `Ctrl+Z` 路径仍待稳定；“其他画布功能无回归”仍需框选证据
+- [x] PLC Correctness 阶段 A：端序统一、长度语义统一、S7 心跳地址、S7 位读写、FINS 位写长度
+- [x] PLC Reliability 阶段 B：`ReadExactAsync`、`ErrorOccurred`、`MaxRetryInterval` 已补齐并通过专项回归
+- [x] PLC 阶段 C（算子级集成测试首批）：已补 `MC/FINS` 读写端到端用例并纳入 PLC 专项回归
+- [ ] PLC 阶段 C（剩余）：补齐 `SiemensS7CommunicationOperator` 集成测试、FINS 轮询参数语义与批读/字符串工程化
+- [ ] 实机 / 长时验证：真实 `OpenAI / Azure OpenAI / Ollama`、4 小时 soak
+
+## 暂不纳入本轮
+
+- [ ] Sprint 6 大体量 UI 新功能：手眼标定三步向导、ForEach 子图编辑器、OCR 专项扩展
+- [ ] `.sisyphus/plans/clearvision_execution_plan.md` 中 CI/CD、全量 Playwright、DTO 生成脚本、全量 CQRS 扩建
+- [ ] AI 语义一致性长期优化：端口命名统一、Description 批量增强

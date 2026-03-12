@@ -56,9 +56,9 @@ const toggleHandler = (e) => {
 3. `return false` - 额外保险，确保事件不会继续传播
 
 **Acceptance Criteria**:
-- [ ] 点击展开/收起箭头可以正常展开/收起分类组
-- [ ] 点击分类标题也可以展开/收起
-- [ ] 展开/收起状态正确更新
+- [x] 点击展开/收起箭头可以正常展开/收起分类组
+- [x] 点击分类标题也可以展开/收起
+- [x] 展开/收起状态正确更新
 
 **Location**: 
 File: `Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/operator-library/operatorLibrary.js`

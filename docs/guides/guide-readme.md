@@ -97,6 +97,7 @@ publish.bat
 ## 相关文档
 - [用户指南](guide-user.md)
 - [部署指南](guide-deployment.md)
+- [源码级详解](guide-codebase-deep-dive.md)
 - [算子库手册](ref-operator-handbook.md)
 - [前端修改指导](ref-frontend-modification-guide.md)
 - `Acme.Product/DEVELOPMENT_RULES.md`

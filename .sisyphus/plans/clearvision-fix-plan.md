@@ -64,9 +64,9 @@
 - OMITTED `frontend-ui-ux`: Backend task.
 **Depends On**: None
 **Acceptance Criteria**:
-- [ ] File created at correct path.
-- [ ] `SafeFireAndForget` method implemented handling `Task` and `ValueTask`.
-- [ ] Exception handling logs error if `ILogger` provided.
+- [x] File created at correct path.
+- [x] `SafeFireAndForget` method implemented handling `Task` and `ValueTask`.
+- [x] Exception handling logs error if `ILogger` provided.
 
 ### Task 2: Fix WebMessageHandler Async Void
 **Description**: Modify `Acme.Product/src/Acme.Product.Desktop/Handlers/WebMessageHandler.cs` line 40. Change `async void OnWebMessageReceived` to `void` and use `Task.Run(...).SafeFireAndForget()`.
@@ -77,9 +77,9 @@
 - INCLUDED `dev-browser`: Understanding of WebView message loops.
 **Depends On**: Task 1
 **Acceptance Criteria**:
-- [ ] Line 40 signature changed to `private void`.
-- [ ] Logic wrapped in `SafeFireAndForget`.
-- [ ] No compilation errors.
+- [x] Line 40 signature changed to `private void`.
+- [x] Logic wrapped in `SafeFireAndForget`.
+- [x] No compilation errors.
 
 ### Task 3: Fix Frontend Memory Leaks
 **Description**: Add `destroy()` methods to 3 JS files. Remove event listeners (`resize`, `mousemove`, `mouseup`) and cancel `requestAnimationFrame`.
@@ -94,9 +94,9 @@
 - INCLUDED `frontend-ui-ux`: Expert knowledge of JS event loops and cleanup.
 **Depends On**: None
 **Acceptance Criteria**:
-- [ ] `destroy()` method added to all 3 classes.
-- [ ] `removeEventListener` calls match `addEventListener`.
-- [ ] `cancelAnimationFrame` called for animation loops.
+- [x] `destroy()` method added to all 3 classes.
+- [x] `removeEventListener` calls match `addEventListener`.
+- [x] `cancelAnimationFrame` called for animation loops.
 
 ### Task 4: Implement OperatorService CRUD
 **Description**: Implement `UpdateAsync` (line 322) and `DeleteAsync` (line 327) in `Acme.Product/src/Acme.Product.Application/Services/OperatorService.cs`.
@@ -107,9 +107,9 @@
 - OMITTED `frontend-ui-ux`: Backend task.
 **Depends On**: None
 **Acceptance Criteria**:
-- [ ] `UpdateAsync` validates existence, updates properties, calls Repo update.
-- [ ] `DeleteAsync` validates existence, calls Repo delete.
-- [ ] Throws `OperatorNotFoundException` if ID invalid.
+- [x] `UpdateAsync` validates existence, updates properties, calls Repo update.
+- [x] `DeleteAsync` validates existence, calls Repo delete.
+- [x] Throws `OperatorNotFoundException` if ID invalid.
 
 ### Task 5: Implement ImageAcquisitionService (Camera)
 **Description**: Implement `AcquireFromCameraAsync`, `StartContinuousAcquisitionAsync`, `StopContinuousAcquisitionAsync` in `ImageAcquisitionService.cs`.
@@ -120,10 +120,10 @@
 - INCLUDED `python-programmer`: Often overlaps with OpenCV usage patterns.
 **Depends On**: None
 **Acceptance Criteria**:
-- [ ] `AcquireFromCameraAsync` retrieves frame from `_cameraManager`.
-- [ ] `Start...` starts a background loop/timer for grabbing frames.
-- [ ] Thread safety: Locking mechanism around shared resources.
-- [ ] **Guardrail**: Service must implement `IDisposable` to clean up resources.
+- [x] `AcquireFromCameraAsync` retrieves frame from `_cameraManager`.
+- [x] `Start...` starts a background loop/timer for grabbing frames.
+- [x] Thread safety: Locking mechanism around shared resources.
+- [x] **Guardrail**: Service must implement `IDisposable` to clean up resources.
 
 ### Task 6: Implement ImageAcquisitionService (Process/File)
 **Description**: Implement `PreprocessAsync`, `SaveToFileAsync`, `GetImageInfoAsync` in `ImageAcquisitionService.cs`.
@@ -134,10 +134,10 @@
 - INCLUDED `python-programmer`: OpenCV familiarity.
 **Depends On**: Task 5 (Conceptual dependency for file consistency)
 **Acceptance Criteria**:
-- [ ] `PreprocessAsync` uses OpenCvSharp for scaling/filtering.
-- [ ] `SaveToFileAsync` saves `Mat` to disk.
-- [ ] `GetImageInfoAsync` returns metadata from cached `Mat`.
-- [ ] All `Mat` created locally are disposed.
+- [x] `PreprocessAsync` uses OpenCvSharp for scaling/filtering.
+- [x] `SaveToFileAsync` saves `Mat` to disk.
+- [x] `GetImageInfoAsync` returns metadata from cached `Mat`.
+- [x] All `Mat` created locally are disposed.
 
 ### Task 7: Repository Input Validation
 **Description**: Add validation (null checks, range checks) to `GetByNameAsync`, `SearchAsync`, `GetRecentAsync`, `GetWithFlowAsync` in `ProjectRepository.cs`.
@@ -148,8 +148,8 @@
 - INCLUDED `git-master`: Efficient text manipulation.
 **Depends On**: None
 **Acceptance Criteria**:
-- [ ] Arguments validated at start of methods.
-- [ ] `ArgumentNullException` or `ArgumentException` thrown for invalid inputs.
+- [x] Arguments validated at start of methods.
+- [x] `ArgumentNullException` or `ArgumentException` thrown for invalid inputs.
 
 ### Task 8: General Cleanup (P2)
 **Description**: Remove hardcoded configs, clean CSS `!important`, remove `console.log`.
