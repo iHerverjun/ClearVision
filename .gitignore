@@ -77,3 +77,11 @@ notebooks/.ipynb_checkpoints/
 
 # Backup
 *.bak
+
+# Local workspace runtime data
+/vision.db
+
+# UI regression artifacts
+/Acme.Product/test_results/ui_*.png
+/Acme.Product/test_results/ui_*.json
+/Acme.Product/test_results/ui_*.md
