@@ -27,7 +27,7 @@ public class OpenAiConnector : ILLMConnector, IDisposable
         _retryPolicy = retryPolicy ?? new ExponentialBackoffRetryPolicy(3, TimeSpan.FromSeconds(1));
         
         // 配置 HttpClient
-        _httpClient.BaseAddress = new Uri(_config.BaseUrl);
+        _httpClient.BaseAddress = new Uri(EnsureTrailingSlash(_config.BaseUrl));
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config.ApiKey}");
         _httpClient.Timeout = _config.Timeout;
     }
@@ -238,6 +238,11 @@ Always respond with valid JSON that matches the ClearVision flow schema.";
     public void Dispose()
     {
         _httpClient?.Dispose();
+    }
+
+    private static string EnsureTrailingSlash(string baseUrl)
+    {
+        return baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : $"{baseUrl}/";
     }
 }
 

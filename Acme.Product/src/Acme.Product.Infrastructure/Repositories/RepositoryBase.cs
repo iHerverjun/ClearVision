@@ -18,6 +18,8 @@ public class RepositoryBase<T> : IRepository<T> where T : class
 
     protected RepositoryBase(Data.VisionDbContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
         _dbSet = context.Set<T>();
     }
@@ -34,11 +36,15 @@ public class RepositoryBase<T> : IRepository<T> where T : class
 
     public virtual async Task<IEnumerable<T>> FindAsync(System.Linq.Expressions.Expression<Func<T, bool>> predicate)
     {
+        ArgumentNullException.ThrowIfNull(predicate);
+
         return await _dbSet.Where(predicate).ToListAsync();
     }
 
     public virtual async Task<T> AddAsync(T entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
+
         await _dbSet.AddAsync(entity);
         await _context.SaveChangesAsync();
         return entity;
@@ -46,12 +52,16 @@ public class RepositoryBase<T> : IRepository<T> where T : class
 
     public virtual async Task UpdateAsync(T entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
+
         _dbSet.Update(entity);
         await _context.SaveChangesAsync();
     }
 
     public virtual async Task DeleteAsync(T entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
+
         _dbSet.Remove(entity);
         await _context.SaveChangesAsync();
     }

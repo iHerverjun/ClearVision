@@ -27,8 +27,8 @@ public class AzureOpenAiConnector : ILLMConnector, IDisposable
         _retryPolicy = retryPolicy ?? new ExponentialBackoffRetryPolicy(3, TimeSpan.FromSeconds(1));
         
         // 配置 HttpClient
-        var baseUrl = $"{_config.Endpoint}/openai/deployments/{_config.DeploymentName}";
-        _httpClient.BaseAddress = new Uri(baseUrl);
+        var baseUrl = $"{_config.Endpoint.TrimEnd('/')}/openai/deployments/{_config.DeploymentName}";
+        _httpClient.BaseAddress = new Uri(EnsureTrailingSlash(baseUrl));
         
         // 根据认证方式设置请求头
         if (!string.IsNullOrEmpty(_config.ApiKey))
@@ -56,7 +56,7 @@ public class AzureOpenAiConnector : ILLMConnector, IDisposable
             var json = JsonSerializer.Serialize(request, AzureOpenAiJsonContext.Default.AzureChatCompletionRequest);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var url = $"/chat/completions?api-version={_config.ApiVersion}";
+            var url = $"chat/completions?api-version={_config.ApiVersion}";
             var response = await _httpClient.PostAsync(url, content, ct);
             
             if (!response.IsSuccessStatusCode)
@@ -103,7 +103,7 @@ public class AzureOpenAiConnector : ILLMConnector, IDisposable
         var json = JsonSerializer.Serialize(request, AzureOpenAiJsonContext.Default.AzureChatCompletionRequest);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var url = $"/chat/completions?api-version={_config.ApiVersion}";
+        var url = $"chat/completions?api-version={_config.ApiVersion}";
         using var response = await _httpClient.PostAsync(url, content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
@@ -188,7 +188,7 @@ public class AzureOpenAiConnector : ILLMConnector, IDisposable
 
             var json = JsonSerializer.Serialize(request, AzureOpenAiJsonContext.Default.AzureChatCompletionRequest);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var url = $"/chat/completions?api-version={_config.ApiVersion}";
+            var url = $"chat/completions?api-version={_config.ApiVersion}";
 
             var response = await _httpClient.PostAsync(url, content, cancellationToken);
             return response.IsSuccessStatusCode;
@@ -240,6 +240,11 @@ Always respond with valid JSON that matches the ClearVision flow schema.";
     public void Dispose()
     {
         _httpClient?.Dispose();
+    }
+
+    private static string EnsureTrailingSlash(string baseUrl)
+    {
+        return baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : $"{baseUrl}/";
     }
 }
 

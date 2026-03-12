@@ -27,7 +27,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
         _retryPolicy = retryPolicy ?? new ExponentialBackoffRetryPolicy(3, TimeSpan.FromSeconds(1));
         
         // 配置 HttpClient
-        _httpClient.BaseAddress = new Uri(_config.BaseUrl);
+        _httpClient.BaseAddress = new Uri(EnsureTrailingSlash(_config.BaseUrl));
         _httpClient.Timeout = _config.Timeout;
     }
 
@@ -53,7 +53,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
             var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/api/generate", content, ct);
+            var response = await _httpClient.PostAsync("api/generate", content, ct);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -111,7 +111,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
         var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = await _httpClient.PostAsync("/api/generate", content, cancellationToken);
+        var response = await _httpClient.PostAsync("api/generate", content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -181,7 +181,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
     {
         try
         {
-            var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+            var response = await _httpClient.GetAsync("api/tags", cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch
@@ -195,7 +195,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
     /// </summary>
     public async Task<List<OllamaModelInfo>> GetLocalModelsAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+        var response = await _httpClient.GetAsync("api/tags", cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -224,7 +224,7 @@ public class OllamaConnector : ILLMConnector, IDisposable
         var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaPullRequest);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = await _httpClient.PostAsync("/api/pull", content, cancellationToken);
+        var response = await _httpClient.PostAsync("api/pull", content, cancellationToken);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -256,6 +256,11 @@ Always respond with valid JSON that matches the ClearVision flow schema.";
     public void Dispose()
     {
         _httpClient?.Dispose();
+    }
+
+    private static string EnsureTrailingSlash(string baseUrl)
+    {
+        return baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : $"{baseUrl}/";
     }
 }
 

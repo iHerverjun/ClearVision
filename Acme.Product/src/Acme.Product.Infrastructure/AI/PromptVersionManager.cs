@@ -59,11 +59,15 @@ public class PromptVersionManager : IPromptVersionManager
     private readonly string _filePath;
     private readonly object _lock = new();
 
-    public PromptVersionManager()
+    public PromptVersionManager(string? baseDirectory = null)
     {
-        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClearVision");
+        var appData = string.IsNullOrWhiteSpace(baseDirectory)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClearVision")
+            : baseDirectory;
+
         if (!Directory.Exists(appData))
             Directory.CreateDirectory(appData);
+
         _filePath = Path.Combine(appData, "prompt_versions.json");
     }
 

@@ -20,6 +20,12 @@ namespace Acme.Product.Infrastructure.Services;
 /// </summary>
 public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 {
+    private static class ErrorMessages
+    {
+        public const string FileNotExist = "文件不存在";
+        public const string InvalidBase64 = "无效的 Base64 字符串";
+    }
+
     private const int MaxCacheSize = 50;
     private readonly ICameraManager _cameraManager;
     private readonly ILogger<ImageAcquisitionService> _logger;
@@ -40,7 +46,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         if (!File.Exists(filePath))
         {
-            throw new FileNotFoundException("Image file does not exist.", filePath);
+            throw new FileNotFoundException(ErrorMessages.FileNotExist, filePath);
         }
 
         var imageData = await File.ReadAllBytesAsync(filePath, cancellationToken);
@@ -98,7 +104,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         }
         catch (FormatException)
         {
-            throw new ArgumentException("Invalid Base64 string.");
+            throw new ArgumentException(ErrorMessages.InvalidBase64);
         }
     }
 
@@ -290,7 +296,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
             if (!File.Exists(filePath))
             {
                 result.IsValid = false;
-                result.Errors.Add("File does not exist.");
+                result.Errors.Add(ErrorMessages.FileNotExist);
                 return Task.FromResult(result);
             }
 
