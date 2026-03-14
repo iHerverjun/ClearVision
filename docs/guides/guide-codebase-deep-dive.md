@@ -56,6 +56,7 @@
 
 但需要强调：**算子系统本身已经纳入本文档**，本文会说明算子如何被扫描、注册、展示、拖拽、执行、预览、推荐参数，以及它们与主产品如何集成。若要继续深入每个算子的参数、输入输出与业务语义，可继续看：
 
+- `docs/OPERATOR_CATALOG.md`
 - `docs/operators/CATALOG.md`
 - `docs/operators/*.md`
 - `Acme.Product/src/Acme.Product.Infrastructure/Operators/`
@@ -100,7 +101,7 @@
 #### D. 算子库与参数编辑
 
 - 通过分类树展示算子库。
-- 当前仓库文档统计总算子数为 **118**。
+- 当前仓库文档统计总算子数为 **118**，目录平均质量分为 **88.6** (`A=77 / B=35 / C=6`).
 - 支持关键字搜索、分类图标、参数面板编辑。
 - 支持参数推荐、预览执行、相机绑定下拉、输入图像联动。
 
@@ -179,7 +180,7 @@
 
 - `Acme.Product/src` 下 C# 源文件数：**397**
 - 前端 `wwwroot/src` 下 JS 文件数：**30**
-- `docs/operators/CATALOG.md` 统计的算子数量：**118**
+- `docs/OPERATOR_CATALOG.md` / `docs/operators/CATALOG.md` 当前同步统计：算子总数 **118**，目录平均质量分 **88.6**.
 - `Endpoints/` 目录下定义的 HTTP API 数量：**54**
 - `Program.RegisterExtendedApiEndpoints` 额外补充的 HTTP API 数量：**8**
 - 当前 HTTP 路由总量（含 `/health`）：**62**
@@ -2178,7 +2179,7 @@
 3. `OperatorPreviewService.cs`
 4. `ParameterRecommender.cs`
 5. `Infrastructure/Operators/*`
-6. `docs/operators/CATALOG.md`
+6. `docs/OPERATOR_CATALOG.md`
 7. `docs/operators/*.md`
 
 ### 11.4 给设备/自动化同事
@@ -2219,7 +2220,7 @@
 
 - `docs/guides/guide-user.md`
 - `docs/guides/guide-deployment.md`
-- `docs/operators/CATALOG.md`
+- `docs/OPERATOR_CATALOG.md`
 - `docs/operators/*.md`
 - `docs/BUG_AUDIT_2026-03-04.md`
 - `docs/AI_Model_Integration_Refactor_Plan_2026-02-28.md`

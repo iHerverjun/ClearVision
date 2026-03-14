@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Reflection;
@@ -14,6 +14,7 @@ var repoRoot = ResolveRepoRoot(args);
 var overwrite = args.Any(arg => string.Equals(arg, "--overwrite", StringComparison.OrdinalIgnoreCase));
 var enforceVersionBump = args.Any(arg => string.Equals(arg, "--enforce-version-bump", StringComparison.OrdinalIgnoreCase));
 var docsRoot = Path.Combine(repoRoot, "docs", "operators");
+var docsParentRoot = Path.Combine(repoRoot, "docs");
 var generatedAt = DateTimeOffset.Now;
 var qualityContext = BuildQualityContext(repoRoot, docsRoot);
 
@@ -52,8 +53,9 @@ var operators = candidates
     .ToList();
 
 GenerateCatalogJson(operators, docsRoot, generatedAt);
-GenerateCatalogMarkdown(operators, docsRoot, generatedAt);
+GenerateCatalogMarkdown(operators, docsRoot, "./", generatedAt);
 var versionTracking = GenerateVersionTrackingArtifacts(candidates, operators, qualityContext, docsRoot, generatedAt);
+SyncRootCatalogArtifacts(operators, docsRoot, docsParentRoot, generatedAt);
 
 Console.WriteLine($"repoRoot={repoRoot} docsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
 Console.WriteLine($"catalogJson={Path.Combine(docsRoot, "catalog.json")} catalogMarkdown={Path.Combine(docsRoot, "CATALOG.md")}");
@@ -134,12 +136,24 @@ static void GenerateCatalogJson(IReadOnlyList<CatalogOperator> operators, string
     File.WriteAllText(Path.Combine(docsRoot, "catalog.json"), json + Environment.NewLine, new UTF8Encoding(false));
 }
 
-static void GenerateCatalogMarkdown(IReadOnlyList<CatalogOperator> operators, string docsRoot, DateTimeOffset generatedAt)
+static void GenerateCatalogMarkdown(IReadOnlyList<CatalogOperator> operators, string docsRoot, string docLinkPrefix, DateTimeOffset generatedAt)
+{
+    var markdown = BuildCatalogMarkdown(operators, generatedAt, docLinkPrefix);
+    File.WriteAllText(Path.Combine(docsRoot, "CATALOG.md"), markdown, new UTF8Encoding(false));
+}
+
+static string BuildCatalogMarkdown(IReadOnlyList<CatalogOperator> operators, DateTimeOffset generatedAt, string docLinkPrefix)
 {
     var grouped = operators
         .GroupBy(item => NormalizeCategory(item.Category))
         .OrderBy(group => group.Key, StringComparer.Ordinal)
         .ToList();
+
+    var normalizedPrefix = string.IsNullOrWhiteSpace(docLinkPrefix) ? "./" : docLinkPrefix.Trim();
+    if (!normalizedPrefix.EndsWith('/'))
+    {
+        normalizedPrefix += "/";
+    }
 
     var sb = new StringBuilder();
     sb.AppendLine("# 算子目录 / Operator Catalog");
@@ -187,14 +201,41 @@ static void GenerateCatalogMarkdown(IReadOnlyList<CatalogOperator> operators, st
         foreach (var op in categoryGroup.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             var algorithm = string.IsNullOrWhiteSpace(op.Algorithm) ? "-" : EscapeCell(op.Algorithm!);
-            var linkPath = $"./{op.Id}.md";
+            var linkPath = $"{normalizedPrefix}{op.Id}.md";
             var quality = $"{op.Quality.TotalScore} ({op.Quality.Level})";
             sb.AppendLine(
                 $"| `OperatorType.{op.Id}` | {EscapeCell(op.DisplayName)} | {op.InputPorts.Count} | {op.OutputPorts.Count} | {op.Parameters.Count} | {quality} | `{op.Version}` | {algorithm} | [{op.Id}]({linkPath}) |");
         }
     }
 
-    File.WriteAllText(Path.Combine(docsRoot, "CATALOG.md"), sb.ToString(), new UTF8Encoding(false));
+    return sb.ToString();
+}
+
+static void SyncRootCatalogArtifacts(IReadOnlyList<CatalogOperator> operators, string docsRoot, string docsParentRoot, DateTimeOffset generatedAt)
+{
+    Directory.CreateDirectory(docsParentRoot);
+
+    var catalogJsonPath = Path.Combine(docsRoot, "catalog.json");
+    if (File.Exists(catalogJsonPath))
+    {
+        var json = File.ReadAllText(catalogJsonPath);
+        File.WriteAllText(Path.Combine(docsParentRoot, "catalog.json"), json, new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(docsParentRoot, "operator_catalog.json"), json, new UTF8Encoding(false));
+    }
+
+    var rootMarkdown = BuildCatalogMarkdown(operators, generatedAt, "./operators/");
+    File.WriteAllText(Path.Combine(docsParentRoot, "CATALOG.md"), rootMarkdown, new UTF8Encoding(false));
+    File.WriteAllText(Path.Combine(docsParentRoot, "OPERATOR_CATALOG.md"), rootMarkdown, new UTF8Encoding(false));
+
+    foreach (var artifact in new[] { "CHANGELOG.md", "version-history.json" })
+    {
+        var sourcePath = Path.Combine(docsRoot, artifact);
+        if (File.Exists(sourcePath))
+        {
+            var content = File.ReadAllText(sourcePath);
+            File.WriteAllText(Path.Combine(docsParentRoot, artifact), content, new UTF8Encoding(false));
+        }
+    }
 }
 
 static string ResolveRepoRoot(string[] args)
@@ -398,13 +439,68 @@ static CatalogOperator ToCatalogOperator(OperatorDocModel item, QualityContext q
         Category = NormalizeCategory(item.Meta.Category),
         Version = NormalizeSemVersion(item.Meta.Version),
         Tags = BuildOperatorTags(item),
-        Algorithm = item.Algo?.Name,
+        Algorithm = ResolveCatalogAlgorithm(item, qualityContext),
         InputPorts = inputPorts,
         OutputPorts = outputPorts,
         Parameters = parameters,
         Quality = ComputeQuality(item, qualityContext),
         DocPath = $"docs/operators/{id}.md"
     };
+}
+
+static string? ResolveCatalogAlgorithm(OperatorDocModel item, QualityContext qualityContext)
+{
+    if (!string.IsNullOrWhiteSpace(item.Algo?.Name))
+    {
+        return item.Algo!.Name.Trim();
+    }
+
+    if (item.OperatorType is null)
+    {
+        return null;
+    }
+
+    var docPath = Path.Combine(qualityContext.DocsRoot, $"{item.OperatorType.Value}.md");
+    if (!File.Exists(docPath))
+    {
+        return null;
+    }
+
+    var content = File.ReadAllText(docPath);
+    const string marker = "## 算法原理 / Algorithm Principle";
+    var startIndex = content.IndexOf(marker, StringComparison.Ordinal);
+    if (startIndex < 0)
+    {
+        return null;
+    }
+
+    startIndex += marker.Length;
+    var nextIndex = content.IndexOf("\n## ", startIndex, StringComparison.Ordinal);
+    var body = nextIndex >= 0
+        ? content[startIndex..nextIndex]
+        : content[startIndex..];
+
+    var summary = body
+        .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+        .Select(line => line.Trim())
+        .FirstOrDefault(line =>
+            !string.IsNullOrWhiteSpace(line) &&
+            !line.StartsWith(">", StringComparison.Ordinal) &&
+            !line.StartsWith("|", StringComparison.Ordinal));
+
+    if (string.IsNullOrWhiteSpace(summary))
+    {
+        return null;
+    }
+
+    summary = summary
+        .Replace("`", string.Empty, StringComparison.Ordinal)
+        .Replace("**", string.Empty, StringComparison.Ordinal)
+        .Replace("__", string.Empty, StringComparison.Ordinal);
+
+    return summary.Length <= 42
+        ? summary
+        : summary[..42] + "…";
 }
 
 static string NormalizeCategory(string? category)
@@ -1292,3 +1388,4 @@ internal sealed record QualityContext(
     IReadOnlyDictionary<string, string> SourcePathByTypeName,
     IReadOnlyDictionary<string, string> SourceTextByTypeName,
     IReadOnlySet<string> TestIndex);
+
