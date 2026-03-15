@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-15T14:24:43.1972535+08:00",
+  "generatedAt": "2026-03-16T01:00:41.9846479+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -586,6 +586,17 @@
               "label": "7"
             }
           ]
+        },
+        {
+          "name": "L2Gradient",
+          "displayName": "L2 梯度",
+          "dataType": "bool",
+          "description": "使用 L2 范数计算梯度幅值，更精确但稍慢",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -941,16 +952,93 @@
           "max": "1",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "EnableColorFilter",
+          "displayName": "启用颜色过滤",
+          "dataType": "bool",
+          "description": "启用HSV颜色范围预过滤",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "HueLow",
+          "displayName": "色相下限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "180",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "HueHigh",
+          "displayName": "色相上限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "180",
+          "min": "0",
+          "max": "180",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SatLow",
+          "displayName": "饱和度下限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "50",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SatHigh",
+          "displayName": "饱和度上限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "255",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ValLow",
+          "displayName": "明度下限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "50",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ValHigh",
+          "displayName": "明度上限",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "255",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 100,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/BlobAnalysis.md"
     },
@@ -2574,6 +2662,18 @@
           "displayName": "圆数量",
           "dataType": "Integer",
           "isRequired": null
+        },
+        {
+          "name": "Circularity",
+          "displayName": "圆度",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "CircleDataList",
+          "displayName": "圆数据列表",
+          "dataType": "Any",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -4086,6 +4186,17 @@
               "label": "HSV转BGR"
             }
           ]
+        },
+        {
+          "name": "SourceChannels",
+          "displayName": "源通道数",
+          "dataType": "int",
+          "description": "输入图像的通道数，用于验证转换类型兼容性",
+          "defaultValue": "3",
+          "min": "1",
+          "max": "4",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -4961,6 +5072,18 @@
           "name": "ColorInfo",
           "displayName": "颜色信息",
           "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "AnalysisMode",
+          "displayName": "分析模式",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "ColorSpace",
+          "displayName": "颜色空间",
+          "dataType": "String",
           "isRequired": null
         }
       ],
@@ -6368,6 +6491,38 @@
             {
               "value": "Gray",
               "label": "灰度"
+            },
+            {
+              "value": "All",
+              "label": "所有通道"
+            }
+          ]
+        },
+        {
+          "name": "Channel",
+          "displayName": "目标通道",
+          "dataType": "enum",
+          "description": "指定要增强的通道，Auto 根据颜色空间自动选择",
+          "defaultValue": "Auto",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Auto",
+              "label": "自动"
+            },
+            {
+              "value": "L",
+              "label": "L通道"
+            },
+            {
+              "value": "V",
+              "label": "V通道"
+            },
+            {
+              "value": "Y",
+              "label": "Y通道"
             },
             {
               "value": "All",
@@ -7950,6 +8105,17 @@
           "options": null
         },
         {
+          "name": "AngleStep",
+          "displayName": "角度步长",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "5",
+          "min": "1",
+          "max": "45",
+          "isRequired": true,
+          "options": null
+        },
+        {
           "name": "PyramidLevels",
           "displayName": "金字塔层数",
           "dataType": "int",
@@ -7968,6 +8134,127 @@
           "defaultValue": "30",
           "min": "0",
           "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "WeakThreshold",
+          "displayName": "弱梯度阈值",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "30",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "StrongThreshold",
+          "displayName": "强梯度阈值",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "60",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NumFeatures",
+          "displayName": "特征点数量",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "150",
+          "min": "50",
+          "max": "8191",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SpreadT",
+          "displayName": "方向扩展范围",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "4",
+          "min": "1",
+          "max": "16",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxMatches",
+          "displayName": "最大匹配数",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "10",
+          "min": "1",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MatchMode",
+          "displayName": "匹配模式",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Template",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Template",
+              "label": "模板匹配"
+            },
+            {
+              "value": "ShapeDescriptor",
+              "label": "形状描述符匹配"
+            }
+          ]
+        },
+        {
+          "name": "DescriptorTypes",
+          "displayName": "描述符类型",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Hu+Fourier",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Hu",
+              "label": "Hu矩"
+            },
+            {
+              "value": "Fourier",
+              "label": "傅里叶描述符"
+            },
+            {
+              "value": "Hu+Fourier",
+              "label": "全部"
+            }
+          ]
+        },
+        {
+          "name": "PreFilterArea",
+          "displayName": "面积预筛选",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "AreaTolerance",
+          "displayName": "面积容差",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.3",
+          "min": "0",
+          "max": "1",
           "isRequired": true,
           "options": null
         }
@@ -8709,6 +8996,12 @@
           "displayName": "请求体",
           "dataType": "String",
           "isRequired": false
+        },
+        {
+          "name": "Headers",
+          "displayName": "请求头",
+          "dataType": "Any",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -8772,24 +9065,46 @@
           ]
         },
         {
-          "name": "Timeout",
+          "name": "TimeoutMs",
           "displayName": "超时(ms)",
           "dataType": "int",
           "description": null,
-          "defaultValue": "5000",
+          "defaultValue": "10000",
+          "min": "1000",
+          "max": "60000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RetryCount",
+          "displayName": "最大重试",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "5",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ContentType",
+          "displayName": "内容类型",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "application/json",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": null
         },
         {
-          "name": "MaxRetries",
-          "displayName": "最大重试",
+          "name": "RetryDelayMs",
+          "displayName": "重试延迟(ms)",
           "dataType": "int",
           "description": null,
-          "defaultValue": "3",
-          "min": null,
-          "max": null,
+          "defaultValue": "1000",
+          "min": "0",
+          "max": "10000",
           "isRequired": true,
           "options": null
         }
@@ -8824,6 +9139,12 @@
           "displayName": "消息负载",
           "dataType": "Any",
           "isRequired": true
+        },
+        {
+          "name": "Message",
+          "displayName": "消息内容",
+          "dataType": "String",
+          "isRequired": false
         }
       ],
       "outputPorts": [

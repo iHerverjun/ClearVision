@@ -8,7 +8,8 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -28,6 +29,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Center", "圆心", PortDataType.Point)]
 [OutputPort("Circle", "圆数据", PortDataType.CircleData)]
 [OutputPort("CircleCount", "圆数量", PortDataType.Integer)]
+[OutputPort("Circularity", "圆度", PortDataType.Float)]
+[OutputPort("CircleDataList", "圆数据列表", PortDataType.Any)]
 [OperatorParam("Method", "检测方法", "enum", DefaultValue = "HoughCircle", Options = new[] { "HoughCircle|霍夫圆", "FitEllipse|拟合椭圆" })]
 [OperatorParam("MinRadius", "最小半径", "int", DefaultValue = 10, Min = 0)]
 [OperatorParam("MaxRadius", "最大半径", "int", DefaultValue = 200, Min = 0)]
@@ -102,8 +105,7 @@ public class CircleMeasurementOperator : OperatorBase
 
                 circleResults.Add(new Dictionary<string, object>
                 {
-                    { "CenterX", circle.Center.X },
-                    { "CenterY", circle.Center.Y },
+                    { "Center", new Position(circle.Center.X, circle.Center.Y) },
                     { "Radius", circle.Radius },
                     { "Circularity", circularity }
                 });
@@ -132,11 +134,8 @@ public class CircleMeasurementOperator : OperatorBase
             var firstCircleData = circleDataList.FirstOrDefault();
             if (firstCircle != null)
             {
-                additionalData["Center"] = new Position(
-                    Convert.ToDouble(firstCircle["CenterX"]),
-                    Convert.ToDouble(firstCircle["CenterY"]));
-                additionalData["CenterX"] = firstCircle["CenterX"];
-                additionalData["CenterY"] = firstCircle["CenterY"];
+                // 使用统一的 Center 对象，不再输出 CenterX/CenterY 散落字段
+                additionalData["Center"] = firstCircle["Center"];
                 additionalData["Radius"] = firstCircle["Radius"];
                 additionalData["Circularity"] = firstCircle["Circularity"];
                 

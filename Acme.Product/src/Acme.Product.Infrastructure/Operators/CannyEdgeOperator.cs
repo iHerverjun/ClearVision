@@ -28,6 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("EnableGaussianBlur", "Enable Gaussian Blur", "bool", DefaultValue = true)]
 [OperatorParam("GaussianKernelSize", "Gaussian Kernel Size", "int", DefaultValue = 5, Min = 3, Max = 15)]
 [OperatorParam("ApertureSize", "Sobel Aperture Size", "enum", DefaultValue = "3", Options = new[] { "3|3", "5|5", "7|7" })]
+[OperatorParam("L2Gradient", "L2 梯度", "bool", DefaultValue = false, Description = "使用 L2 范数计算梯度幅值，更精确但稍慢")]
 public class CannyEdgeOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgeDetection;

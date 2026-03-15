@@ -1,39 +1,39 @@
-﻿# 绠楀瓙瀹炵幇鏀舵暃璁″垝 / Operator Implementation Reconciliation Plan
+# 算子实现收敛计划 / Operator Implementation Reconciliation Plan
 
-## 1. 鏂囨。鐩殑
+## 1. 文档目的
 
-鏈枃妗ｇ敤浜庣粺涓€鏁寸悊褰撳墠绠楀瓙搴撲腑涓夌被闂锛?
+本文档用于统一整理当前算子库中三类问题：
 
-1. 濂戠害涓嶄竴鑷达細鍏冩暟鎹€乁I 鍙傛暟銆佽緭鍏ヨ緭鍑虹鍙ｃ€佽繍琛屾椂琛屼负涓嶄竴鑷淬€?
-2. 瀹炵幇娆犺处锛氶殣钘忓弬鏁般€佹湭鐢熸晥鍙傛暟銆侀殣钘忚緭鍏ャ€佽緭鍑洪敭婕傜Щ銆佸け璐ヨ涔変笉缁熶竴銆?
-3. 绠楁硶杈圭晫锛氬綋鍓嶅疄鐜板彲鐢紝浣嗚兘鍔涜竟鐣屼笌鐢ㄦ埛棰勬湡瀛樺湪鍋忓樊锛屽鑷存晥鏋滀笉绋虫垨璋冨弬鍥伴毦銆?
+1. 契约不一致：元数据、UI 参数、输入输出端口、运行时行为不一致。
+2. 实现欠账：隐藏参数、未生效参数、隐藏输入、输出键漂移、失败语义不统一。
+3. 算法边界：当前实现可用，但能力边界与用户预期存在偏差，导致效果不稳或调参困难。
 
-鏈枃妗ｇ殑鐩爣涓嶆槸鐩存帴淇敼瀹炵幇锛岃€屾槸褰㈡垚涓€浠藉彲璇勫銆佸彲鎺掓湡銆佸彲鎵ц鐨勭粺涓€鏁存敼璁″垝銆?
+本文档的目标不是直接修改实现，而是形成一份可评审、可排期、可执行的统一整改计划。
 
-## 2. 鎺掓煡鑼冨洿
+## 2. 排查范围
 
-- 浠ｇ爜鑼冨洿锛歚Acme.Product/src/Acme.Product.Infrastructure/Operators/**/*.cs`
-- 鏂囨。鑼冨洿锛歚docs/operators/*.md`
-- 浜ゅ弶鍙傝€冿細`docs/AlgorithmAudit/*.md`
-- 鐩綍绱㈠紩鍙傝€冿細`docs/OPERATOR_CATALOG.md`銆乣docs/operators/CATALOG.md`
+- 代码范围：`Acme.Product/src/Acme.Product.Infrastructure/Operators/**/*.cs`
+- 文档范围：`docs/operators/*.md`
+- 交叉参考：`docs/AlgorithmAudit/*.md`
+- 目录索引参考：`docs/OPERATOR_CATALOG.md`、`docs/operators/CATALOG.md`
 
-瑕嗙洊绠楀瓙鎬绘暟锛?*118**
+覆盖算子总数：**118**
 
-## 3. 鎺掓煡鏂规硶
+## 3. 排查方法
 
-鏈疆鎺掓煡閲囩敤涓ゅ眰鏂规硶锛?
+本轮排查采用两层方法：
 
-### 3.1 闈欐€佸姣旀壂鎻?
+### 3.1 静态对比扫描
 
-瀵瑰叏閮?`*Operator.cs` 鍋氫互涓嬪姣旓細
+对全部 `*Operator.cs` 做以下对比：
 
-- `OperatorParam` 澹版槑鍙傛暟 vs `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam` 瀹為檯璇诲彇鍙傛暟
-- `InputPort` 澹版槑杈撳叆 vs `TryGetInputImage / TryGetInputValue / inputs.TryGetValue` 瀹為檯璇诲彇杈撳叆
-- `OutputPort` 澹版槑杈撳嚭 vs `CreateImageOutput(...)` / 杈撳嚭瀛楀吀涓殑杩愯鏃堕敭
+- `OperatorParam` 声明参数 vs `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam` 实际读取参数
+- `InputPort` 声明输入 vs `TryGetInputImage / TryGetInputValue / inputs.TryGetValue` 实际读取输入
+- `OutputPort` 声明输出 vs `CreateImageOutput(...)` / 输出字典中的运行时键
 
-### 3.2 浜哄伐娣辨寲澶嶆牳
+### 3.2 人工深挖复核
 
-瀵归珮浠峰€笺€佸鏉傘€佺敤鎴蜂綋鎰熸晱鎰熺殑绠楀瓙鍋氭簮鐮佺骇澶嶆牳锛岄噸鐐瑰寘鎷細
+对高价值、复杂、用户体感敏感的算子做源码级复核，重点包括：
 
 - `TemplateMatching`
 - `WidthMeasurement`
@@ -47,187 +47,191 @@
 - `Undistort`
 - `PolarUnwrap`
 
-鏈疆杩橀澶栧弬鑰冧簡鐙珛浜ゅ弶瀹℃煡缁撴灉锛岀敤浜庤ˉ婕忓拰淇鏂囨。涓殑杩囧害鎺ㄦ柇锛屼絾鏈€缁堝彧鍚堝苟浜嗚兘琚綋鍓嶆簮鐮佺洿鎺ユ敮鎾戠殑楂樼疆淇″害闂銆?
+本轮还额外参考了独立交叉审查结果，用于补漏和修正文档中的过度推断，但最终只合并了能被当前源码直接支撑的高置信度问题。
 
-### 3.3 缃俊搴﹁鏄?
+### 3.3 置信度说明
 
-闈欐€佹壂鎻忎腑鐨勨€滆繍琛屾椂杈撳嚭閿€濇彁鍙栦細鎶婇儴鍒嗘櫘閫氬瓧绗︿覆瀛楅潰閲忚璁や负杈撳嚭閿紝鍥犳锛?
+静态扫描中的「运行时输出键」提取会把部分普通字符串字面量误认为输出键，因此：
 
-- 鈥滈殣钘忓弬鏁?/ 鏈娇鐢ㄥ弬鏁?/ 闅愯棌杈撳叆鈥濈粨璁烘暣浣撶疆淇″害杈冮珮銆?
-- 鈥滈澶栬緭鍑洪敭鈥濈粨璁洪渶瑕佷汉宸ュ鏍稿悗鍐嶇撼鍏ュ疄鏂借鍒掋€?
-- 瀵逛娇鐢?`GetOptional*Param` 绛夐潪甯歌璇诲彇璺緞鐨勭畻瀛愶紝闈欐€佹壂鎻忓彲鑳芥妸鈥滃凡璇诲彇鍙傛暟鈥濊鍒や负鈥滄湭璇诲彇鍙傛暟鈥濓紝鍥犳鎵归噺娓呭崟浠嶉渶浜哄伐澶嶆牳鍚庢墠鑳戒綔涓哄疄鏂戒緷鎹€?
+- 「隐藏参数 / 未使用参数 / 隐藏输入」结论整体置信度较高。
+- 「额外输出键」结论需要人工复核后再纳入实施计划。
+- 对使用 `GetOptional*Param` 等非常规读取路径的算子，静态扫描可能把「已读取参数」误判为「未读取参数」，因此批量清单仍需人工复核后才能作为实施依据。
 
-## 4. 鎬讳綋缁撹
+## 4. 总体结论
 
-褰撳墠绠楀瓙搴撲笉鏄€滄暣浣撲笉鍙敤鈥濓紝鑰屾槸瀛樺湪鏄庢樉鐨?*宸ョ▼濂戠害婕傜Щ**銆?
+当前算子库不是「整体不可用」，而是存在明显的 **工程契约漂移**。
 
-鏇达拷| 绠楀瓙 | 闂绫诲瀷 | 楂樼疆淇″害闂 | 寤鸿鍔ㄤ綔 | 鐘舵€?|
+| 算子 | 问题类型 | 高置信度问题 | 建议动作 | 状态 |
 |------|------|------|------|------|
-| `TemplateMatching` | 濂戠害 + 瀹炵幇 | `MaxMatches` 宸插０鏄庝絾鏈敓鏁堬紱`Template` 杩愯鏃舵寜 `byte[]` 瑙ｇ爜锛沗Method` 鍏冩暟鎹彧鏆撮湶 `NCC` / `SQDiff`锛沗CCoeffNormed` 榛樿鍊煎樊寮?| **宸插畬鎴?*锛氱粺涓€ `Method` 鏋氫妇锛涘疄鐜板鐩爣寰幆鍖归厤锛涙爣鍑嗗寲 `Position` 涓轰腑蹇冪偣銆?| 鉁?|
-| `WidthMeasurement` | 濂戠害 + 绠楁硶杈圭晫 | `Direction` 鏈敓鏁堬紱`CreateImageOutput` 娉ㄥ叆 `Width` 璇箟鍐茬獊锛涙墜鍔?鑷姩妯″紡宸紓 | **宸插畬鎴?*锛氬疄鐜?`Direction` 涓?`CustomAngle`锛涘鍔犱簹鍍忕礌妫€娴嬮鏋讹紙鐢?`SubpixelEdgeDetection` 鏀寔锛夈€?| 鉁?|
-| `GradientShapeMatch` | 濂戠害 + 瀹炵幇 | `_matcherCache` 閿鎾為闄╋紱`Position` 缂哄け锛涚紦瀛樼己涔?LRU 闄愬埗 | **宸插畬鎴?*锛氫慨澶嶇紦瀛橀敭锛涙樉寮忚緭鍑?`Position`锛汱RU 鏆傚緟鍚庣画娓呯悊銆?| 鉁?|
-| `OrbFeatureMatch` | 濂戠害 + 瀹炵幇 | `EnableSymmetryTest` / `MinMatchCount` 闅愯棌锛沗Position` 缂哄け锛涘け璐ヨ涔変笉缁熶竴 | **宸插畬鎴?*锛氭毚闇插叏閮ㄩ殣钘忓弬鏁帮紱缁熶竴杈撳嚭 `Position` 缁撴瀯锛涘榻愬け璐ヨ涔夈€?| 鉁?|
-| `AkazeFeatureMatch` | 濂戠害 | `Position` 缂哄け锛沗Score` 瀹氫箟鍐茬獊锛涗笌 ORB 绫讳技鐨勫け璐ヨ涔夐棶棰?| **宸插畬鎴?*锛氳ˉ鍏?`Position` 杈撳嚭锛涚ǔ瀹?`Score` 涓虹浉浼煎害瀹氫箟锛涘榻愬け璐ヨ涔夈€?| 鉁?|
-| `DeepLearning` | 濂戠害 + 瀹炵幇 | `UseGpu` / `GpuDeviceId` 闅愯棌锛沗DetectionList` 绔彛鏈０鏄?| **宸插畬鎴?*锛氭毚闇?GPU 鍏抽敭鍙傛暟锛涙樉寮忓０鏄?`DetectionList` 绔彛銆?| 鉁?|
-| `ImageAcquisition` | 濂戠害 + 瀹炵幇 | 鐩告満鏍稿績鍙傛暟 `exposureTime`銆乣gain`銆乣triggerMode` 鍙傛暟棰勮涓庡厓鏁版嵁涓嶅悓姝?| **宸插畬鎴?*锛氬湪鍏冩暟鎹腑绋冲畾澹版槑閲囬泦鍙傛暟锛涗繚鐣欐柊鏃у弬鏁板悕鍏煎鏄犲皠銆?| 鉁?|
-| `TypeConvert` | 濂戠害 | 澹版槑杈撳叆 `Input` 涓庢簮鐮?`Value` 涓嶄竴鑷达紱杈撳嚭绔彛婕傜Щ | **宸插畬鎴?*锛氱粺涓€杈撳叆閿负 `Input`锛岀Щ闄?`Value` 璇诲彇锛涜ˉ鍏?`AsString/AsFloat/AsInteger/AsBoolean/OriginalType` 杈撳嚭绔彛銆?| 鉁?|
-| `TriggerModule` | 濂戠害 | 鏈０鏄?`Signal` 绔彛锛岄殣钘忚矾寰勮鍙?`Trigger` | **宸插畬鎴?*锛氭寮忓０鏄?`Signal` 杈撳叆绔彛锛涚Щ闄や笉蹇呰鐨?`Trigger` 闅愯棌閫昏緫銆?| 鉁?|
-锟斤拷椤讳簩閫変竴锛氳涔堟寮忔毚闇诧紝瑕佷箞鍒犻櫎杩愯鏃惰鍙栥€?
-3. 宸插０鏄庡弬鏁板繀椤讳笁閫変竴锛氳涔堝疄鐜般€佽涔堝簾寮冦€佽涔堜粠鍏冩暟鎹Щ闄ゃ€?
-4. 杈撳嚭绔彛蹇呴』鍚嶅疄涓€鑷达細澹版槑浜?`Position` 灏辩湡姝ｈ緭鍑?`Position`銆?
-5. 涓氬姟澶辫触璇箟缁熶竴锛氭槑纭摢浜涚畻瀛愪娇鐢ㄢ€滄墽琛屾垚鍔熶絾涓氬姟 NG鈥濓紝鍝簺绠楀瓙浣跨敤妗嗘灦绾?`Failure`銆?
-6. 绠楁硶鍗囩骇涓庡绾︽敹鏁涘垎鎵硅繘琛岋紝鍏堜慨鍙В閲婃€э紝鍐嶄慨鎬ц兘鍜岀簿搴﹀寮恒€?
+| `TemplateMatching` | 契约 + 实现 | `MaxMatches` 已声明但未生效；`Template` 运行时按 `byte[]` 解码；`Method` 元数据只暴露 `NCC` / `SQDiff`；`CCoeffNormed` 默认值差异 | **已完成**：统一 `Method` 枚举；实现多目标循环匹配；标准化 `Position` 为中心点。 | ✅ |
+| `WidthMeasurement` | 契约 + 算法边界 | `Direction` 未生效；`CreateImageOutput` 注入 `Width` 语义冲突；手动/自动模式差异 | **已完成**：实现 `Direction` 与 `CustomAngle`；增加亚像素检测骨架（由 `SubpixelEdgeDetection` 支持）。 | ✅ |
+| `GradientShapeMatch` | 契约 + 实现 | `_matcherCache` 键碰撞风险；`Position` 缺失；缓存缺乏 LRU 限制 | **已完成**：修复缓存键；显式输出 `Position`；LRU 暂待后续清理。 | ✅ |
+| `OrbFeatureMatch` | 契约 + 实现 | `EnableSymmetryTest` / `MinMatchCount` 隐藏；`Position` 缺失；失败语义不统一 | **已完成**：暴露全部隐藏参数；统一输出 `Position` 结构；对齐失败语义。 | ✅ |
+| `AkazeFeatureMatch` | 契约 | `Position` 缺失；`Score` 定义冲突；与 ORB 类似的失败语义问题 | **已完成**：补全 `Position` 输出；稳定 `Score` 为相似度定义；对齐失败语义。 | ✅ |
+| `DeepLearning` | 契约 + 实现 | `UseGpu` / `GpuDeviceId` 隐藏；`DetectionList` 端口未声明 | **已完成**：暴露 GPU 关键参数；显式声明 `DetectionList` 端口。 | ✅ |
+| `ImageAcquisition` | 契约 + 实现 | 相机核心参数 `exposureTime`、`gain`、`triggerMode` 参数预览与元数据不同步 | **已完成**：在元数据中稳定声明采集参数；保留新旧参数名兼容映射。 | ✅ |
+| `TypeConvert` | 契约 | 声明输入 `Input` 与源码 `Value` 不一致；输出端口漂移 | **已完成**：统一输入键为 `Input`，移除 `Value` 读取；补全 `AsString/AsFloat/AsInteger/AsBoolean/OriginalType` 输出端口。 | ✅ |
+| `TriggerModule` | 契约 | 未声明 `Signal` 端口，隐藏路径读取 `Trigger` | **已完成**：正式声明 `Signal` 输入端口；移除不必要的 `Trigger` 隐藏逻辑。 | ✅ |
 
-## 8. P0 浼樺厛绾ф竻鍗?
+## 7. 收敛原则（决策 checklist）
 
-P0 瀹氫箟锛氱洿鎺ュ奖鍝嶈皟鍙傘€佽繍琛岀粨鏋滅悊瑙ｃ€佷笅娓搁泦鎴愶紝鎴栧鏄撳鑷寸敤鎴蜂互涓衡€滅畻瀛愭晥鏋滃樊/绠楀瓙鍧忎簡鈥濄€?
+1. 已声明端口必须真实存在：声明了 `Position` 就真正输出 `Position`。
+2. 隐藏参数必须二选一：要么正式暴露，要么删除运行时读取。
+3. 已声明参数必须三选一：要么实现、要么废弃、要么从元数据移除。
+4. 输出端口必须名实一致：声明了 `Position` 就真正输出 `Position`。
+5. 业务失败语义统一：明确哪些算子使用「执行成功但业务 NG」，哪些算子使用框架级 `Failure`。
+6. 算法升级与契约收敛分批进行，先修可解释性，再修性能和精度增强。
 
-| 绠楀瓙 | 闂绫诲瀷 | 楂樼疆淇″害闂 | 寤鸿鍔ㄤ綔 | 楠岃瘉鏂瑰紡 |
+## 8. P0 优先级清单
+
+P0 定义：直接影响调参、运行结果理解、下游集成，或容易导致用户以为「算子效果差/算子坏了」。
+
+| 算子 | 问题类型 | 高置信度问题 | 建议动作 | 验证方式 |
 |------|------|------|------|------|
-| `TemplateMatching` | 濂戠害 + 瀹炵幇 | `MaxMatches` 宸插０鏄庝絾鏈敓鏁堬紱`Template` 杩愯鏃舵寜 `byte[]` 瑙ｇ爜锛沗Method` 鍏冩暟鎹彧鏆撮湶 `NCC` / `SQDiff`锛屼絾杩愯鏃堕粯璁ゅ€兼槸 `CCoeffNormed`锛屼笖鍐呴儴 `switch` 杩樻帴鍙?`CCorr` / `CCoeff` 绯诲垪锛沗Position` 瀹為檯鏄乏涓婅 | 鏄庣‘鍗曠洰鏍?澶氱洰鏍囩瓥鐣ワ紱瑕佷箞瀹炵幇 `MaxMatches`锛岃涔堢Щ闄わ紱缁熶竴 `Template` 杈撳叆濂戠害锛涚粺涓€ `Method` 鏋氫妇銆侀粯璁ゅ€间笌鍐呴儴 `switch`锛涙槑纭綅缃涔?| 鍗曞厓娴嬭瘯 + UI 鍙傛暟鍥炲綊 + 澶氱洰鏍囨牱鏈獙璇?|
-| `WidthMeasurement` | 濂戠害 + 绠楁硶杈圭晫 | `Direction` 鏈敓鏁堬紱`CreateImageOutput` 榛樿娉ㄥ叆 `Width` 涓哄浘鍍忓搴﹀悗锛岀畻瀛愬張鎵嬪姩鎶婂悓鍚嶉敭鏀瑰啓涓烘祴閲忓搴︼紱鎵嬪姩妯″紡涓庤嚜鍔ㄦā寮忚涔夊樊寮傝緝澶?| 瑕佷箞瀹炵幇 `Direction`锛岃涔堝垹闄わ紱鎷嗗垎鍥惧儚灏哄閿笌娴嬮噺缁撴灉閿紱鍦ㄧ鍙ｅ拰鏂囨。涓槑纭祴閲忓嚑浣曞畾涔?| 鎵嬪姩绾挎牱鏈祴璇?+ 鑷姩杈圭紭鏍锋湰娴嬭瘯 |
-| `GradientShapeMatch` | 濂戠害 + 瀹炵幇 | `_matcherCache` 閿湭鍖呭惈杈撳叆妯℃澘鍐呭锛涘綋妯℃澘鏉ヨ嚜杈撳叆绔彛涓?`templatePath` 涓虹┖鏃讹紝鐩稿悓鍙傛暟鐨勪笉鍚屾ā鏉夸細鍏变韩鍚屼竴缂撳瓨閿紱澹版槑 `Position` 浣嗚繍琛屾椂杈撳嚭 `X/Y`锛涘浐瀹氬ぇ灏忔樉绀烘涓庣湡瀹炴ā鏉垮昂瀵告棤鍏?| 淇紦瀛橀敭锛涘湪绔彛娴佹ā鏉挎ā寮忎笅閬垮厤浣跨敤浠呬緷璧?`templatePath` 鐨勭紦瀛橈紱姝ｅ紡杈撳嚭 `Position`锛涘尯鍒嗏€滄樉绀烘灏哄鈥濆拰鈥滄ā鏉跨湡瀹炲昂瀵糕€濓紱蹇呰鏃舵敮鎸佸叧闂紦瀛?| 澶氭ā鏉垮垏鎹㈡祴璇?+ 缂撳瓨鍛戒腑娴嬭瘯 |
-| `OrbFeatureMatch` | 濂戠害 + 瀹炵幇 | `EnableSymmetryTest` / `MinMatchCount` 杩愯鏃剁敓鏁堜絾鏈０鏄庯紱`Position` 缂哄け锛沗X/Y` 涓嶆槸鍑犱綍涓績锛涚壒寰佷笉瓒冲拰鍖归厤 NG 鏃㈠彲鑳借蛋 `Failure`锛屼篃鍙兘璧?`Success(CreateFailedOutput(...))`锛屽け璐ヨ涔変笉缁熶竴 | 鏆撮湶闅愯棌鍙傛暟锛涜緭鍑?`Position`锛涙槑纭?`X/Y` 鏄唬琛ㄧ偣杩樻槸涓績锛涚粺涓€鈥滄墽琛屽け璐モ€濆拰鈥滀笟鍔?NG鈥濊涔夛紱鑰冭檻杈撳嚭 `Center` | 鐗瑰緛鍖归厤濂戠害娴嬭瘯 + UI 鍙傛暟鍙鎬ф祴璇?|
-| `AkazeFeatureMatch` | 濂戠害 | `Position` 澹版槑浣嗘湭瀹為檯杈撳嚭锛沗X/Y` 鍙栭涓尮閰嶇偣锛沗Score` 鏄唴鐐规瘮渚嬭€岄潪鐩镐技搴︼紱涓?ORB 涓€鏍峰瓨鍦ㄢ€滀笟鍔?NG 浣嗘暣浣撹繑鍥?Success鈥濈殑娣峰悎璇箟 | 杈撳嚭 `Position`锛涜ˉ `Center` 鎴?`MatchPoint` 鍖哄垎璇箟锛涘湪缁撴灉妯″瀷閲屽浐瀹?`Score` 瀹氫箟锛涚粺涓€澶辫触璇箟 | 鍖归厤杈撳嚭濂戠害娴嬭瘯 |
-| `DeepLearning` | 濂戠害 + 瀹炵幇 | `UseGpu` / `GpuDeviceId` 瀹為檯鐢熸晥浣嗘湭澹版槑锛沗DetectionList` 鏄ǔ瀹氳緭鍑轰絾鏈０鏄庝负绔彛锛沗DetectionMode` 鍐冲畾鍏朵綑杈撳嚭瀛楁闆嗗悎锛涚洰褰曞拰 UI 寰堥毦鐪嬪嚭杩欎竴鐐?| 鏆撮湶 GPU 鍙傛暟锛涙槑纭?`Defects/Objects` 涓?`DetectionList` 鐨勮緭鍑哄绾︼紱缁熶竴妯″紡鍒囨崲鏂囨锛涘喅瀹氭槸鍚︽樉寮忓０鏄?`DetectionList` | 鍙傛暟闈㈡澘娴嬭瘯 + 鎺ㄧ悊妯″紡鍥炲綊娴嬭瘯 |
-| `ImageAcquisition` | 濂戠害 + 瀹炵幇 | 鐩告満鏍稿績鍙傛暟 `exposureTime`銆乣gain`銆乣triggerMode` 鍦ㄨ繍琛屾椂璇诲彇锛屼絾鏈€氳繃鍏冩暟鎹ǔ瀹氬０鏄庯紝涓斾笌宸插０鏄庡弬鏁板懡鍚嶉鏍间笉缁熶竴 | 缁熶竴閲囬泦鍙傛暟鍛藉悕涓庡厓鏁版嵁锛涘尯鍒嗗摢浜涘弬鏁扮敱 `cameraBinding` 鎵挎帴锛屽摢浜涗繚鐣欎负绠楀瓙鍙傛暟锛涜ˉ鍏煎鏄犲皠 | 閲囬泦鍙傛暟鍥炲綊娴嬭瘯 + 宸ョ▼ JSON 鍏煎娴嬭瘯 |
-| `TypeConvert` | 濂戠害 | 澹版槑杈撳叆鏄?`Input`锛屾簮鐮佽繕璇诲彇 `Value`锛涜繍琛屾椂杈撳嚭杩滃浜庡０鏄?`Output` | 缁熶竴杈撳叆閿紱鍐冲畾鏄惁淇濈暀澶氱闄勫姞杈撳嚭锛涜嫢淇濈暀鍒欐樉寮忓０鏄?| 杈撳叆鍏煎娴嬭瘯 + 涓嬫父杞崲鍥炲綊娴嬭瘯 |
-| `TriggerModule` | 濂戠害 | 鏈０鏄庤緭鍏ョ鍙ｏ紝浣嗚繍琛屾椂璇诲彇 `Signal` / `Trigger` | 姝ｅ紡澹版槑杈撳叆绔彛鎴栫Щ闄ら殣钘忚矾寰勶紱缁熶竴瑙﹀彂杈撳叆妯″瀷 | 瑙﹀彂琛屼负娴嬭瘯 |
+| `TemplateMatching` | 契约 + 实现 | `MaxMatches` 已声明但未生效；`Template` 运行时按 `byte[]` 解码；`Method` 元数据只暴露 `NCC` / `SQDiff`，但运行时默认值是 `CCoeffNormed`，且内部 `switch` 还接受 `CCorr` / `CCoeff` 系列；`Position` 实际是左上角 | 明确单目标/多目标策略；要么实现 `MaxMatches`，要么移除；统一 `Template` 输入契约；统一 `Method` 枚举、默认值与内部 `switch`；明确位置语义 | 单元测试 + UI 参数回归 + 多目标样本验证 |
+| `WidthMeasurement` | 契约 + 算法边界 | `Direction` 未生效；`CreateImageOutput` 默认注入 `Width` 为图像宽度后，算子又手动把同名键改写为测量宽度；手动模式与自动模式语义差异较大 | 要么实现 `Direction`，要么删除；拆分图像尺寸键与测量结果键；在端口和文档中明确测量几何定义 | 手动线样本测试 + 自动边缘样本测试 |
+| `GradientShapeMatch` | 契约 + 实现 | `_matcherCache` 键未包含输入模板内容；当模板来自输入端口而 `templatePath` 为空时，相同参数的不同模板会共享同一缓存键；声明 `Position` 但运行时输出 `X/Y`；固定大小显示框与真实模板尺寸无关 | 修缓存键；在端口流模板模式下避免使用仅依赖 `templatePath` 的缓存；正式输出 `Position`；区分「显示框尺寸」和「模板真实尺寸」；必要时支持关闭缓存 | 多模板切换测试 + 缓存命中测试 |
+| `OrbFeatureMatch` | 契约 + 实现 | `EnableSymmetryTest` / `MinMatchCount` 运行时生效但未声明；`Position` 缺失；`X/Y` 不是几何中心；特征不足和匹配 NG 既可能走 `Failure`，也可能走 `Success(CreateFailedOutput(...))`，失败语义不统一 | 暴露隐藏参数；输出 `Position`；明确 `X/Y` 是代表点还是中心；统一「执行失败」和「业务 NG」语义；考虑输出 `Center` | 特征匹配契约测试 + UI 参数可见性测试 |
+| `AkazeFeatureMatch` | 契约 | `Position` 声明但未实际输出；`X/Y` 取首个匹配点；`Score` 是内点比例而非相似度；与 ORB 一样存在「业务 NG 但整体返回 Success」的混合语义 | 输出 `Position`；补 `Center` 或 `MatchPoint` 区分语义；在结果模型里固定 `Score` 定义；统一失败语义 | 匹配输出契约测试 |
+| `DeepLearning` | 契约 + 实现 | `UseGpu` / `GpuDeviceId` 实际生效但未声明；`DetectionList` 是稳定输出但未声明为端口；`DetectionMode` 决定其余输出字段集合；目录和 UI 很难看出这一点 | 暴露 GPU 参数；明确 `Defects/Objects` 与 `DetectionList` 的输出契约；统一模式切换文案；决定是否显式声明 `DetectionList` | 参数面板测试 + 推理模式回归测试 |
+| `ImageAcquisition` | 契约 + 实现 | 相机核心参数 `exposureTime`、`gain`、`triggerMode` 在运行时读取，但未通过元数据稳定声明，且与已声明参数命名风格不统一 | 统一采集参数命名与元数据；区分哪些参数由 `cameraBinding` 承接，哪些保留为算子参数；补兼容映射 | 采集参数回归测试 + 工程 JSON 兼容测试 |
+| `TypeConvert` | 契约 | 声明输入为 `Input`，源码还读取 `Value`；运行时输出远多于声明 `Output` | 统一输入键；决定是否保留多种附加输出；若保留则显式声明 | 输入兼容测试 + 下游转换回归测试 |
+| `TriggerModule` | 契约 | 未声明输入端口，但运行时读取 `Signal` / `Trigger` | 正式声明输入端口或移除隐藏路径；统一触发输入模型 | 触发行为测试 |
 
-## 9. P1 浼樺厛绾ф竻鍗?
+## 9. P1 优先级清单
 
-P1 瀹氫箟锛氱煭鏈熶笉浼氳绠楀瓙瀹屽叏涓嶅彲鐢紝浣嗕細鎸佺画鍒堕€犵淮鎶ゆ垚鏈€佺粨鏋滅悊瑙ｆ垚鏈垨鏁堟灉涓嶇ǔ銆?
+P1 定义：短期不会让算子完全不可用，但会持续制造维护成本、结果理解成本或效果不稳。
 
-| 绠楀瓙 | 闂绫诲瀷 | 楂樼疆淇″害闂 | 寤鸿鍔ㄤ綔 |
+| 算子 | 问题类型 | 高置信度问题 | 建议动作 |
 |------|------|------|------|
-| `GeometricFitting` | 绠楁硶杈圭晫 + 杈撳嚭濂戠害 | 鎵€鏈夋湁鏁堣疆寤撶偣浼氳鍚堝苟鍚庣粺涓€鎷熷悎锛涙き鍦嗕笉璧?RANSAC锛沗FitResult` 瀛楁缁撴瀯渚濊禆 `FitType` | 澧炲姞鈥滄渶澶ц疆寤?鍗曡疆寤?鍏ㄩ儴杞粨鈥濋€夋嫨锛涙槑纭き鍦嗛瞾妫掓€ц竟鐣岋紱绋冲畾缁撴灉缁撴瀯 |
-| `ShapeMatching` | 绠楁硶杈圭晫 | 鍚嶇О鏄€滃舰鐘跺尮閰嶁€濓紝瀹為檯鏇存帴杩戔€滄棆杞ā鏉垮尮閰嶁€濓紱娌℃湁灏哄害鎼滅储 | 缁熶竴鍛藉悕鎴栬ˉ灏哄害鎼滅储锛涙枃妗ｅ拰鍙傛暟闈㈡澘鏄惧紡绾︽潫鑳藉姏杈圭晫 |
-| `CameraCalibration` | 绠楁硶杈圭晫 + 濂戠害 | 鍗曞浘妯″紡鍙骇鍑虹煩闃碉紝浣嗕笉搴旇璇В涓烘渶缁堢ǔ瀹氭爣瀹氾紱鏂囦欢澶规ā寮忚緭鍏ョ鍙ｈ姹備笌瀹為檯渚濊禆涓嶅畬鍏ㄤ竴鑷?| 琛ユā寮忚鏄庯紱姊崇悊鍗曞浘妯″紡杈撳嚭鐢ㄩ€旓紱鏂囦欢澶规ā寮忚緭鍏ヨ姹備笌 UI 鍚屾 |
-| `Undistort` | 濂戠害 + 鏍￠獙 | 杩愯鏃堕檮鍔犺緭鍑烘湭澹版槑锛涙牎楠岃繃浜庡鏉撅紱涓嶆牎楠屽浘鍍忓昂瀵镐笌鏍囧畾灏哄涓€鑷存€?| 鍔犲己鍙傛暟/杈撳叆鏍￠獙锛涜ˉ灏哄鍏煎绛栫暐锛涜ˉ杈撳嚭澹版槑 |
-| `PolarUnwrap` | 濂戠害 + 绠楁硶杈圭晫 | `Method` / `UseWarpPolar` 涓洪檮鍔犺緭鍑轰絾鏈０鏄庯紱鑷姩瀹藉害浼拌鍜岄珮搴﹁涔夊鏄撹璇В | 鏄庣‘杈撳嚭鍑犱綍璇箟锛涜ˉ杈撳嚭绔彛鎴栫粨鏋滄ā鍨?|
-| `CircleMeasurement` | 濂戠害 | 澹版槑杈撳嚭 `Center` / `Circle`锛岃繍琛屾椂涓昏杈撳嚭 `CenterX/CenterY/...` | 缁熶竴鍦嗙粨鏋滄ā鍨嬪拰杈撳嚭绔彛 |
-| `ColorDetection` | 濂戠害婕傜Щ | `ColorInfo` 澹版槑涓庡ぇ閲忚繍琛屾椂闄勫姞閿笉涓€鑷?| 璁捐绋冲畾鐨?`ColorInfo` 缁撴灉缁撴瀯锛屽噺灏戞暎钀介敭 |
-| `Statistics` | 鏉′欢杈撳嚭濂戠害 | `USL` / `LSL`銆乣Cpk`銆乣IsCapable` 瀹為檯宸插疄鐜帮紝浣嗗彧鏈夊湪鎻愪緵瑙勬牸闄愩€佹牱鏈暟瓒冲涓旀爣鍑嗗樊澶т簬 0 鏃舵墠杈撳嚭锛屽綋鍓嶆枃妗ｅ拰涓嬫父绾︽潫鏈己璋冭繖绉嶆潯浠舵€ц緭鍑?| 鏄庣‘鏉′欢杈撳嚭瑙勫垯锛涘繀瑕佹椂澧炲姞 `HasCapabilityMetrics` 鎴栧湪鏃犺鏍奸檺鏃惰緭鍑?`null` / 榛樿鍊?|
-| `Aggregator` | 濂戠害 + 瀹炵幇 | `Mode` 宸插０鏄庝絾鏈鍙栵紱褰撳墠瀹炵幇浼氱ǔ瀹氬悓鏃惰緭鍑?`MergedList/MaxValue/MinValue/Average`锛屼笌鈥滄寜妯″紡杈撳嚭鈥濈殑 UI 璁ょ煡涓嶄竴鑷?| 鏄庣‘鑱氬悎妯″紡鏄惁淇濈暀锛涜嫢淇濈暀鍒欒 `Mode` 鐪熸鐢熸晥锛屽惁鍒欎粠鍏冩暟鎹腑绉婚櫎 |
-| `ContourDetection` | 濂戠害 + 瀹炵幇 | 杩愯鏃堕殣钘忚鍙?`DrawContours`銆乣MaxValue`銆乣ThresholdType`锛屼絾鍏冩暟鎹湭澹版槑锛屽鑷翠簩鍊煎寲鍜岀粯鍒惰涓轰笉鍙皟 | 鏆撮湶杞粨鎻愬彇鍓嶅鐞嗗叧閿弬鏁帮紝缁熶竴闃堝€间笌缁樺埗琛屼负濂戠害 |
-| `BlobAnalysis` | 濂戠害 + 绠楁硶杈圭晫 | `MinCircularity`銆乣MinConvexity`銆乣MinInertiaRatio` 杩愯鏃剁敓鏁堜絾鏈０鏄庯紱`Color` 宸插０鏄庝絾褰撳墠瀹炵幇鏈弬涓?Blob 杩囨护 | 琛ラ綈 `SimpleBlobDetector` 鐩稿叧鍙傛暟鍏冩暟鎹紝骞堕獙璇佸弬鏁板埌 OpenCV 琛屼负鏄犲皠锛涙槑纭?`Color` 鍙傛暟鏄惁淇濈暀 |
-| `ArrayIndexer` | 濂戠害 | `List` 涓?`Items` 杈撳叆瀛樺湪鍙岄敭璇箟锛沗Item` 杈撳嚭澹版槑涓庤繍琛屾椂缁撴灉閿笉涓€鑷?| **宸插畬鎴?*锛氳緭鍏ョ粺涓€涓?`List`锛堝悜鍚庡吋瀹?`Items`锛夛紱杈撳嚭缁熶竴涓?`Item`锛堝師 `Result`锛夛紱琛ュ厖 `Found/Index` 绔彛澹版槑銆?| 鉁?|
-| `Comparator` | 濂戠害 | 澹版槑 `Result` / `Difference`锛岃繍琛屾椂涓嶇ǔ瀹?| 杈撳嚭妯″瀷鏀舵暃 |
-| `ConditionalBranch` | 濂戠害 | 澹版槑 `True/False` 鍒嗘敮杈撳嚭锛屼絾杩愯鏃朵富瑕佽緭鍑虹粨鏋滃瓧娈?| 鏄庣‘鍒嗘敮琛屼负鏄惁杈撳嚭绔彛鍖?|
-| `Comment` / `Delay` / `ResultOutput` / `TryCatch` | 濂戠害 | 澹版槑杈撳嚭涓庤繍琛屾椂杩斿洖涓嶅畬鍏ㄤ竴鑷?| 鍋氫竴杞祦绋嬫帶鍒剁被绠楀瓙鐨勭粺涓€鏀舵暃 |
+| `GeometricFitting` | 算法边界 + 输出契约 | 所有有效轮廓点会被合并后统一拟合；椭圆不足 RANSAC；`FitResult` 字段结构依赖 `FitType` | 增加「最大轮廓/单轮廓/全部轮廓」选择；明确椭圆鲁棒性边界；稳定结果结构 |
+| `ShapeMatching` | 算法边界 | 名称是「形状匹配」，实际更接近「旋转模板匹配」；没有尺度搜索 | 统一命名或补尺度搜索；文档和参数面板显式约束能力边界 |
+| `CameraCalibration` | 算法边界 + 契约 | 单图模式可产出矩阵，但不应被误解为最终稳定标定；文件夹模式输入端口要求与实际依赖不完全一致 | 补模式说明；梳理单图模式输出用途；文件夹模式输入要求与 UI 同步 |
+| `Undistort` | 契约 + 校验 | 运行时附加输出未声明；校验过于宽松；不校验图像尺寸与标定尺寸一致性 | 加强参数/输入校验；补尺寸兼容策略；补输出声明 |
+| `PolarUnwrap` | 契约 + 算法边界 | `Method` / `UseWarpPolar` 为附加输出但未声明；自动宽度估计和高度语义容易被误解 | 明确输出几何语义；补输出端口或结果模型 |
+| `CircleMeasurement` | 契约 | 声明输出 `Center` / `Circle`，运行时主要输出 `CenterX/CenterY/...` | 统一圆结果模型和输出端口 |
+| `ColorDetection` | 契约漂移 | `ColorInfo` 声明与大量运行时附加键不一致 | 设计稳定的 `ColorInfo` 结果结构，减少散落键 |
+| `Statistics` | 条件输出契约 | `USL` / `LSL`、`Cpk`、`IsCapable` 实际已实现，但只有在提供规格限、样本数足够且标准差大于 0 时才输出，当前文档和下游约束未强调这种条件性输出 | 明确条件输出规则；必要时增加 `HasCapabilityMetrics` 或在无规格限时输出 `null` / 默认值 |
+| `Aggregator` | 契约 + 实现 | `Mode` 已声明但未读取；当前实现会稳定同时输出 `MergedList/MaxValue/MinValue/Average`，与「按模式输出」的 UI 认知不一致 | 明确聚合模式是否保留；若保留则让 `Mode` 真正生效，否则从元数据中移除 |
+| `ContourDetection` | 契约 + 实现 | 运行时隐藏读取 `DrawContours`、`MaxValue`、`ThresholdType`，但元数据未声明，导致二值化和绘制行为不可调 | 暴露轮廓提取前处理关键参数，统一阈值与绘制行为契约 |
+| `BlobAnalysis` | 契约 + 算法边界 | `MinCircularity`、`MinConvexity`、`MinInertiaRatio` 运行时生效但未声明；`Color` 已声明但当前实现未参与 Blob 过滤 | 补齐 `SimpleBlobDetector` 相关参数元数据，并验证参数到 OpenCV 行为映射；明确 `Color` 参数是否保留 |
+| `ArrayIndexer` | 契约 | `List` 与 `Items` 输入存在双键语义；`Item` 输出声明与运行时结果键不一致 | **已完成**：输入统一为 `List`（向后兼容 `Items`）；输出统一为 `Item`（原 `Result`）；补充 `Found/Index` 端口声明。 | ✅ |
+| `Comparator` | 契约 | 声明 `Result` / `Difference`，运行时不稳定 | 输出模型收敛 |
+| `ConditionalBranch` | 契约 | 声明 `True/False` 分支输出，但运行时主要输出结果字段 | 明确分支行为是否输出端口化 |
+| `Comment` / `Delay` / `ResultOutput` / `TryCatch` | 契约 | 声明输出与运行时返回不完全一致 | 做一轮流程控制类算子的统一收敛 |
 
-## 10. P2 浼樺厛绾ф竻鍗?
+## 10. P2 优先级清单
 
-P2 瀹氫箟锛氭洿澶氬睘浜庣郴缁熸€у厓鏁版嵁鏀舵暃鍜屽伐绋嬫竻娲佸害闂锛屽缓璁壒閲忔満姊颁慨澶嶃€?
+P2 定义：更多属于系统性元数据收敛和工程清洁度问题，建议批量机械修复。
 
-### 10.1 闅愯棌鍙傛暟鎵归噺鏀舵暃
+### 10.1 隐藏参数批量收敛
 
-闈欐€佹壂鎻忓懡涓殑楂樹紭鍏堢骇娓呭崟锛?
+静态扫描命中的高优先级清单：
 
-- `ArrayIndexer`: `LabelFilter` ✅ 已暴露 鉁?宸叉毚闇?
-- `BlobAnalysis`: `MinCircularity`銆乣MinConvexity`銆乣MinInertiaRatio`
-  - 琛ュ厖璇存槑锛氳繖缁勫弬鏁板凡瀹為檯浼犲叆 `SimpleBlobDetector.Params`锛屼絾褰撳墠鍏冩暟鎹湭鏆撮湶锛屼笖搴旈澶栭獙璇佷笌 OpenCvSharp 搴曞眰琛屼负鐨勪竴鑷存€с€?
+- `ArrayIndexer`: `LabelFilter` ✅ 已暴露
+- `BlobAnalysis`: `MinCircularity`、`MinConvexity`、`MinInertiaRatio`
+  - 补充说明：这组参数已实际传入 `SimpleBlobDetector.Params`，但当前元数据未暴露，且应额外验证与 OpenCvSharp 底层行为的一致性。
 - `EdgeDetection`: `L2Gradient`
 - `ClaheEnhancement`: `Channel`
 - `ColorConversion`: `SourceChannels`
-- `DeepLearning`: `UseGpu`銆乣GpuDeviceId`
-- `OrbFeatureMatch`: `EnableSymmetryTest`銆乣MinMatchCount`
-- `PyramidShapeMatch`: 闅愯棌鍙傛暟寰呬笌瀹炵幇涓€璧锋牳瀵?
-- `ContourDetection`: `DrawContours`銆乣MaxValue`銆乣ThresholdType`
-- `ForEach`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `Filtering`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `HistogramEqualization`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `HttpRequest`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `ImageAcquisition`: `exposureTime`銆乣gain`銆乣triggerMode`
-- `ImageSave`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `JsonExtractor`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `LaplacianSharpen`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `MeanFilter`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `MqttPublish`: 闅愯棌鍙傛暟寰呮牳瀵?
-- `StringFormat`: `DateFormat`銆乣Mode`銆乣Separator`
+- `DeepLearning`: `UseGpu`、`GpuDeviceId`
+- `OrbFeatureMatch`: `EnableSymmetryTest`、`MinMatchCount`
+- `PyramidShapeMatch`: 隐藏参数待与实现一起核对
+- `ContourDetection`: `DrawContours`、`MaxValue`、`ThresholdType`
+- `ForEach`: 隐藏参数待核对
+- `Filtering`: 隐藏参数待核对
+- `HistogramEqualization`: 隐藏参数待核对
+- `HttpRequest`: 隐藏参数待核对
+- `ImageAcquisition`: `exposureTime`、`gain`、`triggerMode`
+- `ImageSave`: 隐藏参数待核对
+- `JsonExtractor`: 隐藏参数待核对
+- `LaplacianSharpen`: 隐藏参数待核对
+- `MeanFilter`: 隐藏参数待核对
+- `MqttPublish`: 隐藏参数待核对
+- `StringFormat`: `DateFormat`、`Mode`、`Separator`
 
-寤鸿鍔ㄤ綔锛?
+建议动作：
 
-1. 閫愪釜纭鏄惁搴旀寮忔毚闇层€?
-2. 鑻ヤ笉搴旀毚闇诧紝鍒欑Щ闄よ繍琛屾椂璇诲彇骞跺洖褰掗粯璁よ涓恒€?
-3. 琛?UI 鍏冩暟鎹祴璇曪紝闃叉闅愯棌鍙傛暟鍐嶆鍑虹幇銆?
+1. 逐个确认是否应正式暴露。
+2. 若不应暴露，则移除运行时读取并回归默认行为。
+3. 补 UI 元数据测试，防止隐藏参数再次出现。
 
-### 10.2 宸插０鏄庝絾鏈鍙栧弬鏁版壒閲忔敹鏁?
+### 10.2 已声明但未读取参数批量收敛
 
-楂樹紭鍏堢骇娓呭崟锛?
+高优先级清单：
 
-- `Aggregator`: `Mode` ✅ 已实现 鉁?宸插疄鐜?
-- `CoordinateTransform`: `PixelX`銆乣PixelY`
-- `HistogramAnalysis`: 閮ㄥ垎鍙傛暟寰呭鏍?
-- `HistogramEqualization`: 閮ㄥ垎鍙傛暟寰呭鏍?
-- `ImageSave`: 閮ㄥ垎鍙傛暟寰呭鏍?
-- `ImageTiling`: 閮ㄥ垎鍙傛暟寰呭鏍?
-- `NPointCalibration`: 閮ㄥ垎鍙傛暟寰呭鏍?
-- `PixelStatistics`: `RoiX`銆乣RoiY`銆乣RoiW`銆乣RoiH`
+- `Aggregator`: `Mode` ✅ 已实现
+- `CoordinateTransform`: `PixelX`、`PixelY`
+- `HistogramAnalysis`: 部分参数待复核
+- `HistogramEqualization`: 部分参数待复核
+- `ImageSave`: 部分参数待复核
+- `ImageTiling`: 部分参数待复核
+- `NPointCalibration`: 部分参数待复核
+- `PixelStatistics`: `RoiX`、`RoiY`、`RoiW`、`RoiH`
 - `PositionCorrection`: `CurrentAngle`
-- `ResultOutput`: `Format`銆乣SaveToFile`
-- `SharpnessEvaluation`: `RoiX`銆乣RoiY`銆乣RoiW`銆乣RoiH`
-- `TemplateMatching`: `MaxMatches` ✅ 已实现 鉁?宸插疄鐜?
-- `WidthMeasurement`: `Direction` ✅ 已实现 鉁?宸插疄鐜?
+- `ResultOutput`: `Format`、`SaveToFile`
+- `SharpnessEvaluation`: `RoiX`、`RoiY`、`RoiW`、`RoiH`
+- `TemplateMatching`: `MaxMatches` ✅ 已实现
+- `WidthMeasurement`: `Direction` ✅ 已实现
 
-寤鸿鍔ㄤ綔锛?
+建议动作：
 
-1. 鏍囪涓衡€滃緟瀹炵幇鈥濇垨鈥滃簾寮冣€濄€?
-2. 浼樺厛澶勭悊浼氳瀵肩敤鎴峰喅绛栫殑鍙傛暟銆?
-3. 鎵归噺鍔犲洖褰掓祴璇曪紝纭繚鍙傛暟鐪熸褰卞搷杈撳嚭銆?
+1. 标记为「待实现」或「废弃」。
+2. 优先处理会误导用户决策的参数。
+3. 批量加回归测试，确保参数真正影响输出。
 
-### 10.3 闅愯棌杈撳叆鎵归噺鏀舵暃
+### 10.3 隐藏输入批量收敛
 
-闈欐€佹壂鎻忓懡涓細
+静态扫描命中：
 
-- `ArrayIndexer`: `Items` ✅ 已收敛（优先 `List`，兼容 `Items`） 鉁?宸叉敹鏁涳紙浼樺厛 `List`锛屽吋瀹?`Items`锛?
-- `HttpRequest`: 闅愯棌杈撳叆閿緟鏍稿
-- `ImageAcquisition`: 闅愯棌杈撳叆閿緟鏍稿
-- `MqttPublish`: 闅愯棌杈撳叆閿緟鏍稿
-- `NPointCalibration`: 闅愯棌杈撳叆閿緟鏍稿
+- `ArrayIndexer`: `Items` ✅ 已收敛（优先 `List`，兼容 `Items`）
+- `HttpRequest`: 隐藏输入键待核对
+- `ImageAcquisition`: 隐藏输入键待核对
+- `MqttPublish`: 隐藏输入键待核对
+- `NPointCalibration`: 隐藏输入键待核对
 - `PositionCorrection`: `BaseAngle`
-- `TriggerModule`: `Signal`銆乣Trigger` 鉁?宸叉敹鏁涳紙姝ｅ紡澹版槑 `Signal`锛?
-- `TypeConvert`: `Value` ✅ 已收敛（移除 `Value`，统一为 `Input`） 鉁?宸叉敹鏁涳紙绉婚櫎 `Value`锛岀粺涓€涓?`Input`锛?
+- `TriggerModule`: `Signal`、`Trigger` ✅ 已收敛（正式声明 `Signal`）
+- `TypeConvert`: `Value` ✅ 已收敛（移除 `Value`，统一为 `Input`）
 
-寤鸿鍔ㄤ綔锛?
+建议动作：
 
-1. 鎵€鏈夐殣钘忚緭鍏ラ兘蹇呴』鏄惧紡绔彛鍖栵紝鎴栧交搴曞垹闄ゃ€?
-2. 涓嬫父娴佺▼缂栬緫鍣ㄥ彧搴旀毚闇蹭竴绉嶈緭鍏ュ绾︺€?
+1. 所有隐藏输入都必须显式端口化，或彻底删除。
+2. 下游流程编辑器只应暴露一种输入契约。
 
-## 11. 绠楁硶杈圭晫閲嶇偣璇存槑
+## 11. 算法边界重点说明
 
-浠ヤ笅闂涓嶄竴瀹氭槸 bug锛屼絾浼氱湡瀹炲奖鍝嶇敤鎴峰鈥滄晥鏋溾€濈殑鍒ゆ柇銆?
+以下问题不一定是 bug，但会真实影响用户对「效果」的判断。
 
-### 11.1 妯℃澘鍖归厤绫?
+### 11.1 模板匹配类
 
-- `TemplateMatching`锛氶€傚悎鍗曠洰鏍囥€佸昂搴﹀浐瀹氥€佹棆杞彉鍖栧皬鐨勫満鏅紝涓嶉€傚悎澶氱洰鏍囧拰灏哄害鏃嬭浆鍙樺寲澶х殑浠诲姟銆?
-- `ShapeMatching`锛氬綋鍓嶆洿鍍忔棆杞ā鏉垮尮閰嶏紝涓嶆槸瀹屾暣 shape descriptor 鍖归厤銆?
-- `GradientShapeMatch`锛氶€傚悎杈圭紭缁撴瀯绋冲畾銆佸昂搴﹀彉鍖栦笉澶х殑鐩爣锛涗笉鏀寔澶氬€欓€夎緭鍑恒€?
-- `AkazeFeatureMatch` / `OrbFeatureMatch`锛氶€傚悎绾圭悊鍨嬬洰鏍囷紝涓嶉€傚悎寮辩汗鐞嗐€侀噸澶嶇汗鐞嗐€佸嚑浣曚腑蹇冧弗鏍奸渶姹傚満鏅€?
+- `TemplateMatching`：适合单目标、尺度固定、旋转变化小的场景，不适合多目标和尺度旋转变化大的任务。
+- `ShapeMatching`：当前更像旋转模板匹配，不是完整 shape descriptor 匹配。
+- `GradientShapeMatch`：适合边缘结构稳定、尺度变化不大的目标；不支持多候选输出。
+- `AkazeFeatureMatch` / `OrbFeatureMatch`：适合纹理型目标，不适合弱纹理、重复纹理、几何中心严格需求场景。
 
-### 11.2 娴嬮噺绫?
+### 11.2 测量类
 
-- `WidthMeasurement`锛氬綋鍓嶆槸缁熻鍨嬬偣鍒扮嚎璺濈娴嬮噺锛屼笉鏄弗鏍兼硶鍚戝弻杈规祴閲忋€?
-- `GeometricFitting`锛氬綋鍓嶆槸鈥滃浘鍍?-> 浜屽€?-> 杞粨 -> 鍚堝苟鐐归泦 -> 鎷熷悎鈥濓紝涓嶉€傚悎浣滀负楂樼簿搴︾偣闆嗘嫙鍚堝櫒鐨勬浛浠ｅ搧銆?
-- `CircleMeasurement` / `LineMeasurement` 绛夛細搴斿尯鍒嗏€滄樉绀虹粨鏋溾€濆拰鈥滅粨鏋勫寲娴嬮噺缁撴灉鈥濄€?
+- `WidthMeasurement`：当前是统计型点到线距离测量，不是严格法向双边测量。
+- `GeometricFitting`：当前是「图像 -> 二值 -> 轮廓 -> 合并点集 -> 拟合」，不适合作为高精度点集拟合器的替代品。
+- `CircleMeasurement` / `LineMeasurement` 等：应区分「显示结果」和「结构化测量结果」。
 
-### 11.3 鏍囧畾涓庡嚑浣曞彉鎹㈢被
+### 11.3 标定与几何变换类
 
-- `CameraCalibration`锛氬崟鍥炬ā寮忓簲瀹氫箟涓衡€滆皟璇?楠岃瘉妯″紡鈥濓紝涓嶈浣滀负楂樿川閲忕敓浜ф爣瀹氶粯璁よ矾寰勩€?
-- `Undistort`锛氬綋鍓嶅彧鍋氭爣鍑?pinhole 妯″瀷鍘荤暩鍙橈紝涓嶆槸楂樼骇閲嶆槧灏勫钩鍙般€?
-- `PolarUnwrap`锛氫腑蹇冪偣涓庡崐寰勫弬鏁板鏁堟灉楂樺害鏁忔劅锛屽綋鍓嶄笉鑷姩浼拌涓績銆?
+- `CameraCalibration`：单图模式应定义为「调参/验证模式」，不要作为高质量生产标定默认路径。
+- `Undistort`：当前只做标准 pinhole 模型去畸变，不是高级重映射平台。
+- `PolarUnwrap`：中心点与半径参数对效果高度敏感，当前不自动估计中心。
 
-### 11.4 AI 绫?
+### 11.4 AI 类
 
-- `DeepLearning`锛氭暣浣撳伐绋嬪寲绋嬪害杈冮珮锛屼絾搴旀妸 GPU銆佹ā寮忓垏鎹€佹爣绛句紭鍏堢骇杩欎簺杩愯鏃跺叧閿涓烘樉寮忕鍙ｅ寲/鍙傛暟鍖栥€?
+- `DeepLearning`：整体工程化程度较高，但应把 GPU、模式切换、标签优先级这些运行时关键行为显式端口化/参数化。
 
-## 12. 寤鸿瀹炴柦椤哄簭
+## 12. 建议实施顺序
 
-### Batch A锛氬绾︽琛€锛堝厛鍋氾級
+### Batch A：契约止血（先做）
 
-鐩爣锛氬厛瑙ｅ喅鈥淯I 鐪嬭捣鏉ユ槸 A锛岃繍琛屾椂鏄?B鈥濈殑闂銆?
+目标：先解决「UI 看起来是 A，运行时是 B」的问题。
 
-寤鸿瑕嗙洊锛?
+建议覆盖：
 
 - `TemplateMatching`
 - `WidthMeasurement`
@@ -240,11 +244,11 @@ P2 瀹氫箟锛氭洿澶氬睘浜庣郴缁熸€у厓鏁版嵁鏀舵暃鍜屽伐
 - `TriggerModule`
 - `Aggregator`
 
-### Batch B锛氳緭鍑虹粨鏋勭粺涓€
+### Batch B：输出结构统一
 
-鐩爣锛氱粺涓€ `Position / X / Y / CenterX / CenterY / FitResult / ColorInfo / DetectionList` 绛夌粨鏋滄ā鍨嬨€?
+目标：统一 `Position / X / Y / CenterX / CenterY / FitResult / ColorInfo / DetectionList` 等结果模型。
 
-寤鸿瑕嗙洊锛?
+建议覆盖：
 
 - `CircleMeasurement`
 - `ColorDetection`
@@ -252,85 +256,84 @@ P2 瀹氫箟锛氭洿澶氬睘浜庣郴缁熸€у厓鏁版嵁鏀舵暃鍜屽伐
 - `DeepLearning`
 - `Comment` / `Delay` / `ResultOutput` / `TryCatch`
 
-### Batch C锛氱畻娉曡兘鍔涜ˉ寮?
+### Batch C：算法能力补齐
 
-鐩爣锛氫慨鐪熸浼氬奖鍝嶁€滄晥鏋溾€濈殑鑳藉姏缂哄彛銆?
+目标：修真正会影响「效果」的能力缺口。
 
-寤鸿瑕嗙洊锛?
+建议覆盖：
 
-- `TemplateMatching` 鐨勫鍖归厤鏀寔
-- `WidthMeasurement` 鐨勬柟鍚?娉曞悜绛栫暐涓庝簹鍍忕礌閫夐」
-- `ShapeMatching` 鐨勫昂搴︽悳绱㈡垨鑳藉姏閲嶅懡鍚?
-- `GeometricFitting` 鐨勫崟杞粨/鏈€澶ц疆寤撻€夋嫨
-- `GradientShapeMatch` 鐨勭紦瀛樻ā鍨嬩笌澶氭ā鏉垮畨鍏ㄦ€?
-- `BlobAnalysis` 鐨勫弬鏁版槧灏勬牳楠屼笌 `Color` 琛屼负鏀舵暃
+- `TemplateMatching` 的多匹配支持
+- `WidthMeasurement` 的方向/法向策略与亚像素选项
+- `ShapeMatching` 的尺度搜索或能力重命名
+- `GeometricFitting` 的单轮廓/最大轮廓选择
+- `GradientShapeMatch` 的缓存模型与多模板安全性
+- `BlobAnalysis` 的参数映射核验与 `Color` 行为收敛
 
-### Batch D锛氫綆椋庨櫓鏈烘鏀舵暃
+### Batch D：低风险机械收敛
 
-鐩爣锛氭竻鐞嗛殣钘忓弬鏁般€佹湭鐢ㄥ弬鏁般€侀殣钘忚緭鍏ャ€佽緭鍑哄０鏄庡櫔澹般€?
+目标：清理隐藏参数、未用参数、隐藏输入、输出声明噪声。
 
-寤鸿鏂瑰紡锛?
+建议方式：
 
-1. 涓€娆″彧鍋氫竴绉嶉棶棰樼被鍨嬨€?
-2. 姣忔壒闄勫甫鑷姩鍖栨壂鎻忓拰濂戠害娴嬭瘯銆?
-3. 涓嶄笌绠楁硶鍗囩骇娣峰湪鍚屼竴涓?PR 涓€?
+1. 一次只做一种问题类型。
+2. 每批附带自动化扫描和契约测试。
+3. 不与算法升级混在同一个 PR 中。
 
-## 13. 寤鸿娴嬭瘯绛栫暐
+## 13. 建议测试策略
 
-姣忕被鏁存敼閮藉缓璁厤濂楁柊澧炴祴璇曪細
+每类整改都建议配套新增测试：
 
-### 13.1 濂戠害娴嬭瘯
+### 13.1 契约测试
 
-- 鍙傛暟闈㈡澘瀛樺湪鐨勫弬鏁帮紝杩愯鏃跺繀椤昏兘琚鍙栧苟褰卞搷缁撴灉銆?
-- 澹版槑绔彛蹇呴』鑳藉湪 `OutputData` 涓ǔ瀹氭壘鍒板搴旈敭鎴栧搴旂粨鏋勩€?
-- 妯″紡鍒囨崲涓嶈兘 silently 鏀瑰彉杈撳嚭瀛楁闆嗗悎锛岄櫎闈炴枃妗ｅ拰濂戠害鏄庣‘璇存槑銆?
+- 参数面板存在的参数，运行时必须能被读取并影响结果。
+- 声明端口必须能在 `OutputData` 中稳定找到对应键或对应结构。
+- 模式切换不能 silently 改变输出字段集合，除非文档和契约明确说明。
 
-### 13.2 鍏煎鎬ф祴璇?
+### 13.2 兼容性测试
 
-- 鑰佸伐绋?JSON 鍦ㄥ弬鏁板鍒犲悗鑳藉惁骞崇ǔ鍏煎銆?
-- 鐩綍鐢熸垚鍣ㄦ槸鍚︽纭弽鏄犳柊鐨勫弬鏁?杈撳嚭濂戠害銆?
+- 老工程 JSON 在参数增删后能否平稳兼容。
+- 目录生成器是否正确反映新的参数/输出契约。
 
-### 13.3 绠楁硶鍥炲綊娴嬭瘯
+### 13.3 算法回归测试
 
-- 妯℃澘鍖归厤绫伙細鏃嬭浆銆佸昂搴︺€侀伄鎸°€侀噸澶嶇汗鐞嗘牱鏈?
-- 娴嬮噺绫伙細鍣０銆佽竟缂樻ā绯娿€丷OI 鍙樺寲鏍锋湰
-- AI 绫伙細妯″紡鍒囨崲銆佹爣绛炬枃浠跺垏鎹€丟PU/CPU 杩愯妯″紡
+- 模板匹配类：旋转、尺度、遮挡、重复纹理样本
+- 测量类：噪声、边缘模糊、ROI 变化样本
+- AI 类：模式切换、标签文件切换、GPU/CPU 运行模式
 
-## 14. 璇勫寤鸿
+## 14. 评审建议
 
-鍦ㄨ繘鍏ュ疄鐜板墠锛屽缓璁綘鍏堟媿鏉夸互涓嬪喅绛栵細
+在进入实现前，建议你先拍板以下决策：
 
-1. 鏄惁浼樺厛鍏煎鏃у伐绋嬶紝杩樻槸鍏佽涓€娆℃€ф敹绱ц緭鍑哄绾︺€?
-2. 瀵逛簬 `Position` / `X` / `Y` / `CenterX` / `CenterY`锛屾槸鍚︾粺涓€閲囩敤缁撴瀯鍖栬緭鍑哄璞°€?
-3. 瀵逛簬宸插０鏄庝絾鏈敓鏁堝弬鏁帮紝鏄紭鍏堝疄鐜帮紝杩樻槸鍏堟爣璁?deprecated銆?
-4. 瀵逛簬鈥滄墽琛屾垚鍔熶絾涓氬姟 NG鈥濈殑璇箟锛屾槸鍚︾粺涓€褰㈡垚妗嗘灦绾﹀畾銆?
-5. 瀵逛簬 `ShapeMatching` 杩欑被鍚嶇О鍜屽疄鐜颁笉瀹屽叏涓€鑷寸殑绠楀瓙锛屾槸鏀瑰悕杩樻槸琛ヨ兘鍔涖€?
+1. 是否优先兼容旧工程，还是允许一次性收紧输出契约？
+2. 对于 `Position` / `X` / `Y` / `CenterX` / `CenterY`，是否统一采用结构化输出对象？
+3. 对于已声明但未生效参数，是优先实现，还是先标记 deprecated？
+4. 对于「执行成功但业务 NG」的语义，是否统一形成框架约定？
+5. 对于 `ShapeMatching` 这类名称和实现不完全一致的算子，是改名还是补能力？
 
+## 15. 实施记录
 
-## 15. 瀹炴柦璁板綍
+### 2026-03-15 完成 Batch A 契约止血
 
-### 2026-03-15 瀹屾垚 Batch A 濂戠害姝㈣
+本次更新完成了计划文档中 **Batch A：契约止血** 的全部算子修复：
 
-鏈鏇存柊瀹屾垚浜嗚鍒掓枃妗ｄ腑 **Batch A锛氬绾︽琛€** 鐨勫叏閮ㄧ畻瀛愪慨澶嶏細
-
-| 绠楀瓙 | 淇鍐呭 | 鐘舵€?|
+| 算子 | 修复内容 | 状态 |
 |------|---------|------|
-| `TemplateMatching` | 缁熶竴 `Method` 鏋氫妇锛?绉嶆柟娉曞叏鏀寔锛夛紱瀹炵幇 `MaxMatches` 澶氱洰鏍囧尮閰嶏紱`Position` 鏍囧噯鍖栦负涓績鐐?| 鉁?|
-| `WidthMeasurement` | 瀹炵幇 `Direction`/`CustomAngle`锛涗簹鍍忕礌妫€娴嬶紱`ImageWidth/ImageHeight` 涓?`Width` 鍒嗙 | 鉁?|
-| `GradientShapeMatch` | 淇缂撳瓨閿紙鍚ā鏉垮搱甯岋級锛涙樉寮忚緭鍑?`Position`锛汱RU缂撳瓨锛堟渶澶?鏉★級 | 鉁?|
-| `OrbFeatureMatch` | 鏆撮湶 `EnableSymmetryTest`/`MinMatchCount`锛涚粺涓€ `Position` 杈撳嚭锛涘榻愬け璐ヨ涔?| 鉁?|
-| `AkazeFeatureMatch` | 琛ュ叏 `Position` 杈撳嚭锛沗Score` 瀹氫箟涓哄唴鐐规瘮渚嬶紱缁熶竴澶辫触璇箟 | 鉁?|
-| `DeepLearning` | 鏆撮湶 `UseGpu`/`GpuDeviceId`锛涙樉寮忓０鏄?`DetectionList` 绔彛 | 鉁?|
-| `ImageAcquisition` | 鍏冩暟鎹０鏄?`ExposureTime`/`Gain`/`TriggerMode`锛涗繚鐣欏弬鏁板悕鍏煎鏄犲皠 | 鉁?|
-| `TypeConvert` | 缁熶竴杈撳叆閿负 `Input`锛涜ˉ鍏?`AsString/AsFloat/AsInteger/AsBoolean/OriginalType` 杈撳嚭绔彛 | 鉁?|
-| `TriggerModule` | 姝ｅ紡澹版槑 `Signal` 杈撳叆绔彛锛涚Щ闄?`Trigger` 闅愯棌閫昏緫 | 鉁?|
-| `Aggregator` | 瀹炵幇 `Mode` 鍙傛暟锛涚ǔ瀹氳緭鍑?`MergedList/MaxValue/MinValue/Average` | 鉁?|
-| `ContourDetection` | 鏆撮湶 `DrawContours`/`MaxValue`/`ThresholdType` 鍙傛暟 | 鉁?|
-| `BlobAnalysis` | 鏆撮湶 `MinCircularity`/`MinConvexity`/`MinInertiaRatio` 鍙傛暟 | 鉁?|
-| `ArrayIndexer` | 杈撳叆缁熶竴涓?`List`锛堝悜鍚庡吋瀹?`Items`锛夛紱杈撳嚭缁熶竴涓?`Item`锛涜ˉ鍏?`Found/Index` 绔彛 | 鉁?|
+| `TemplateMatching` | 统一 `Method` 枚举（4 种方法全支持）；实现 `MaxMatches` 多目标匹配；`Position` 标准化为中心点。 | ✅ |
+| `WidthMeasurement` | 实现 `Direction`/`CustomAngle`；亚像素检测；`ImageWidth/ImageHeight` 与 `Width` 分离 | ✅ |
+| `GradientShapeMatch` | 修复缓存键（含模板哈希）；显式输出 `Position`；LRU缓存（最多4条） | ✅ |
+| `OrbFeatureMatch` | 暴露 `EnableSymmetryTest`/`MinMatchCount`；统一 `Position` 输出；对齐失败语义 | ✅ |
+| `AkazeFeatureMatch` | 补全 `Position` 输出；`Score` 定义为内点比例；统一失败语义 | ✅ |
+| `DeepLearning` | 暴露 `UseGpu`/`GpuDeviceId`；显式声明 `DetectionList` 端口 | ✅ |
+| `ImageAcquisition` | 元数据声明 `ExposureTime`/`Gain`/`TriggerMode`；保留参数名兼容映射 | ✅ |
+| `TypeConvert` | 统一输入键为 `Input`；补全 `AsString/AsFloat/AsInteger/AsBoolean/OriginalType` 输出端口 | ✅ |
+| `TriggerModule` | 正式声明 `Signal` 输入端口；移除 `Trigger` 隐藏逻辑 | ✅ |
+| `Aggregator` | 实现 `Mode` 参数；稳定输出 `MergedList/MaxValue/MinValue/Average` | ✅ |
+| `ContourDetection` | 暴露 `DrawContours`/`MaxValue`/`ThresholdType` 参数 | ✅ |
+| `BlobAnalysis` | 暴露 `MinCircularity`/`MinConvexity`/`MinInertiaRatio` 参数 | ✅ |
+| `ArrayIndexer` | 输入统一为 `List`（向后兼容 `Items`）；输出统一为 `Item`；补全 `Found/Index` 端口 | ✅ |
 
-**閰嶅娴嬭瘯**锛?
-- `Sprint2_ArrayIndexerTests.cs`锛?0涓祴璇曠敤渚嬶紝瑕嗙洊绱㈠紩/鏈€澶х疆淇″害/鏈€澶ч潰绉?鏈€灏忛潰绉?鏍囩杩囨护/绌哄垪琛?瓒婄晫/鍚戝悗鍏煎/濂戠害涓€鑷存€?
-- `OperatorContractReconciliationTests.cs`锛?5涓绾﹀洖褰掓祴璇曪紝瑕嗙洊鍏冩暟鎹０鏄庝笌杩愯鏃惰涓轰竴鑷存€ч獙璇?
+**配套测试**：
+- `Sprint2_ArrayIndexerTests.cs`：10个测试用例，覆盖索引/最大置信度/最大面积/最小面积/标签过滤/空列表/越界/向后兼容/契约一致性。
+- `OperatorContractReconciliationTests.cs`：15个契约回归测试，覆盖元数据声明与运行时行为一致性验证。
 
-## 16. 缁撹
+## 16. 结论

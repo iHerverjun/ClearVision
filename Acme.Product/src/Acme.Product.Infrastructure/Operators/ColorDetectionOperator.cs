@@ -7,7 +7,8 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -24,6 +25,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "结果图像", PortDataType.Image)]
 [OutputPort("ColorInfo", "颜色信息", PortDataType.Any)]
+[OutputPort("AnalysisMode", "分析模式", PortDataType.String)]
+[OutputPort("ColorSpace", "颜色空间", PortDataType.String)]
 [OperatorParam("ColorSpace", "颜色空间", "enum", DefaultValue = "HSV", Options = new[] { "HSV|HSV", "Lab|Lab" })]
 [OperatorParam("AnalysisMode", "分析模式", "enum", DefaultValue = "Average", Options = new[] { "Average|平均色", "Dominant|主色提取", "Range|颜色范围检测" })]
 [OperatorParam("HueLow", "H下限", "int", DefaultValue = 0, Min = 0, Max = 180)]
@@ -131,20 +134,20 @@ public class ColorDetectionOperator : OperatorBase
             }
         };
 
+        // 统一的 ColorInfo 结构
+        var colorInfo = new Dictionary<string, object>
+        {
+            { "Mode", "Average" },
+            { "ColorSpace", colorSpace },
+            { "PrimaryData", colorData },
+            { "Summary", info }
+        };
+
         var additionalData = new Dictionary<string, object>
         {
-            { "ColorSpace", colorSpace },
+            { "ColorInfo", colorInfo },
             { "AnalysisMode", "Average" },
-            { "AverageColor", colorData },
-            { "Info", info },
-            { "ColorInfo", new Dictionary<string, object>
-                {
-                    { "ColorSpace", colorSpace },
-                    { "AnalysisMode", "Average" },
-                    { "AverageColor", colorData },
-                    { "Summary", info }
-                }
-            }
+            { "ColorSpace", colorSpace }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
@@ -220,20 +223,20 @@ public class ColorDetectionOperator : OperatorBase
                 new Scalar(255, 255, 255), 1);
         }
 
+        // 统一的 ColorInfo 结构
+        var colorInfo = new Dictionary<string, object>
+        {
+            { "Mode", "Dominant" },
+            { "ColorSpace", "BGR" },
+            { "PrimaryData", dominantColors },
+            { "K", k }
+        };
+
         var additionalData = new Dictionary<string, object>
         {
-            { "ColorSpace", "BGR" },
+            { "ColorInfo", colorInfo },
             { "AnalysisMode", "Dominant" },
-            { "DominantColors", dominantColors },
-            { "K", k },
-            { "ColorInfo", new Dictionary<string, object>
-                {
-                    { "ColorSpace", "BGR" },
-                    { "AnalysisMode", "Dominant" },
-                    { "DominantColors", dominantColors },
-                    { "K", k }
-                }
-            }
+            { "ColorSpace", "BGR" }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
@@ -282,33 +285,32 @@ public class ColorDetectionOperator : OperatorBase
         Cv2.PutText(overlay, info, new Point(10, 30),
             HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 255, 0), 2);
 
+        // 统一的 ColorInfo 结构
+        var rangeData = new Dictionary<string, object>
+        {
+            { "Coverage", percentage },
+            { "MatchedPixels", whitePixels },
+            { "TotalPixels", totalPixels },
+            { "HueLow", hueLow },
+            { "HueHigh", hueHigh },
+            { "SatLow", satLow },
+            { "SatHigh", satHigh },
+            { "ValLow", valLow },
+            { "ValHigh", valHigh }
+        };
+
+        var colorInfo = new Dictionary<string, object>
+        {
+            { "Mode", "Range" },
+            { "ColorSpace", colorSpace },
+            { "PrimaryData", rangeData }
+        };
+
         var additionalData = new Dictionary<string, object>
         {
-            { "ColorSpace", colorSpace },
+            { "ColorInfo", colorInfo },
             { "AnalysisMode", "Range" },
-            { "Percentage", percentage },
-            { "WhitePixels", whitePixels },
-            { "TotalPixels", totalPixels },
-            { "Range", new { HueLow = hueLow, HueHigh = hueHigh, SatLow = satLow, SatHigh = satHigh, ValLow = valLow, ValHigh = valHigh } },
-            { "ColorInfo", new Dictionary<string, object>
-                {
-                    { "ColorSpace", colorSpace },
-                    { "AnalysisMode", "Range" },
-                    { "Coverage", percentage },
-                    { "WhitePixels", whitePixels },
-                    { "TotalPixels", totalPixels },
-                    { "Range", new Dictionary<string, object>
-                        {
-                            { "HueLow", hueLow },
-                            { "HueHigh", hueHigh },
-                            { "SatLow", satLow },
-                            { "SatHigh", satHigh },
-                            { "ValLow", valLow },
-                            { "ValHigh", valHigh }
-                        }
-                    }
-                }
-            }
+            { "ColorSpace", colorSpace }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(overlay, additionalData));

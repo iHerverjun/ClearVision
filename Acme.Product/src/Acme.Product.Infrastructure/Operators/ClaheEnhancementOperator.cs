@@ -7,7 +7,8 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -27,6 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("TileWidth", "网格宽度", "int", DefaultValue = 8, Min = 2, Max = 64)]
 [OperatorParam("TileHeight", "网格高度", "int", DefaultValue = 8, Min = 2, Max = 64)]
 [OperatorParam("ColorSpace", "颜色空间", "enum", DefaultValue = "Lab", Options = new[] { "Lab|Lab - L通道", "HSV|HSV - V通道", "Gray|灰度", "All|所有通道" })]
+[OperatorParam("Channel", "目标通道", "enum", DefaultValue = "Auto", Options = new[] { "Auto|自动", "L|L通道", "V|V通道", "Y|Y通道", "All|所有通道" }, Description = "指定要增强的通道，Auto 根据颜色空间自动选择")]
 public class ClaheEnhancementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ClaheEnhancement;

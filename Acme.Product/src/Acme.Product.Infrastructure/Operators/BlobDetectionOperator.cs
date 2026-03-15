@@ -7,7 +7,8 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -31,6 +32,13 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MinCircularity", "最小圆度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
 [OperatorParam("MinConvexity", "最小凸度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
 [OperatorParam("MinInertiaRatio", "最小惯性比", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("EnableColorFilter", "启用颜色过滤", "bool", DefaultValue = false, Description = "启用HSV颜色范围预过滤")]
+[OperatorParam("HueLow", "色相下限", "int", DefaultValue = 0, Min = 0, Max = 180)]
+[OperatorParam("HueHigh", "色相上限", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("SatLow", "饱和度下限", "int", DefaultValue = 50, Min = 0, Max = 255)]
+[OperatorParam("SatHigh", "饱和度上限", "int", DefaultValue = 255, Min = 0, Max = 255)]
+[OperatorParam("ValLow", "明度下限", "int", DefaultValue = 50, Min = 0, Max = 255)]
+[OperatorParam("ValHigh", "明度上限", "int", DefaultValue = 255, Min = 0, Max = 255)]
 public class BlobDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BlobAnalysis;
@@ -55,11 +63,32 @@ public class BlobDetectionOperator : OperatorBase
         var minCircularity = GetDoubleParam(@operator, "MinCircularity", 0.0, min: 0, max: 1.0);
         var minConvexity = GetDoubleParam(@operator, "MinConvexity", 0.0, min: 0, max: 1.0);
         var minInertiaRatio = GetDoubleParam(@operator, "MinInertiaRatio", 0.0, min: 0, max: 1.0);
+        var enableColorFilter = GetBoolParam(@operator, "EnableColorFilter", false);
+        var hueLow = GetIntParam(@operator, "HueLow", 0, 0, 180);
+        var hueHigh = GetIntParam(@operator, "HueHigh", 180, 0, 180);
+        var satLow = GetIntParam(@operator, "SatLow", 50, 0, 255);
+        var satHigh = GetIntParam(@operator, "SatHigh", 255, 0, 255);
+        var valLow = GetIntParam(@operator, "ValLow", 50, 0, 255);
+        var valHigh = GetIntParam(@operator, "ValHigh", 255, 0, 255);
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+        }
+        
+        // 颜色预过滤
+        Mat processedSrc = src;
+        Mat? colorMask = null;
+        if (enableColorFilter)
+        {
+            colorMask = ApplyColorFilter(src, hueLow, hueHigh, satLow, satHigh, valLow, valHigh);
+            if (colorMask != null)
+            {
+                // 应用掩码到原图
+                processedSrc = new Mat();
+                Cv2.BitwiseAnd(src, src, processedSrc, colorMask);
+            }
         }
 
         // SimpleBlobDetector 内部会自动处理灰度转换，支持彩色和灰度输入
@@ -89,14 +118,14 @@ public class BlobDetectionOperator : OperatorBase
         }
 
         using var blobDetector = SimpleBlobDetector.Create(detector);
-        var keypoints = blobDetector.Detect(src);
+        var keypoints = blobDetector.Detect(processedSrc);
 
         // 准备彩色结果图（用于绘制彩色标注）
         var colorSrc = new Mat();
-        if (src.Channels() == 1)
-            Cv2.CvtColor(src, colorSrc, ColorConversionCodes.GRAY2BGR);
+        if (processedSrc.Channels() == 1)
+            Cv2.CvtColor(processedSrc, colorSrc, ColorConversionCodes.GRAY2BGR);
         else
-            src.CopyTo(colorSrc);
+            processedSrc.CopyTo(colorSrc);
 
         foreach (var kp in keypoints)
         {
@@ -143,5 +172,41 @@ public class BlobDetectionOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    /// <summary>
+    /// 应用HSV颜色范围过滤
+    /// </summary>
+    private Mat? ApplyColorFilter(Mat src, int hueLow, int hueHigh, int satLow, int satHigh, int valLow, int valHigh)
+    {
+        try
+        {
+            using var hsv = new Mat();
+            if (src.Channels() == 3)
+            {
+                Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
+            }
+            else if (src.Channels() == 1)
+            {
+                // 灰度图无法应用HSV过滤，返回空掩码
+                return null;
+            }
+            else
+            {
+                return null;
+            }
+
+            // 创建HSV范围掩码
+            var lower = new Scalar(hueLow, satLow, valLow);
+            var upper = new Scalar(hueHigh, satHigh, valHigh);
+            var mask = new Mat();
+            Cv2.InRange(hsv, lower, upper, mask);
+
+            return mask;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

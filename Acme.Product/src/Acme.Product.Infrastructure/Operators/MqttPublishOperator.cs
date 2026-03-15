@@ -36,6 +36,7 @@ namespace Acme.Product.Infrastructure.Operators;
     IconName = "mqtt"
 )]
 [InputPort("Payload", "消息负载", PortDataType.Any, IsRequired = true)]
+[InputPort("Message", "消息内容", PortDataType.String, IsRequired = false)]
 [OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
 [OperatorParam("Broker", "Broker地址", "string", DefaultValue = "localhost")]
 [OperatorParam("Port", "端口", "int", DefaultValue = 1883)]

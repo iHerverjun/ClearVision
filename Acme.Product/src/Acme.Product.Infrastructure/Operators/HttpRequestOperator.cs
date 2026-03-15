@@ -36,13 +36,16 @@ namespace Acme.Product.Infrastructure.Operators;
     IconName = "http"
 )]
 [InputPort("Body", "请求体", PortDataType.String, IsRequired = false)]
+[InputPort("Headers", "请求头", PortDataType.Any, IsRequired = false)]
 [OutputPort("Response", "响应内容", PortDataType.String)]
 [OutputPort("StatusCode", "状态码", PortDataType.Integer)]
 [OutputPort("IsSuccess", "是否成功", PortDataType.Boolean)]
 [OperatorParam("Url", "API 地址", "string", DefaultValue = "http://localhost:5000/api")]
 [OperatorParam("Method", "方法", "enum", DefaultValue = "POST", Options = new[] { "GET|GET", "POST|POST", "PUT|PUT", "DELETE|DELETE" })]
-[OperatorParam("Timeout", "超时(ms)", "int", DefaultValue = 5000)]
-[OperatorParam("MaxRetries", "最大重试", "int", DefaultValue = 3)]
+[OperatorParam("TimeoutMs", "超时(ms)", "int", DefaultValue = 10000, Min = 1000, Max = 60000)]
+[OperatorParam("RetryCount", "最大重试", "int", DefaultValue = 0, Min = 0, Max = 5)]
+[OperatorParam("ContentType", "内容类型", "string", DefaultValue = "application/json")]
+[OperatorParam("RetryDelayMs", "重试延迟(ms)", "int", DefaultValue = 1000, Min = 0, Max = 10000)]
 public class HttpRequestOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.HttpRequest;

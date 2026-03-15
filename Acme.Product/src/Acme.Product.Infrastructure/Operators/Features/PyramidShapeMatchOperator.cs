@@ -10,7 +10,9 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
+using ShapeMatchResult = Acme.Product.Infrastructure.ImageProcessing.ShapeMatchResult;
+
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -42,8 +44,18 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
 [OperatorParam("MinScore", "最小分数(%)", "double", DefaultValue = 80.0, Min = 0.0, Max = 100.0)]
 [OperatorParam("AngleRange", "角度范围(±)", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("AngleStep", "角度步长", "int", DefaultValue = 5, Min = 1, Max = 45)]
 [OperatorParam("PyramidLevels", "金字塔层数", "int", DefaultValue = 3, Min = 1, Max = 5)]
 [OperatorParam("MagnitudeThreshold", "梯度阈值", "int", DefaultValue = 30, Min = 0, Max = 255)]
+[OperatorParam("WeakThreshold", "弱梯度阈值", "double", DefaultValue = 30.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("StrongThreshold", "强梯度阈值", "double", DefaultValue = 60.0, Min = 0.0, Max = 255.0)]
+[OperatorParam("NumFeatures", "特征点数量", "int", DefaultValue = 150, Min = 50, Max = 8191)]
+[OperatorParam("SpreadT", "方向扩展范围", "int", DefaultValue = 4, Min = 1, Max = 16)]
+[OperatorParam("MaxMatches", "最大匹配数", "int", DefaultValue = 10, Min = 1, Max = 100)]
+[OperatorParam("MatchMode", "匹配模式", "enum", DefaultValue = "Template", Options = new[] { "Template|模板匹配", "ShapeDescriptor|形状描述符匹配" })]
+[OperatorParam("DescriptorTypes", "描述符类型", "enum", DefaultValue = "Hu+Fourier", Options = new[] { "Hu|Hu矩", "Fourier|傅里叶描述符", "Hu+Fourier|全部" })]
+[OperatorParam("PreFilterArea", "面积预筛选", "bool", DefaultValue = true)]
+[OperatorParam("AreaTolerance", "面积容差", "double", DefaultValue = 0.3, Min = 0.0, Max = 1.0)]
 public class PyramidShapeMatchOperator : OperatorBase
 {
     private readonly Dictionary<string, List<Template>> _templateCache = new();
@@ -68,6 +80,7 @@ public class PyramidShapeMatchOperator : OperatorBase
         // 获取参数
         var templatePath = GetStringParam(@operator, "TemplatePath", "");
         var minScore = GetFloatParam(@operator, "MinScore", 80.0f, min: 0.0f, max: 100.0f);
+        var matchMode = GetStringParam(@operator, "MatchMode", "Template");
         var angleRange = GetIntParam(@operator, "AngleRange", 0, min: 0, max: 180);
         var angleStep = GetIntParam(@operator, "AngleStep", 5, min: 1, max: 45);
         var pyramidLevels = GetIntParam(@operator, "PyramidLevels", 3, min: 1, max: 5);
@@ -76,6 +89,9 @@ public class PyramidShapeMatchOperator : OperatorBase
         var numFeatures = GetIntParam(@operator, "NumFeatures", 150, min: 50, max: 8191);
         var spreadT = GetIntParam(@operator, "SpreadT", 4, min: 1, max: 16);
         var maxMatches = GetIntParam(@operator, "MaxMatches", 10, min: 1, max: 100);
+        var descriptorTypes = GetStringParam(@operator, "DescriptorTypes", "Hu+Fourier");
+        var preFilterArea = GetBoolParam(@operator, "PreFilterArea", true);
+        var areaTolerance = GetDoubleParam(@operator, "AreaTolerance", 0.3, 0.0, 1.0);
 
         // 获取模板图像 (优先从输入获取)
         Mat? templateFromInput = null;
@@ -90,88 +106,102 @@ public class PyramidShapeMatchOperator : OperatorBase
         {
             return RunCpuBoundWork(() =>
             {
-                // 创建 LINEMOD 匹配器
-                using var matcher = new LineModShapeMatcher
+                // 根据匹配模式创建对应的匹配器
+                IShapeMatcher matcher;
+                
+                if (matchMode.Equals("ShapeDescriptor", StringComparison.OrdinalIgnoreCase))
                 {
-                    WeakThreshold = weakThreshold,
-                    StrongThreshold = strongThreshold,
-                    NumFeatures = numFeatures,
-                    SpreadT = spreadT,
-                    PyramidLevels = pyramidLevels
-                };
-
-                // 获取或训练模板
-                string cacheKey = BuildCacheKey(templatePath, templateFromInput, pyramidLevels, numFeatures, angleRange, angleStep);
-                List<Template>? templates;
-
-                lock (_cacheLock)
-                {
-                    if (!_templateCache.TryGetValue(cacheKey, out templates))
+                    // 形状描述符匹配器
+                    var config = new ShapeDescriptorConfig
                     {
-                        // 训练模板 (支持多角度旋转)
-                        if (templateFromInput != null)
-                        {
-                            templates = matcher.Train(templateFromInput, null, angleRange, angleStep);
-                        }
-                        else if (!string.IsNullOrEmpty(templatePath) && File.Exists(templatePath))
-                        {
-                            using var templateImg = Cv2.ImRead(templatePath, ImreadModes.Color);
-                            if (templateImg.Empty())
-                            {
-                                return OperatorExecutionOutput.Failure($"无法加载模板图像: {templatePath}");
-                            }
-                            templates = matcher.Train(templateImg, null, angleRange, angleStep);
-                        }
-                        else
-                        {
-                            return OperatorExecutionOutput.Failure("未提供模板图像或路径");
-                        }
-
-                        // 缓存模板
-                        if (templates.Count > 0)
-                        {
-                            _templateCache[cacheKey] = templates;
-                        }
-                    }
+                        UseHuMoments = descriptorTypes.Contains("Hu"),
+                        UseFourierDescriptors = descriptorTypes.Contains("Fourier"),
+                        AreaTolerance = areaTolerance
+                    };
+                    matcher = new ShapeDescriptorMatcher(config);
+                }
+                else
+                {
+                    // 模板匹配器（LINEMOD）
+                    matcher = new TemplateMatcher(pyramidLevels, angleRange, angleStep);
                 }
 
-                if (templates == null || templates.Count == 0)
+                // 训练模板
+                bool trained = false;
+                if (templateFromInput != null)
                 {
-                    return OperatorExecutionOutput.Failure("模板训练失败，未提取到有效特征点");
+                    trained = matcher.Train(templateFromInput);
+                }
+                else if (!string.IsNullOrEmpty(templatePath) && File.Exists(templatePath))
+                {
+                    using var templateImg = Cv2.ImRead(templatePath, ImreadModes.Color);
+                    if (templateImg.Empty())
+                    {
+                        return OperatorExecutionOutput.Failure($"无法加载模板图像: {templatePath}");
+                    }
+                    trained = matcher.Train(templateImg);
+                }
+                else
+                {
+                    return OperatorExecutionOutput.Failure("未提供模板图像或路径");
+                }
+
+                if (!trained)
+                {
+                    return OperatorExecutionOutput.Failure("模板训练失败");
                 }
 
                 // 执行匹配
-                var matches = matcher.Match(srcImage, minScore / 100.0f, maxMatches);
+                var matches = matcher.Match(srcImage, minScore, maxMatches);
 
                 // 创建结果图像
                 var resultImage = srcImage.Clone();
 
                 // 绘制匹配结果
-                var (primaryMatch, allMatches) = DrawMatches(resultImage, matches, templates, minScore);
+                var (primaryMatch, allMatches) = DrawShapeMatchResults(resultImage, matches, minScore);
 
-                // 构建输出数据
+                // 构建统一格式的输出数据
                 var outputData = new Dictionary<string, object>
                 {
                     { "IsMatch", primaryMatch.IsValid },
                     { "Score", primaryMatch.Score },
+                    { "Position", primaryMatch.Position },
                     { "X", primaryMatch.Position.X },
                     { "Y", primaryMatch.Position.Y },
                     { "Angle", primaryMatch.Angle },
                     { "MatchCount", allMatches.Count },
-                    { "PyramidLevels", pyramidLevels }
+                    { "MatchMode", matchMode }
                 };
 
-                // 添加所有匹配结果
+                // 添加所有匹配结果（统一格式）
+                var matchesList = new List<Dictionary<string, object>>();
                 for (int i = 0; i < allMatches.Count && i < maxMatches; i++)
                 {
                     var match = allMatches[i];
+                    matchesList.Add(new Dictionary<string, object>
+                    {
+                        { "Position", match.Position },
+                        { "X", match.Position.X },
+                        { "Y", match.Position.Y },
+                        { "Score", match.Score },
+                        { "Angle", match.Angle },
+                        { "Scale", match.Scale }
+                    });
+                    
+                    // 保留旧格式的散落键（向后兼容）
                     outputData[$"Match{i}_X"] = match.Position.X;
                     outputData[$"Match{i}_Y"] = match.Position.Y;
                     outputData[$"Match{i}_Score"] = match.Score;
                     outputData[$"Match{i}_Angle"] = match.Angle;
                 }
+                outputData["Matches"] = matchesList;
 
-                // 释放模板图像 (如果是从输入获取的)
+                // 添加匹配器配置信息
+                var configInfo = matcher.GetConfig();
+                outputData["MatcherConfig"] = configInfo;
+
+                // 释放资源
+                matcher.Dispose();
                 templateFromInput?.Dispose();
 
                 return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, outputData));
@@ -185,21 +215,15 @@ public class PyramidShapeMatchOperator : OperatorBase
     }
 
     /// <summary>
-    /// 在图像上绘制匹配结果
+    /// 绘制形状匹配结果（统一接口）
     /// </summary>
-    private (LineModMatchResult primary, List<LineModMatchResult> all) DrawMatches(
+    private (ImageProcessing.ShapeMatchResult primary, List<ImageProcessing.ShapeMatchResult> all) DrawShapeMatchResults(
         Mat image,
-        List<LineModMatchResult> matches,
-        List<Template> templates,
+        List<ImageProcessing.ShapeMatchResult> matches,
         float minScore)
     {
         var validMatches = matches.Where(m => m.IsValid).ToList();
-        var primaryMatch = validMatches.FirstOrDefault();
-
-        // 获取模板尺寸 (使用第一层)
-        var baseTemplate = templates.FirstOrDefault(t => t.PyramidLevel == 0);
-        int templateWidth = baseTemplate?.Width ?? 100;
-        int templateHeight = baseTemplate?.Height ?? 100;
+        var primaryMatch = validMatches.FirstOrDefault() ?? new ImageProcessing.ShapeMatchResult { IsValid = false };
 
         // 绘制所有匹配结果
         for (int i = 0; i < validMatches.Count; i++)
@@ -210,8 +234,8 @@ public class PyramidShapeMatchOperator : OperatorBase
                 : new Scalar(255, 255, 0); // 其他匹配 - 青色
 
             // 计算矩形框
-            int halfW = templateWidth / 2;
-            int halfH = templateHeight / 2;
+            int halfW = match.TemplateWidth / 2;
+            int halfH = match.TemplateHeight / 2;
 
             var topLeft = new Point(match.Position.X - halfW, match.Position.Y - halfH);
             var bottomRight = new Point(match.Position.X + halfW, match.Position.Y + halfH);
@@ -222,10 +246,18 @@ public class PyramidShapeMatchOperator : OperatorBase
             // 绘制中心点
             Cv2.DrawMarker(image, match.Position, color, MarkerTypes.Cross, 20, 2);
 
-            // 绘制得分
+            // 绘制得分和角度
             string scoreText = $"{match.Score:F1}%";
             Cv2.PutText(image, scoreText, new Point(topLeft.X, topLeft.Y - 5),
                 HersheyFonts.HersheySimplex, 0.5, color, 1);
+            
+            // 绘制角度信息（如果有旋转）
+            if (Math.Abs(match.Angle) > 0.1f)
+            {
+                string angleText = $"{match.Angle:F1}°";
+                Cv2.PutText(image, angleText, new Point(topLeft.X, topLeft.Y + 15),
+                    HersheyFonts.HersheySimplex, 0.4, color, 1);
+            }
         }
 
         // 绘制状态信息
@@ -249,6 +281,31 @@ public class PyramidShapeMatchOperator : OperatorBase
         }
 
         return (primaryMatch, validMatches);
+    }
+
+    // 重载：为保持向后兼容的 DrawMatches
+    private (ImageProcessing.ShapeMatchResult primary, List<ImageProcessing.ShapeMatchResult> all) DrawMatches(
+        Mat image,
+        List<LineModMatchResult> matches,
+        List<Template> templates,
+        float minScore)
+    {
+        // 转换为统一格式
+        var baseTemplate = templates.FirstOrDefault(t => t.PyramidLevel == 0);
+        int templateWidth = baseTemplate?.Width ?? 100;
+        int templateHeight = baseTemplate?.Height ?? 100;
+        
+        var convertedMatches = matches.Select(m => new ImageProcessing.ShapeMatchResult
+        {
+            IsValid = m.IsValid,
+            Position = m.Position,
+            Score = (float)(m.Score * 100.0),  // 转换为百分比
+            Angle = (float)m.Angle,
+            TemplateWidth = templateWidth,
+            TemplateHeight = templateHeight
+        }).ToList();
+        
+        return DrawShapeMatchResults(image, convertedMatches, minScore);
     }
 
     /// <summary>
