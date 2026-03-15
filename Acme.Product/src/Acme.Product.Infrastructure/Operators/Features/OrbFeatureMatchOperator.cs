@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -24,6 +25,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Template", "模板图像", PortDataType.Image, IsRequired = false)]
 [OutputPort("Image", "结果图像", PortDataType.Image)]
 [OutputPort("Position", "匹配位置", PortDataType.Point)]
+[OutputPort("MatchPoint", "代表匹配点", PortDataType.Point)]
 [OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
 [OutputPort("Score", "匹配分数", PortDataType.Float)]
 [OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
@@ -31,6 +33,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("ScaleFactor", "尺度因子", "double", DefaultValue = 1.2, Min = 1.0, Max = 2.0)]
 [OperatorParam("NLevels", "金字塔层数", "int", DefaultValue = 8, Min = 1, Max = 12)]
 [OperatorParam("EdgeThreshold", "边缘阈值", "int", DefaultValue = 31, Min = 3, Max = 100)]
+[OperatorParam("EnableSymmetryTest", "对称测试", "bool", DefaultValue = true)]
+[OperatorParam("MinMatchCount", "最小匹配数", "int", DefaultValue = 10, Min = 3, Max = 100)]
 public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.OrbFeatureMatch;
@@ -179,14 +183,18 @@ public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
                     boxColor);
             }
 
-            var center = new Point(resultImage.Width / 2, resultImage.Height / 2);
+            var representativePoint = new Point(resultImage.Width / 2, resultImage.Height / 2);
             if (goodMatches.Count > 0)
             {
                 var bestMatch = goodMatches[0];
-                center = new Point((int)srcKeyPoints[bestMatch.TrainIdx].Pt.X,
+                representativePoint = new Point((int)srcKeyPoints[bestMatch.TrainIdx].Pt.X,
                                   (int)srcKeyPoints[bestMatch.TrainIdx].Pt.Y);
-                Cv2.DrawMarker(resultImage, center, boxColor, MarkerTypes.Cross, 20, 2);
+                Cv2.DrawMarker(resultImage, representativePoint, boxColor, MarkerTypes.Cross, 20, 2);
             }
+
+            var position = TryGetProjectedCenter(homography, templateImage?.Width ?? 0, templateImage?.Height ?? 0, out var projectedCenter)
+                ? projectedCenter
+                : new Position(representativePoint.X, representativePoint.Y);
 
             string info = $"{(isMatch ? "OK" : "NG")}: Inliers={inliers}/{goodMatches.Count}";
             Cv2.PutText(resultImage, info, new Point(10, 30),
@@ -209,8 +217,11 @@ public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
                 { "Score", inlierRatio },
                 { "Inliers", inliers },
                 { "TotalMatches", goodMatches.Count },
-                { "X", center.X },
-                { "Y", center.Y }
+                { "Position", position },
+                { "MatchPoint", new Position(representativePoint.X, representativePoint.Y) },
+                { "X", position.X },
+                { "Y", position.Y },
+                { "ScoreDefinition", "InlierRatio" }
             })));
         }
         finally
@@ -261,8 +272,37 @@ public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
             { "Inliers", score },
             { "TotalMatches", totalMatches },
             { "Message", reason },
+            { "Position", new Position(0, 0) },
+            { "MatchPoint", new Position(0, 0) },
             { "X", 0 },
-            { "Y", 0 }
+            { "Y", 0 },
+            { "ScoreDefinition", "InlierRatio" }
         }));
+    }
+
+    private static bool TryGetProjectedCenter(Mat? homography, int templateWidth, int templateHeight, out Position center)
+    {
+        center = new Position(0, 0);
+        if (homography == null || homography.Empty() || templateWidth <= 0 || templateHeight <= 0)
+        {
+            return false;
+        }
+
+        var corners = new[]
+        {
+            new Point2f(0, 0),
+            new Point2f(templateWidth, 0),
+            new Point2f(templateWidth, templateHeight),
+            new Point2f(0, templateHeight)
+        };
+
+        var projected = Cv2.PerspectiveTransform(corners, homography);
+        if (projected.Length != 4)
+        {
+            return false;
+        }
+
+        center = new Position(projected.Average(p => p.X), projected.Average(p => p.Y));
+        return true;
     }
 }

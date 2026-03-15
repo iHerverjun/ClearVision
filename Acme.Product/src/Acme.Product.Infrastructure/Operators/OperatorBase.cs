@@ -436,6 +436,37 @@ public abstract class OperatorBase : IOperatorExecutor
     }
 
     /// <summary>
+    /// Creates an image output dictionary with explicitly named image size keys.
+    /// Use this when business outputs already need keys like Width/Height.
+    /// </summary>
+    protected Dictionary<string, object> CreateImageOutput(
+        Mat mat,
+        string imageWidthKey,
+        string imageHeightKey,
+        Dictionary<string, object>? additionalData = null)
+    {
+        var output = new Dictionary<string, object>
+        {
+            { "Image", new ImageWrapper(mat) },
+            { imageWidthKey, mat.Width },
+            { imageHeightKey, mat.Height }
+        };
+
+        if (additionalData != null)
+        {
+            foreach (var kvp in additionalData)
+            {
+                if (!output.ContainsKey(kvp.Key))
+                {
+                    output[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+
+        return output;
+    }
+
+    /// <summary>
     /// 创建图像输出字典（兼容模式）- 支持ImageWrapper或byte[] (P0优先级)
     /// </summary>
     /// <param name="mat">输出图像Mat</param>
@@ -476,6 +507,54 @@ public abstract class OperatorBase : IOperatorExecutor
     #endregion
 
     #region 辅助方法
+
+    protected static Position CreatePosition(double x, double y)
+    {
+        return new Position(x, y);
+    }
+
+    protected static Dictionary<string, object> CreatePointData(
+        string pointKey,
+        Position position,
+        string? xKey = "X",
+        string? yKey = "Y")
+    {
+        var data = new Dictionary<string, object>
+        {
+            [pointKey] = position
+        };
+
+        if (!string.IsNullOrWhiteSpace(xKey))
+        {
+            data[xKey] = position.X;
+        }
+
+        if (!string.IsNullOrWhiteSpace(yKey))
+        {
+            data[yKey] = position.Y;
+        }
+
+        return data;
+    }
+
+    protected static Dictionary<string, object> MergeData(params IDictionary<string, object>?[] fragments)
+    {
+        var merged = new Dictionary<string, object>();
+        foreach (var fragment in fragments)
+        {
+            if (fragment == null)
+            {
+                continue;
+            }
+
+            foreach (var (key, value) in fragment)
+            {
+                merged[key] = value;
+            }
+        }
+
+        return merged;
+    }
 
     /// <summary>
     /// 转换 JsonElement 为目标类型

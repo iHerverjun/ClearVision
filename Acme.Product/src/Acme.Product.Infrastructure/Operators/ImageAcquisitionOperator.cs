@@ -23,10 +23,15 @@ namespace Acme.Product.Infrastructure.Operators;
     IconName = "camera",
     Keywords = new[] { "采集", "相机", "拍照", "取图", "摄像头", "图像输入", "Acquire", "Camera", "Capture" }
 )]
+[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = false)]
+[InputPort("FilePath", "文件路径输入", PortDataType.String, IsRequired = false)]
 [OutputPort("Image", "图像", PortDataType.Image)]
-[OperatorParam("sourceType", "采集源", "enum", DefaultValue = "file", Options = new[] { "file|文件", "camera|相机" })]
-[OperatorParam("filePath", "文件路径", "file", DefaultValue = "")]
-[OperatorParam("cameraId", "相机", "cameraBinding", DefaultValue = "")]
+[OperatorParam("SourceType", "采集源", "enum", DefaultValue = "File", Options = new[] { "File|文件", "Camera|相机" })]
+[OperatorParam("FilePath", "文件路径", "file", DefaultValue = "")]
+[OperatorParam("CameraId", "相机", "cameraBinding", DefaultValue = "")]
+[OperatorParam("ExposureTime", "曝光时间(us)", "double", DefaultValue = 5000.0, Min = 1.0)]
+[OperatorParam("Gain", "增益(dB)", "double", DefaultValue = 1.0, Min = 0.0)]
+[OperatorParam("TriggerMode", "触发模式", "enum", DefaultValue = "Software", Options = new[] { "Software|软件触发", "External|外部触发" })]
 public class ImageAcquisitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;
@@ -45,23 +50,13 @@ public class ImageAcquisitionOperator : OperatorBase
         // 优先获取 sourceType 和 filePath 参数
         // 1. 尝试从连线输入获取
         // 2. 如果没有连线输入，从算子自身的参数列表中获取 (Metadata-driven)
-        string? sourceType = null;
-        string? filePath = null;
+        var sourceType = TryGetStringInput(inputs, "SourceType")
+            ?? TryGetStringInput(inputs, "sourceType")
+            ?? GetStringParam(@operator, "SourceType", GetStringParam(@operator, "sourceType", string.Empty));
 
-        if (inputs != null && inputs.TryGetValue("sourceType", out var stObj))
-            sourceType = stObj?.ToString();
-        if (sourceType == null)
-        {
-            sourceType = GetStringParam(@operator, "sourceType", "");
-        }
-
-        if (inputs != null && inputs.TryGetValue("filePath", out var fpObj))
-            filePath = fpObj?.ToString();
-        // 注意：旧代码使用的是 ImagePath，这里统一为 filePath 以对齐元数据和前端
-        if (string.IsNullOrEmpty(filePath))
-        {
-            filePath = GetStringParam(@operator, "filePath", "");
-        }
+        var filePath = TryGetStringInput(inputs, "FilePath")
+            ?? TryGetStringInput(inputs, "filePath")
+            ?? GetStringParam(@operator, "FilePath", GetStringParam(@operator, "filePath", string.Empty));
 
         // 如果连线输入中有名为 Image 的数据，则直接使用（透传模式）
         if (inputs != null && inputs.TryGetValue("Image", out var imgObj) && imgObj != null)
@@ -106,9 +101,9 @@ public class ImageAcquisitionOperator : OperatorBase
         }
 
         // 如果是相机模式
-        if (sourceType?.ToLower() == "camera")
+        if (sourceType?.Equals("Camera", StringComparison.OrdinalIgnoreCase) == true)
         {
-            var cameraId = GetStringParam(@operator, "cameraId", "");
+            var cameraId = GetStringParam(@operator, "CameraId", GetStringParam(@operator, "cameraId", string.Empty));
             if (string.IsNullOrEmpty(cameraId))
             {
                 throw new InvalidOperationException("未选择相机");
@@ -122,14 +117,17 @@ public class ImageAcquisitionOperator : OperatorBase
                     .FirstOrDefault(b => b.Id.Equals(cameraId, StringComparison.OrdinalIgnoreCase));
 
                 // 相机参数优先来自“系统设置 -> 相机管理”，保留旧算子参数作为向后兼容 fallback。
-                var exposureTime = bindingConfig?.ExposureTimeUs ?? GetDoubleParam(@operator, "exposureTime", 5000);
-                var gain = bindingConfig?.GainDb ?? GetDoubleParam(@operator, "gain", 1.0);
+                var exposureTime = bindingConfig?.ExposureTimeUs
+                    ?? GetDoubleParam(@operator, "ExposureTime", GetDoubleParam(@operator, "exposureTime", 5000));
+                var gain = bindingConfig?.GainDb
+                    ?? GetDoubleParam(@operator, "Gain", GetDoubleParam(@operator, "gain", 1.0));
                 await camera.SetExposureTimeAsync(exposureTime);
                 await camera.SetGainAsync(gain);
 
                 if (camera is IIndustrialCamera industrialCamera)
                 {
-                    var triggerMode = bindingConfig?.TriggerMode ?? GetStringParam(@operator, "triggerMode", "Software");
+                    var triggerMode = bindingConfig?.TriggerMode
+                        ?? GetStringParam(@operator, "TriggerMode", GetStringParam(@operator, "triggerMode", "Software"));
                     if (triggerMode.Equals("Software", StringComparison.OrdinalIgnoreCase))
                     {
                         // Current adapter maps false -> software trigger mode in provider SDKs.
@@ -166,7 +164,7 @@ public class ImageAcquisitionOperator : OperatorBase
         }
 
         // 如果是文件模式
-        if (sourceType?.ToLower() == "file" || !string.IsNullOrEmpty(filePath))
+        if (sourceType?.Equals("File", StringComparison.OrdinalIgnoreCase) == true || !string.IsNullOrEmpty(filePath))
         {
             if (string.IsNullOrEmpty(filePath))
             {
@@ -196,5 +194,15 @@ public class ImageAcquisitionOperator : OperatorBase
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         return ValidationResult.Valid();
+    }
+
+    private static string? TryGetStringInput(Dictionary<string, object>? inputs, string key)
+    {
+        if (inputs != null && inputs.TryGetValue(key, out var value))
+        {
+            return value?.ToString();
+        }
+
+        return null;
     }
 }

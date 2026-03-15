@@ -2,24 +2,25 @@
 // 模板匹配算子 - 在图像中查找模板位置
 // 作者：蘅芜君
 
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
 /// <summary>
-/// 模板匹配算子 - 在图像中查找模板位置
+/// 模板匹配算子 - 在图像中查找模板位置。
 /// </summary>
 [OperatorMeta(
     DisplayName = "模板匹配",
-    Description = "NCC/SQDiff 模板匹配，用于定位目标位置和缺失检测",
+    Description = "基于 OpenCV MatchTemplate 的模板匹配，支持单目标与多目标输出。",
     Category = "匹配定位",
     IconName = "template",
-    Keywords = new[] { "模板匹配", "定位", "找图", "特征匹配", "关联定位", "Template", "Match", "Locate" }
+    Keywords = new[] { "模板匹配", "定位", "找图", "Template", "Match", "Locate" }
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "模板图像", PortDataType.Image, IsRequired = true)]
@@ -27,8 +28,18 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Position", "匹配位置", PortDataType.Point)]
 [OutputPort("Score", "匹配分数", PortDataType.Float)]
 [OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
-[OperatorParam("Method", "匹配方法", "enum", DefaultValue = "NCC", Options = new[] { "NCC|归一化相关 (NCC)", "SQDiff|平方差 (SQDiff)" })]
-[OperatorParam("Threshold", "匹配分数阈值", "double", DefaultValue = 0.8, Min = 0.1, Max = 1.0)]
+[OutputPort("Matches", "匹配列表", PortDataType.Any)]
+[OutputPort("MatchCount", "匹配数量", PortDataType.Integer)]
+[OperatorParam("Method", "匹配方法", "enum", DefaultValue = "CCoeffNormed", Options = new[]
+{
+    "CCoeffNormed|CCoeffNormed",
+    "SqDiff|SqDiff",
+    "SqDiffNormed|SqDiffNormed",
+    "CCorr|CCorr",
+    "CCorrNormed|CCorrNormed",
+    "CCoeff|CCoeff"
+})]
+[OperatorParam("Threshold", "匹配分数阈值", "double", DefaultValue = 0.8, Min = 0.0, Max = 1.0)]
 [OperatorParam("MaxMatches", "最大匹配数", "int", DefaultValue = 1, Min = 1, Max = 100)]
 public class TemplateMatchOperator : OperatorBase
 {
@@ -48,16 +59,17 @@ public class TemplateMatchOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
         }
 
-        if (!TryGetInputValue<byte[]>(inputs, "Template", out var templateData) || templateData == null)
+        if (!TryGetInputImage(inputs, "Template", out var templateWrapper) || templateWrapper == null)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("未提供模板图像"));
         }
 
         var threshold = GetDoubleParam(@operator, "Threshold", 0.8, min: 0, max: 1);
         var method = GetStringParam(@operator, "Method", "CCoeffNormed");
+        var maxMatches = GetIntParam(@operator, "MaxMatches", 1, min: 1, max: 100);
 
         var src = imageWrapper.GetMat();
-        using var template = Cv2.ImDecode(templateData, ImreadModes.Color);
+        var template = templateWrapper.GetMat();
 
         if (src.Empty() || template.Empty())
         {
@@ -69,58 +81,62 @@ public class TemplateMatchOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("模板尺寸不能大于源图像"));
         }
 
-        // 选择匹配方法
-        var matchMethod = method.ToLower() switch
-        {
-            "sqdiff" => TemplateMatchModes.SqDiff,
-            "sqdiffnormed" => TemplateMatchModes.SqDiffNormed,
-            "ccorr" => TemplateMatchModes.CCorr,
-            "ccorrnormed" => TemplateMatchModes.CCorrNormed,
-            "ccoeff" => TemplateMatchModes.CCoeff,
-            "ccoeffnormed" => TemplateMatchModes.CCoeffNormed,
-            _ => TemplateMatchModes.CCoeffNormed
-        };
+        using var srcGray = ToGray(src);
+        using var templateGray = ToGray(template);
 
-        // 执行模板匹配
+        var matchMethod = ResolveMatchMethod(method);
+        var isSqDiff = matchMethod == TemplateMatchModes.SqDiff || matchMethod == TemplateMatchModes.SqDiffNormed;
+
         using var result = new Mat();
-        Cv2.MatchTemplate(src, template, result, matchMethod);
+        Cv2.MatchTemplate(srcGray, templateGray, result, matchMethod);
 
-        // 查找最佳匹配位置
-        Cv2.MinMaxLoc(result, out double minVal, out double maxVal, out Point minLoc, out Point maxLoc);
+        var matches = FindMatches(result, templateGray.Size(), maxMatches, threshold, isSqDiff);
+        var isMatch = matches.Count > 0;
 
-        // 根据方法确定最佳匹配值和位置
-        bool isSqDiff = matchMethod == TemplateMatchModes.SqDiff || matchMethod == TemplateMatchModes.SqDiffNormed;
-        double matchValue = isSqDiff ? minVal : maxVal;
-        Point matchLoc = isSqDiff ? minLoc : maxLoc;
-
-        // 归一化匹配值到0-1范围
-        double normalizedScore = isSqDiff ? 1.0 - matchValue : matchValue;
-
-        // 绘制结果
-        var resultImg = src.Clone();
-        bool found = normalizedScore >= threshold;
-
-        if (found)
+        var resultImage = src.Clone();
+        foreach (var match in matches)
         {
-            Cv2.Rectangle(resultImg, matchLoc, new Point(matchLoc.X + template.Width, matchLoc.Y + template.Height),
-                new Scalar(0, 255, 0), 2);
-            Cv2.PutText(resultImg, $"Score: {normalizedScore:F3}",
-                new Point(matchLoc.X, matchLoc.Y - 10),
-                HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 255, 0), 2);
+            Cv2.Rectangle(resultImage, match.TopLeft, match.BottomRight, new Scalar(0, 255, 0), 2);
+            Cv2.DrawMarker(resultImage, new Point((int)Math.Round(match.Center.X), (int)Math.Round(match.Center.Y)), new Scalar(0, 0, 255), MarkerTypes.Cross, 20, 2);
+            Cv2.PutText(
+                resultImage,
+                $"{match.Score:F3}",
+                new Point(match.TopLeft.X, Math.Max(16, match.TopLeft.Y - 8)),
+                HersheyFonts.HersheySimplex,
+                0.5,
+                new Scalar(0, 255, 0),
+                1);
         }
 
-        // P0: 使用ImageWrapper实现零拷贝输出
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImg, new Dictionary<string, object>
+        var bestMatch = matches.FirstOrDefault();
+        var position = bestMatch?.Center ?? new Position(0, 0);
+        var additionalData = new Dictionary<string, object>
         {
-            { "Found", found },
-            { "IsMatch", found },
-            { "Score", normalizedScore },
-            { "Position", matchLoc },
-            { "X", matchLoc.X },
-            { "Y", matchLoc.Y },
-            { "TemplateWidth", template.Width },
-            { "TemplateHeight", template.Height }
-        })));
+            ["IsMatch"] = isMatch,
+            ["Found"] = isMatch,
+            ["Score"] = bestMatch?.Score ?? 0.0,
+            ["Position"] = position,
+            ["X"] = position.X,
+            ["Y"] = position.Y,
+            ["MatchCount"] = matches.Count,
+            ["Matches"] = matches.Select(m => new Dictionary<string, object>
+            {
+                ["Position"] = m.Center,
+                ["TopLeft"] = new Position(m.TopLeft.X, m.TopLeft.Y),
+                ["Score"] = m.Score,
+                ["Width"] = templateGray.Width,
+                ["Height"] = templateGray.Height
+            }).ToList(),
+            ["TemplateWidth"] = templateGray.Width,
+            ["TemplateHeight"] = templateGray.Height
+        };
+
+        if (!isMatch)
+        {
+            additionalData["Message"] = "No match above threshold.";
+        }
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -131,13 +147,97 @@ public class TemplateMatchOperator : OperatorBase
             return ValidationResult.Invalid("阈值必须在 0-1 之间");
         }
 
-        var method = GetStringParam(@operator, "Method", "CCoeffNormed").ToLower();
-        var validMethods = new[] { "sqdiff", "sqdiffnormed", "ccorr", "ccorrnormed", "ccoeff", "ccoeffnormed" };
-        if (!validMethods.Contains(method))
+        var method = GetStringParam(@operator, "Method", "CCoeffNormed");
+        var validMethods = new[] { "NCC", "SqDiff", "SqDiffNormed", "CCorr", "CCorrNormed", "CCoeff", "CCoeffNormed" };
+        if (!validMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid($"不支持的匹配方法: {method}");
         }
 
+        var maxMatches = GetIntParam(@operator, "MaxMatches", 1);
+        if (maxMatches < 1 || maxMatches > 100)
+        {
+            return ValidationResult.Invalid("MaxMatches must be between 1 and 100.");
+        }
+
         return ValidationResult.Valid();
     }
+
+    private static Mat ToGray(Mat src)
+    {
+        if (src.Channels() == 1)
+        {
+            return src.Clone();
+        }
+
+        var gray = new Mat();
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        return gray;
+    }
+
+    private static TemplateMatchModes ResolveMatchMethod(string method)
+    {
+        return method.Trim().ToLowerInvariant() switch
+        {
+            "ncc" => TemplateMatchModes.CCoeffNormed,
+            "sqdiff" => TemplateMatchModes.SqDiff,
+            "sqdiffnormed" => TemplateMatchModes.SqDiffNormed,
+            "ccorr" => TemplateMatchModes.CCorr,
+            "ccorrnormed" => TemplateMatchModes.CCorrNormed,
+            "ccoeff" => TemplateMatchModes.CCoeff,
+            _ => TemplateMatchModes.CCoeffNormed
+        };
+    }
+
+    private static List<TemplateMatchCandidate> FindMatches(
+        Mat result,
+        Size templateSize,
+        int maxMatches,
+        double threshold,
+        bool isSqDiff)
+    {
+        var working = result.Clone();
+        try
+        {
+            var matches = new List<TemplateMatchCandidate>();
+            for (var index = 0; index < maxMatches; index++)
+            {
+                Cv2.MinMaxLoc(working, out var minVal, out var maxVal, out var minLoc, out var maxLoc);
+
+                var score = isSqDiff ? 1.0 - minVal : maxVal;
+                var topLeft = isSqDiff ? minLoc : maxLoc;
+                if (score < threshold)
+                {
+                    break;
+                }
+
+                var center = new Position(topLeft.X + (templateSize.Width / 2.0), topLeft.Y + (templateSize.Height / 2.0));
+                matches.Add(new TemplateMatchCandidate(
+                    topLeft,
+                    new Point(topLeft.X + templateSize.Width, topLeft.Y + templateSize.Height),
+                    center,
+                    score));
+
+                var suppressX = Math.Max(0, topLeft.X - (templateSize.Width / 4));
+                var suppressY = Math.Max(0, topLeft.Y - (templateSize.Height / 4));
+                var suppressRight = Math.Min(working.Width, topLeft.X + templateSize.Width + (templateSize.Width / 4));
+                var suppressBottom = Math.Min(working.Height, topLeft.Y + templateSize.Height + (templateSize.Height / 4));
+                if (suppressRight <= suppressX || suppressBottom <= suppressY)
+                {
+                    continue;
+                }
+
+                using var roi = new Mat(working, new Rect(suppressX, suppressY, suppressRight - suppressX, suppressBottom - suppressY));
+                roi.SetTo(isSqDiff ? Scalar.All(1.0) : Scalar.All(0.0));
+            }
+
+            return matches;
+        }
+        finally
+        {
+            working.Dispose();
+        }
+    }
+
+    private sealed record TemplateMatchCandidate(Point TopLeft, Point BottomRight, Position Center, double Score);
 }

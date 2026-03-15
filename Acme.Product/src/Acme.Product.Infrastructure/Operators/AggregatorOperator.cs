@@ -20,6 +20,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Value1", "值 1", PortDataType.Any, IsRequired = false)]
 [InputPort("Value2", "值 2", PortDataType.Any, IsRequired = false)]
 [InputPort("Value3", "值 3", PortDataType.Any, IsRequired = false)]
+[OutputPort("Result", "结果", PortDataType.Any)]
 [OutputPort("MergedList", "合并列表", PortDataType.Any)]
 [OutputPort("MaxValue", "最大值", PortDataType.Float)]
 [OutputPort("MinValue", "最小值", PortDataType.Float)]
@@ -33,6 +34,7 @@ public class AggregatorOperator : OperatorBase
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(Operator @operator, Dictionary<string, object>? inputs, CancellationToken cancellationToken)
     {
+        var mode = GetStringParam(@operator, "Mode", "Merge");
         var list = new List<object>();
         foreach (var key in new[] { "Value1", "Value2", "Value3" })
         {
@@ -51,14 +53,39 @@ public class AggregatorOperator : OperatorBase
         var min = numeric.Count > 0 ? numeric.Min() : 0;
         var avg = numeric.Count > 0 ? numeric.Average() : 0;
 
-        return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
+        var output = new Dictionary<string, object>
         {
             ["MergedList"] = list,
             ["MaxValue"] = max,
             ["MinValue"] = min,
             ["Average"] = avg
-        }));
+        };
+
+        switch (mode.ToLowerInvariant())
+        {
+            case "max":
+                output["Result"] = max;
+                break;
+            case "min":
+                output["Result"] = min;
+                break;
+            case "average":
+                output["Result"] = avg;
+                break;
+            default:
+                output["Result"] = list;
+                break;
+        }
+
+        return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
 
-    public override ValidationResult ValidateParameters(Operator @operator) => ValidationResult.Valid();
+    public override ValidationResult ValidateParameters(Operator @operator)
+    {
+        var mode = GetStringParam(@operator, "Mode", "Merge");
+        var validModes = new[] { "Merge", "Max", "Min", "Average" };
+        return validModes.Contains(mode, StringComparer.OrdinalIgnoreCase)
+            ? ValidationResult.Valid()
+            : ValidationResult.Invalid("Mode must be Merge, Max, Min or Average.");
+    }
 }

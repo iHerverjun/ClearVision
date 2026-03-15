@@ -12,8 +12,8 @@ using OpenCvSharp;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
-    DisplayName = "Shape Matching",
-    Description = "Rotation-robust template matching with pyramid coarse-to-fine search.",
+    DisplayName = "旋转尺度模板匹配",
+    Description = "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
     Category = "Matching",
     IconName = "shape-match"
 )]
@@ -27,6 +27,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("AngleStart", "Angle Start", "double", DefaultValue = -30.0, Min = -180.0, Max = 180.0)]
 [OperatorParam("AngleExtent", "Angle Extent", "double", DefaultValue = 60.0, Min = 0.0, Max = 360.0)]
 [OperatorParam("AngleStep", "Angle Step", "double", DefaultValue = 1.0, Min = 0.1, Max = 10.0)]
+[OperatorParam("ScaleMin", "Scale Min", "double", DefaultValue = 1.0, Min = 0.2, Max = 3.0)]
+[OperatorParam("ScaleMax", "Scale Max", "double", DefaultValue = 1.0, Min = 0.2, Max = 3.0)]
+[OperatorParam("ScaleStep", "Scale Step", "double", DefaultValue = 0.1, Min = 0.01, Max = 1.0)]
 [OperatorParam("NumLevels", "Pyramid Levels", "int", DefaultValue = 3, Min = 1, Max = 6)]
 public class ShapeMatchingOperator : OperatorBase
 {
@@ -52,6 +55,9 @@ public class ShapeMatchingOperator : OperatorBase
         var angleStart = GetDoubleParam(@operator, "AngleStart", -30.0, min: -180.0, max: 180.0);
         var angleExtent = GetDoubleParam(@operator, "AngleExtent", 60.0, min: 0.0, max: 360.0);
         var angleStep = GetDoubleParam(@operator, "AngleStep", 1.0, min: 0.1, max: 10.0);
+        var scaleMin = GetDoubleParam(@operator, "ScaleMin", 1.0, min: 0.2, max: 3.0);
+        var scaleMax = GetDoubleParam(@operator, "ScaleMax", 1.0, min: 0.2, max: 3.0);
+        var scaleStep = GetDoubleParam(@operator, "ScaleStep", 0.1, min: 0.01, max: 1.0);
         var numLevels = GetIntParam(@operator, "NumLevels", 3, min: 1, max: 6);
 
         var src = imageWrapper.GetMat();
@@ -99,6 +105,10 @@ public class ShapeMatchingOperator : OperatorBase
                         angleStart,
                         angleEnd,
                         ComputeLevelAngleStep(angleStep, levelsUsed - 1));
+                    var currentScales = BuildScaleRange(
+                        scaleMin,
+                        scaleMax,
+                        ComputeLevelScaleStep(scaleStep, levelsUsed - 1));
 
                     List<MatchResult> levelMatches = new();
                     var candidateLimit = Math.Max(maxMatches * 5, 20);
@@ -107,7 +117,7 @@ public class ShapeMatchingOperator : OperatorBase
                     {
                         var levelSrc = srcPyramid[level];
                         var levelTmpl = tmplPyramid[level];
-                        levelMatches = MatchByAngles(levelSrc, levelTmpl, currentAngles, minScore, candidateLimit);
+                        levelMatches = MatchByTransforms(levelSrc, levelTmpl, currentAngles, currentScales, minScore, candidateLimit);
 
                         if (level == 0)
                         {
@@ -119,6 +129,13 @@ public class ShapeMatchingOperator : OperatorBase
                         if (currentAngles.Count == 0)
                         {
                             currentAngles = BuildAngleRange(angleStart, angleEnd, nextStep);
+                        }
+
+                        var nextScaleStep = ComputeLevelScaleStep(scaleStep, level - 1);
+                        currentScales = BuildRefinedScales(levelMatches, scaleMin, scaleMax, nextScaleStep);
+                        if (currentScales.Count == 0)
+                        {
+                            currentScales = BuildScaleRange(scaleMin, scaleMax, nextScaleStep);
                         }
                     }
 
@@ -137,6 +154,7 @@ public class ShapeMatchingOperator : OperatorBase
                         { "X", m.X },
                         { "Y", m.Y },
                         { "Angle", m.Angle },
+                        { "Scale", m.Scale },
                         { "Score", m.Score },
                         { "CenterX", m.X + (m.Width / 2.0) },
                         { "CenterY", m.Y + (m.Height / 2.0) },
@@ -222,6 +240,11 @@ public class ShapeMatchingOperator : OperatorBase
         return Math.Clamp(baseStep * Math.Pow(2, level), baseStep, 90.0);
     }
 
+    private static double ComputeLevelScaleStep(double baseStep, int level)
+    {
+        return Math.Clamp(baseStep * Math.Pow(2, level), baseStep, 1.0);
+    }
+
     private static List<double> BuildAngleRange(double start, double end, double step)
     {
         var safeStep = Math.Max(0.1, step);
@@ -243,6 +266,28 @@ public class ShapeMatchingOperator : OperatorBase
         }
 
         return angles;
+    }
+
+    private static List<double> BuildScaleRange(double minScale, double maxScale, double step)
+    {
+        var safeStep = Math.Max(0.01, step);
+        if (maxScale < minScale)
+        {
+            (minScale, maxScale) = (maxScale, minScale);
+        }
+
+        var scales = new List<double>();
+        for (var scale = minScale; scale <= maxScale + 1e-9; scale += safeStep)
+        {
+            scales.Add(Math.Round(scale, 4));
+        }
+
+        if (scales.Count == 0)
+        {
+            scales.Add(Math.Round(minScale, 4));
+        }
+
+        return scales;
     }
 
     private static List<double> BuildRefinedAngles(
@@ -276,28 +321,61 @@ public class ShapeMatchingOperator : OperatorBase
         return values.ToList();
     }
 
-    private List<MatchResult> MatchByAngles(
+    private static List<double> BuildRefinedScales(
+        IReadOnlyCollection<MatchResult> matches,
+        double minScale,
+        double maxScale,
+        double step)
+    {
+        var safeStep = Math.Max(0.01, step);
+        if (matches.Count == 0)
+        {
+            return BuildScaleRange(minScale, maxScale, safeStep);
+        }
+
+        var selected = matches
+            .OrderByDescending(m => m.Score)
+            .Take(8)
+            .ToList();
+
+        var values = new SortedSet<double>();
+        foreach (var match in selected)
+        {
+            var localStart = Math.Max(minScale, match.Scale - (2 * safeStep));
+            var localEnd = Math.Min(maxScale, match.Scale + (2 * safeStep));
+            for (var scale = localStart; scale <= localEnd + 1e-9; scale += safeStep)
+            {
+                values.Add(Math.Round(scale, 4));
+            }
+        }
+
+        return values.ToList();
+    }
+
+    private List<MatchResult> MatchByTransforms(
         Mat srcGray,
         Mat tmplGray,
         IReadOnlyCollection<double> angles,
+        IReadOnlyCollection<double> scales,
         double minScore,
         int candidateLimit)
     {
         var matches = new List<MatchResult>();
         var locker = new object();
 
-        Parallel.ForEach(angles, angle =>
+        var transforms = angles.SelectMany(angle => scales.Select(scale => (angle, scale))).ToList();
+        Parallel.ForEach(transforms, transform =>
         {
             try
             {
-                using var rotatedTemplate = RotateImage(tmplGray, angle);
-                if (rotatedTemplate.Width >= srcGray.Width || rotatedTemplate.Height >= srcGray.Height)
+                using var transformedTemplate = TransformTemplate(tmplGray, transform.angle, transform.scale);
+                if (transformedTemplate.Width >= srcGray.Width || transformedTemplate.Height >= srcGray.Height)
                 {
                     return;
                 }
 
                 using var matchResult = new Mat();
-                Cv2.MatchTemplate(srcGray, rotatedTemplate, matchResult, TemplateMatchModes.CCoeffNormed);
+                Cv2.MatchTemplate(srcGray, transformedTemplate, matchResult, TemplateMatchModes.CCoeffNormed);
                 Cv2.MinMaxLoc(matchResult, out _, out var maxVal, out _, out var maxLoc);
 
                 if (maxVal < minScore)
@@ -309,10 +387,11 @@ public class ShapeMatchingOperator : OperatorBase
                 {
                     X = maxLoc.X,
                     Y = maxLoc.Y,
-                    Angle = angle,
+                    Angle = transform.angle,
+                    Scale = transform.scale,
                     Score = maxVal,
-                    Width = rotatedTemplate.Width,
-                    Height = rotatedTemplate.Height
+                    Width = transformedTemplate.Width,
+                    Height = transformedTemplate.Height
                 };
 
                 lock (locker)
@@ -322,7 +401,7 @@ public class ShapeMatchingOperator : OperatorBase
             }
             catch (Exception ex)
             {
-                Logger.LogDebug(ex, "Shape matching failed at angle {Angle}.", angle);
+                Logger.LogDebug(ex, "Shape matching failed at angle {Angle}, scale {Scale}.", transform.angle, transform.scale);
             }
         });
 
@@ -338,6 +417,19 @@ public class ShapeMatchingOperator : OperatorBase
         var rotated = new Mat();
         Cv2.WarpAffine(src, rotated, rotMatrix, src.Size(), InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
         return rotated;
+    }
+
+    private static Mat TransformTemplate(Mat src, double angle, double scale)
+    {
+        using var rotated = RotateImage(src, angle);
+        if (Math.Abs(scale - 1.0) < 1e-6)
+        {
+            return rotated.Clone();
+        }
+
+        var transformed = new Mat();
+        Cv2.Resize(rotated, transformed, new Size(), scale, scale, InterpolationFlags.Linear);
+        return transformed;
     }
 
     private static List<MatchResult> NonMaximumSuppression(List<MatchResult> matches, float iouThreshold)
@@ -382,7 +474,7 @@ public class ShapeMatchingOperator : OperatorBase
 
         Cv2.PutText(
             image,
-            $"{match.Score:F2}@{match.Angle:F1}",
+            $"{match.Score:F2}@{match.Angle:F1}/x{match.Scale:F2}",
             new Point(match.X, Math.Max(12, match.Y - 6)),
             HersheyFonts.HersheySimplex,
             0.45,
@@ -410,6 +502,19 @@ public class ShapeMatchingOperator : OperatorBase
             return ValidationResult.Invalid("AngleStep must be between 0.1 and 10.0.");
         }
 
+        var scaleMin = GetDoubleParam(@operator, "ScaleMin", 1.0);
+        var scaleMax = GetDoubleParam(@operator, "ScaleMax", 1.0);
+        if (scaleMin < 0.2 || scaleMin > 3.0 || scaleMax < 0.2 || scaleMax > 3.0 || scaleMin > scaleMax)
+        {
+            return ValidationResult.Invalid("ScaleMin/ScaleMax must be within [0.2, 3.0] and ScaleMin <= ScaleMax.");
+        }
+
+        var scaleStep = GetDoubleParam(@operator, "ScaleStep", 0.1);
+        if (scaleStep < 0.01 || scaleStep > 1.0)
+        {
+            return ValidationResult.Invalid("ScaleStep must be between 0.01 and 1.0.");
+        }
+
         var numLevels = GetIntParam(@operator, "NumLevels", 3);
         if (numLevels < 1 || numLevels > 6)
         {
@@ -424,6 +529,7 @@ public class ShapeMatchingOperator : OperatorBase
         public int X { get; init; }
         public int Y { get; init; }
         public double Angle { get; init; }
+        public double Scale { get; init; } = 1.0;
         public double Score { get; init; }
         public int Width { get; init; }
         public int Height { get; init; }

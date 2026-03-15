@@ -30,6 +30,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100)]
 [OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000)]
 [OperatorParam("Threshold", "二值化阈值", "double", DefaultValue = 127.0)]
+[OperatorParam("MaxValue", "二值化最大值", "double", DefaultValue = 255.0)]
+[OperatorParam("ThresholdType", "阈值类型", "enum", DefaultValue = "Binary", Options = new[] { "Binary|Binary", "BinaryInv|Binary Inv" })]
+[OperatorParam("DrawContours", "绘制轮廓", "bool", DefaultValue = true)]
 public class FindContoursOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ContourDetection;
@@ -55,7 +58,7 @@ public class FindContoursOperator : OperatorBase
         var drawContours = GetBoolParam(@operator, "DrawContours", true);
         var threshold = GetDoubleParam(@operator, "Threshold", 127.0, min: 0, max: 255);
         var maxValue = GetDoubleParam(@operator, "MaxValue", 255.0, min: 0, max: 255);
-        var thresholdType = GetIntParam(@operator, "ThresholdType", 0, min: 0, max: 1);
+        var thresholdType = GetStringParam(@operator, "ThresholdType", "Binary");
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
@@ -69,7 +72,9 @@ public class FindContoursOperator : OperatorBase
 
         // 二值化
         using var binary = new Mat();
-        var threshType = thresholdType == 0 ? ThresholdTypes.Binary : ThresholdTypes.BinaryInv;
+        var threshType = thresholdType.Equals("BinaryInv", StringComparison.OrdinalIgnoreCase)
+            ? ThresholdTypes.BinaryInv
+            : ThresholdTypes.Binary;
         Cv2.Threshold(gray, binary, threshold, maxValue, threshType);
 
         // 查找轮廓
@@ -173,6 +178,13 @@ public class FindContoursOperator : OperatorBase
         if (!validModes.Contains(mode))
         {
             return ValidationResult.Invalid($"不支持的轮廓模式: {mode}");
+        }
+
+        var thresholdType = GetStringParam(@operator, "ThresholdType", "Binary");
+        var validThresholdTypes = new[] { "Binary", "BinaryInv" };
+        if (!validThresholdTypes.Contains(thresholdType, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("ThresholdType must be Binary or BinaryInv.");
         }
 
         return ValidationResult.Valid();

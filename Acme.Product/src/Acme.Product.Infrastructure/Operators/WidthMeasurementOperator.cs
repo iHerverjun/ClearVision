@@ -33,6 +33,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "AutoEdge", Options = new[] { "AutoEdge|AutoEdge", "ManualLines|ManualLines" })]
 [OperatorParam("NumSamples", "Sample Count", "int", DefaultValue = 24, Min = 10, Max = 100)]
 [OperatorParam("Direction", "Direction", "enum", DefaultValue = "Perpendicular", Options = new[] { "Perpendicular|Perpendicular", "Custom|Custom" })]
+[OperatorParam("CustomAngle", "Custom Angle", "double", DefaultValue = 0.0, Min = -180.0, Max = 180.0)]
 public class WidthMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.WidthMeasurement;
@@ -59,6 +60,8 @@ public class WidthMeasurementOperator : OperatorBase
 
         var mode = GetStringParam(@operator, "MeasureMode", "AutoEdge");
         var numSamples = GetIntParam(@operator, "NumSamples", 24, 10, 100);
+        var direction = GetStringParam(@operator, "Direction", "Perpendicular");
+        var customAngle = GetDoubleParam(@operator, "CustomAngle", 0.0, -180.0, 180.0);
 
         LineData line1;
         LineData line2;
@@ -80,27 +83,41 @@ public class WidthMeasurementOperator : OperatorBase
             }
         }
 
-        var widths = SampleWidths(line1, line2, numSamples);
-        if (widths.Count == 0)
+        using var gray = new Mat();
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
+
+        var measurements = BuildMeasurementSamples(gray, line1, line2, numSamples, direction, customAngle);
+        if (measurements.Count == 0)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("No valid width samples generated"));
         }
 
+        var widths = measurements.Select(m => m.Width).ToList();
+
         var minWidth = widths.Min();
         var maxWidth = widths.Max();
         var meanWidth = widths.Average();
+        var refinedSampleCount = measurements.Count(m => m.UsedSubpixel);
 
         var resultImage = src.Clone();
-        DrawMeasurementOverlay(resultImage, line1, line2, widths, numSamples, meanWidth, minWidth, maxWidth);
+        DrawMeasurementOverlay(resultImage, line1, line2, measurements, meanWidth, minWidth, maxWidth);
 
-        var output = CreateImageOutput(resultImage, new Dictionary<string, object>
+        var output = CreateImageOutput(resultImage, "ImageWidth", "ImageHeight", new Dictionary<string, object>
         {
             { "Width", meanWidth },
             { "MinWidth", minWidth },
-            { "MaxWidth", maxWidth }
+            { "MaxWidth", maxWidth },
+            { "Direction", direction },
+            { "RefinedSampleCount", refinedSampleCount },
+            { "SampleCount", measurements.Count }
         });
-        // Override image width key with measured width to match operator output contract.
-        output["Width"] = meanWidth;
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
@@ -120,21 +137,56 @@ public class WidthMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("NumSamples must be within [10, 100]");
         }
 
+        var direction = GetStringParam(@operator, "Direction", "Perpendicular");
+        var validDirections = new[] { "Perpendicular", "Custom" };
+        if (!validDirections.Contains(direction, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("Direction must be Perpendicular or Custom");
+        }
+
         return ValidationResult.Valid();
     }
 
-    private static List<double> SampleWidths(LineData line1, LineData line2, int numSamples)
+    private static List<MeasurementSample> BuildMeasurementSamples(Mat gray, LineData line1, LineData line2, int numSamples, string direction, double customAngle)
     {
-        var widths = new List<double>(numSamples);
+        var measurements = new List<MeasurementSample>(numSamples);
         for (var i = 0; i < numSamples; i++)
         {
             var t = numSamples <= 1 ? 0.0 : (double)i / (numSamples - 1);
-            var x = line1.StartX + (line1.EndX - line1.StartX) * t;
-            var y = line1.StartY + (line1.EndY - line1.StartY) * t;
-            widths.Add(DistancePointToLine(x, y, line2));
+            var referenceStart = new Position(
+                line1.StartX + (line1.EndX - line1.StartX) * t,
+                line1.StartY + (line1.EndY - line1.StartY) * t);
+
+            Position referenceEnd;
+            if (direction.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!TryIntersectRayWithLine(referenceStart.X, referenceStart.Y, customAngle, line2, out referenceEnd, out _))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                referenceEnd = ProjectPointToLine(referenceStart.X, referenceStart.Y, line2);
+            }
+
+            var fallbackWidth = Distance(referenceStart, referenceEnd);
+            if (fallbackWidth <= 1e-6)
+            {
+                continue;
+            }
+
+            if (TryMeasureWidthByCaliper(gray, referenceStart, referenceEnd, out var startEdge, out var endEdge))
+            {
+                measurements.Add(new MeasurementSample(referenceStart, referenceEnd, startEdge, endEdge, Distance(startEdge, endEdge), true));
+            }
+            else
+            {
+                measurements.Add(new MeasurementSample(referenceStart, referenceEnd, referenceStart, referenceEnd, fallbackWidth, false));
+            }
         }
 
-        return widths;
+        return measurements;
     }
 
     private static bool TryDetectParallelLines(Mat src, out LineData line1, out LineData line2)
@@ -242,26 +294,170 @@ public class WidthMeasurementOperator : OperatorBase
         return Math.Abs(a * px + b * py + c) / denom;
     }
 
-    private static void DrawMeasurementOverlay(Mat image, LineData line1, LineData line2, IReadOnlyList<double> widths, int numSamples, double mean, double min, double max)
+    private static bool TryMeasureWidthByCaliper(Mat gray, Position start, Position end, out Position startEdge, out Position endEdge)
+    {
+        startEdge = start;
+        endEdge = end;
+
+        var segmentLength = Distance(start, end);
+        if (segmentLength < 4)
+        {
+            return false;
+        }
+
+        var dirX = (end.X - start.X) / segmentLength;
+        var dirY = (end.Y - start.Y) / segmentLength;
+        var searchHalfWindow = Math.Clamp(segmentLength / 3.0, 6.0, 18.0);
+
+        var startWindowStart = new Position(start.X - (dirX * searchHalfWindow), start.Y - (dirY * searchHalfWindow));
+        var startWindowEnd = new Position(start.X + (dirX * searchHalfWindow), start.Y + (dirY * searchHalfWindow));
+        var endWindowStart = new Position(end.X - (dirX * searchHalfWindow), end.Y - (dirY * searchHalfWindow));
+        var endWindowEnd = new Position(end.X + (dirX * searchHalfWindow), end.Y + (dirY * searchHalfWindow));
+
+        if (!TryFindLocalEdge(gray, startWindowStart, startWindowEnd, out startEdge))
+        {
+            return false;
+        }
+
+        if (!TryFindLocalEdge(gray, endWindowStart, endWindowEnd, out endEdge))
+        {
+            return false;
+        }
+
+        return Distance(startEdge, endEdge) > 1e-6;
+    }
+
+    private static bool TryFindLocalEdge(Mat gray, Position scanStart, Position scanEnd, out Position edge)
+    {
+        edge = scanStart;
+        var scanLength = Distance(scanStart, scanEnd);
+        if (scanLength < 2)
+        {
+            return false;
+        }
+
+        var sampleCount = Math.Max((int)Math.Ceiling(scanLength * 4), 24);
+        var samples = SampleIntensity(gray, scanStart, scanEnd, sampleCount);
+        if (samples.Count < 6)
+        {
+            return false;
+        }
+
+        var gradients = new double[samples.Count - 1];
+        for (var i = 1; i < samples.Count; i++)
+        {
+            gradients[i - 1] = samples[i] - samples[i - 1];
+        }
+
+        var gradientIndex = FindPeakGradientIndex(gradients, 0, gradients.Length);
+        if (gradientIndex < 0 || Math.Abs(gradients[gradientIndex]) < 3.0)
+        {
+            return false;
+        }
+
+        var edgeIndex = gradientIndex + 1;
+        var edgeT = sampleCount <= 1 ? 0.0 : (double)edgeIndex / (sampleCount - 1);
+        var refinedEdgeT = RefineSubpixel(samples, edgeIndex, edgeT, sampleCount);
+        edge = Lerp(scanStart, scanEnd, refinedEdgeT);
+        return true;
+    }
+
+    private static List<double> SampleIntensity(Mat gray, Position start, Position end, int count)
+    {
+        var samples = new List<double>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var t = count <= 1 ? 0.0 : (double)i / (count - 1);
+            var x = start.X + ((end.X - start.X) * t);
+            var y = start.Y + ((end.Y - start.Y) * t);
+            samples.Add(SampleGrayBilinear(gray, x, y));
+        }
+
+        return samples;
+    }
+
+    private static double SampleGrayBilinear(Mat gray, double x, double y)
+    {
+        var clampedX = Math.Clamp(x, 0.0, gray.Width - 1.0);
+        var clampedY = Math.Clamp(y, 0.0, gray.Height - 1.0);
+        var x0 = (int)Math.Floor(clampedX);
+        var y0 = (int)Math.Floor(clampedY);
+        var x1 = Math.Min(x0 + 1, gray.Width - 1);
+        var y1 = Math.Min(y0 + 1, gray.Height - 1);
+        var fx = clampedX - x0;
+        var fy = clampedY - y0;
+
+        var v00 = gray.At<byte>(y0, x0);
+        var v10 = gray.At<byte>(y0, x1);
+        var v01 = gray.At<byte>(y1, x0);
+        var v11 = gray.At<byte>(y1, x1);
+
+        var top = v00 + ((v10 - v00) * fx);
+        var bottom = v01 + ((v11 - v01) * fx);
+        return top + ((bottom - top) * fy);
+    }
+
+    private static int FindPeakGradientIndex(IReadOnlyList<double> gradients, int startInclusive, int endExclusive)
+    {
+        var safeStart = Math.Clamp(startInclusive, 0, gradients.Count);
+        var safeEnd = Math.Clamp(endExclusive, safeStart, gradients.Count);
+        var bestIndex = -1;
+        var bestStrength = double.MinValue;
+        for (var i = safeStart; i < safeEnd; i++)
+        {
+            var strength = Math.Abs(gradients[i]);
+            if (strength > bestStrength)
+            {
+                bestStrength = strength;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private static double RefineSubpixel(IReadOnlyList<double> samples, int idx, double fallbackT, int sampleCount)
+    {
+        if (idx <= 0 || idx >= samples.Count - 1)
+        {
+            return fallbackT;
+        }
+
+        var g0 = samples[idx] - samples[idx - 1];
+        var g1 = samples[idx + 1] - samples[idx];
+        var denom = g0 - g1;
+        if (Math.Abs(denom) < 1e-6)
+        {
+            return fallbackT;
+        }
+
+        var offset = 0.5 * (g0 + g1) / denom;
+        var refinedIndex = idx + offset;
+        return Math.Clamp(refinedIndex / Math.Max(sampleCount - 1, 1), 0.0, 1.0);
+    }
+
+    private static void DrawMeasurementOverlay(Mat image, LineData line1, LineData line2, IReadOnlyList<MeasurementSample> measurements, double mean, double min, double max)
     {
         Cv2.Line(image, new Point((int)line1.StartX, (int)line1.StartY), new Point((int)line1.EndX, (int)line1.EndY), new Scalar(0, 255, 0), 2);
         Cv2.Line(image, new Point((int)line2.StartX, (int)line2.StartY), new Point((int)line2.EndX, (int)line2.EndY), new Scalar(255, 200, 0), 2);
 
-        var step = Math.Max(1, numSamples / 6);
-        for (var i = 0; i < numSamples; i += step)
+        var step = Math.Max(1, measurements.Count / 6);
+        for (var i = 0; i < measurements.Count; i += step)
         {
-            var t = numSamples <= 1 ? 0.0 : (double)i / (numSamples - 1);
-            var x = line1.StartX + (line1.EndX - line1.StartX) * t;
-            var y = line1.StartY + (line1.EndY - line1.StartY) * t;
+            var sample = measurements[i];
+            var start = sample.UsedSubpixel ? sample.StartEdge : sample.ReferenceStart;
+            var end = sample.UsedSubpixel ? sample.EndEdge : sample.ReferenceEnd;
+            var color = sample.UsedSubpixel ? new Scalar(0, 0, 255) : new Scalar(0, 165, 255);
 
-            // perpendicular projection to line2
-            var proj = ProjectPointToLine(x, y, line2);
             Cv2.Line(
                 image,
-                new Point((int)Math.Round(x), (int)Math.Round(y)),
-                new Point((int)Math.Round(proj.X), (int)Math.Round(proj.Y)),
-                new Scalar(0, 0, 255),
+                new Point((int)Math.Round(start.X), (int)Math.Round(start.Y)),
+                new Point((int)Math.Round(end.X), (int)Math.Round(end.Y)),
+                color,
                 1);
+
+            Cv2.Circle(image, new Point((int)Math.Round(start.X), (int)Math.Round(start.Y)), 2, color, -1);
+            Cv2.Circle(image, new Point((int)Math.Round(end.X), (int)Math.Round(end.Y)), 2, color, -1);
         }
 
         Cv2.PutText(
@@ -272,6 +468,18 @@ public class WidthMeasurementOperator : OperatorBase
             0.6,
             new Scalar(255, 255, 255),
             2);
+    }
+
+    private static Position Lerp(Position start, Position end, double t)
+    {
+        return new Position(
+            start.X + ((end.X - start.X) * t),
+            start.Y + ((end.Y - start.Y) * t));
+    }
+
+    private static double Distance(Position start, Position end)
+    {
+        return Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2));
     }
 
     private static Position ProjectPointToLine(double px, double py, LineData line)
@@ -286,6 +494,37 @@ public class WidthMeasurementOperator : OperatorBase
 
         var t = ((px - line.StartX) * dx + (py - line.StartY) * dy) / norm2;
         return new Position(line.StartX + t * dx, line.StartY + t * dy);
+    }
+
+    private static bool TryIntersectRayWithLine(double px, double py, double angleDeg, LineData line, out Position intersection, out double distance)
+    {
+        var angleRad = angleDeg * Math.PI / 180.0;
+        var rayDx = Math.Cos(angleRad);
+        var rayDy = Math.Sin(angleRad);
+        var lineDx = line.EndX - line.StartX;
+        var lineDy = line.EndY - line.StartY;
+
+        var denominator = (rayDx * lineDy) - (rayDy * lineDx);
+        if (Math.Abs(denominator) < 1e-9)
+        {
+            intersection = new Position(px, py);
+            distance = 0;
+            return false;
+        }
+
+        var deltaX = line.StartX - px;
+        var deltaY = line.StartY - py;
+        var rayT = ((deltaX * lineDy) - (deltaY * lineDx)) / denominator;
+        if (rayT < 0)
+        {
+            intersection = new Position(px, py);
+            distance = 0;
+            return false;
+        }
+
+        intersection = new Position(px + (rayT * rayDx), py + (rayT * rayDy));
+        distance = Math.Sqrt(Math.Pow(intersection.X - px, 2) + Math.Pow(intersection.Y - py, 2));
+        return true;
     }
 
     private static bool TryParseLine(object? obj, out LineData line)
@@ -349,6 +588,14 @@ public class WidthMeasurementOperator : OperatorBase
             _ => float.TryParse(raw.ToString(), out value)
         };
     }
+
+    private sealed record MeasurementSample(
+        Position ReferenceStart,
+        Position ReferenceEnd,
+        Position StartEdge,
+        Position EndEdge,
+        double Width,
+        bool UsedSubpixel);
 }
 
 

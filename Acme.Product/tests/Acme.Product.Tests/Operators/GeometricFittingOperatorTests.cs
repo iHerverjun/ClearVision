@@ -1,5 +1,6 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -59,6 +60,95 @@ public class GeometricFittingOperatorTests
         var fitResult = result.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
         fitResult.Should().ContainKey("RobustMethod");
         fitResult["RobustMethod"].Should().Be("Ransac");
+        fitResult.Should().ContainKeys("InlierCount", "InlierRatio", "RansacMeanResidual", "RansacMaxResidual", "RansacModel", "ResidualMean", "ResidualMax");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithRansacLineFit_ShouldRejectContourOutliers()
+    {
+        var leastSquaresOp = new Operator("GeoFitLineLs", OperatorType.GeometricFitting, 0, 0);
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("FitType", "Line", "string"));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("MinPoints", 3, "int"));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "LeastSquares", "string"));
+
+        var ransacOp = new Operator("GeoFitLineRansac", OperatorType.GeometricFitting, 0, 0);
+        ransacOp.AddParameter(TestHelpers.CreateParameter("FitType", "Line", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("MinPoints", 3, "int"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "Ransac", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacIterations", "RansacIterations", "int", 300, 10, 5000, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacInlierThreshold", "RansacInlierThreshold", "double", 2.0, 0.1, 100.0, true));
+
+        using var image = CreateLineWithOutlierBlockImage();
+        var leastSquaresResult = await _operator.ExecuteAsync(leastSquaresOp, TestHelpers.CreateImageInputs(image.AddRef()));
+        var ransacResult = await _operator.ExecuteAsync(ransacOp, TestHelpers.CreateImageInputs(image.AddRef()));
+
+        leastSquaresResult.IsSuccess.Should().BeTrue();
+        ransacResult.IsSuccess.Should().BeTrue();
+
+        var leastSquaresFit = leastSquaresResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacFit = ransacResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresGeometry = leastSquaresFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacGeometry = ransacFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresLine = leastSquaresGeometry["Line"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacLine = ransacGeometry["Line"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresAngleError = Math.Abs(Convert.ToDouble(leastSquaresLine["Angle"]) - 0.0);
+        var ransacAngleError = Math.Abs(Convert.ToDouble(ransacLine["Angle"]) - 0.0);
+
+        ransacFit["RobustMethod"].Should().Be("Ransac");
+        ransacFit.Should().ContainKey("RansacModel");
+        ransacFit.Should().ContainKeys("RansacMeanResidual", "RansacMaxResidual", "ResidualMean", "ResidualMax");
+        ransacAngleError.Should().BeLessThan(leastSquaresAngleError);
+        ransacAngleError.Should().BeLessThan(3.0);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithRansacCircleFit_ShouldRejectContourOutliers()
+    {
+        var leastSquaresOp = new Operator("GeoFitCircleLs", OperatorType.GeometricFitting, 0, 0);
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("FitType", "Circle", "string"));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "LeastSquares", "string"));
+
+        var ransacOp = new Operator("GeoFitCircleRansac", OperatorType.GeometricFitting, 0, 0);
+        ransacOp.AddParameter(TestHelpers.CreateParameter("FitType", "Circle", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "Ransac", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacIterations", "RansacIterations", "int", 300, 10, 5000, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacInlierThreshold", "RansacInlierThreshold", "double", 2.5, 0.1, 100.0, true));
+
+        using var image = CreateCircleWithOutlierTailImage();
+        var leastSquaresResult = await _operator.ExecuteAsync(leastSquaresOp, TestHelpers.CreateImageInputs(image.AddRef()));
+        var ransacResult = await _operator.ExecuteAsync(ransacOp, TestHelpers.CreateImageInputs(image.AddRef()));
+
+        leastSquaresResult.IsSuccess.Should().BeTrue();
+        ransacResult.IsSuccess.Should().BeTrue();
+
+        var leastSquaresFit = leastSquaresResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacFit = ransacResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresGeometry = leastSquaresFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacGeometry = ransacFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresCenter = leastSquaresGeometry["Center"].Should().BeOfType<Position>().Subject;
+        var ransacCenter = ransacGeometry["Center"].Should().BeOfType<Position>().Subject;
+        var leastSquaresRadius = Convert.ToDouble(leastSquaresGeometry["Radius"]);
+        var ransacRadius = Convert.ToDouble(ransacGeometry["Radius"]);
+
+        var leastSquaresError = Math.Abs(leastSquaresRadius - 50.0) + Math.Abs(leastSquaresCenter.X - 120.0);
+        var ransacError = Math.Abs(ransacRadius - 50.0) + Math.Abs(ransacCenter.X - 120.0);
+
+        ransacFit["RobustMethod"].Should().Be("Ransac");
+        ransacFit.Should().ContainKey("InlierCount");
+        ransacFit.Should().ContainKey("RansacModel");
+        ransacError.Should().BeLessThan(leastSquaresError);
+        ransacRadius.Should().BeApproximately(50.0, 4.0);
+        ransacCenter.X.Should().BeApproximately(120.0, 4.0);
+        ransacCenter.Y.Should().BeApproximately(120.0, 4.0);
     }
 
     private static ImageWrapper CreateLineImage()
@@ -66,5 +156,79 @@ public class GeometricFittingOperatorTests
         var mat = new Mat(240, 320, MatType.CV_8UC3, Scalar.Black);
         Cv2.Line(mat, new Point(20, 30), new Point(300, 210), Scalar.White, 3);
         return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateCircleWithOutlierTailImage()
+    {
+        var mat = new Mat(280, 320, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Circle(mat, new Point(120, 120), 50, Scalar.White, -1);
+        Cv2.Rectangle(mat, new Rect(165, 104, 95, 32), Scalar.White, -1);
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateLineWithOutlierBlockImage()
+    {
+        var mat = new Mat(240, 320, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Line(mat, new Point(20, 120), new Point(220, 120), Scalar.White, 3);
+        Cv2.Rectangle(mat, new Rect(230, 40, 50, 120), Scalar.White, -1);
+        return new ImageWrapper(mat);
+    }
+    private static ImageWrapper CreateEllipseWithOutlierTailImage()
+    {
+        var mat = new Mat(320, 320, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Ellipse(mat, new RotatedRect(new Point2f(160, 160), new Size2f(160, 80), 30), Scalar.White, -1);
+        Cv2.Rectangle(mat, new Rect(220, 180, 80, 50), Scalar.White, -1); // 加上一块明显的离群色块
+        return new ImageWrapper(mat);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithRansacEllipseFit_ShouldRejectContourOutliers()
+    {
+        var leastSquaresOp = new Operator("GeoFitEllipseLs", OperatorType.GeometricFitting, 0, 0);
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("FitType", "Ellipse", "string"));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        leastSquaresOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "LeastSquares", "string"));
+
+        var ransacOp = new Operator("GeoFitEllipseRansac", OperatorType.GeometricFitting, 0, 0);
+        ransacOp.AddParameter(TestHelpers.CreateParameter("FitType", "Ellipse", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("Threshold", "Threshold", "double", 100.0, 0.0, 255.0, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RobustMethod", "Ransac", "string"));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacIterations", "RansacIterations", "int", 500, 10, 5000, true));
+        ransacOp.AddParameter(TestHelpers.CreateParameter("RansacInlierThreshold", "RansacInlierThreshold", "double", 3.0, 0.1, 100.0, true));
+
+        using var image = CreateEllipseWithOutlierTailImage();
+        var leastSquaresResult = await _operator.ExecuteAsync(leastSquaresOp, TestHelpers.CreateImageInputs(image.AddRef()));
+        var ransacResult = await _operator.ExecuteAsync(ransacOp, TestHelpers.CreateImageInputs(image.AddRef()));
+
+        leastSquaresResult.IsSuccess.Should().BeTrue();
+        ransacResult.IsSuccess.Should().BeTrue();
+
+        var leastSquaresFit = leastSquaresResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacFit = ransacResult.OutputData!["FitResult"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresGeometry = leastSquaresFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var ransacGeometry = ransacFit["Geometry"].Should().BeOfType<Dictionary<string, object>>().Subject;
+
+        var leastSquaresCenter = leastSquaresGeometry["Center"].Should().BeOfType<Position>().Subject;
+        var ransacCenter = ransacGeometry["Center"].Should().BeOfType<Position>().Subject;
+
+        // 理论中心是在 (160, 160)
+        var leastSquaresError = Math.Abs(leastSquaresCenter.X - 160.0) + Math.Abs(leastSquaresCenter.Y - 160.0);
+        var ransacError = Math.Abs(ransacCenter.X - 160.0) + Math.Abs(ransacCenter.Y - 160.0);
+
+        ransacFit["RobustMethod"].Should().Be("Ransac");
+        ransacFit.Should().ContainKey("InlierCount");
+        ransacFit.Should().ContainKey("RansacModel");
+        
+        ransacError.Should().BeLessThan(leastSquaresError);
+        ransacCenter.X.Should().BeApproximately(160.0, 8.0);
+        ransacCenter.Y.Should().BeApproximately(160.0, 8.0);
+        
+        var ransacMajorAxis = Convert.ToDouble(ransacGeometry["MajorAxis"]);
+        var ransacMinorAxis = Convert.ToDouble(ransacGeometry["MinorAxis"]);
+        
+        // 确保能大概拟合出正确的轴长 (160, 80)
+        Math.Max(ransacMajorAxis, ransacMinorAxis).Should().BeApproximately(160.0, 10.0);
+        Math.Min(ransacMajorAxis, ransacMinorAxis).Should().BeApproximately(80.0, 10.0);
     }
 }

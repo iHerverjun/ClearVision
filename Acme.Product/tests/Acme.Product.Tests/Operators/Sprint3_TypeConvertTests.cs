@@ -26,7 +26,7 @@ public class Sprint3_TypeConvertTests
     public async Task TypeConvert_ToString_ReturnsCorrectString(object value, string expected)
     {
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Value", value } };
+        var inputs = new Dictionary<string, object> { { "Input", value } };
 
         var result = await _operator.ExecuteAsync(op, inputs);
 
@@ -42,7 +42,7 @@ public class Sprint3_TypeConvertTests
     public async Task TypeConvert_ToFloat_ReturnsCorrectFloat(object value, float expected)
     {
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Value", value } };
+        var inputs = new Dictionary<string, object> { { "Input", value } };
 
         var result = await _operator.ExecuteAsync(op, inputs);
 
@@ -58,7 +58,7 @@ public class Sprint3_TypeConvertTests
     public async Task TypeConvert_ToInteger_ReturnsCorrectInt(object value, int expected)
     {
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Value", value } };
+        var inputs = new Dictionary<string, object> { { "Input", value } };
 
         var result = await _operator.ExecuteAsync(op, inputs);
 
@@ -76,7 +76,7 @@ public class Sprint3_TypeConvertTests
     public async Task TypeConvert_ToBoolean_ReturnsCorrectBool(object value, bool expected)
     {
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Value", value } };
+        var inputs = new Dictionary<string, object> { { "Input", value } };
 
         var result = await _operator.ExecuteAsync(op, inputs);
 
@@ -88,7 +88,7 @@ public class Sprint3_TypeConvertTests
     public async Task TypeConvert_NumberWithFormat_ReturnsFormattedString()
     {
         var op = CreateOperator(new Dictionary<string, object> { { "Format", "F2" } });
-        var inputs = new Dictionary<string, object> { { "Value", 3.14159 } };
+        var inputs = new Dictionary<string, object> { { "Input", 3.14159 } };
 
         var result = await _operator.ExecuteAsync(op, inputs);
 

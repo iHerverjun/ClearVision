@@ -19,6 +19,11 @@ namespace Acme.Product.Infrastructure.Operators;
 )]
 [InputPort("Input", "Input", PortDataType.Any, IsRequired = true)]
 [OutputPort("Output", "Output", PortDataType.Any)]
+[OutputPort("AsString", "As String", PortDataType.String)]
+[OutputPort("AsFloat", "As Float", PortDataType.Float)]
+[OutputPort("AsInteger", "As Integer", PortDataType.Integer)]
+[OutputPort("AsBoolean", "As Boolean", PortDataType.Boolean)]
+[OutputPort("OriginalType", "Original Type", PortDataType.String)]
 [OperatorParam("TargetType", "Target Type", "enum", DefaultValue = "String", Options = new[] { "String|String", "Float|Float", "Integer|Integer", "Boolean|Boolean" })]
 [OperatorParam("Format", "Format", "string", DefaultValue = "")]
 public class TypeConvertOperator : OperatorBase
@@ -65,7 +70,6 @@ public class TypeConvertOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Output", outputValue },
-            { "Value", outputValue },
             { "AsString", asString },
             { "AsFloat", asFloat },
             { "AsInteger", asInteger },
@@ -96,12 +100,6 @@ public class TypeConvertOperator : OperatorBase
 
         // Primary key: Input (matches InputPort contract).
         if (inputs.TryGetValue("Input", out value) && value != null)
-        {
-            return true;
-        }
-
-        // Backward compatibility for old flows/tests that still use "Value".
-        if (inputs.TryGetValue("Value", out value) && value != null)
         {
             return true;
         }

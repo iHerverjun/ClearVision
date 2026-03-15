@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-14T22:17:22.1993693+08:00",
+  "generatedAt": "2026-03-15T14:24:43.1972535+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -235,7 +235,20 @@
         "算法类型:自研"
       ],
       "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
-      "inputPorts": [],
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "输入图像",
+          "dataType": "Image",
+          "isRequired": false
+        },
+        {
+          "name": "FilePath",
+          "displayName": "文件路径输入",
+          "dataType": "String",
+          "isRequired": false
+        }
+      ],
       "outputPorts": [
         {
           "name": "Image",
@@ -246,27 +259,27 @@
       ],
       "parameters": [
         {
-          "name": "sourceType",
+          "name": "SourceType",
           "displayName": "采集源",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "file",
+          "defaultValue": "File",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": [
             {
-              "value": "file",
+              "value": "File",
               "label": "文件"
             },
             {
-              "value": "camera",
+              "value": "Camera",
               "label": "相机"
             }
           ]
         },
         {
-          "name": "filePath",
+          "name": "FilePath",
           "displayName": "文件路径",
           "dataType": "file",
           "description": null,
@@ -277,7 +290,7 @@
           "options": null
         },
         {
-          "name": "cameraId",
+          "name": "CameraId",
           "displayName": "相机",
           "dataType": "cameraBinding",
           "description": null,
@@ -286,6 +299,48 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "ExposureTime",
+          "displayName": "曝光时间(us)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "5000",
+          "min": "1",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Gain",
+          "displayName": "增益(dB)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "TriggerMode",
+          "displayName": "触发模式",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Software",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Software",
+              "label": "软件触发"
+            },
+            {
+              "value": "External",
+              "label": "外部触发"
+            }
+          ]
         }
       ],
       "quality": {
@@ -853,6 +908,39 @@
               "label": "黑色"
             }
           ]
+        },
+        {
+          "name": "MinCircularity",
+          "displayName": "最小圆度",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinConvexity",
+          "displayName": "最小凸度",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinInertiaRatio",
+          "displayName": "最小惯性比",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -870,7 +958,7 @@
       "id": "TemplateMatching",
       "type": 7,
       "displayName": "模板匹配",
-      "description": "NCC/SQDiff 模板匹配，用于定位目标位置和缺失检测",
+      "description": "基于 OpenCV MatchTemplate 的模板匹配，支持单目标与多目标输出。",
       "category": "匹配定位",
       "version": "1.0.0",
       "tags": [
@@ -917,6 +1005,18 @@
           "displayName": "是否匹配",
           "dataType": "Boolean",
           "isRequired": null
+        },
+        {
+          "name": "Matches",
+          "displayName": "匹配列表",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "MatchCount",
+          "displayName": "匹配数量",
+          "dataType": "Integer",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -925,18 +1025,34 @@
           "displayName": "匹配方法",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "NCC",
+          "defaultValue": "CCoeffNormed",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": [
             {
-              "value": "NCC",
-              "label": "归一化相关 (NCC)"
+              "value": "CCoeffNormed",
+              "label": "CCoeffNormed"
             },
             {
-              "value": "SQDiff",
-              "label": "平方差 (SQDiff)"
+              "value": "SqDiff",
+              "label": "SqDiff"
+            },
+            {
+              "value": "SqDiffNormed",
+              "label": "SqDiffNormed"
+            },
+            {
+              "value": "CCorr",
+              "label": "CCorr"
+            },
+            {
+              "value": "CCorrNormed",
+              "label": "CCorrNormed"
+            },
+            {
+              "value": "CCoeff",
+              "label": "CCoeff"
             }
           ]
         },
@@ -946,7 +1062,7 @@
           "dataType": "double",
           "description": null,
           "defaultValue": "0.8",
-          "min": "0.1",
+          "min": "0",
           "max": "1",
           "isRequired": true,
           "options": null
@@ -1238,6 +1354,12 @@
           "isRequired": null
         },
         {
+          "name": "DetectionList",
+          "displayName": "检测列表",
+          "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
           "name": "Defects",
           "displayName": "缺陷列表",
           "dataType": "DetectionList",
@@ -1325,6 +1447,28 @@
           "defaultValue": "640",
           "min": "320",
           "max": "1280",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseGpu",
+          "displayName": "使用GPU",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "GpuDeviceId",
+          "displayName": "GPU设备ID",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "15",
           "isRequired": true,
           "options": null
         },
@@ -1427,6 +1571,36 @@
           "displayName": "输出",
           "dataType": "Any",
           "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "图像",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Result",
+          "displayName": "结果",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Text",
+          "displayName": "文本",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "Data",
+          "displayName": "数据",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "FilePath",
+          "displayName": "文件路径",
+          "dataType": "String",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -1467,13 +1641,13 @@
         }
       ],
       "quality": {
-        "totalScore": 79,
+        "totalScore": 84,
         "level": "B",
         "documentationScore": 100,
         "testCoverageScore": 100,
-        "parameterValidationScore": 80,
+        "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=35"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
       },
       "docPath": "docs/operators/ResultOutput.md"
     },
@@ -1591,6 +1765,48 @@
           "dataType": "double",
           "description": null,
           "defaultValue": "127",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxValue",
+          "displayName": "二值化最大值",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "255",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ThresholdType",
+          "displayName": "阈值类型",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Binary",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Binary",
+              "label": "Binary"
+            },
+            {
+              "value": "BinaryInv",
+              "label": "Binary Inv"
+            }
+          ]
+        },
+        {
+          "name": "DrawContours",
+          "displayName": "绘制轮廓",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -4176,6 +4392,30 @@
           "options": null
         },
         {
+          "name": "ContourSelection",
+          "displayName": "Contour Selection",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "LargestContour",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "LargestContour",
+              "label": "Largest Contour"
+            },
+            {
+              "value": "AllContours",
+              "label": "All Contours"
+            },
+            {
+              "value": "FirstContour",
+              "label": "First Contour"
+            }
+          ]
+        },
+        {
           "name": "RobustMethod",
           "displayName": "Robust Method",
           "dataType": "enum",
@@ -4412,8 +4652,8 @@
     {
       "id": "ShapeMatching",
       "type": 43,
-      "displayName": "Shape Matching",
-      "description": "Rotation-robust template matching with pyramid coarse-to-fine search.",
+      "displayName": "旋转尺度模板匹配",
+      "description": "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
       "category": "匹配定位",
       "version": "1.0.0",
       "tags": [
@@ -4514,6 +4754,39 @@
           "defaultValue": "1",
           "min": "0.1",
           "max": "10",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScaleMin",
+          "displayName": "Scale Min",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0.2",
+          "max": "3",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScaleMax",
+          "displayName": "Scale Max",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0.2",
+          "max": "3",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScaleStep",
+          "displayName": "Scale Step",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.1",
+          "min": "0.01",
+          "max": "1",
           "isRequired": true,
           "options": null
         },
@@ -7210,6 +7483,12 @@
           "isRequired": null
         },
         {
+          "name": "MatchPoint",
+          "displayName": "代表匹配点",
+          "dataType": "Point",
+          "isRequired": null
+        },
+        {
           "name": "IsMatch",
           "displayName": "是否匹配",
           "dataType": "Boolean",
@@ -7331,6 +7610,12 @@
           "isRequired": null
         },
         {
+          "name": "MatchPoint",
+          "displayName": "代表匹配点",
+          "dataType": "Point",
+          "isRequired": null
+        },
+        {
           "name": "IsMatch",
           "displayName": "是否匹配",
           "dataType": "Boolean",
@@ -7398,6 +7683,28 @@
           "max": "100",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "EnableSymmetryTest",
+          "displayName": "对称测试",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinMatchCount",
+          "displayName": "最小匹配数",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "10",
+          "min": "3",
+          "max": "100",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -7415,7 +7722,7 @@
       "id": "GradientShapeMatch",
       "type": 92,
       "displayName": "梯度形状匹配",
-      "description": "基于梯度方向的形状匹配，支持旋转不变性",
+      "description": "基于梯度方向的形状匹配，支持旋转不变性。",
       "category": "匹配定位",
       "version": "1.0.0",
       "tags": [
@@ -7495,7 +7802,7 @@
         },
         {
           "name": "AngleRange",
-          "displayName": "角度范围(±)",
+          "displayName": "角度范围(°)",
           "dataType": "int",
           "description": null,
           "defaultValue": "180",
@@ -7523,6 +7830,17 @@
           "defaultValue": "30",
           "min": "0",
           "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableCache",
+          "displayName": "启用缓存",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         }
@@ -7934,6 +8252,18 @@
           "displayName": "元素",
           "dataType": "Any",
           "isRequired": null
+        },
+        {
+          "name": "Found",
+          "displayName": "是否找到",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "Index",
+          "displayName": "索引",
+          "dataType": "Integer",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -8275,6 +8605,36 @@
           "name": "Output",
           "displayName": "Output",
           "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "AsString",
+          "displayName": "As String",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "AsFloat",
+          "displayName": "As Float",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "AsInteger",
+          "displayName": "As Integer",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "AsBoolean",
+          "displayName": "As Boolean",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "OriginalType",
+          "displayName": "Original Type",
+          "dataType": "String",
           "isRequired": null
         }
       ],
@@ -8939,6 +9299,12 @@
       ],
       "outputPorts": [
         {
+          "name": "Result",
+          "displayName": "结果",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
           "name": "MergedList",
           "displayName": "合并列表",
           "dataType": "Any",
@@ -8994,13 +9360,13 @@
         }
       ],
       "quality": {
-        "totalScore": 61,
+        "totalScore": 66,
         "level": "C",
         "documentationScore": 100,
         "testCoverageScore": 30,
-        "parameterValidationScore": 80,
+        "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
       },
       "docPath": "docs/operators/Aggregator.md"
     },
@@ -9528,6 +9894,17 @@
               "label": "Custom"
             }
           ]
+        },
+        {
+          "name": "CustomAngle",
+          "displayName": "Custom Angle",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "-180",
+          "max": "180",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -10737,7 +11114,14 @@
         "算法类型:自研"
       ],
       "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
-      "inputPorts": [],
+      "inputPorts": [
+        {
+          "name": "Signal",
+          "displayName": "Signal",
+          "dataType": "Boolean",
+          "isRequired": false
+        }
+      ],
       "outputPorts": [
         {
           "name": "Triggered",

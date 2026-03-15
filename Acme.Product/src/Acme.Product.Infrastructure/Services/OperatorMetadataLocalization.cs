@@ -111,7 +111,7 @@ internal static class OperatorMetadataLocalization
             [OperatorType.ScriptOperator] = new("脚本算子", "逻辑工具"),
             [OperatorType.SerialCommunication] = new("串口通信", "通信"),
             [OperatorType.ShadingCorrection] = new("光照校正", "预处理"),
-            [OperatorType.ShapeMatching] = new("形状匹配", "匹配定位"),
+            [OperatorType.ShapeMatching] = new("旋转尺度模板匹配", "匹配定位"),
             [OperatorType.SharpnessEvaluation] = new("清晰度评估", "检测"),
             [OperatorType.SiemensS7Communication] = new("西门子S7通信", "通信"),
             [OperatorType.Statistics] = new("统计分析", "通用"),

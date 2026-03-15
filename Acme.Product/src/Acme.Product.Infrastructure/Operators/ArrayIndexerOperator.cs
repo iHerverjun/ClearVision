@@ -33,6 +33,8 @@ namespace Acme.Product.Infrastructure.Operators;
 )]
 [InputPort("List", "列表", PortDataType.Any, IsRequired = true)]
 [OutputPort("Item", "元素", PortDataType.Any)]
+[OutputPort("Found", "是否找到", PortDataType.Boolean)]
+[OutputPort("Index", "索引", PortDataType.Integer)]
 [OperatorParam("Mode", "提取模式", "enum", DefaultValue = "Index", Options = new[] { "Index|按索引", "MaxConfidence|最大置信度", "MaxArea|最大面积", "MinArea|最小面积", "First|第一个", "Last|最后一个" })]
 [OperatorParam("Index", "索引", "int", DefaultValue = 0)]
 public class ArrayIndexerOperator : OperatorBase
@@ -51,10 +53,14 @@ public class ArrayIndexerOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("ArrayIndexer 算子需要输入数据"));
         }
 
-        // 获取输入列表
-        if (!inputs.TryGetValue("Items", out var itemsObj) || itemsObj == null)
+        // 获取输入列表 - 优先使用 "List"，向后兼容 "Items"
+        if (!inputs.TryGetValue("List", out var itemsObj) || itemsObj == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供 Items 输入"));
+            // 向后兼容：尝试读取旧的 "Items" 键
+            if (!inputs.TryGetValue("Items", out itemsObj) || itemsObj == null)
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure("未提供 List 输入"));
+            }
         }
 
         // 解析输入列表
@@ -68,7 +74,7 @@ public class ArrayIndexerOperator : OperatorBase
         {
             return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
-                { "Result", null! },
+                { "Item", null! },
                 { "Found", false },
                 { "Index", -1 }
             }));
@@ -87,7 +93,7 @@ public class ArrayIndexerOperator : OperatorBase
             {
                 return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
                 {
-                    { "Result", null! },
+                    { "Item", null! },
                     { "Found", false },
                     { "Index", -1 },
                     { "Message", $"未找到标签为 '{labelFilter}' 的项" }
@@ -159,7 +165,7 @@ public class ArrayIndexerOperator : OperatorBase
 
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
-            { "Result", result! },
+            { "Item", result! },
             { "Found", result != null },
             { "Index", resultIndex },
             { "TotalCount", items.Count },

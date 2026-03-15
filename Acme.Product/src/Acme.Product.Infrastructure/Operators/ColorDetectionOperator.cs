@@ -136,7 +136,15 @@ public class ColorDetectionOperator : OperatorBase
             { "ColorSpace", colorSpace },
             { "AnalysisMode", "Average" },
             { "AverageColor", colorData },
-            { "Info", info }
+            { "Info", info },
+            { "ColorInfo", new Dictionary<string, object>
+                {
+                    { "ColorSpace", colorSpace },
+                    { "AnalysisMode", "Average" },
+                    { "AverageColor", colorData },
+                    { "Summary", info }
+                }
+            }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
@@ -217,7 +225,15 @@ public class ColorDetectionOperator : OperatorBase
             { "ColorSpace", "BGR" },
             { "AnalysisMode", "Dominant" },
             { "DominantColors", dominantColors },
-            { "K", k }
+            { "K", k },
+            { "ColorInfo", new Dictionary<string, object>
+                {
+                    { "ColorSpace", "BGR" },
+                    { "AnalysisMode", "Dominant" },
+                    { "DominantColors", dominantColors },
+                    { "K", k }
+                }
+            }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
@@ -273,7 +289,26 @@ public class ColorDetectionOperator : OperatorBase
             { "Percentage", percentage },
             { "WhitePixels", whitePixels },
             { "TotalPixels", totalPixels },
-            { "Range", new { HueLow = hueLow, HueHigh = hueHigh, SatLow = satLow, SatHigh = satHigh, ValLow = valLow, ValHigh = valHigh } }
+            { "Range", new { HueLow = hueLow, HueHigh = hueHigh, SatLow = satLow, SatHigh = satHigh, ValLow = valLow, ValHigh = valHigh } },
+            { "ColorInfo", new Dictionary<string, object>
+                {
+                    { "ColorSpace", colorSpace },
+                    { "AnalysisMode", "Range" },
+                    { "Coverage", percentage },
+                    { "WhitePixels", whitePixels },
+                    { "TotalPixels", totalPixels },
+                    { "Range", new Dictionary<string, object>
+                        {
+                            { "HueLow", hueLow },
+                            { "HueHigh", hueHigh },
+                            { "SatLow", satLow },
+                            { "SatHigh", satHigh },
+                            { "ValLow", valLow },
+                            { "ValHigh", valHigh }
+                        }
+                    }
+                }
+            }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(overlay, additionalData));

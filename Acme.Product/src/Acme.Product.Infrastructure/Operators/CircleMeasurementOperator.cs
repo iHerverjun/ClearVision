@@ -132,6 +132,9 @@ public class CircleMeasurementOperator : OperatorBase
             var firstCircleData = circleDataList.FirstOrDefault();
             if (firstCircle != null)
             {
+                additionalData["Center"] = new Position(
+                    Convert.ToDouble(firstCircle["CenterX"]),
+                    Convert.ToDouble(firstCircle["CenterY"]));
                 additionalData["CenterX"] = firstCircle["CenterX"];
                 additionalData["CenterY"] = firstCircle["CenterY"];
                 additionalData["Radius"] = firstCircle["Radius"];

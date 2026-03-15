@@ -28,6 +28,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100, Min = 0)]
 [OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000, Min = 0)]
 [OperatorParam("Color", "目标颜色", "enum", DefaultValue = "White", Options = new[] { "White|白色", "Black|黑色" })]
+[OperatorParam("MinCircularity", "最小圆度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("MinConvexity", "最小凸度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("MinInertiaRatio", "最小惯性比", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
 public class BlobDetectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BlobAnalysis;
@@ -48,6 +51,7 @@ public class BlobDetectionOperator : OperatorBase
 
         var minArea = GetFloatParam(@operator, "MinArea", 100f, min: 0);
         var maxArea = GetFloatParam(@operator, "MaxArea", 100000f, min: 0);
+        var color = GetStringParam(@operator, "Color", "White");
         var minCircularity = GetDoubleParam(@operator, "MinCircularity", 0.0, min: 0, max: 1.0);
         var minConvexity = GetDoubleParam(@operator, "MinConvexity", 0.0, min: 0, max: 1.0);
         var minInertiaRatio = GetDoubleParam(@operator, "MinInertiaRatio", 0.0, min: 0, max: 1.0);
@@ -63,6 +67,8 @@ public class BlobDetectionOperator : OperatorBase
         detector.FilterByArea = true;
         detector.MinArea = minArea;
         detector.MaxArea = maxArea;
+        detector.FilterByColor = true;
+        detector.BlobColor = color.Equals("Black", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)255;
 
         if (minCircularity > 0)
         {
@@ -127,6 +133,13 @@ public class BlobDetectionOperator : OperatorBase
         if (minArea >= maxArea)
         {
             return ValidationResult.Invalid("最小面积必须小于最大面积");
+        }
+
+        var color = GetStringParam(@operator, "Color", "White");
+        var validColors = new[] { "White", "Black" };
+        if (!validColors.Contains(color, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("Color must be White or Black.");
         }
 
         return ValidationResult.Valid();

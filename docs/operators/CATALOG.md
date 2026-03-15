@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-14 22:17:22 +08:00`
+> 生成时间 / Generated At: `2026-03-15 14:24:43 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -40,7 +40,7 @@
 ### AI检测 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.DeepLearning` | 深度学习 | 1 | 5 | 7 | 100 (A) | `1.0.0` | 当前实现是一个基于 ONNX Runtime 的 YOLO 推理算子，支持： | [DeepLearning](./DeepLearning.md) |
+| `OperatorType.DeepLearning` | 深度学习 | 1 | 6 | 9 | 100 (A) | `1.0.0` | 当前实现是一个基于 ONNX Runtime 的 YOLO 推理算子，支持： | [DeepLearning](./DeepLearning.md) |
 | `OperatorType.DualModalVoting` | 双模态投票 | 2 | 3 | 6 | 90 (A) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [DualModalVoting](./DualModalVoting.md) |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | 3 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [EdgePairDefect](./EdgePairDefect.md) |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | 2 | 4 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SurfaceDefectDetection](./SurfaceDefectDetection.md) |
@@ -48,12 +48,12 @@
 ### 匹配定位 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 2 | 4 | 5 | 73 (B) | `1.0.0` | 该算子基于局部特征点匹配完成模板定位，核心流程是： | [AkazeFeatureMatch](./AkazeFeatureMatch.md) |
-| `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 5 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./GradientShapeMatch.md) |
-| `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 4 | 5 | 73 (B) | `1.0.0` | 该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配… | [OrbFeatureMatch](./OrbFeatureMatch.md) |
+| `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 2 | 5 | 5 | 73 (B) | `1.0.0` | 该算子基于局部特征点匹配完成模板定位，核心流程是： | [AkazeFeatureMatch](./AkazeFeatureMatch.md) |
+| `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 6 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./GradientShapeMatch.md) |
+| `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 5 | 7 | 73 (B) | `1.0.0` | 该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配… | [OrbFeatureMatch](./OrbFeatureMatch.md) |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 2 | 5 | 5 | 83 (B) | `1.0.0` | 该算子围绕模板、特征或几何相似性执行定位匹配，用于判断目标是否存在以及位姿大致位置。 | [PyramidShapeMatch](./PyramidShapeMatch.md) |
-| `OperatorType.ShapeMatching` | Shape Matching | 2 | 2 | 7 | 100 (A) | `1.0.0` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./ShapeMatching.md) |
-| `OperatorType.TemplateMatching` | 模板匹配 | 2 | 4 | 3 | 96 (A) | `1.0.0` | 该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全… | [TemplateMatching](./TemplateMatching.md) |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.0.0` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./ShapeMatching.md) |
+| `OperatorType.TemplateMatching` | 模板匹配 | 2 | 6 | 3 | 96 (A) | `1.0.0` | 该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全… | [TemplateMatching](./TemplateMatching.md) |
 
 ### 变量 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -91,8 +91,8 @@
 ### 数据处理 (10)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.Aggregator` | 数据聚合 | 3 | 4 | 1 | 61 (C) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [Aggregator](./Aggregator.md) |
-| `OperatorType.ArrayIndexer` | 数组索引器 | 1 | 1 | 2 | 79 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [ArrayIndexer](./ArrayIndexer.md) |
+| `OperatorType.Aggregator` | 数据聚合 | 3 | 5 | 1 | 66 (C) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [Aggregator](./Aggregator.md) |
+| `OperatorType.ArrayIndexer` | 数组索引器 | 1 | 3 | 2 | 79 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [ArrayIndexer](./ArrayIndexer.md) |
 | `OperatorType.BoxFilter` | 候选框过滤 (Bounding Box) | 2 | 3 | 9 | 90 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [BoxFilter](./BoxFilter.md) |
 | `OperatorType.BoxNms` | 候选框抑制 | 2 | 3 | 3 | 90 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [BoxNms](./BoxNms.md) |
 | `OperatorType.DatabaseWrite` | 数据库写入 | 1 | 2 | 3 | 100 (A) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [DatabaseWrite](./DatabaseWrite.md) |
@@ -121,7 +121,7 @@
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./ContourMeasurement.md) |
 | `OperatorType.GapMeasurement` | 间隙测量 | 2 | 6 | 4 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GapMeasurement](./GapMeasurement.md) |
 | `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 2 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeoMeasurement](./GeoMeasurement.md) |
-| `OperatorType.GeometricFitting` | Geometric Fitting | 1 | 2 | 7 | 100 (A) | `1.0.0` | 当前实现的几何拟合流程并不是直接接收点集输入，而是： | [GeometricFitting](./GeometricFitting.md) |
+| `OperatorType.GeometricFitting` | Geometric Fitting | 1 | 2 | 8 | 100 (A) | `1.0.0` | 当前实现的几何拟合流程并不是直接接收点集输入，而是： | [GeometricFitting](./GeometricFitting.md) |
 | `OperatorType.GeometricTolerance` | 几何公差 | 1 | 5 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeometricTolerance](./GeometricTolerance.md) |
 | `OperatorType.HistogramAnalysis` | 直方图分析 | 1 | 7 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [HistogramAnalysis](./HistogramAnalysis.md) |
 | `OperatorType.LineLineDistance` | 线线距离 | 2 | 5 | 1 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [LineLineDistance](./LineLineDistance.md) |
@@ -130,7 +130,7 @@
 | `OperatorType.PixelStatistics` | 像素统计 | 2 | 6 | 5 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [PixelStatistics](./PixelStatistics.md) |
 | `OperatorType.PointLineDistance` | 点线距离 | 2 | 2 | 0 | 91 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [PointLineDistance](./PointLineDistance.md) |
 | `OperatorType.SharpnessEvaluation` | 清晰度评估 | 1 | 3 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [SharpnessEvaluation](./SharpnessEvaluation.md) |
-| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 4 | 3 | 96 (A) | `1.0.0` | 当前实现有两种工作模式： | [WidthMeasurement](./WidthMeasurement.md) |
+| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 4 | 4 | 96 (A) | `1.0.0` | 当前实现有两种工作模式： | [WidthMeasurement](./WidthMeasurement.md) |
 
 ### 流程控制 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -145,8 +145,8 @@
 ### 特征提取 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.BlobAnalysis` | Blob分析 | 1 | 3 | 3 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./BlobAnalysis.md) |
-| `OperatorType.ContourDetection` | 轮廓检测 | 1 | 3 | 5 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourDetection](./ContourDetection.md) |
+| `OperatorType.BlobAnalysis` | Blob分析 | 1 | 3 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./BlobAnalysis.md) |
+| `OperatorType.ContourDetection` | 轮廓检测 | 1 | 3 | 8 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourDetection](./ContourDetection.md) |
 | `OperatorType.EdgeDetection` | Edge Detection | 1 | 2 | 7 | 76 (B) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [EdgeDetection](./EdgeDetection.md) |
 | `OperatorType.SubpixelEdgeDetection` | Subpixel Edge Detection | 1 | 2 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SubpixelEdgeDetection](./SubpixelEdgeDetection.md) |
 
@@ -166,7 +166,7 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ImageSave` | 图像保存 | 1 | 2 | 3 | 83 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ImageSave](./ImageSave.md) |
-| `OperatorType.ResultOutput` | 结果输出 | 4 | 1 | 2 | 79 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
+| `OperatorType.ResultOutput` | 结果输出 | 4 | 6 | 2 | 84 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
 
 ### 通信 (8)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -186,7 +186,7 @@
 | `OperatorType.LogicGate` | 逻辑门 | 2 | 1 | 1 | 73 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [LogicGate](./LogicGate.md) |
 | `OperatorType.Statistics` | Statistics | 1 | 7 | 5 | 90 (A) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [Statistics](./Statistics.md) |
 | `OperatorType.StringFormat` | 字符串格式化 | 2 | 1 | 1 | 76 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [StringFormat](./StringFormat.md) |
-| `OperatorType.TypeConvert` | Type Convert | 1 | 1 | 2 | 83 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [TypeConvert](./TypeConvert.md) |
+| `OperatorType.TypeConvert` | Type Convert | 1 | 6 | 2 | 83 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [TypeConvert](./TypeConvert.md) |
 
 ### 逻辑工具 (5)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -195,12 +195,12 @@
 | `OperatorType.ScriptOperator` | 脚本算子 | 4 | 2 | 3 | 100 (A) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [ScriptOperator](./ScriptOperator.md) |
 | `OperatorType.TextSave` | Text Save | 2 | 2 | 5 | 100 (A) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [TextSave](./TextSave.md) |
 | `OperatorType.TimerStatistics` | 计时统计 | 1 | 4 | 2 | 84 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [TimerStatistics](./TimerStatistics.md) |
-| `OperatorType.TriggerModule` | 触发模块 | 0 | 3 | 3 | 84 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [TriggerModule](./TriggerModule.md) |
+| `OperatorType.TriggerModule` | 触发模块 | 1 | 3 | 3 | 84 (B) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [TriggerModule](./TriggerModule.md) |
 
 ### 采集 (1)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.ImageAcquisition` | 图像采集 | 0 | 1 | 3 | 78 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ImageAcquisition](./ImageAcquisition.md) |
+| `OperatorType.ImageAcquisition` | 图像采集 | 2 | 1 | 6 | 78 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ImageAcquisition](./ImageAcquisition.md) |
 
 ### 预处理 (23)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

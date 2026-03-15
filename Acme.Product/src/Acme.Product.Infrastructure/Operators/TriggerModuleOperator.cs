@@ -17,6 +17,7 @@ namespace Acme.Product.Infrastructure.Operators;
     IconName = "trigger",
     Keywords = new[] { "trigger", "start", "timer", "external signal" }
 )]
+[InputPort("Signal", "Signal", PortDataType.Boolean, IsRequired = false)]
 [OutputPort("Triggered", "Triggered", PortDataType.Boolean)]
 [OutputPort("Timestamp", "Timestamp", PortDataType.String)]
 [OutputPort("TriggerCount", "Trigger Count", PortDataType.Integer)]
@@ -133,11 +134,6 @@ public class TriggerModuleOperator : OperatorBase
         }
 
         if (inputs.TryGetValue("Signal", out var signalObj) && TryConvertToBool(signalObj, out signal))
-        {
-            return true;
-        }
-
-        if (inputs.TryGetValue("Trigger", out var triggerObj) && TryConvertToBool(triggerObj, out signal))
         {
             return true;
         }

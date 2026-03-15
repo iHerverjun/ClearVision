@@ -42,12 +42,13 @@ public class Sprint2_ArrayIndexerTests
             { "Index", 1 }
         });
 
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
         Assert.True((bool)result.OutputData!["Found"]);
         Assert.Equal(1, result.OutputData["Index"]);
+        Assert.True(result.OutputData.ContainsKey("Item"), "应包含 Item 输出键");
         Assert.Equal(3, result.OutputData["TotalCount"]);
     }
 
@@ -62,7 +63,7 @@ public class Sprint2_ArrayIndexerTests
         };
 
         var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MaxConfidence" } });
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
@@ -81,7 +82,7 @@ public class Sprint2_ArrayIndexerTests
         };
 
         var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MaxArea" } });
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
@@ -99,7 +100,7 @@ public class Sprint2_ArrayIndexerTests
         };
 
         var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MinArea" } });
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
@@ -111,7 +112,7 @@ public class Sprint2_ArrayIndexerTests
     {
         var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>();
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
@@ -135,7 +136,7 @@ public class Sprint2_ArrayIndexerTests
             { "LabelFilter", "Target" }
         });
 
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.True(result.IsSuccess);
@@ -154,7 +155,7 @@ public class Sprint2_ArrayIndexerTests
             { "Index", index }
         });
 
-        var inputs = new Dictionary<string, object> { { "Items", items } };
+        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.False(result.IsSuccess);
