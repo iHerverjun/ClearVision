@@ -16,11 +16,10 @@ export async function bootAuthenticatedApp(page: Page): Promise<void> {
   });
 
   await page.addInitScript(user => {
-    localStorage.setItem('cv_auth_token', 'e2e-token');
-    localStorage.setItem('cv_current_user', JSON.stringify(user));
+    sessionStorage.setItem('cv_auth_token', 'e2e-token');
+    sessionStorage.setItem('cv_current_user', JSON.stringify(user));
   }, E2E_USER);
 
   await page.goto('/index.html');
   await expect(page.locator('#app')).toBeVisible();
 }
-

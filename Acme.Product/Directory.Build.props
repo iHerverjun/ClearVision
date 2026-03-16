@@ -6,5 +6,6 @@
       and cause duplicate assembly attributes at compile time.
     -->
     <DefaultItemExcludes>$(DefaultItemExcludes);artifacts/**;**/artifacts/**</DefaultItemExcludes>
+    <MSBuildEnableWorkloadResolver>false</MSBuildEnableWorkloadResolver>
   </PropertyGroup>
 </Project>

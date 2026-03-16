@@ -87,7 +87,7 @@
             <div class="login-error" id="loginError"></div>
             
             <div class="login-footer">
-                <p>默认管理员: admin / admin123</p>
+                <p>首次启动会生成临时管理员密码，请按启动提示登录后立即修改。</p>
             </div>
         </div>
     </div>
@@ -122,23 +122,25 @@
 
     <script type="module">
         import httpClient from './src/core/messaging/httpClient.js';
+        import {
+            clearAuthSession,
+            getStoredToken,
+            storeAuthSession
+        } from './src/features/auth/authStorage.js';
         
         // 检查是否已登录
-        const token = localStorage.getItem('cv_auth_token');
+        const token = getStoredToken();
         if (token) {
             // 验证token是否有效
             try {
-                const response = await httpClient.get('/auth/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const response = await httpClient.get('/auth/me');
                 if (response) {
                     // 已登录，跳转到主页
                     window.location.href = '/index.html';
                 }
             } catch (e) {
                 // Token无效，清除并留在登录页
-                localStorage.removeItem('cv_auth_token');
-                localStorage.removeItem('cv_current_user');
+                clearAuthSession();
             }
         }
         
@@ -174,9 +176,8 @@
                 });
                 
                 if (response.token) {
-                    // 保存token
-                    localStorage.setItem('cv_auth_token', response.token);
-                    localStorage.setItem('cv_current_user', JSON.stringify(response.user));
+                    // 保存当前会话认证信息
+                    storeAuthSession(response.token, response.user);
                     
                     // 记住用户名
                     if (rememberMe) {

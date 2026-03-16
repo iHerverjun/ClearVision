@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-16 01:00:41 +08:00`
+> 生成时间 / Generated At: `2026-03-16 19:59:19 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -28,11 +28,11 @@
 | 颜色处理 | 2 | 1.7% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **88.7**
+- 平均分 / Average: **88.8**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 77 |
-| B | 35 |
+| A | 78 |
+| B | 34 |
 | C | 6 |
 
 ## 分类索引 / Grouped Index
@@ -174,7 +174,7 @@
 | `OperatorType.HttpRequest` | HTTP 请求 | 2 | 3 | 6 | 83 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [HttpRequest](./HttpRequest.md) |
 | `OperatorType.MitsubishiMcCommunication` | 三菱MC通信 | 1 | 2 | 12 | 80 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [MitsubishiMcCommunication](./MitsubishiMcCommunication.md) |
 | `OperatorType.ModbusCommunication` | Modbus通信 | 1 | 2 | 8 | 98 (A) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [ModbusCommunication](./ModbusCommunication.md) |
-| `OperatorType.MqttPublish` | MQTT 发布 | 2 | 1 | 4 | 83 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [MqttPublish](./MqttPublish.md) |
+| `OperatorType.MqttPublish` | MQTT 发布 | 2 | 1 | 6 | 100 (A) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [MqttPublish](./MqttPublish.md) |
 | `OperatorType.OmronFinsCommunication` | 欧姆龙FINS通信 | 1 | 2 | 12 | 80 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [OmronFinsCommunication](./OmronFinsCommunication.md) |
 | `OperatorType.SerialCommunication` | 串口通信 | 1 | 1 | 8 | 83 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [SerialCommunication](./SerialCommunication.md) |
 | `OperatorType.SiemensS7Communication` | 西门子S7通信 | 1 | 2 | 14 | 80 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [SiemensS7Communication](./SiemensS7Communication.md) |

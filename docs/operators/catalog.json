@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-16T01:00:41.9846479+08:00",
+  "generatedAt": "2026-03-16T19:59:19.7031372+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -9199,16 +9199,38 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "Retain",
+          "displayName": "保留消息",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "TimeoutMs",
+          "displayName": "超时(毫秒)",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "5000",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 83,
-        "level": "B",
+        "totalScore": 100,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/MqttPublish.md"
     },

@@ -777,7 +777,7 @@ async function initializeOperatorLibrary() {
     } catch (error) {
         console.error('[App] 加载算子库失败:', error);
         // 使用默认算子数据
-        renderOperatorLibrary(getDefaultOperators());
+        renderOperatorLibrary(getDeprecatedDefaultOperators());
     }
 }
 
@@ -825,14 +825,16 @@ function groupByCategory(operators) {
 /**
  * 获取默认算子数据
  */
-function getDefaultOperators() {
-    return [
+function getDeprecatedDefaultOperators() {
+    return [];
+    /*
         { type: 'ImageAcquisition', displayName: '图像采集', category: '输入', iconName: 'camera' },
         { type: 'Filtering', displayName: '滤波', category: '预处理', iconName: 'filter' },
         { type: 'EdgeDetection', displayName: '边缘检测', category: '特征提取', iconName: 'edge' },
         { type: 'Thresholding', displayName: '二值化', category: '预处理', iconName: 'threshold' },
         { type: 'ResultOutput', displayName: '结果输出', category: '输出', iconName: 'output' }
     ];
+    */
 }
 
 /**

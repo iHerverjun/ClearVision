@@ -42,6 +42,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Port", "端口", "int", DefaultValue = 1883)]
 [OperatorParam("Topic", "主题", "string", DefaultValue = "cv/results")]
 [OperatorParam("Qos", "QoS", "int", DefaultValue = 1)]
+[OperatorParam("Retain", "保留消息", "bool", DefaultValue = false)]
+[OperatorParam("TimeoutMs", "超时(毫秒)", "int", DefaultValue = 5000)]
 public class MqttPublishOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MqttPublish;
@@ -57,7 +59,7 @@ public class MqttPublishOperator : OperatorBase
         var broker = GetStringParam(@operator, "Broker", "localhost");
         var port = GetIntParam(@operator, "Port", 1883, 1, 65535);
         var topic = GetStringParam(@operator, "Topic", "");
-        var qos = GetIntParam(@operator, "QoS", 0, 0, 2);
+        var qos = GetQosParam(@operator, 0);
         var retain = GetBoolParam(@operator, "Retain", false);
         var timeoutMs = GetIntParam(@operator, "TimeoutMs", 5000, 1000, 30000);
 
@@ -68,7 +70,13 @@ public class MqttPublishOperator : OperatorBase
 
         // 构建消息体
         string message;
-        if (inputs != null && inputs.TryGetValue("Message", out var msgObj) && msgObj != null)
+        if (TryGetInputValue(inputs, "Payload", out var payloadObj) && payloadObj != null)
+        {
+            message = payloadObj is string payloadText
+                ? payloadText
+                : JsonSerializer.Serialize(payloadObj);
+        }
+        else if (TryGetInputValue(inputs, "Message", out var msgObj) && msgObj != null)
         {
             message = msgObj.ToString() ?? "";
         }
@@ -82,88 +90,66 @@ public class MqttPublishOperator : OperatorBase
             message = "{}";
         }
 
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs));
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken);
+        Logger.LogWarning(
+            "[MqttPublish] MQTT publish requested for {Broker}:{Port}/{Topic} with timeout {TimeoutMs}ms, but the runtime integration is not enabled in this build.",
+            broker, port, topic, timeoutMs);
 
-            // 模拟 MQTT 发布（实际实现需要 MQTTnet）
-            await PublishAsync(broker, port, topic, message, qos, retain, linkedCts.Token);
-
-            Logger.LogInformation("[MqttPublish] 消息已发布: {Broker}:{Port}/{Topic}, QoS={QoS}, Retain={Retain}",
-                broker, port, topic, qos, retain);
-
-            return OperatorExecutionOutput.Success(new Dictionary<string, object>
-            {
-                { "Success", true },
-                { "Broker", broker },
-                { "Port", port },
-                { "Topic", topic },
-                { "QoS", qos },
-                { "MessageLength", message.Length }
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            return OperatorExecutionOutput.Failure($"MQTT 发布超时 ({timeoutMs}ms)");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "[MqttPublish] 发布失败");
-            return OperatorExecutionOutput.Failure($"MQTT 发布失败: {ex.Message}");
-        }
+        return OperatorExecutionOutput.Failure(
+            "MQTT 发布功能在当前构建中未启用，请先接入 MQTT 客户端实现后再使用该算子。");
     }
 
-    /// <summary>
-    /// 模拟 MQTT 发布
-    /// 
-    /// 注意：此为占位实现，实际使用需要：
-    /// 1. 添加 MQTTnet NuGet 包
-    /// 2. 实现 MQTT 客户端连接管理
-    /// 3. 处理连接池和重连逻辑
-    /// </summary>
-    private async Task PublishAsync(
-        string broker, 
-        int port, 
-        string topic, 
-        string message, 
-        int qos, 
-        bool retain,
-        CancellationToken cancellationToken)
+    private static bool TryGetInputValue(
+        Dictionary<string, object>? inputs,
+        string key,
+        out object? value)
     {
-        // TODO: 实现实际的 MQTT 发布逻辑
-        // 示例代码（需要 MQTTnet）：
-        /*
-        var factory = new MqttFactory();
-        using var client = factory.CreateMqttClient();
-        
-        var options = new MqttClientOptionsBuilder()
-            .WithTcpServer(broker, port)
-            .Build();
-        
-        await client.ConnectAsync(options, cancellationToken);
-        
-        var messageBuilder = new MqttApplicationMessageBuilder()
-            .WithTopic(topic)
-            .WithPayload(message)
-            .WithQualityOfServiceLevel((MqttQualityOfServiceLevel)qos)
-            .WithRetainFlag(retain);
-        
-        await client.PublishAsync(messageBuilder.Build(), cancellationToken);
-        await client.DisconnectAsync();
-        */
+        value = null;
+        if (inputs == null)
+        {
+            return false;
+        }
 
-        // 模拟异步操作
-        await Task.Delay(10, cancellationToken);
-        
-        Logger.LogDebug("[MqttPublish] 模拟发布到 {Broker}:{Port}/{Topic}", broker, port, topic);
+        if (inputs.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        var match = inputs.FirstOrDefault(entry => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(match.Key))
+        {
+            return false;
+        }
+
+        value = match.Value;
+        return true;
+    }
+
+    private static int GetQosParam(Operator @operator, int defaultValue)
+    {
+        var param = @operator.Parameters.FirstOrDefault(p =>
+            string.Equals(p.Name, "Qos", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Name, "QoS", StringComparison.OrdinalIgnoreCase));
+
+        if (param?.GetValue() == null)
+        {
+            return defaultValue;
+        }
+
+        try
+        {
+            return Math.Clamp(Convert.ToInt32(param.GetValue()), 0, 2);
+        }
+        catch
+        {
+            return defaultValue;
+        }
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var broker = GetStringParam(@operator, "Broker", "");
         var topic = GetStringParam(@operator, "Topic", "");
-        var qos = GetIntParam(@operator, "QoS", 0);
+        var qos = GetQosParam(@operator, 0);
 
         if (string.IsNullOrWhiteSpace(broker))
         {

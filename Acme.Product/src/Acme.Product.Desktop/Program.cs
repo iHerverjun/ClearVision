@@ -17,6 +17,7 @@ using Serilog;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Acme.Product.Desktop.Endpoints;
 using Acme.Product.Desktop.Middleware;
 using Acme.Product.Infrastructure.Services;
@@ -28,6 +29,10 @@ namespace Acme.Product.Desktop;
 
 static class Program
 {
+    private const int MinWebPort = 5000;
+    private const int MaxWebPort = 5010;
+    private const string InitialAdminUsername = "admin";
+    private const string InitialAdminPasswordEnvVar = "CLEARVISION_INITIAL_ADMIN_PASSWORD";
     private static IHost? _host;
     private static int _webPort = 0;
 
@@ -115,7 +120,7 @@ static class Program
     {
         try
         {
-            _webPort = FindAvailablePort(5000, 6000);
+            _webPort = FindAvailablePort(MinWebPort, MaxWebPort);
 
             var builder = WebApplication.CreateBuilder();
 
@@ -154,7 +159,14 @@ static class Program
             {
                 var services = scope.ServiceProvider;
                 var dbContext = services.GetRequiredService<Acme.Product.Infrastructure.Data.VisionDbContext>();
-                dbContext.Database.EnsureCreated();
+                if (dbContext.Database.GetMigrations().Any())
+                {
+                    dbContext.Database.Migrate();
+                }
+                else
+                {
+                    dbContext.Database.EnsureCreated();
+                }
 
                 // 初始化相机管理器绑定
                 var cameraManager = services.GetRequiredService<Acme.Product.Core.Cameras.ICameraManager>();
@@ -321,16 +333,58 @@ static class Program
             var userRepository = serviceProvider.GetRequiredService<Acme.Product.Core.Interfaces.IUserRepository>();
             var passwordHasher = serviceProvider.GetRequiredService<Acme.Product.Application.Services.IPasswordHasher>();
 
-            var existingAdmin = await userRepository.GetByUsernameAsync("admin");
+            var existingAdmin = await userRepository.GetByUsernameAsync(InitialAdminUsername);
             if (existingAdmin == null)
             {
-                var adminUser = Acme.Product.Core.Entities.User.Create("admin", passwordHasher.HashPassword("admin123"), "系统管理员", UserRole.Admin);
+                var initialPassword = ResolveInitialAdminPassword();
+                var adminUser = Acme.Product.Core.Entities.User.Create(
+                    InitialAdminUsername,
+                    passwordHasher.HashPassword(initialPassword),
+                    "系统管理员",
+                    UserRole.Admin);
                 await userRepository.AddAsync(adminUser);
+                NotifyInitialAdminPassword(initialPassword);
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"初始化管理员失败: {ex.Message}");
         }
+    }
+
+    private static string ResolveInitialAdminPassword()
+    {
+        var configuredPassword = Environment.GetEnvironmentVariable(InitialAdminPasswordEnvVar);
+        if (!string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            return configuredPassword.Trim();
+        }
+
+        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+        Span<byte> buffer = stackalloc byte[16];
+        RandomNumberGenerator.Fill(buffer);
+
+        return new string(buffer.ToArray().Select(value => alphabet[value % alphabet.Length]).ToArray());
+    }
+
+    private static void NotifyInitialAdminPassword(string password)
+    {
+        Debug.WriteLine($"[Security] Generated initial admin password for '{InitialAdminUsername}'. Change it after first login.");
+
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(InitialAdminPasswordEnvVar)))
+        {
+            return;
+        }
+
+        if (!Environment.UserInteractive)
+        {
+            return;
+        }
+
+        MessageBox.Show(
+            $"已创建初始管理员账户:\n用户名: {InitialAdminUsername}\n临时密码: {password}\n\n请在首次登录后立即修改密码。",
+            "初始管理员密码",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 }

@@ -19,7 +19,8 @@
 ### 常看补充
 - 算子变更汇总：[`CHANGELOG.md`](./CHANGELOG.md)
 - 算子版本历史：[`version-history.json`](./version-history.json)
-- Bug 审计：[`BUG_AUDIT_2026-03-04.md`](./BUG_AUDIT_2026-03-04.md)
+- ??????????[COMPLETED_PROJECT_HISTORY.md](./COMPLETED_PROJECT_HISTORY.md)
+- ?????????[DEVELOPMENT_PLANNING_CONSOLIDATED.md](./DEVELOPMENT_PLANNING_CONSOLIDATED.md)
 - 当前架构审计：[`CURRENT_BUG_ARCH_AUDIT_2026-03-12.md`](./CURRENT_BUG_ARCH_AUDIT_2026-03-12.md)
 
 ## 推荐阅读顺序 / Recommended Reading Order
@@ -61,4 +62,3 @@
   - `docs/operator_catalog.json`
   - `docs/operators/CATALOG.md`
   - `docs/operators/catalog.json`
-

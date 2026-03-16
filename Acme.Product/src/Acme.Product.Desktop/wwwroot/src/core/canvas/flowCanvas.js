@@ -1646,13 +1646,6 @@ class FlowCanvas {
     /**
      * 清空画布
      */
-    clear() {
-        this.nodes.clear();
-        this.connections = [];
-        this.selectedNode = null;
-        this.render();
-    }
-
     /**
      * 检测鼠标位置是否在连接线上
      * @param {number} x - 鼠标X坐标（世界坐标）
@@ -1724,34 +1717,6 @@ class FlowCanvas {
     /**
      * 处理右键菜单
      */
-    handleContextMenu(e) {
-        e.preventDefault();
-
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / this.scale + this.offset.x;
-        const y = (e.clientY - rect.top) / this.scale + this.offset.y;
-
-        // 检查是否右键点击了连接线
-        const connection = this.getConnectionAt(x, y);
-        if (connection) {
-            if (confirm('确定要删除这条连接线吗？')) {
-                this.removeConnection(connection.id);
-            }
-            return;
-        }
-
-        // 检查是否右键点击了节点
-        for (const [id, node] of this.nodes) {
-            if (x >= node.x && x <= node.x + node.width &&
-                y >= node.y && y <= node.y + node.height) {
-                if (confirm(`确定要删除节点 "${node.title}" 吗？`)) {
-                    this.removeNode(id);
-                }
-                return;
-            }
-        }
-    }
-
     /**
      * 处理键盘事件
      */
@@ -1815,12 +1780,22 @@ class FlowCanvas {
      */
     handleContextMenu(e) {
         e.preventDefault();
-        
+
         const rect = this.canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / this.scale + this.offset.x;
         const y = (e.clientY - rect.top) / this.scale + this.offset.y;
-        
-        // 查找右键点击的节点
+
+        const connection = this.getConnectionAt(x, y);
+        if (connection) {
+            this.selectedNode = null;
+            this.selectedConnection = connection;
+
+            if (confirm('确定要删除这条连接线吗？')) {
+                this.removeConnection(connection.id);
+            }
+            return;
+        }
+
         let clickedNode = null;
         for (const [id, node] of this.nodes) {
             if (x >= node.x && x <= node.x + node.width &&
@@ -1829,10 +1804,15 @@ class FlowCanvas {
                 break;
             }
         }
-        
-        if (clickedNode) {
-            this.showNodeContextMenu(e.clientX, e.clientY, clickedNode.id);
+
+        if (!clickedNode) {
+            this.hideContextMenu();
+            return;
         }
+
+        this.selectedNode = clickedNode.id;
+        this.selectedConnection = null;
+        this.showNodeContextMenu(e.clientX, e.clientY, clickedNode.id);
     }
 
     /**

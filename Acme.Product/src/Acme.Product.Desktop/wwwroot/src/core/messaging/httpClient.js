@@ -3,6 +3,16 @@
  * 用于与后端 Minimal APIs 通信
  */
 
+import {
+    API_PORT_CANDIDATES,
+    DEFAULT_API_PORT,
+    buildLocalApiBaseUrl,
+    getSavedApiPort,
+    isHostInjectedEnvironment,
+    saveApiPort
+} from './apiConfig.js';
+import { getStoredToken } from '../../features/auth/authStorage.js';
+
 class HttpClient {
     constructor(baseUrl = null) {
         this._baseUrl = baseUrl;
@@ -14,11 +24,11 @@ class HttpClient {
 
     /**
      * 获取请求头（自动附加认证 Token）
-     * 每次请求时动态读取 localStorage 中的 Token
+     * 每次请求时动态读取当前会话中的 Token
      */
     get defaultHeaders() {
         const headers = { ...this._defaultHeaders };
-        const token = localStorage.getItem('cv_auth_token');
+        const token = getStoredToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
@@ -41,38 +51,36 @@ class HttpClient {
 
         // 如果是在 WebView2 (file://) 或 Electron 环境下运行
         // 或者使用虚拟主机 app.local
-        if (protocol === 'file:' || protocol === 'chrome-extension:' || hostname === 'app.local') {
+        if (isHostInjectedEnvironment()) {
             // 尝试从本地存储获取上次成功连接的端口
-            const savedPort = localStorage.getItem('cv_api_port');
+            const savedPort = getSavedApiPort();
             if (savedPort) {
                 console.log(`[HttpClient] 使用本地存储的端口: ${savedPort}`);
-                return `http://localhost:${savedPort}/api`;
+                return buildLocalApiBaseUrl(savedPort);
             }
 
             // 如果已经发现过端口，使用发现的端口
             if (this._discoveredPort) {
-                return `http://localhost:${this._discoveredPort}/api`;
+                return buildLocalApiBaseUrl(this._discoveredPort);
             }
 
             // 默认回退到 localhost:5000
             console.warn('[HttpClient] 警告: 未检测到 API 配置，将尝试自动发现端口');
-            return 'http://localhost:5000/api';
+            return buildLocalApiBaseUrl(DEFAULT_API_PORT);
         }
 
         // 浏览器环境：使用当前页面端口
-        return `${protocol}//${hostname}:${port || 5000}/api`;
+        return `${protocol}//${hostname}:${port || DEFAULT_API_PORT}/api`;
     }
 
     /**
      * 自动发现可用端口
-     * 尝试连接 5000-5010 端口，找到实际运行的后端服务
+     * 尝试连接与宿主一致的 5000-5010 端口范围
      */
     async discoverPort() {
         if (this._discoveredPort) return this._discoveredPort;
 
-        const testPorts = [5000, 5001, 5002, 5003, 5004, 5005];
-
-        for (const port of testPorts) {
+        for (const port of API_PORT_CANDIDATES) {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 500);
@@ -87,7 +95,7 @@ class HttpClient {
                 if (response.ok) {
                     console.log(`[HttpClient] 发现后端服务运行在端口: ${port}`);
                     this._discoveredPort = port;
-                    localStorage.setItem('cv_api_port', port.toString());
+                    saveApiPort(port);
                     return port;
                 }
             } catch (e) {
@@ -105,7 +113,7 @@ class HttpClient {
         try {
             const match = url.match(/:(\d+)\/api/);
             if (match) {
-                localStorage.setItem('cv_api_port', match[1]);
+                saveApiPort(Number.parseInt(match[1], 10));
                 console.log(`[HttpClient] 已保存 API 端口: ${match[1]}`);
             }
         } catch (e) {
@@ -133,9 +141,9 @@ class HttpClient {
             // 如果是连接错误，尝试自动发现端口并重试
             if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
                 const discoveredPort = await this.discoverPort();
-                if (discoveredPort && discoveredPort !== 5000) {
+                if (discoveredPort && discoveredPort !== DEFAULT_API_PORT) {
                     console.log(`[HttpClient] 尝试使用发现的端口 ${discoveredPort} 重试...`);
-                    fullUrl = `http://localhost:${discoveredPort}/api${url}${queryString}`;
+                    fullUrl = `${buildLocalApiBaseUrl(discoveredPort)}${url}${queryString}`;
                     const response = await fetch(fullUrl, {
                         method: 'GET',
                         headers: this.defaultHeaders
@@ -167,9 +175,9 @@ class HttpClient {
             // 如果是连接错误，尝试自动发现端口并重试
             if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
                 const discoveredPort = await this.discoverPort();
-                if (discoveredPort && discoveredPort !== 5000) {
+                if (discoveredPort && discoveredPort !== DEFAULT_API_PORT) {
                     console.log(`[HttpClient] 尝试使用发现的端口 ${discoveredPort} 重试...`);
-                    fullUrl = `http://localhost:${discoveredPort}/api${url}`;
+                    fullUrl = `${buildLocalApiBaseUrl(discoveredPort)}${url}`;
                     const response = await fetch(fullUrl, {
                         method: 'POST',
                         headers: this.defaultHeaders,
@@ -202,9 +210,9 @@ class HttpClient {
             // 如果是连接错误，尝试自动发现端口并重试
             if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
                 const discoveredPort = await this.discoverPort();
-                if (discoveredPort && discoveredPort !== 5000) {
+                if (discoveredPort && discoveredPort !== DEFAULT_API_PORT) {
                     console.log(`[HttpClient] 尝试使用发现的端口 ${discoveredPort} 重试...`);
-                    fullUrl = `http://localhost:${discoveredPort}/api${url}`;
+                    fullUrl = `${buildLocalApiBaseUrl(discoveredPort)}${url}`;
                     const response = await fetch(fullUrl, {
                         method: 'POST',
                         headers: this.defaultHeaders,
@@ -262,7 +270,7 @@ class HttpClient {
 
 2️⃣ 后端运行在其他端口
    • 当前尝试端口: ${apiUrl.port}
-   • 后端可能运行在 5001-5005 范围
+   • 后端会在 5000-5010 范围内自动选择端口
 
 3️⃣ 防火墙/安全软件阻止
    • 检查 Windows Defender 或其他安全软件

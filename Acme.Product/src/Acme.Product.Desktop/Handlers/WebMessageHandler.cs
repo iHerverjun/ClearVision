@@ -3,13 +3,19 @@
 // 作者：蘅芜君
 
 using Acme.Product.Contracts.Messages;
+using Acme.Product.Application.DTOs;
+using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Enums;
+using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Extensions;
+using Acme.Product.Infrastructure.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Acme.Product.Infrastructure.Services;
@@ -55,10 +61,7 @@ public class WebMessageHandler
         {
             _logger.LogInformation("[WebMessageHandler] 处理消息: {MessageType}", message.Type);
 
-            var messageJson = JsonSerializer.Serialize(message, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            var messageJson = ExtractCommandJson(message);
 
             switch (message.Type)
             {
@@ -220,20 +223,12 @@ public class WebMessageHandler
 
         try
         {
-            // 创建 Scope
             using var scope = _scopeFactory.CreateScope();
             var flowService = scope.ServiceProvider.GetRequiredService<IFlowExecutionService>();
+            var op = await ResolveOperatorAsync(scope.ServiceProvider, command.OperatorId);
 
-            // 创建算子实例
-            var op = _operatorFactory.CreateOperator(
-                Enum.Parse<Core.Enums.OperatorType>(command.OperatorId.ToString()),
-                "TempOperator",
-                0, 0);
+            var result = await flowService.ExecuteOperatorAsync(op, NormalizeDictionary(command.Inputs));
 
-            // 执行算子
-            var result = await flowService.ExecuteOperatorAsync(op, command.Inputs);
-
-            // 发送结果事件
             var eventData = new OperatorExecutedEvent
             {
                 OperatorId = command.OperatorId,
@@ -273,13 +268,17 @@ public class WebMessageHandler
         if (command?.Flow == null)
             return;
 
-        // 保存流程到数据库 - 通过FlowExecutionService或专门的流程管理服务
-        // 实际实现需要注入IProjectRepository并调用UpdateFlowAsync
-        // 这里提供基础实现框架
-        _logger.LogInformation("流程更新请求: ProjectId={ProjectId}, OperatorCount={Count}",
-            command.ProjectId, command.Flow.Operators?.Count ?? 0);
+        using var scope = _scopeFactory.CreateScope();
+        var projectService = scope.ServiceProvider.GetRequiredService<ProjectService>();
+        var updateRequest = BuildUpdateFlowRequest(command.Flow);
 
-        await Task.CompletedTask;
+        _logger.LogInformation(
+            "[WebMessageHandler] 流程更新请求: ProjectId={ProjectId}, OperatorCount={OperatorCount}, ConnectionCount={ConnectionCount}",
+            command.ProjectId,
+            updateRequest.Operators.Count,
+            updateRequest.Connections.Count);
+
+        await projectService.UpdateFlowAsync(command.ProjectId, updateRequest);
 
         _logger.LogInformation("[WebMessageHandler] 流程已更新: {ProjectId}", command.ProjectId);
     }
@@ -326,10 +325,221 @@ public class WebMessageHandler
     /// <summary>
     /// 处理停止检测命令
     /// </summary>
-    private async Task HandleStopInspectionCommand()
+    private Task HandleStopInspectionCommand()
     {
-        _logger.LogInformation("[WebMessageHandler] 检测已停止");
-        await Task.CompletedTask;
+        throw new NotSupportedException(
+            "StopInspectionCommand 已停用。请改用 /api/inspection/realtime/stop HTTP 接口以避免假成功。");
+    }
+
+    private static string ExtractCommandJson(WebMessage message)
+    {
+        if (!string.IsNullOrWhiteSpace(message.Payload))
+        {
+            return message.Payload;
+        }
+
+        return JsonSerializer.Serialize(message, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+    }
+
+    private async Task<Operator> ResolveOperatorAsync(IServiceProvider serviceProvider, Guid operatorId)
+    {
+        var projectRepository = serviceProvider.GetRequiredService<IProjectRepository>();
+        var projectService = serviceProvider.GetRequiredService<ProjectService>();
+
+        foreach (var project in await projectRepository.GetAllAsync())
+        {
+            var projectDto = await projectService.GetByIdAsync(project.Id);
+            var operatorDto = projectDto?.Flow?.Operators?.FirstOrDefault(op => op.Id == operatorId);
+            if (operatorDto != null)
+            {
+                var flowDto = new OperatorFlowDto
+                {
+                    Name = projectDto?.Flow?.Name ?? "WebMessageFlow",
+                    Operators = new List<OperatorDto> { operatorDto }
+                };
+
+                return flowDto.ToEntity().Operators.Single();
+            }
+        }
+
+        var dbContext = serviceProvider.GetRequiredService<VisionDbContext>();
+        var databaseOperator = await dbContext.Operators
+            .Include(op => op.InputPorts)
+            .Include(op => op.OutputPorts)
+            .Include(op => op.Parameters)
+            .FirstOrDefaultAsync(op => op.Id == operatorId);
+
+        return databaseOperator
+            ?? throw new KeyNotFoundException($"未找到算子 {operatorId}");
+    }
+
+    private UpdateFlowRequest BuildUpdateFlowRequest(FlowData flowData)
+    {
+        var operators = flowData.Operators.Select(BuildOperatorDto).ToList();
+        var operatorsById = operators.ToDictionary(op => op.Id);
+        var connections = new List<OperatorConnectionDto>();
+
+        foreach (var connection in flowData.Connections)
+        {
+            if (!operatorsById.TryGetValue(connection.SourceOperatorId, out var sourceOperator))
+            {
+                throw new InvalidOperationException($"流程中不存在源算子 {connection.SourceOperatorId}");
+            }
+
+            if (!operatorsById.TryGetValue(connection.TargetOperatorId, out var targetOperator))
+            {
+                throw new InvalidOperationException($"流程中不存在目标算子 {connection.TargetOperatorId}");
+            }
+
+            var sourcePort = sourceOperator.OutputPorts.FirstOrDefault(port =>
+                string.Equals(port.Name, connection.SourcePort, StringComparison.OrdinalIgnoreCase));
+            if (sourcePort == null)
+            {
+                throw new InvalidOperationException(
+                    $"算子 {sourceOperator.Name} 上不存在输出端口 {connection.SourcePort}");
+            }
+
+            var targetPort = targetOperator.InputPorts.FirstOrDefault(port =>
+                string.Equals(port.Name, connection.TargetPort, StringComparison.OrdinalIgnoreCase));
+            if (targetPort == null)
+            {
+                throw new InvalidOperationException(
+                    $"算子 {targetOperator.Name} 上不存在输入端口 {connection.TargetPort}");
+            }
+
+            connections.Add(new OperatorConnectionDto
+            {
+                Id = Guid.NewGuid(),
+                SourceOperatorId = sourceOperator.Id,
+                SourcePortId = sourcePort.Id,
+                TargetOperatorId = targetOperator.Id,
+                TargetPortId = targetPort.Id
+            });
+        }
+
+        return new UpdateFlowRequest
+        {
+            Operators = operators,
+            Connections = connections
+        };
+    }
+
+    private OperatorDto BuildOperatorDto(OperatorData operatorData)
+    {
+        if (!Enum.TryParse<OperatorType>(operatorData.Type, true, out var operatorType))
+        {
+            throw new InvalidOperationException($"不支持的算子类型: {operatorData.Type}");
+        }
+
+        var @operator = _operatorFactory.CreateOperator(
+            operatorType,
+            string.IsNullOrWhiteSpace(operatorData.Name) ? operatorType.ToString() : operatorData.Name,
+            operatorData.X,
+            operatorData.Y);
+
+        typeof(Operator).GetProperty(nameof(Operator.Id))?.SetValue(@operator, operatorData.Id);
+
+        if (operatorData.Parameters != null)
+        {
+            foreach (var (name, value) in operatorData.Parameters)
+            {
+                var parameter = @operator.Parameters.FirstOrDefault(p =>
+                    string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+                if (parameter != null)
+                {
+                    parameter.SetValue(NormalizeJsonValue(value));
+                }
+            }
+        }
+
+        return new OperatorDto
+        {
+            Id = @operator.Id,
+            Name = @operator.Name,
+            Type = @operator.Type,
+            X = operatorData.X,
+            Y = operatorData.Y,
+            InputPorts = @operator.InputPorts.Select(port => new PortDto
+            {
+                Id = port.Id,
+                Name = port.Name,
+                Direction = port.Direction,
+                DataType = port.DataType,
+                IsRequired = port.IsRequired
+            }).ToList(),
+            OutputPorts = @operator.OutputPorts.Select(port => new PortDto
+            {
+                Id = port.Id,
+                Name = port.Name,
+                Direction = port.Direction,
+                DataType = port.DataType,
+                IsRequired = port.IsRequired
+            }).ToList(),
+            Parameters = @operator.Parameters.Select(parameter => new ParameterDto
+            {
+                Id = parameter.Id,
+                Name = parameter.Name,
+                DisplayName = parameter.DisplayName,
+                Description = parameter.Description,
+                DataType = parameter.DataType,
+                Value = parameter.Value,
+                DefaultValue = parameter.DefaultValue,
+                MinValue = parameter.MinValue,
+                MaxValue = parameter.MaxValue,
+                IsRequired = parameter.IsRequired,
+                Options = parameter.Options
+            }).ToList(),
+            IsEnabled = @operator.IsEnabled,
+            ExecutionStatus = @operator.ExecutionStatus,
+            ExecutionTimeMs = @operator.ExecutionTimeMs,
+            ErrorMessage = @operator.ErrorMessage
+        };
+    }
+
+    private static Dictionary<string, object>? NormalizeDictionary(Dictionary<string, object>? values)
+    {
+        if (values == null)
+        {
+            return null;
+        }
+
+        return values.ToDictionary(
+            item => item.Key,
+            item => NormalizeJsonValue(item.Value) ?? string.Empty,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static object? NormalizeJsonValue(object? value)
+    {
+        return value switch
+        {
+            JsonElement element => NormalizeJsonElement(element),
+            Dictionary<string, object> dictionary => NormalizeDictionary(dictionary),
+            IEnumerable<object> sequence => sequence.Select(NormalizeJsonValue).ToList(),
+            _ => value
+        };
+    }
+
+    private static object? NormalizeJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element.EnumerateObject()
+                .ToDictionary(property => property.Name, property => NormalizeJsonElement(property.Value) ?? string.Empty),
+            JsonValueKind.Array => element.EnumerateArray().Select(NormalizeJsonElement).ToList(),
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt64(out var longValue) => longValue,
+            JsonValueKind.Number when element.TryGetDouble(out var doubleValue) => doubleValue,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            JsonValueKind.Undefined => null,
+            _ => element.ToString()
+        };
     }
 
     /// <summary>

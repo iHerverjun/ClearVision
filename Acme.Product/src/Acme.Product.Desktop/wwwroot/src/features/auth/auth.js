@@ -2,23 +2,28 @@
  * 认证服务 - Token管理和权限检查
  */
 
-// Token存储键名
-const TOKEN_KEY = 'cv_auth_token';
-const USER_KEY = 'cv_current_user';
+import {
+    API_PORT_CANDIDATES,
+    DEFAULT_API_PORT,
+    buildLocalApiBaseUrl,
+    getSavedApiPort,
+    isHostInjectedEnvironment,
+    saveApiPort
+} from '../../core/messaging/apiConfig.js';
+import { clearAuthSession, getStoredToken, getStoredUser } from './authStorage.js';
 
 /**
  * 获取存储的Token
  */
 export function getToken() {
-    return localStorage.getItem(TOKEN_KEY);
+    return getStoredToken();
 }
 
 /**
  * 获取当前用户信息
  */
 export function getCurrentUser() {
-    const userJson = localStorage.getItem(USER_KEY);
-    return userJson ? JSON.parse(userJson) : null;
+    return getStoredUser();
 }
 
 /**
@@ -62,8 +67,7 @@ export function isOperator() {
  * 登出
  */
 export function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    clearAuthSession();
     window.location.href = '/login.html';
 }
 
@@ -137,19 +141,47 @@ export async function validateTokenAsync() {
     if (!token) return false;
 
     try {
-        // 构建 API URL (复制 httpClient 的发现逻辑)
-        let baseUrl = window.__API_BASE_URL__;
-        if (!baseUrl) {
-            const { protocol, hostname, port } = window.location;
-            if (protocol === 'file:' || protocol === 'chrome-extension:' || hostname === 'app.local') {
-                const savedPort = localStorage.getItem('cv_api_port');
-                baseUrl = `http://localhost:${savedPort || 5000}/api`;
-            } else {
-                baseUrl = `${protocol}//${hostname}:${port || 5000}/api`;
-            }
+        if (window.__API_BASE_URL__) {
+            const response = await fetch(`${window.__API_BASE_URL__}/auth/me`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            return response.ok;
         }
 
-        const response = await fetch(`${baseUrl}/auth/me`, {
+        if (isHostInjectedEnvironment()) {
+            const candidatePorts = [];
+            const savedPort = getSavedApiPort();
+
+            if (savedPort) {
+                candidatePorts.push(savedPort);
+            }
+
+            API_PORT_CANDIDATES
+                .filter(port => port !== savedPort)
+                .forEach(port => candidatePorts.push(port));
+
+            for (const port of candidatePorts) {
+                try {
+                    const response = await fetch(`${buildLocalApiBaseUrl(port)}/auth/me`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        saveApiPort(port);
+                        return true;
+                    }
+                } catch {
+                    // Try the next candidate port.
+                }
+            }
+
+            return false;
+        }
+
+        const { protocol, hostname, port } = window.location;
+        const response = await fetch(`${protocol}//${hostname}:${port || DEFAULT_API_PORT}/api/auth/me`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
