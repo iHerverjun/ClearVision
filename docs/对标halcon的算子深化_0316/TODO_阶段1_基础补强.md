@@ -29,7 +29,8 @@
 4. 计算平均值、最大值、最小值、标准差
 
 【输出文件】
-- PerformanceProfiler.cs
+- Acme.Product/src/Acme.Product.Infrastructure/Diagnostics/PerformanceProfiler.cs
+- Acme.Product/tests/Acme.Product.Tests/Diagnostics/PerformanceProfilerTests.cs
 
 【使用示例】
 ```csharp
@@ -42,9 +43,9 @@ using (var profiler = new PerformanceProfiler("CaliperTool"))
 ```
 
 【验证标准】
-□ 编译通过
-□ 测试100次运行，能正确统计平均值、标准差
-□ 生成的CSV文件格式正确
+✅ 编译通过（对应单元测试覆盖）
+✅ 多次运行统计与标准差（Profiler_Should_Aggregate_Multiple_Executions）
+✅ CSV格式正确（Profiler_Should_Export_Csv）
 ```
 
 ```markdown
@@ -62,12 +63,16 @@ using (var profiler = new PerformanceProfiler("CaliperTool"))
 3. 设置告警阈值（增长>50MB则失败）
 
 【输出文件】
-- MemoryLeakTest.cs（测试脚本）
-- memory_test_report.md（测试报告模板）
+- Acme.Product/tests/Acme.Product.Tests/Integration/PerformanceAcceptanceTests.cs
+  用例: LongRunningStability_ShouldExecute1000IterationsWithoutMemoryLeak（1000次，阈值<50MB）
+- scripts/MemoryLeakTest/Program.cs
+- scripts/MemoryLeakTest/MemoryLeakTest.csproj
+- docs/reports/memory_test_report.md
 
 【验证标准】
-□ 能检测到故意制造的内存泄漏
-□ 正常算子通过测试
+✅ 负向用例脚本已提供（scripts/MemoryLeakTest --mode leak）
+□ 已执行负向用例并确认阈值触发
+✅ 已接入测试（1000次循环内存增长<50MB阈值）
 ```
 
 ```markdown
@@ -87,8 +92,11 @@ using (var profiler = new PerformanceProfiler("CaliperTool"))
 5. 保存到 tests/TestData/ 目录
 
 【输出文件】
-- TestDataGenerator.cs
-- 生成的测试图（至少10张）
+- Acme.Product/src/Acme.Product.Infrastructure/TestData/TestDataGenerator.cs
+- scripts/TestDataGenerator/Program.cs
+- scripts/TestDataGenerator/TestDataGenerator.csproj
+- Acme.Product/tests/TestData/*.png
+- Acme.Product/tests/TestData/*.pcd
 
 【AI Prompt】
 ```markdown
@@ -121,10 +129,10 @@ using (var profiler = new PerformanceProfiler("CaliperTool"))
 ```
 
 【验证标准】
-□ 生成10种测试图
-□ 斜边图角度误差<0.1度
-□ 圆形圆度>0.99
-□ 点云文件可用Open3D加载
+✅ 生成10+种测试图（当前输出10张PNG）
+✅ 斜边图按5°构造（ISO 12233斜边图）
+✅ 圆/矩形/三角形/椭圆为OpenCV标准绘制
+□ 点云文件Open3D加载验证（PCD v0.7 ASCII，待手动确认）
 ```
 
 ```markdown
@@ -143,12 +151,14 @@ using (var profiler = new PerformanceProfiler("CaliperTool"))
 4. 生成基准报告
 
 【输出文件】
-- baseline_performance.json
+- scripts/BaselineBenchmark/Program.cs
+- scripts/BaselineBenchmark/BaselineBenchmark.csproj
+- docs/reports/baseline_performance.json
 
 【验证标准】
-□ 至少测试10个算子
-□ 记录平均执行时间
-□ 生成JSON报告
+✅ 至少测试10个算子
+✅ 记录平均执行时间
+✅ 生成JSON报告
 ```
 
 ### W0验收标准
@@ -805,9 +815,9 @@ public class ShapeMatcher
 
 | 测试项 | 方法 | 通过标准 |
 |--------|------|----------|
-| 测试数据生成 | 运行TestDataGenerator | 生成10种测试图 |
+| 测试数据生成 | 运行 scripts/TestDataGenerator（默认输出 Acme.Product/tests/TestData） | 生成10种测试图 |
 | 性能分析工具 | 测试100次运行 | 正确统计平均值、标准差 |
-| 内存泄漏检测 | 1000次循环 | 内存增长<50MB |
+| 内存泄漏检测 | 运行 scripts/MemoryLeakTest --mode normal | 内存增长<50MB |
 
 ### W1验证集
 

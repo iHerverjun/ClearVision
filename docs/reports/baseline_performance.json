@@ -1,0 +1,153 @@
+{
+  "GeneratedAtUtc": "2026-03-16T13:40:17.1281646Z",
+  "MachineName": "ROG16",
+  "OperatingSystem": "Microsoft Windows 10.0.22631",
+  "Framework": ".NET 8.0.17",
+  "IterationsPerImage": 8,
+  "Images": [
+    {
+      "Name": "shapes_composite.png",
+      "Path": "C:\\Users\\11234\\Desktop\\ClearVision\\Acme.Product\\tests\\TestData\\shapes_composite.png",
+      "Width": 512,
+      "Height": 512
+    },
+    {
+      "Name": "iso12233_slant_edge_512.png",
+      "Path": "C:\\Users\\11234\\Desktop\\ClearVision\\Acme.Product\\tests\\TestData\\iso12233_slant_edge_512.png",
+      "Width": 512,
+      "Height": 512
+    }
+  ],
+  "Operators": [
+    {
+      "OperatorType": "Filtering",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 0.3511,
+      "MinMs": 0.1882,
+      "MaxMs": 0.4734,
+      "StdDevMs": 0.062341017797273725,
+      "P95Ms": 0.4734,
+      "P99Ms": 0.4734,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "MedianBlur",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 1.6705937499999999,
+      "MinMs": 1.4712,
+      "MaxMs": 2.4183,
+      "StdDevMs": 0.33216537761473197,
+      "P95Ms": 2.4183,
+      "P99Ms": 2.4183,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "Thresholding",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 0.162975,
+      "MinMs": 0.1224,
+      "MaxMs": 0.3788,
+      "StdDevMs": 0.05846945249444363,
+      "P95Ms": 0.3788,
+      "P99Ms": 0.3788,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "AdaptiveThreshold",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 0.6825812499999999,
+      "MinMs": 0.548,
+      "MaxMs": 1.2378,
+      "StdDevMs": 0.18442443309777992,
+      "P95Ms": 1.2378,
+      "P99Ms": 1.2378,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "EdgeDetection",
+      "Category": "\u7279\u5F81\u63D0\u53D6",
+      "Samples": 16,
+      "AverageMs": 1.0316874999999999,
+      "MinMs": 0.7523,
+      "MaxMs": 1.7519,
+      "StdDevMs": 0.25490456271661754,
+      "P95Ms": 1.7519,
+      "P99Ms": 1.7519,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "Morphology",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 0.0788,
+      "MinMs": 0.061,
+      "MaxMs": 0.2771,
+      "StdDevMs": 0.05136375181000704,
+      "P95Ms": 0.2771,
+      "P99Ms": 0.2771,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "BlobAnalysis",
+      "Category": "\u7279\u5F81\u63D0\u53D6",
+      "Samples": 16,
+      "AverageMs": 2.48193125,
+      "MinMs": 1.4288,
+      "MaxMs": 3.7842,
+      "StdDevMs": 0.9742678948310046,
+      "P95Ms": 3.7842,
+      "P99Ms": 3.7842,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "CircleMeasurement",
+      "Category": "\u68C0\u6D4B",
+      "Samples": 16,
+      "AverageMs": 6.7661500000000006,
+      "MinMs": 5.5216,
+      "MaxMs": 9.5206,
+      "StdDevMs": 0.9737558844494856,
+      "P95Ms": 9.5206,
+      "P99Ms": 9.5206,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "TemplateMatching",
+      "Category": "\u5339\u914D\u5B9A\u4F4D",
+      "Samples": 16,
+      "AverageMs": 2.8605875,
+      "MinMs": 2.5829,
+      "MaxMs": 3.7765,
+      "StdDevMs": 0.26518593918937333,
+      "P95Ms": 3.7765,
+      "P99Ms": 3.7765,
+      "Status": "OK",
+      "Error": null
+    },
+    {
+      "OperatorType": "HistogramEqualization",
+      "Category": "\u9884\u5904\u7406",
+      "Samples": 16,
+      "AverageMs": 0.7597437500000002,
+      "MinMs": 0.5716,
+      "MaxMs": 1.1601,
+      "StdDevMs": 0.1631276952603006,
+      "P95Ms": 1.1601,
+      "P99Ms": 1.1601,
+      "Status": "OK",
+      "Error": null
+    }
+  ]
+}
