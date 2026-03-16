@@ -250,7 +250,7 @@ public class SubPixelEdgeDetector
 - Test_Centroid_WeakEdge: 低对比度边缘，验证鲁棒性
 ```
 
-#### 任务W1-2：Zernike矩法（3小时）
+#### 任务W1-2：Zernike矩法（3小时）✅ 已完成
 
 ```markdown
 【参考资料】
@@ -361,7 +361,7 @@ public class BlobFeature
 
 ---
 
-#### 任务W1-4：增强CaliperToolOperator（3小时）⭐ 修正
+#### 任务W1-4：增强CaliperToolOperator（3小时）⭐ 修正 ✅ 已完成
 
 ```markdown
 【任务】增强现有CaliperToolOperator，集成亚像素边缘检测

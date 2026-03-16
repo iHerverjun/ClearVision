@@ -175,6 +175,120 @@ public class SubPixelEdgeDetector
     }
 
     /// <summary>
+    /// Zernike-style moment based subpixel edge localization.
+    /// Uses the first-order moment of the edge response (gradient magnitude) to estimate position.
+    /// </summary>
+    /// <param name="roi">1xN line profile or a small 2D ROI that crosses the edge.</param>
+    /// <param name="maskSize">Optional ROI window size (odd). If <=0, uses the full ROI.</param>
+    /// <returns>Subpixel position within the ROI (x for 2D, index for 1D). Returns -1 on failure.</returns>
+    public float DetectZernike(Mat roi, int maskSize = 5)
+    {
+        if (roi == null || roi.Empty())
+            return -1;
+
+        if (roi.Rows == 1 || roi.Cols == 1)
+        {
+            return DetectZernikeOnLine(roi);
+        }
+
+        return DetectZernikeOnPatch(roi, maskSize);
+    }
+
+    private float DetectZernikeOnLine(Mat lineProfile)
+    {
+        int length = lineProfile.Rows == 1 ? lineProfile.Cols : lineProfile.Rows;
+        if (length < 2)
+            return -1;
+
+        float[] values = new float[length];
+        ExtractGrayValues(lineProfile, values, lineProfile.Rows == 1);
+
+        int gradLength = length - 1;
+        double center = (gradLength - 1) / 2.0;
+        double r = Math.Max(center, 1.0);
+        double z00 = 0.0;
+        double z11 = 0.0;
+        double threshold = EdgeThreshold;
+
+        for (int i = 0; i < gradLength; i++)
+        {
+            double grad = Math.Abs(values[i + 1] - values[i]);
+            if (grad < threshold)
+            {
+                continue;
+            }
+
+            z00 += grad;
+            z11 += grad * ((i - center) / r);
+        }
+
+        if (z00 < MinValidSum)
+            return -1;
+
+        // l = Z11 / Z00 * 2.0, then convert to pixel offset.
+        double l = (z11 / z00) * 2.0;
+        double offset = l * (r / 2.0);
+        double position = center + offset + 0.5;
+
+        return (float)Math.Clamp(position, 0.0, length - 1.0);
+    }
+
+    private float DetectZernikeOnPatch(Mat roi, int maskSize)
+    {
+        int minDim = Math.Min(roi.Rows, roi.Cols);
+        if (minDim < 3)
+            return -1;
+
+        int size = maskSize <= 0 ? minDim : Math.Min(maskSize, minDim);
+        if (size % 2 == 0)
+            size -= 1;
+        if (size < 3)
+            size = Math.Min(minDim, 3);
+
+        int offsetX = (roi.Cols - size) / 2;
+        int offsetY = (roi.Rows - size) / 2;
+        offsetX = Math.Clamp(offsetX, 0, Math.Max(roi.Cols - size, 0));
+        offsetY = Math.Clamp(offsetY, 0, Math.Max(roi.Rows - size, 0));
+
+        using var patch = new Mat(roi, new Rect(offsetX, offsetY, size, size));
+        using var patchFloat = new Mat();
+        patch.ConvertTo(patchFloat, MatType.CV_32FC1);
+
+        using var gradX = new Mat();
+        Cv2.Sobel(patchFloat, gradX, MatType.CV_32FC1, 1, 0, 3);
+
+        int center = size / 2;
+        double r = Math.Max(center, 1.0);
+        double z00 = 0.0;
+        double z11 = 0.0;
+        double threshold = EdgeThreshold;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                double grad = Math.Abs(gradX.At<float>(y, x));
+                if (grad < threshold)
+                {
+                    continue;
+                }
+
+                z00 += grad;
+                z11 += grad * ((x - center) / r);
+            }
+        }
+
+        if (z00 < MinValidSum)
+            return -1;
+
+        double l = (z11 / z00) * 2.0;
+        double offset = l * (r / 2.0);
+        double position = offsetX + center + offset;
+
+        return (float)Math.Clamp(position, 0.0, roi.Cols - 1.0);
+    }
+
+    /// <summary>
     /// 从图像中提取轮廓线并检测亚像素边缘
     /// </summary>
     /// <param name="image">输入图像</param>

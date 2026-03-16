@@ -7,6 +7,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -35,6 +36,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("EdgeThreshold", "Edge Threshold", "double", DefaultValue = 18.0, Min = 1.0, Max = 255.0)]
 [OperatorParam("ExpectedCount", "Expected Count", "int", DefaultValue = 1, Min = 1, Max = 100)]
 [OperatorParam("SubpixelAccuracy", "Subpixel Accuracy", "bool", DefaultValue = false)]
+[OperatorParam("SubPixelMode", "Sub Pixel Mode", "enum", DefaultValue = "gradient_centroid", Options = new[] { "gradient_centroid|gradient_centroid", "zernike|zernike" })]
 public class CaliperToolOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CaliperTool;
@@ -65,6 +67,11 @@ public class CaliperToolOperator : OperatorBase
         var edgeThreshold = GetDoubleParam(@operator, "EdgeThreshold", 18.0, 1.0, 255.0);
         var expectedCount = GetIntParam(@operator, "ExpectedCount", 1, 1, 100);
         var subpixel = GetBoolParam(@operator, "SubpixelAccuracy", false);
+        var subPixelMode = GetStringParam(@operator, "SubPixelMode", "gradient_centroid");
+        var subpixelDetector = subpixel ? new SubPixelEdgeDetector
+        {
+            EdgeThreshold = (byte)Math.Clamp(edgeThreshold, 1.0, 255.0)
+        } : null;
 
         using var gray = new Mat();
         if (src.Channels() == 1)
@@ -87,7 +94,9 @@ public class CaliperToolOperator : OperatorBase
         foreach (var idx in edgeIndices)
         {
             var t = sampleCount <= 1 ? 0.0 : (double)idx / (sampleCount - 1);
-            var refinedT = subpixel ? RefineSubpixel(samples, idx, t, sampleCount) : t;
+            var refinedT = subpixel
+                ? RefineSubpixel(samples, idx, t, sampleCount, edgeThreshold, polarity, subPixelMode, subpixelDetector)
+                : t;
             var x = scan.Start.X + (scan.End.X - scan.Start.X) * refinedT;
             var y = scan.Start.Y + (scan.End.Y - scan.Start.Y) * refinedT;
             edgePoints.Add(new Position(x, y));
@@ -134,6 +143,13 @@ public class CaliperToolOperator : OperatorBase
         if (!validPolarity.Contains(polarity, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("Polarity must be DarkToLight, LightToDark or Both");
+        }
+
+        var subPixelMode = GetStringParam(@operator, "SubPixelMode", "gradient_centroid");
+        var validModes = new[] { "gradient_centroid", "zernike" };
+        if (!validModes.Contains(subPixelMode, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("SubPixelMode must be gradient_centroid or zernike");
         }
 
         return ValidationResult.Valid();
@@ -229,13 +245,31 @@ public class CaliperToolOperator : OperatorBase
             var t = count <= 1 ? 0.0 : (double)i / (count - 1);
             var x = start.X + (end.X - start.X) * t;
             var y = start.Y + (end.Y - start.Y) * t;
-
-            var ix = Math.Clamp((int)Math.Round(x), 0, gray.Width - 1);
-            var iy = Math.Clamp((int)Math.Round(y), 0, gray.Height - 1);
-            samples.Add(gray.At<byte>(iy, ix));
+            samples.Add(SampleGrayBilinear(gray, x, y));
         }
 
         return samples;
+    }
+
+    private static double SampleGrayBilinear(Mat gray, double x, double y)
+    {
+        var clampedX = Math.Clamp(x, 0.0, gray.Width - 1.0);
+        var clampedY = Math.Clamp(y, 0.0, gray.Height - 1.0);
+        var x0 = (int)Math.Floor(clampedX);
+        var y0 = (int)Math.Floor(clampedY);
+        var x1 = Math.Min(x0 + 1, gray.Width - 1);
+        var y1 = Math.Min(y0 + 1, gray.Height - 1);
+        var fx = clampedX - x0;
+        var fy = clampedY - y0;
+
+        var v00 = gray.At<byte>(y0, x0);
+        var v10 = gray.At<byte>(y0, x1);
+        var v01 = gray.At<byte>(y1, x0);
+        var v11 = gray.At<byte>(y1, x1);
+
+        var top = v00 + ((v10 - v00) * fx);
+        var bottom = v01 + ((v11 - v01) * fx);
+        return top + ((bottom - top) * fy);
     }
 
     private static List<int> DetectEdges(IReadOnlyList<double> samples, double threshold, string polarity)
@@ -261,11 +295,33 @@ public class CaliperToolOperator : OperatorBase
         return edges;
     }
 
-    private static double RefineSubpixel(IReadOnlyList<double> samples, int idx, double fallbackT, int sampleCount)
+    private static double RefineSubpixel(
+        IReadOnlyList<double> samples,
+        int idx,
+        double fallbackT,
+        int sampleCount,
+        double edgeThreshold,
+        string polarity,
+        string subPixelMode,
+        SubPixelEdgeDetector? detector)
     {
         if (idx <= 0 || idx >= samples.Count - 1)
         {
             return fallbackT;
+        }
+
+        if (detector != null)
+        {
+            if (subPixelMode.Equals("zernike", StringComparison.OrdinalIgnoreCase) &&
+                TryRefineSubpixelZernike(samples, idx, sampleCount, edgeThreshold, polarity, detector, out var refinedZernike))
+            {
+                return refinedZernike;
+            }
+
+            if (TryRefineSubpixelCentroid(samples, idx, sampleCount, edgeThreshold, polarity, detector, out var refinedCentroid))
+            {
+                return refinedCentroid;
+            }
         }
 
         var g0 = samples[idx] - samples[idx - 1];
@@ -279,6 +335,114 @@ public class CaliperToolOperator : OperatorBase
         var offset = 0.5 * (g0 + g1) / denom;
         var refinedIndex = idx + offset;
         return Math.Clamp(refinedIndex / Math.Max(sampleCount - 1, 1), 0.0, 1.0);
+    }
+
+    private static bool TryBuildGradientWindow(
+        IReadOnlyList<double> samples,
+        int edgeIndex,
+        int sampleCount,
+        string polarity,
+        out float[] window,
+        out int start)
+    {
+        window = Array.Empty<float>();
+        start = 0;
+
+        var gradientCount = samples.Count - 1;
+        if (gradientCount < 3)
+        {
+            return false;
+        }
+
+        var gradientIndex = edgeIndex - 1;
+        if (gradientIndex < 0 || gradientIndex >= gradientCount)
+        {
+            return false;
+        }
+
+        var windowRadius = Math.Clamp(sampleCount / 20, 2, 6);
+        start = Math.Max(0, gradientIndex - windowRadius);
+        var end = Math.Min(gradientCount - 1, gradientIndex + windowRadius);
+        var length = end - start + 1;
+        if (length < 3)
+        {
+            return false;
+        }
+
+        window = new float[length];
+        for (var i = 0; i < length; i++)
+        {
+            var grad = samples[start + i + 1] - samples[start + i];
+            grad = polarity switch
+            {
+                var p when p.Equals("DarkToLight", StringComparison.OrdinalIgnoreCase) => Math.Max(0.0, grad),
+                var p when p.Equals("LightToDark", StringComparison.OrdinalIgnoreCase) => Math.Max(0.0, -grad),
+                _ => Math.Abs(grad)
+            };
+            window[i] = (float)Math.Min(255.0, grad);
+        }
+
+        return true;
+    }
+
+    private static bool TryRefineSubpixelCentroid(
+        IReadOnlyList<double> samples,
+        int edgeIndex,
+        int sampleCount,
+        double edgeThreshold,
+        string polarity,
+        SubPixelEdgeDetector detector,
+        out double refinedT)
+    {
+        refinedT = 0;
+        if (!TryBuildGradientWindow(samples, edgeIndex, sampleCount, polarity, out var window, out var start))
+        {
+            return false;
+        }
+
+        using var lineProfile = Mat.FromArray(window);
+        lineProfile.Reshape(1, 1);
+        var threshold = (byte)Math.Clamp(edgeThreshold, 1.0, 255.0);
+        var centroid = detector.DetectCentroid(lineProfile, threshold);
+        if (centroid < 0)
+        {
+            return false;
+        }
+
+        var refinedGradientIndex = start + centroid;
+        var refinedSampleIndex = refinedGradientIndex + 1;
+        refinedT = Math.Clamp(refinedSampleIndex / Math.Max(sampleCount - 1, 1), 0.0, 1.0);
+        return true;
+    }
+
+    private static bool TryRefineSubpixelZernike(
+        IReadOnlyList<double> samples,
+        int edgeIndex,
+        int sampleCount,
+        double edgeThreshold,
+        string polarity,
+        SubPixelEdgeDetector detector,
+        out double refinedT)
+    {
+        refinedT = 0;
+        if (!TryBuildGradientWindow(samples, edgeIndex, sampleCount, polarity, out var window, out var start))
+        {
+            return false;
+        }
+
+        using var lineProfile = Mat.FromArray(window);
+        lineProfile.Reshape(1, 1);
+        detector.EdgeThreshold = (byte)Math.Clamp(edgeThreshold, 1.0, 255.0);
+        var zernike = detector.DetectZernike(lineProfile);
+        if (zernike < 0)
+        {
+            return false;
+        }
+
+        var refinedGradientIndex = start + zernike;
+        var refinedSampleIndex = refinedGradientIndex + 1;
+        refinedT = Math.Clamp(refinedSampleIndex / Math.Max(sampleCount - 1, 1), 0.0, 1.0);
+        return true;
     }
 
     private static void DrawScanAndEdges(Mat image, (Point2d Start, Point2d End, double Length) scan, IReadOnlyList<Position> edges, int pairCount, double width)

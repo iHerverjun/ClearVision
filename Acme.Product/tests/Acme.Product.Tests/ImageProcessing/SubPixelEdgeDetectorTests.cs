@@ -456,4 +456,260 @@ public class SubPixelEdgeDetectorTests : IDisposable
         result.Should().BeApproximately(2.5f, 0.01f, 
             "浮点型输入应正确计算重心");
     }
+
+    [Fact]
+    public void Test_Zernike_CompareWithOpenCV()
+    {
+        // Arrange: simple corner image (black background with white square).
+        using var cornerImage = new Mat(100, 100, MatType.CV_8UC1, Scalar.All(0));
+        var roi = new Rect(0, 0, 50, 50);
+        cornerImage.Rectangle(roi, Scalar.All(255), -1);
+
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(cornerImage, blurred, new Size(9, 9), 2.0);
+
+        Point2f[] corners = { new Point2f(49.5f, 49.5f) };
+        TermCriteria criteria = new TermCriteria(CriteriaTypes.MaxIter | CriteriaTypes.Eps, 30, 0.01);
+        Cv2.CornerSubPix(blurred, corners, new Size(10, 10), new Size(-1, -1), criteria);
+        float openCvResult = corners[0].X;
+
+        var detector = new SubPixelEdgeDetector { EdgeThreshold = 0 };
+        int startX = 40;
+        int length = 21;
+        float ourOffset = DetectZernikeOnScanline(detector, blurred, true, 25, startX, length);
+        float ourResult = startX + ourOffset;
+
+        float error = Math.Abs(ourResult - openCvResult) / openCvResult * 100f;
+        error.Should().BeLessThan(1.0f, $"Zernike subpixel edge error should be < 1%, actual {error:F2}%");
+    }
+
+    [Fact]
+    public void Test_Zernike_SlantEdgeAccuracy()
+    {
+        using var image = LoadTestGray("iso12233_slant_edge_512.png");
+        image.Empty().Should().BeFalse();
+
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(image, blurred, new Size(5, 5), 1.0);
+
+        using var edges = new Mat();
+        Cv2.Canny(blurred, edges, 50, 150);
+        Cv2.FindContours(edges, out Point[][] contours, out _, RetrievalModes.List, ContourApproximationModes.ApproxNone);
+        var pointsF = contours.SelectMany(c => c).Select(p => new Point2f(p.X, p.Y)).ToArray();
+        pointsF.Length.Should().BeGreaterThan(10);
+        var line = Cv2.FitLine(pointsF, DistanceTypes.L2, 0, 0.01, 0.01);
+
+        var detector = new SubPixelEdgeDetector { EdgeThreshold = 0 };
+
+        double cx = (blurred.Cols - 1) * 0.5;
+        double cy = (blurred.Rows - 1) * 0.5;
+        double t = (line.Vx * (cx - line.X1)) + (line.Vy * (cy - line.Y1));
+        double px = line.X1 + line.Vx * t;
+        double py = line.Y1 + line.Vy * t;
+
+        double nx = -line.Vy;
+        double ny = line.Vx;
+        int length = 41;
+        double half = (length - 1) / 2.0;
+        var start = new Point2d(px - nx * half, py - ny * half);
+        var end = new Point2d(px + nx * half, py + ny * half);
+
+        float[] values = ExtractLineValues(blurred, start, end, length);
+        double expected = FindHalfMaxCrossing(values);
+
+        using var lineProfile = Mat.FromArray(values);
+        lineProfile.Reshape(1, 1);
+        float pos = detector.DetectZernike(lineProfile);
+        double error = Math.Abs(pos - expected);
+
+        error.Should().BeLessOrEqualTo(0.05, $"Slant-edge subpixel error should be <= 0.05px, actual {error:F4}px");
+    }
+
+    [Fact]
+    public void Test_Zernike_Repeatability_1000Runs()
+    {
+        using var image = LoadTestGray("iso12233_slant_edge_512.png");
+        image.Empty().Should().BeFalse();
+
+        var detector = new SubPixelEdgeDetector { EdgeThreshold = 0 };
+        double cx = (image.Cols - 1) * 0.5;
+        double cy = (image.Rows - 1) * 0.5;
+        using var edges = new Mat();
+        Cv2.Canny(image, edges, 50, 150);
+        Cv2.FindContours(edges, out Point[][] contours, out _, RetrievalModes.List, ContourApproximationModes.ApproxNone);
+        var pointsF = contours.SelectMany(c => c).Select(p => new Point2f(p.X, p.Y)).ToArray();
+        var line = Cv2.FitLine(pointsF, DistanceTypes.L2, 0, 0.01, 0.01);
+        double t = (line.Vx * (cx - line.X1)) + (line.Vy * (cy - line.Y1));
+        double px = line.X1 + line.Vx * t;
+        double py = line.Y1 + line.Vy * t;
+        double nx = -line.Vy;
+        double ny = line.Vx;
+        int length = 41;
+        double half = (length - 1) / 2.0;
+        var start = new Point2d(px - nx * half, py - ny * half);
+        var end = new Point2d(px + nx * half, py + ny * half);
+
+        float[] values = ExtractLineValues(image, start, end, length);
+        using var lineProfile = Mat.FromArray(values);
+        lineProfile.Reshape(1, 1);
+
+        const int runs = 1000;
+        var results = new double[runs];
+        for (int i = 0; i < runs; i++)
+        {
+            results[i] = detector.DetectZernike(lineProfile);
+        }
+
+        double mean = results.Average();
+        double std = Math.Sqrt(results.Select(r => (r - mean) * (r - mean)).Average());
+        std.Should().BeLessThan(0.02, $"Repeatability std should be < 0.02px, actual {std:F4}px");
+    }
+
+    private static string ResolveTestDataPath(string fileName)
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var candidate = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "TestData", fileName));
+        if (File.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null && !dir.Name.Equals("Acme.Product", StringComparison.OrdinalIgnoreCase))
+        {
+            dir = dir.Parent;
+        }
+
+        if (dir != null)
+        {
+            candidate = Path.Combine(dir.FullName, "tests", "TestData", fileName);
+        }
+
+        return candidate;
+    }
+
+    private static Mat LoadTestGray(string fileName)
+    {
+        var path = ResolveTestDataPath(fileName);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"Test data not found: {path}");
+        }
+
+        return Cv2.ImRead(path, ImreadModes.Grayscale);
+    }
+
+    private static (int start, int length) BuildWindow(int center, int radius, int maxLength)
+    {
+        int start = Math.Max(0, center - radius);
+        int end = Math.Min(maxLength - 1, center + radius);
+        return (start, end - start + 1);
+    }
+
+    private static float DetectZernikeOnScanline(SubPixelEdgeDetector detector, Mat image, bool horizontal, int fixedCoord, int start, int length)
+    {
+        using var lineProfile = ExtractScanline(image, horizontal, fixedCoord, start, length);
+        return detector.DetectZernike(lineProfile);
+    }
+
+    private static Mat ExtractScanline(Mat image, bool horizontal, int fixedCoord, int start, int length)
+    {
+        float[] values = new float[length];
+        if (horizontal)
+        {
+            int y = Math.Clamp(fixedCoord, 0, image.Rows - 1);
+            for (int i = 0; i < length; i++)
+            {
+                int x = Math.Clamp(start + i, 0, image.Cols - 1);
+                values[i] = image.At<byte>(y, x);
+            }
+        }
+        else
+        {
+            int x = Math.Clamp(fixedCoord, 0, image.Cols - 1);
+            for (int i = 0; i < length; i++)
+            {
+                int y = Math.Clamp(start + i, 0, image.Rows - 1);
+                values[i] = image.At<byte>(y, x);
+            }
+        }
+
+        var lineProfile = Mat.FromArray(values);
+        lineProfile.Reshape(1, 1);
+        return lineProfile;
+    }
+
+    private static Mat ExtractLineProfile(Mat image, Point2d start, Point2d end, int length)
+    {
+        float[] values = ExtractLineValues(image, start, end, length);
+        var lineProfile = Mat.FromArray(values);
+        lineProfile.Reshape(1, 1);
+        return lineProfile;
+    }
+
+    private static float[] ExtractLineValues(Mat image, Point2d start, Point2d end, int length)
+    {
+        float[] values = new float[length];
+        for (int i = 0; i < length; i++)
+        {
+            double t = length <= 1 ? 0.0 : (double)i / (length - 1);
+            double x = start.X + (end.X - start.X) * t;
+            double y = start.Y + (end.Y - start.Y) * t;
+            values[i] = (float)SampleGrayBilinear(image, x, y);
+        }
+
+        return values;
+    }
+
+    private static double FindHalfMaxCrossing(float[] values)
+    {
+        if (values.Length < 2)
+        {
+            return 0.0;
+        }
+
+        float min = values.Min();
+        float max = values.Max();
+        double half = (min + max) * 0.5;
+
+        for (int i = 0; i < values.Length - 1; i++)
+        {
+            double v0 = values[i];
+            double v1 = values[i + 1];
+            if ((v0 <= half && v1 >= half) || (v0 >= half && v1 <= half))
+            {
+                double denom = v1 - v0;
+                if (Math.Abs(denom) < 1e-9)
+                {
+                    return i;
+                }
+
+                double t = (half - v0) / denom;
+                return i + t;
+            }
+        }
+
+        return (values.Length - 1) * 0.5;
+    }
+
+    private static double SampleGrayBilinear(Mat gray, double x, double y)
+    {
+        double clampedX = Math.Clamp(x, 0.0, gray.Cols - 1.0);
+        double clampedY = Math.Clamp(y, 0.0, gray.Rows - 1.0);
+        int x0 = (int)Math.Floor(clampedX);
+        int y0 = (int)Math.Floor(clampedY);
+        int x1 = Math.Min(x0 + 1, gray.Cols - 1);
+        int y1 = Math.Min(y0 + 1, gray.Rows - 1);
+        double fx = clampedX - x0;
+        double fy = clampedY - y0;
+
+        double v00 = gray.At<byte>(y0, x0);
+        double v10 = gray.At<byte>(y0, x1);
+        double v01 = gray.At<byte>(y1, x0);
+        double v11 = gray.At<byte>(y1, x1);
+
+        double top = v00 + ((v10 - v00) * fx);
+        double bottom = v01 + ((v11 - v01) * fx);
+        return top + ((bottom - top) * fy);
+    }
 }

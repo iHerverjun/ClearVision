@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(find /c/Users/11234/Desktop/ClearVision -type f -name *halcon* -o -name *对标* -o -name *追赶* -o -name *vibe* -o -name *coding* -o -name *计划*)",
-      "Bash(ls -1 /c/Users/11234/Desktop/ClearVision/Acme.Product/src/Acme.Product.Infrastructure/Operators/*.cs)"
+      "Bash(ls -1 /c/Users/11234/Desktop/ClearVision/Acme.Product/src/Acme.Product.Infrastructure/Operators/*.cs)",
+      "Bash(find /c/Users/11234/Desktop/ClearVision -type f -name *Performance* -o -name *TestData* -o -name *Benchmark* -o -name *MemoryLeak*)",
+      "Bash(find /c/Users/11234/Desktop/ClearVision -name *.cs -type f -exec grep -l TestDataGenerator {})",
+      "Bash(2)"
     ]
   }
 }

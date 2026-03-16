@@ -48,6 +48,53 @@ public class CaliperToolOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithSubpixelEnabled_ShouldReturnSuccess()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "Polarity", "Both" },
+            { "EdgeThreshold", 10.0 },
+            { "ExpectedCount", 1 },
+            { "SubpixelAccuracy", true }
+        });
+
+        using var image = CreateCaliperImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.True(result.OutputData!.ContainsKey("Width"));
+        Assert.True(result.OutputData.ContainsKey("PairCount"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithSubpixelZernike_ShouldReturnSuccess()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "Polarity", "Both" },
+            { "EdgeThreshold", 10.0 },
+            { "ExpectedCount", 1 },
+            { "SubpixelAccuracy", true },
+            { "SubPixelMode", "zernike" }
+        });
+
+        using var image = CreateCaliperImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.True(result.OutputData!.ContainsKey("Width"));
+        Assert.True(result.OutputData.ContainsKey("PairCount"));
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidDirection_ShouldReturnInvalid()
     {
         var op = CreateOperator(new Dictionary<string, object> { { "Direction", "Diagonal" } });
