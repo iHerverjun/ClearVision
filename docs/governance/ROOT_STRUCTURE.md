@@ -39,14 +39,13 @@ The root should not accumulate:
 |---|---|
 | `docs/guides/` | How-to guides and usage documents |
 | `docs/guides/hardware/` | Hardware/vendor-specific guides |
-| `docs/plans/` | Implementation plans |
-| `docs/roadmaps/` | Milestone roadmaps |
 | `docs/reference/` | Reference manuals and architecture notes |
 | `docs/reports/` | Review and assessment reports |
 | `docs/audits/` | Audit and inspection documents |
-| `docs/archive/` | Temporary or superseded docs kept for traceability |
-| `docs/curation/` | Audit-generated classification and indexing output |
-| `docs/completed_phases/` | Historical completed phase docs |
+| `docs/AlgorithmAudit/` | Operator algorithm audit reports |
+| `docs/archive/` | Superseded plans, retired docs, and traceability records |
+| `docs/governance/` | Lightweight repository structure guidance |
+| `docs/operators/` | Operator cards, category indexes, and version history |
 
 ## Maintenance Rules
 
