@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-16T19:59:19.7031372+08:00",
+  "generatedAt": "2026-03-16T23:16:26.6950446+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -855,6 +855,12 @@
           "displayName": "图像",
           "dataType": "Image",
           "isRequired": true
+        },
+        {
+          "name": "SourceImage",
+          "displayName": "Source Image",
+          "dataType": "Image",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -950,6 +956,17 @@
           "defaultValue": "0",
           "min": "0",
           "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "FeatureFilter",
+          "displayName": "Feature Filter",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         },
@@ -10114,6 +10131,26 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "SubPixelMode",
+          "displayName": "Sub Pixel Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "gradient_centroid",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "gradient_centroid",
+              "label": "gradient_centroid"
+            },
+            {
+              "value": "zernike",
+              "label": "zernike"
+            }
+          ]
         }
       ],
       "quality": {
