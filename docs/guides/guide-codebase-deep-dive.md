@@ -1,4 +1,4 @@
-# ClearVision 当前版本源码级详解
+﻿# ClearVision 当前版本源码级详解
 
 > **文档定位**：给同事做系统性学习、源码导读、功能对照与二次开发入口使用
 > **覆盖范围**：`Acme.Product` 主产品、`Acme.PlcComm` 通信组件，以及与桌面宿主/前端/AI/标定/结果分析直接相关的主链路代码
@@ -56,7 +56,7 @@
 
 但需要强调：**算子系统本身已经纳入本文档**，本文会说明算子如何被扫描、注册、展示、拖拽、执行、预览、推荐参数，以及它们与主产品如何集成。若要继续深入每个算子的参数、输入输出与业务语义，可继续看：
 
-- `docs/OPERATOR_CATALOG.md`
+- `docs/CATALOG.md`
 - `docs/operators/CATALOG.md`
 - `docs/operators/*.md`
 - `Acme.Product/src/Acme.Product.Infrastructure/Operators/`
@@ -180,7 +180,7 @@
 
 - `Acme.Product/src` 下 C# 源文件数：**397**
 - 前端 `wwwroot/src` 下 JS 文件数：**30**
-- `docs/OPERATOR_CATALOG.md` / `docs/operators/CATALOG.md` 当前同步统计：算子总数 **118**，目录平均质量分 **88.6**.
+- `docs/CATALOG.md` / `docs/operators/CATALOG.md` 当前同步统计：算子总数 **118**，目录平均质量分 **88.6**.
 - `Endpoints/` 目录下定义的 HTTP API 数量：**54**
 - `Program.RegisterExtendedApiEndpoints` 额外补充的 HTTP API 数量：**8**
 - 当前 HTTP 路由总量（含 `/health`）：**62**
@@ -2179,7 +2179,7 @@
 3. `OperatorPreviewService.cs`
 4. `ParameterRecommender.cs`
 5. `Infrastructure/Operators/*`
-6. `docs/OPERATOR_CATALOG.md`
+6. `docs/CATALOG.md`
 7. `docs/operators/*.md`
 
 ### 11.4 给设备/自动化同事
@@ -2220,10 +2220,10 @@
 
 - `docs/guides/guide-user.md`
 - `docs/guides/guide-deployment.md`
-- `docs/OPERATOR_CATALOG.md`
+- `docs/CATALOG.md`
 - `docs/operators/*.md`
-- `docs/BUG_AUDIT_2026-03-04.md`
-- `docs/AI_Model_Integration_Refactor_Plan_2026-02-28.md`
+- `docs/CURRENT_BUG_ARCH_AUDIT_2026-03-12.md`
+- `docs/DEVELOPMENT_PLANNING_CONSOLIDATED.md`
 
 ### 12.4 一句话总结
 
