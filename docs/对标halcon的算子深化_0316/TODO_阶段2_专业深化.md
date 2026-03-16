@@ -7,6 +7,8 @@
 
 ---
 
+
+
 ## 一、本阶段任务总览
 
 ```
@@ -73,6 +75,10 @@ public struct AxisAlignedBoundingBox
     public Vector3 Extent => Max - Min;
 }
 ```
+
+【AI 编程专属上下文】
+- **内存安全**: `PointCloud` 类作为核心实体，其内部维护的 `Mat` 对象必须在 `IDisposable.Dispose()` 中安全释放或归还至 `MatPool.Shared`。
+- **算子通讯**: 应当将其封装为特定的 `PortDataType.Object` 或者在平台侧扩充 `PortDataType.PointCloud` 枚举类型，以便跨算子节点流转。
 
 【测试】
 - 创建1000个随机点云
@@ -157,6 +163,10 @@ public class VoxelGridFilter
     }
 }
 ```
+
+【AI 编程专属上下文】
+- **封装算子**: 需要创建一个 `VoxelDownsampleOperator : OperatorBase` 来包裹此算法核心类。
+- **后台耗时计算**: 由于点云过滤是 CPU 密集型运算，必须在 `ExecuteCoreAsync` 内使用包装好的父类方法 `RunCpuBoundWork` 搭配 `CancellationToken` 进行线程让渡。
 
 【测试】
 - 100万点 → 0.01m体素 → 应减少90%以上
@@ -251,6 +261,10 @@ public class RansacPlaneSegmentation
     }
 }
 ```
+
+【AI 编程专属上下文】
+- **外部依赖**: 运算使用的 `Vector3` 可引入 `System.Numerics`。
+- **算子暴露参数**: `distanceThreshold`，`maxIterations` 和 `minInliers` 必须暴露为算子配置参数 `[OperatorParam]` 并在 `ValidateParameters` 方法中验证不得小于等于 0。
 
 【测试】
 - 合成点云：平面 + 噪声

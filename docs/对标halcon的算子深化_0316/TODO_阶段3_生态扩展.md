@@ -7,6 +7,8 @@
 
 ---
 
+
+
 ## 一、本阶段任务总览
 
 ```
@@ -61,23 +63,28 @@ public class SemanticSegmentationOperator : OperatorBase
 
 【代码框架】
 ```csharp
-protected override async Task<OperatorExecutionResult> ExecuteAsync(...)
+protected override async Task<OperatorExecutionOutput> ExecuteCoreAsync(...)
 {
-    // 1. 加载ONNX模型（缓存）
-    using var session = new InferenceSession(ModelPath);
+    // 1. 获取全局单例模型缓存（勿每次 new InferenceSession）
+    var session = ModelManager.GetSession(ModelPath);
     
     // 2. 预处理
     var inputTensor = Preprocess(Image, InputSize);
     
-    // 3. 推理
+    // 3. 推理（注意判断 CancellationToken）
     var outputs = session.Run(new[] { NamedOnnxValue.CreateFromTensor("input", inputTensor) });
     
     // 4. 后处理
     var segMap = Postprocess(outputs[0], originalSize);
     
-    return OperatorExecutionResult.Success(new { SegmentationMap = segMap });
+    return OperatorExecutionOutput.Success(CreateImageOutput(segMap));
 }
 ```
+
+【AI 编程专属上下文】
+- **推理加速**: 强制引用 `Microsoft.ML.OnnxRuntime` 系列库。
+- **输入装配**: OpenCV 的 `Mat` 到 `DenseTensor<float>` 的装换过程需通过安全指针跨越 `mat.Data` 内存以避免逐像素遍历带来的毫秒级耗时。
+- **缓存规约**: 需要额写一个局部的静态单例池或 LRU 算法来缓存并持有 `InferenceSession` 实例。
 
 【测试模型】
 - 下载现成的ONNX分割模型
@@ -250,6 +257,10 @@ public class HandEyeCalibrationOperator : OperatorBase
     [OutputPort("CalibrationQuality", PortDataType.String)]  // good/fair/poor
 }
 ```
+
+【AI 编程专属上下文】
+- **依赖调用**: OpenCV 调用类对应于 `OpenCvSharp.Cv2.CalibrateHandEye`。
+- **参数解析**: JSON 反序列化可直接使用 `System.Text.Json.JsonSerializer.Deserialize` 并将其转化为对应的 `double[]` 传给内参矩阵构建器。
 
 【使用流程（命令行版）】
 1. 采集N组数据（机器人位姿+对应图像）
