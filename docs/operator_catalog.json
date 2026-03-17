@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-17T16:53:17.7982813+08:00",
-  "totalCount": 126,
+  "generatedAt": "2026-03-17T17:08:04.1722243+08:00",
+  "totalCount": 127,
   "categories": {
     "3D": {
       "count": 6,
@@ -23,8 +23,9 @@
       ]
     },
     "Texture": {
-      "count": 1,
+      "count": 2,
       "operators": [
+        "GlcmTexture",
         "LawsTextureFilter"
       ]
     },
@@ -15829,6 +15830,177 @@
         "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/LawsTextureFilter.md"
+    },
+    {
+      "id": "GlcmTexture",
+      "type": 224,
+      "displayName": "GLCM Texture Features",
+      "description": "Compute Gray-Level Co-occurrence Matrix (GLCM) texture features.",
+      "category": "Texture",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Contrast",
+          "displayName": "Contrast",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Correlation",
+          "displayName": "Correlation",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Energy",
+          "displayName": "Energy",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Homogeneity",
+          "displayName": "Homogeneity",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Entropy",
+          "displayName": "Entropy",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "PerDirection",
+          "displayName": "Per Direction Features",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Levels",
+          "displayName": "Quantization Levels",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "16",
+          "min": "2",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Distance",
+          "displayName": "Distance",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1",
+          "min": "1",
+          "max": "64",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DirectionsDeg",
+          "displayName": "Directions (deg)",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "0,45,90,135",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Symmetric",
+          "displayName": "Symmetric",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Normalize",
+          "displayName": "Normalize",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiX",
+          "displayName": "ROI X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiY",
+          "displayName": "ROI Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiW",
+          "displayName": "ROI W",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiH",
+          "displayName": "ROI H",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/GlcmTexture.md"
     }
   ]
 }

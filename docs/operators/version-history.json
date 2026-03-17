@@ -785,6 +785,18 @@
       ]
     },
     {
+      "id": "GlcmTexture",
+      "displayName": "GLCM Texture Features",
+      "category": "Texture",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "1D82B3EEEF4387A635C70537717A4DCEC4B55C37F54EA846F25F8E1F65B9BA76",
+          "recordedAt": "2026-03-17T17:07:32.7286304\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "GradientShapeMatch",
       "displayName": "\u68AF\u5EA6\u5F62\u72B6\u5339\u914D",
       "category": "\u5339\u914D\u5B9A\u4F4D",

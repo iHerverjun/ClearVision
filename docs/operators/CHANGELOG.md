@@ -1,7 +1,7 @@
 # 算子版本变更记录 / Operator Version Changelog
 
 > 生成时间 / Generated At: `2026-02-26 21:20:16 +08:00`
-> 算子总数 / Total Operators: **126**
+> 算子总数 / Total Operators: **127**
 
 ## 当前版本快照 / Current Snapshot
 | 枚举 (Enum) | 显示名 (DisplayName) | 分类 (Category) | 版本 (Version) |
@@ -16,6 +16,7 @@
 | `OperatorType.DualModalVoting` | 双模态投票 | AI检测 | `1.0.0` |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | AI检测 | `1.0.0` |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `1.0.0` |
+| `OperatorType.GlcmTexture` | GLCM Texture Features | Texture | `1.0.0` |
 | `OperatorType.LawsTextureFilter` | Laws Texture Filter | Texture | `1.0.0` |
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 匹配定位 | `1.0.0` |
