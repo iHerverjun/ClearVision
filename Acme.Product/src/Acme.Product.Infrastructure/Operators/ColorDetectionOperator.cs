@@ -138,6 +138,7 @@ public class ColorDetectionOperator : OperatorBase
         var colorInfo = new Dictionary<string, object>
         {
             { "Mode", "Average" },
+            { "AnalysisMode", "Average" },
             { "ColorSpace", colorSpace },
             { "PrimaryData", colorData },
             { "Summary", info }
@@ -227,6 +228,7 @@ public class ColorDetectionOperator : OperatorBase
         var colorInfo = new Dictionary<string, object>
         {
             { "Mode", "Dominant" },
+            { "AnalysisMode", "Dominant" },
             { "ColorSpace", "BGR" },
             { "PrimaryData", dominantColors },
             { "K", k }
@@ -302,6 +304,7 @@ public class ColorDetectionOperator : OperatorBase
         var colorInfo = new Dictionary<string, object>
         {
             { "Mode", "Range" },
+            { "AnalysisMode", "Range" },
             { "ColorSpace", colorSpace },
             { "PrimaryData", rangeData }
         };

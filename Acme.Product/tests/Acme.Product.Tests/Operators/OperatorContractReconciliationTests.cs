@@ -40,7 +40,20 @@ public class OperatorContractReconciliationTests
         acquisition.Parameters.Select(p => p.Name).Should().Contain(new[] { "SourceType", "FilePath", "CameraId", "ExposureTime", "Gain", "TriggerMode" });
 
         var blob = factory.GetMetadata(OperatorType.BlobAnalysis)!;
-        blob.Parameters.Select(p => p.Name).Should().Contain(new[] { "MinCircularity", "MinConvexity", "MinInertiaRatio" });
+        blob.Parameters.Select(p => p.Name).Should().Contain(new[]
+        {
+            "MinCircularity",
+            "MinConvexity",
+            "MinInertiaRatio",
+            "MinRectangularity",
+            "MinEccentricity",
+            "OutputDetailedFeatures"
+        });
+        blob.OutputPorts.Select(p => p.Name).Should().Contain("BlobFeatures");
+
+        var caliper = factory.GetMetadata(OperatorType.CaliperTool)!;
+        caliper.Parameters.Select(p => p.Name).Should().Contain(new[] { "MeasureMode", "PairDirection" });
+        caliper.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "PairDistances", "AverageDistance", "DistanceStdDev" });
 
         var shapeMatching = factory.GetMetadata(OperatorType.ShapeMatching)!;
         shapeMatching.DisplayName.Should().Be("旋转尺度模板匹配");

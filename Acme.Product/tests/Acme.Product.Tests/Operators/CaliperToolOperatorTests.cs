@@ -95,6 +95,42 @@ public class CaliperToolOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithEdgePairsMode_ShouldEmitPairStatistics()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "Polarity", "Both" },
+            { "EdgeThreshold", 10.0 },
+            { "ExpectedCount", 1 },
+            { "MeasureMode", "edge_pairs" },
+            { "PairDirection", "any" },
+            { "SubpixelAccuracy", false }
+        });
+
+        using var image = CreateCaliperImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.True(result.OutputData!.ContainsKey("PairDistances"));
+        Assert.True(result.OutputData.ContainsKey("AverageDistance"));
+        Assert.True(result.OutputData.ContainsKey("DistanceStdDev"));
+
+        var distances = Assert.IsType<List<double>>(result.OutputData["PairDistances"]);
+        Assert.Single(distances);
+        Assert.InRange(distances[0], 35.0, 45.0);
+
+        var avg = Convert.ToDouble(result.OutputData["AverageDistance"]);
+        Assert.InRange(avg, 35.0, 45.0);
+
+        var stdDev = Convert.ToDouble(result.OutputData["DistanceStdDev"]);
+        Assert.InRange(stdDev, 0.0, 1e-6);
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidDirection_ShouldReturnInvalid()
     {
         var op = CreateOperator(new Dictionary<string, object> { { "Direction", "Diagonal" } });

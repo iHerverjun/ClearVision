@@ -11,7 +11,8 @@ namespace Acme.Product.Infrastructure.Services;
 
 /// <summary>
 /// 通信连接池管理器
-/// 管理Modbus和TCP连接的复用、心跳检�?/// </summary>
+/// 管理 Modbus 和 TCP 连接的复用、心跳检测。
+/// </summary>
 public class ConnectionPoolManager : IDisposable
 {
     private readonly ILogger<ConnectionPoolManager> _logger;
@@ -155,7 +156,8 @@ public class ConnectionPoolManager : IDisposable
     }
 
     /// <summary>
-    /// 检查连接健康状�?    /// </summary>
+    /// 检查连接健康状态
+    /// </summary>
     private void CheckConnectionHealth(object? state)
     {
         var now = DateTime.UtcNow;
@@ -173,7 +175,7 @@ public class ConnectionPoolManager : IDisposable
                 continue;
             }
 
-            // 检查连接是否仍然有�?
+            // 检查连接是否仍然有效
             if (!IsConnectionAlive(connection))
             {
                 _logger.LogWarning("[ConnectionPool] 连接已断开，标记为无效: {Key}", kvp.Key);
@@ -198,7 +200,8 @@ public class ConnectionPoolManager : IDisposable
     }
 
     /// <summary>
-    /// 检查连接是否存�?    /// </summary>
+    /// 检查连接是否存活
+    /// </summary>
     private bool IsConnectionAlive(PooledConnection connection)
     {
         try
@@ -227,7 +230,8 @@ public class ConnectionPoolManager : IDisposable
     }
 
     /// <summary>
-    /// 获取连接池统计信�?    /// </summary>
+    /// 获取连接池统计信息
+    /// </summary>
     public ConnectionPoolStats GetStats()
     {
         return new ConnectionPoolStats
@@ -256,7 +260,8 @@ public class ConnectionPoolManager : IDisposable
 }
 
 /// <summary>
-/// 连接池中的连接包�?/// </summary>
+/// 连接池中的连接包装
+/// </summary>
 public class PooledConnection : IDisposable
 {
     public string Key { get; set; } = string.Empty;
@@ -291,7 +296,8 @@ public enum ConnectionType
 }
 
 /// <summary>
-/// 连接池统计信�?/// </summary>
+/// 连接池统计信息
+/// </summary>
 public class ConnectionPoolStats
 {
     public int TotalConnections { get; set; }

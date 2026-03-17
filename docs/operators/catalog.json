@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-16T23:23:15.9464926+08:00",
+  "generatedAt": "2026-03-17T12:35:04.9178309+08:00",
   "totalCount": 118,
   "categories": {
     "AI检测": {
@@ -877,6 +877,12 @@
           "isRequired": null
         },
         {
+          "name": "BlobFeatures",
+          "displayName": "Blob特征",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
           "name": "BlobCount",
           "displayName": "Blob数量",
           "dataType": "Integer",
@@ -956,6 +962,39 @@
           "defaultValue": "0",
           "min": "0",
           "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinRectangularity",
+          "displayName": "最小矩形度",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinEccentricity",
+          "displayName": "最小离心率",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutputDetailedFeatures",
+          "displayName": "输出详细特征",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         },
@@ -10037,6 +10076,24 @@
           "displayName": "Pair Count",
           "dataType": "Integer",
           "isRequired": null
+        },
+        {
+          "name": "PairDistances",
+          "displayName": "Pair Distances",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "AverageDistance",
+          "displayName": "Average Distance",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "DistanceStdDev",
+          "displayName": "Distance StdDev",
+          "dataType": "Float",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -10120,6 +10177,50 @@
           "max": "100",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "MeasureMode",
+          "displayName": "Measure Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "edge_pairs",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "single_edge",
+              "label": "single_edge"
+            },
+            {
+              "value": "edge_pairs",
+              "label": "edge_pairs"
+            }
+          ]
+        },
+        {
+          "name": "PairDirection",
+          "displayName": "Pair Direction",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "any",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "positive_to_negative",
+              "label": "positive_to_negative"
+            },
+            {
+              "value": "negative_to_positive",
+              "label": "negative_to_positive"
+            },
+            {
+              "value": "any",
+              "label": "any"
+            }
+          ]
         },
         {
           "name": "SubpixelAccuracy",

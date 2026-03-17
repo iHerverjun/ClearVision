@@ -171,7 +171,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(cameraId);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(frameRate, 0);
 
-        // 检查是否已有该相机的连续采集任�?
+        // 检查是否已有该相机的连续采集任务
         if (_continuousAcquisitionTokens.ContainsKey(cameraId))
         {
             throw new CameraException($"相机 {cameraId} 已经在连续采集模式中", cameraId);
@@ -189,13 +189,13 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
             throw new CameraException($"Camera not connected: {cameraId}", cameraId);
         }
 
-        // 创建取消令牌�?
+        // 创建取消令牌
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _continuousAcquisitionTokens[cameraId] = cts;
 
         try
         {
-            // 计算帧间隔（毫秒�?
+            // 计算帧间隔（毫秒）
             var frameInterval = TimeSpan.FromMilliseconds(1000.0 / frameRate);
 
             // 启动连续采集循环
@@ -343,7 +343,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
     public Task<ImageDto> PreprocessAsync(Guid imageId, ImagePreprocessOptions options)
     {
-        // 从缓存获取图�?
+        // 从缓存获取图像
         Mat? sourceMat = null;
         lock (_imageCache)
         {
@@ -380,7 +380,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
                     if (options.KeepAspectRatio)
                     {
-                        // 保持宽高�?
+                        // 保持宽高比
                         var scale = Math.Min(
                             (double)targetWidth / resultMat.Width,
                             (double)targetHeight / resultMat.Height);
@@ -443,7 +443,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     resultMat = flippedMat.Clone();
                 }
 
-                // 归一�?
+                // 归一化
                 if (options.Normalize)
                 {
                     using var normalizedMat = new Mat();
@@ -489,7 +489,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        // 从缓存获取图�?
+        // 从缓存获取图像
         Mat? sourceMat = null;
         lock (_imageCache)
         {
@@ -519,7 +519,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 _ => ".png"
             };
 
-            // 如果是JPEG格式，设置质量参�?
+            // 如果是 JPEG 格式，设置质量参数
             if (saveFormat == ".jpg" || saveFormat == ".jpeg")
             {
                 var jpegParams = new int[]
@@ -650,7 +650,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         if (_disposed)
             return;
 
-        // 停止所有连续采集任�?
+        // 停止所有连续采集任务
         foreach (var cts in _continuousAcquisitionTokens.Values)
         {
             cts.Cancel();

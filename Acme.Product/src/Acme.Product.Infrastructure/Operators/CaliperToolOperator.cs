@@ -30,11 +30,16 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Width", "Width", PortDataType.Float)]
 [OutputPort("EdgePairs", "Edge Pairs", PortDataType.PointList)]
 [OutputPort("PairCount", "Pair Count", PortDataType.Integer)]
+[OutputPort("PairDistances", "Pair Distances", PortDataType.Any)]
+[OutputPort("AverageDistance", "Average Distance", PortDataType.Float)]
+[OutputPort("DistanceStdDev", "Distance StdDev", PortDataType.Float)]
 [OperatorParam("Direction", "Direction", "enum", DefaultValue = "Horizontal", Options = new[] { "Horizontal|Horizontal", "Vertical|Vertical", "Custom|Custom" })]
 [OperatorParam("Angle", "Angle", "double", DefaultValue = 0.0, Min = -180.0, Max = 180.0)]
 [OperatorParam("Polarity", "Polarity", "enum", DefaultValue = "Both", Options = new[] { "DarkToLight|DarkToLight", "LightToDark|LightToDark", "Both|Both" })]
 [OperatorParam("EdgeThreshold", "Edge Threshold", "double", DefaultValue = 18.0, Min = 1.0, Max = 255.0)]
 [OperatorParam("ExpectedCount", "Expected Count", "int", DefaultValue = 1, Min = 1, Max = 100)]
+[OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "edge_pairs", Options = new[] { "single_edge|single_edge", "edge_pairs|edge_pairs" })]
+[OperatorParam("PairDirection", "Pair Direction", "enum", DefaultValue = "any", Options = new[] { "positive_to_negative|positive_to_negative", "negative_to_positive|negative_to_positive", "any|any" })]
 [OperatorParam("SubpixelAccuracy", "Subpixel Accuracy", "bool", DefaultValue = false)]
 [OperatorParam("SubPixelMode", "Sub Pixel Mode", "enum", DefaultValue = "gradient_centroid", Options = new[] { "gradient_centroid|gradient_centroid", "zernike|zernike" })]
 public class CaliperToolOperator : OperatorBase
@@ -66,6 +71,8 @@ public class CaliperToolOperator : OperatorBase
         var polarity = GetStringParam(@operator, "Polarity", "Both");
         var edgeThreshold = GetDoubleParam(@operator, "EdgeThreshold", 18.0, 1.0, 255.0);
         var expectedCount = GetIntParam(@operator, "ExpectedCount", 1, 1, 100);
+        var measureMode = GetStringParam(@operator, "MeasureMode", "edge_pairs");
+        var pairDirection = GetStringParam(@operator, "PairDirection", "any");
         var subpixel = GetBoolParam(@operator, "SubpixelAccuracy", false);
         var subPixelMode = GetStringParam(@operator, "SubPixelMode", "gradient_centroid");
         var subpixelDetector = subpixel ? new SubPixelEdgeDetector
@@ -88,40 +95,62 @@ public class CaliperToolOperator : OperatorBase
         var sampleCount = Math.Max((int)Math.Ceiling(scan.Length), 24);
 
         var samples = SampleIntensity(gray, scan.Start, scan.End, sampleCount);
-        var edgeIndices = DetectEdges(samples, edgeThreshold, polarity);
-        var edgePoints = new List<Position>(edgeIndices.Count);
+        var candidates = DetectEdgesSigned(samples, edgeThreshold, polarity);
+        var detectedEdges = new List<DetectedEdge>(candidates.Count);
 
-        foreach (var idx in edgeIndices)
+        foreach (var edge in candidates)
         {
-            var t = sampleCount <= 1 ? 0.0 : (double)idx / (sampleCount - 1);
+            var t = sampleCount <= 1 ? 0.0 : (double)edge.Index / (sampleCount - 1);
+            var refinePolarity = edge.Polarity == EdgePolarity.DarkToLight ? "DarkToLight" : "LightToDark";
             var refinedT = subpixel
-                ? RefineSubpixel(samples, idx, t, sampleCount, edgeThreshold, polarity, subPixelMode, subpixelDetector)
+                ? RefineSubpixel(samples, edge.Index, t, sampleCount, edgeThreshold, refinePolarity, subPixelMode, subpixelDetector)
                 : t;
             var x = scan.Start.X + (scan.End.X - scan.Start.X) * refinedT;
             var y = scan.Start.Y + (scan.End.Y - scan.Start.Y) * refinedT;
-            edgePoints.Add(new Position(x, y));
+            detectedEdges.Add(new DetectedEdge(edge.Index, edge.Polarity, new Position(x, y)));
         }
 
-        var pairWidths = new List<double>();
-        var pairCount = Math.Min(expectedCount, edgePoints.Count / 2);
-        for (var i = 0; i < pairCount; i++)
+        var pairs = measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase)
+            ? BuildEdgePairs(detectedEdges, pairDirection, expectedCount)
+            : new List<(int First, int Second)>();
+
+        var pairDistances = new List<double>(pairs.Count);
+        var pairedEdgePoints = new List<Position>(pairs.Count * 2);
+
+        foreach (var (first, second) in pairs)
         {
-            var p1 = edgePoints[i * 2];
-            var p2 = edgePoints[i * 2 + 1];
-            var width = Math.Sqrt((p2.X - p1.X) * (p2.X - p1.X) + (p2.Y - p1.Y) * (p2.Y - p1.Y));
-            pairWidths.Add(width);
+            var p1 = detectedEdges[first].Point;
+            var p2 = detectedEdges[second].Point;
+            var distance = Math.Sqrt((p2.X - p1.X) * (p2.X - p1.X) + (p2.Y - p1.Y) * (p2.Y - p1.Y));
+            pairDistances.Add(distance);
+            pairedEdgePoints.Add(p1);
+            pairedEdgePoints.Add(p2);
         }
 
-        var widthValue = pairWidths.Count > 0 ? pairWidths.Average() : 0.0;
+        var averageDistance = pairDistances.Count > 0 ? pairDistances.Average() : 0.0;
+        var variance = pairDistances.Count > 1
+            ? pairDistances.Select(d => (d - averageDistance) * (d - averageDistance)).Sum() / (pairDistances.Count - 1)
+            : 0.0;
+        var distanceStdDev = Math.Sqrt(Math.Max(0, variance));
+        var pairCount = pairDistances.Count;
+        var widthValue = averageDistance;
 
         var resultImage = src.Clone();
-        DrawScanAndEdges(resultImage, scan, edgePoints, pairCount, widthValue);
+        var drawEdges = BuildDrawEdgeList(detectedEdges, pairs, pairedEdgePoints, measureMode);
+        DrawScanAndEdges(resultImage, scan, drawEdges, pairCount, widthValue);
+
+        var edgePairsOutput = measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase)
+            ? pairedEdgePoints
+            : detectedEdges.Select(e => e.Point).ToList();
 
         var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "Width", widthValue },
-            { "EdgePairs", edgePoints },
-            { "PairCount", pairCount }
+            { "EdgePairs", edgePairsOutput },
+            { "PairCount", pairCount },
+            { "PairDistances", pairDistances },
+            { "AverageDistance", averageDistance },
+            { "DistanceStdDev", distanceStdDev }
         });
         // Override image width key with measured width to match operator output contract.
         output["Width"] = widthValue;
@@ -143,6 +172,20 @@ public class CaliperToolOperator : OperatorBase
         if (!validPolarity.Contains(polarity, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("Polarity must be DarkToLight, LightToDark or Both");
+        }
+
+        var measureMode = GetStringParam(@operator, "MeasureMode", "edge_pairs");
+        var validMeasureModes = new[] { "single_edge", "edge_pairs" };
+        if (!validMeasureModes.Contains(measureMode, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("MeasureMode must be single_edge or edge_pairs");
+        }
+
+        var pairDirection = GetStringParam(@operator, "PairDirection", "any");
+        var validPairDirections = new[] { "positive_to_negative", "negative_to_positive", "any" };
+        if (!validPairDirections.Contains(pairDirection, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("PairDirection must be positive_to_negative, negative_to_positive or any");
         }
 
         var subPixelMode = GetStringParam(@operator, "SubPixelMode", "gradient_centroid");
@@ -272,27 +315,131 @@ public class CaliperToolOperator : OperatorBase
         return top + ((bottom - top) * fy);
     }
 
-    private static List<int> DetectEdges(IReadOnlyList<double> samples, double threshold, string polarity)
+    private enum EdgePolarity
     {
-        var edges = new List<int>();
+        DarkToLight,
+        LightToDark
+    }
+
+    private readonly record struct EdgeCandidate(int Index, EdgePolarity Polarity);
+
+    private readonly record struct DetectedEdge(int Index, EdgePolarity Polarity, Position Point);
+
+    private static List<EdgeCandidate> DetectEdgesSigned(IReadOnlyList<double> samples, double threshold, string polarity)
+    {
+        var edges = new List<EdgeCandidate>();
 
         for (var i = 1; i < samples.Count; i++)
         {
             var grad = samples[i] - samples[i - 1];
-            var pass = polarity switch
-            {
-                var p when p.Equals("DarkToLight", StringComparison.OrdinalIgnoreCase) => grad >= threshold,
-                var p when p.Equals("LightToDark", StringComparison.OrdinalIgnoreCase) => grad <= -threshold,
-                _ => Math.Abs(grad) >= threshold
-            };
 
-            if (pass)
+            if (grad >= threshold)
             {
-                edges.Add(i);
+                if (!polarity.Equals("LightToDark", StringComparison.OrdinalIgnoreCase))
+                {
+                    edges.Add(new EdgeCandidate(i, EdgePolarity.DarkToLight));
+                }
+                continue;
+            }
+
+            if (grad <= -threshold)
+            {
+                if (!polarity.Equals("DarkToLight", StringComparison.OrdinalIgnoreCase))
+                {
+                    edges.Add(new EdgeCandidate(i, EdgePolarity.LightToDark));
+                }
             }
         }
 
         return edges;
+    }
+
+    private static List<(int First, int Second)> BuildEdgePairs(
+        IReadOnlyList<DetectedEdge> edges,
+        string pairDirection,
+        int maxPairs)
+    {
+        var pairs = new List<(int First, int Second)>();
+        if (maxPairs <= 0 || edges.Count < 2)
+        {
+            return pairs;
+        }
+
+        var normalizedDirection = pairDirection?.Trim().ToLowerInvariant() ?? "any";
+
+        for (var i = 0; i < edges.Count - 1 && pairs.Count < maxPairs; i++)
+        {
+            var first = edges[i];
+            var second = edges[i + 1];
+
+            if (first.Polarity == second.Polarity)
+            {
+                continue;
+            }
+
+            if (!PairDirectionMatches(first.Polarity, second.Polarity, normalizedDirection))
+            {
+                continue;
+            }
+
+            pairs.Add((i, i + 1));
+            i++; // Consume the second edge.
+        }
+
+        return pairs;
+    }
+
+    private static bool PairDirectionMatches(EdgePolarity first, EdgePolarity second, string pairDirection)
+    {
+        return pairDirection switch
+        {
+            "positive_to_negative" => first == EdgePolarity.DarkToLight && second == EdgePolarity.LightToDark,
+            "negative_to_positive" => first == EdgePolarity.LightToDark && second == EdgePolarity.DarkToLight,
+            "any" => true,
+            _ => true
+        };
+    }
+
+    private static List<Position> BuildDrawEdgeList(
+        IReadOnlyList<DetectedEdge> detectedEdges,
+        IReadOnlyList<(int First, int Second)> pairs,
+        IReadOnlyList<Position> pairedEdgePoints,
+        string measureMode)
+    {
+        var allEdges = detectedEdges.Select(e => e.Point).ToList();
+
+        if (!measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase) || pairs.Count == 0)
+        {
+            return allEdges;
+        }
+
+        var used = new bool[detectedEdges.Count];
+        foreach (var (first, second) in pairs)
+        {
+            if (first >= 0 && first < used.Length)
+            {
+                used[first] = true;
+            }
+
+            if (second >= 0 && second < used.Length)
+            {
+                used[second] = true;
+            }
+        }
+
+        var unpaired = new List<Position>(Math.Max(0, allEdges.Count - pairedEdgePoints.Count));
+        for (var i = 0; i < detectedEdges.Count; i++)
+        {
+            if (!used[i])
+            {
+                unpaired.Add(detectedEdges[i].Point);
+            }
+        }
+
+        var drawEdges = new List<Position>(pairedEdgePoints.Count + unpaired.Count);
+        drawEdges.AddRange(pairedEdgePoints);
+        drawEdges.AddRange(unpaired);
+        return drawEdges;
     }
 
     private static double RefineSubpixel(

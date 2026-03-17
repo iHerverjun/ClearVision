@@ -51,4 +51,23 @@ public class BlobDetectionOperatorTests
         var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithMinRectangularity_ShouldFilterOutRoundBlobs()
+    {
+        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinRectangularity", 0.9, "double"));
+
+        using var image = TestHelpers.CreateShapeTestImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToInt32(result.OutputData!["BlobCount"]).Should().Be(1);
+
+        var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
+        blobs.Should().HaveCount(1);
+        Convert.ToDouble(blobs[0]["Rectangularity"]).Should().BeGreaterThan(0.9);
+    }
 }

@@ -29,6 +29,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("SourceImage", "Source Image", PortDataType.Image, IsRequired = false)]
 [OutputPort("Image", "标记图像", PortDataType.Image)]
 [OutputPort("Blobs", "Blob数据", PortDataType.Contour)]
+[OutputPort("BlobFeatures", "Blob特征", PortDataType.Any)]
 [OutputPort("BlobCount", "Blob数量", PortDataType.Integer)]
 [OperatorParam("MinArea", "最小面积", "int", DefaultValue = 100, Min = 0)]
 [OperatorParam("MaxArea", "最大面积", "int", DefaultValue = 100000, Min = 0)]
@@ -36,6 +37,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MinCircularity", "最小圆度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
 [OperatorParam("MinConvexity", "最小凸度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
 [OperatorParam("MinInertiaRatio", "最小惯性比", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("MinRectangularity", "最小矩形度", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("MinEccentricity", "最小离心率", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("OutputDetailedFeatures", "输出详细特征", "bool", DefaultValue = false)]
 [OperatorParam("FeatureFilter", "Feature Filter", "string", DefaultValue = "")]
 [OperatorParam("EnableColorFilter", "启用颜色过滤", "bool", DefaultValue = false, Description = "启用HSV颜色范围预过滤")]
 [OperatorParam("HueLow", "色相下限", "int", DefaultValue = 0, Min = 0, Max = 180)]
@@ -173,6 +177,9 @@ public class BlobDetectionOperator : OperatorBase
         var minCircularity = GetDoubleParam(@operator, "MinCircularity", 0.0, min: 0, max: 1.0);
         var minConvexity = GetDoubleParam(@operator, "MinConvexity", 0.0, min: 0, max: 1.0);
         var minInertiaRatio = GetDoubleParam(@operator, "MinInertiaRatio", 0.0, min: 0, max: 1.0);
+        var minRectangularity = GetDoubleParam(@operator, "MinRectangularity", 0.0, min: 0, max: 1.0);
+        var minEccentricity = GetDoubleParam(@operator, "MinEccentricity", 0.0, min: 0, max: 1.0);
+        var outputDetailedFeatures = GetBoolParam(@operator, "OutputDetailedFeatures", false);
         var featureFilter = GetStringParam(@operator, "FeatureFilter", string.Empty);
         var enableColorFilter = GetBoolParam(@operator, "EnableColorFilter", false);
         var hueLow = GetIntParam(@operator, "HueLow", 0, 0, 180);
@@ -347,6 +354,16 @@ public class BlobDetectionOperator : OperatorBase
                     continue;
                 }
 
+                if (minRectangularity > 0 && rectangularity < minRectangularity)
+                {
+                    continue;
+                }
+
+                if (minEccentricity > 0 && eccentricity < minEccentricity)
+                {
+                    continue;
+                }
+
                 var featureValues = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Area"] = area,
@@ -422,9 +439,13 @@ public class BlobDetectionOperator : OperatorBase
             var additionalData = new Dictionary<string, object>
             {
                 { "BlobCount", blobs.Count },
-                { "Blobs", blobs },
-                { "BlobFeatures", blobs }
+                { "Blobs", blobs }
             };
+
+            if (outputDetailedFeatures)
+            {
+                additionalData["BlobFeatures"] = blobs;
+            }
 
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
         }

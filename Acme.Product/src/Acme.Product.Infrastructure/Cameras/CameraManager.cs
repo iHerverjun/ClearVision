@@ -12,7 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace Acme.Product.Infrastructure.Cameras;
 
 /// <summary>
-/// 相机管理器实�?/// </summary>
+/// 相机管理器实现
+/// </summary>
 public class CameraManager : ICameraManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, ICamera> _cameras = new();
@@ -30,7 +31,8 @@ public class CameraManager : ICameraManager, IDisposable
     }
 
     /// <summary>
-    /// 枚举所有可用相机设�?    /// </summary>
+    /// 枚举所有可用相机设备
+    /// </summary>
     public Task<IEnumerable<CameraInfo>> EnumerateCamerasAsync()
     {
         var allDevices = CameraProviderFactory.DiscoverAll();
@@ -145,7 +147,8 @@ public class CameraManager : ICameraManager, IDisposable
 }
 
 /// <summary>
-/// 相机提供器适配�?/// </summary>
+/// 相机提供器适配器
+/// </summary>
 public class CameraProviderAdapter : IIndustrialCamera
 {
     private readonly string _cameraId;
@@ -176,20 +179,20 @@ public class CameraProviderAdapter : IIndustrialCamera
 
     public async Task<byte[]> AcquireSingleFrameAsync()
     {
-        // 严格按照华睿 SDK 正确时序�?
+        // 严格按照华睿 SDK 正确时序调用
         // 1) StartGrabbing -> 2) TriggerMode=On,TriggerSource=Software -> 3) ExecuteSoftwareTrigger -> 4) GetFrame
 
-        // 1) 确保采集已启�?
+        // 1) 确保采集已启动
         if (!_provider.IsGrabbing)
             _provider.StartGrabbing();
 
-        // 2) 设置软件触发模式（TriggerMode=On, TriggerSource=Software�?
+        // 2) 设置软件触发模式（TriggerMode=On, TriggerSource=Software）
         _provider.SetTriggerMode(true);
 
         // 3) 发送软触发命令
         _provider.ExecuteSoftwareTrigger();
 
-        // 4) 获取帧（�?SDK 足够响应时间�?
+        // 4) 获取帧（给 SDK 足够响应时间）
         var frame = _provider.GetFrame(3000);
         if (frame == null)
             throw new TimeoutException("获取图像超时");

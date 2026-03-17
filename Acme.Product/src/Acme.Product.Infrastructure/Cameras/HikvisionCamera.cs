@@ -13,7 +13,7 @@ namespace Acme.Product.Infrastructure.Cameras;
 /// </summary>
 public class HikvisionCamera : ICameraProvider
 {
-    #region 海康SDK常量和结�?
+    #region 海康SDK常量和结构
     private const uint MV_OK = 0x00000000;
     private const uint MV_GIGE_DEVICE = 0x00000001;
     private const uint MV_USB_DEVICE = 0x00000004;

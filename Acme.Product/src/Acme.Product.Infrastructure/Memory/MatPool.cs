@@ -8,7 +8,11 @@ using OpenCvSharp;
 namespace Acme.Product.Infrastructure.Memory;
 
 /// <summary>
-/// OpenCvSharp.Mat 的分桶内存池�?/// 按图像规格（宽、高、像素类型）分桶缓存已释放的 Mat 内存�?/// 供下次相同规格的 CoW 操作复用，避免向 OS 重复申请大块非托管内存�?/// 线程安全�?/// </summary>
+/// OpenCvSharp.Mat 的分桶内存池。
+/// 按图像规格（宽、高、像素类型）分桶缓存已释放的 Mat 内存，
+/// 供下次相同规格的 CoW 操作复用，避免向 OS 重复申请大块非托管内存。
+/// 线程安全。
+/// </summary>
 public sealed class MatPool : IDisposable
 {
     // 每个桶：key = 图像规格描述符，value = 可复用的空闲 Mat 队列
@@ -18,7 +22,7 @@ public sealed class MatPool : IDisposable
     // 每个桶的最大缓存数量，防止池无限膨胀
     private int _maxPerBucket;
 
-    // 内存池总容量上限（字节�?
+    // 内存池总容量上限（字节）
     private long _maxTotalBytes;
 
     private long _currentTotalBytes = 0;
@@ -30,7 +34,7 @@ public sealed class MatPool : IDisposable
     public long MissCount => Interlocked.Read(ref _missCount);
     public double HitRate => (_hitCount + _missCount == 0) ? 0 : (double)_hitCount / (_hitCount + _missCount);
 
-    // 全局共享实例 (默认 16，大图场景建�?64)
+    // 全局共享实例（大图/高并发场景可适当提高 maxPerBucket）
     public static readonly MatPool Shared = new(maxPerBucket: 32, maxTotalGb: 4.0);
 
     public MatPool(int maxPerBucket = 32, double maxTotalGb = 4.0)
@@ -40,7 +44,8 @@ public sealed class MatPool : IDisposable
     }
 
     /// <summary>
-    /// 运行时配置参�?    /// </summary>
+    /// 运行时配置参数
+    /// </summary>
     public void Configure(int maxPerBucket, double maxTotalGb)
     {
         _maxPerBucket = maxPerBucket;
@@ -63,7 +68,7 @@ public sealed class MatPool : IDisposable
             if (!mat.IsDisposed && mat.Width == width && mat.Height == height && mat.Type() == type)
             {
                 Interlocked.Increment(ref _hitCount);
-                return mat; // 复用已有缓冲块，�?malloc
+                return mat; // 复用已有缓冲块，减少 malloc
             }
 
             // Mat 已失效，直接释放
@@ -71,12 +76,14 @@ public sealed class MatPool : IDisposable
         }
 
         Interlocked.Increment(ref _missCount);
-        // 池中无缓存，只好新建（冷启动或池被耗尽时才发生�?
+        // 池中无缓存，只好新建（冷启动或池被耗尽时才发生）
         return new Mat(height, width, type);
     }
 
     /// <summary>
-    /// 将一个不再使用的 Mat 归还池中供后续复用�?    /// 如果池已满或总内存超限，则直�?Dispose（向 OS 释放内存）�?    /// </summary>
+    /// 将一个不再使用的 Mat 归还池中供后续复用。
+    /// 如果池已满或总内存超限，则直接 Dispose（向 OS 释放内存）。
+    /// </summary>
     public void Return(Mat mat)
     {
         if (_disposed || mat.IsDisposed)
@@ -112,7 +119,9 @@ public sealed class MatPool : IDisposable
     }
 
     /// <summary>
-    /// 收缩池（可在系统空闲时调用，或在内存压力回调中触发）�?    /// 释放所有缓存的 Mat，将非托管内存归�?OS�?    /// </summary>
+    /// 收缩池（可在系统空闲时调用，或在内存压力回调中触发）。
+    /// 释放所有缓存的 Mat，将非托管内存归还 OS。
+    /// </summary>
     public void Trim()
     {
         foreach (var (_, bag) in _buckets)
