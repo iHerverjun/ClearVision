@@ -1,10 +1,11 @@
 {
-  "generatedAt": "2026-03-17T15:02:44.2227737+08:00",
-  "totalCount": 120,
+  "generatedAt": "2026-03-17T15:27:10.0501496+08:00",
+  "totalCount": 121,
   "categories": {
     "3D": {
-      "count": 1,
+      "count": 2,
       "operators": [
+        "StatisticalOutlierRemoval",
         "VoxelDownsample"
       ]
     },
@@ -15152,6 +15153,82 @@
         "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "docs/operators/VoxelDownsample.md"
+    },
+    {
+      "id": "StatisticalOutlierRemoval",
+      "type": 218,
+      "displayName": "统计滤波",
+      "description": "Statistical Outlier Removal (SOR) for point clouds.",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "PointCount",
+          "displayName": "Point Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "RemovedCount",
+          "displayName": "Removed Count",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "MeanK",
+          "displayName": "MeanK",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "50",
+          "min": "1",
+          "max": "500",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "StddevMul",
+          "displayName": "StddevMul",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0",
+          "max": "10",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 95,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/StatisticalOutlierRemoval.md"
     }
   ]
 }

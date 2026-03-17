@@ -1,12 +1,12 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 15:02:44 +08:00`
-> 算子总数 / Total Operators: **120**
+> 生成时间 / Generated At: `2026-03-17 15:27:10 +08:00`
+> 算子总数 / Total Operators: **121**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
-| 3D | 1 | 0.8% |
+| 3D | 2 | 1.7% |
 | AI检测 | 4 | 3.3% |
 | 匹配定位 | 6 | 5.0% |
 | 变量 | 4 | 3.3% |
@@ -15,32 +15,33 @@
 | 拆分组合 | 2 | 1.7% |
 | 数据处理 | 10 | 8.3% |
 | 标定 | 6 | 5.0% |
-| 检测 | 16 | 13.3% |
+| 检测 | 16 | 13.2% |
 | 流程控制 | 6 | 5.0% |
 | 特征提取 | 4 | 3.3% |
 | 识别 | 2 | 1.7% |
 | 辅助 | 3 | 2.5% |
 | 输出 | 2 | 1.7% |
-| 通信 | 8 | 6.7% |
+| 通信 | 8 | 6.6% |
 | 通用 | 4 | 3.3% |
-| 逻辑工具 | 5 | 4.2% |
+| 逻辑工具 | 5 | 4.1% |
 | 采集 | 1 | 0.8% |
-| 预处理 | 23 | 19.2% |
+| 预处理 | 23 | 19.0% |
 | 颜色处理 | 2 | 1.7% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **88.9**
+- 平均分 / Average: **89.0**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 81 |
+| A | 82 |
 | B | 33 |
 | C | 6 |
 
 ## 分类索引 / Grouped Index
 
-### 3D (1)
+### 3D (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./operators/StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./operators/VoxelDownsample.md) |
 
 ### AI检测 (4)

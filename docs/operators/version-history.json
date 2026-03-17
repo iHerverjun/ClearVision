@@ -1727,6 +1727,18 @@
       ]
     },
     {
+      "id": "StatisticalOutlierRemoval",
+      "displayName": "\u7EDF\u8BA1\u6EE4\u6CE2",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "39F96B06A2E6E039C90388D9E876BC40083FC265BD96823639C9378DD1AF6F54",
+          "recordedAt": "2026-03-17T15:25:05.6682201\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "Statistics",
       "displayName": "Statistics",
       "category": "\u901A\u7528",
