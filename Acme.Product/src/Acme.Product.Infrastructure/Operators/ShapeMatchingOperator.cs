@@ -153,11 +153,13 @@ public class ShapeMatchingOperator : OperatorBase
                     {
                         { "X", m.X },
                         { "Y", m.Y },
+                        { "XSubpixel", m.SubpixelX },
+                        { "YSubpixel", m.SubpixelY },
                         { "Angle", m.Angle },
                         { "Scale", m.Scale },
                         { "Score", m.Score },
-                        { "CenterX", m.X + (m.Width / 2.0) },
-                        { "CenterY", m.Y + (m.Height / 2.0) },
+                        { "CenterX", m.SubpixelX + (m.Width / 2.0) },
+                        { "CenterY", m.SubpixelY + (m.Height / 2.0) },
                         { "Width", m.Width },
                         { "Height", m.Height }
                     }).ToList();
@@ -383,10 +385,22 @@ public class ShapeMatchingOperator : OperatorBase
                     return;
                 }
 
+                // Subpixel peak refinement: fit a parabola on each axis around the discrete maximum.
+                // This improves translation precision without changing the legacy integer X/Y outputs.
+                var refinedX = (double)maxLoc.X;
+                var refinedY = (double)maxLoc.Y;
+                if (TryRefineSubpixelPeak(matchResult, maxLoc, out var dx, out var dy))
+                {
+                    refinedX += dx;
+                    refinedY += dy;
+                }
+
                 var candidate = new MatchResult
                 {
                     X = maxLoc.X,
                     Y = maxLoc.Y,
+                    SubpixelX = refinedX,
+                    SubpixelY = refinedY,
                     Angle = transform.angle,
                     Scale = transform.scale,
                     Score = maxVal,
@@ -408,6 +422,205 @@ public class ShapeMatchingOperator : OperatorBase
         return NonMaximumSuppression(matches, 0.4f)
             .Take(candidateLimit)
             .ToList();
+    }
+
+    private static bool TryRefineSubpixelPeak(Mat matchResult, Point maxLoc, out double dx, out double dy)
+    {
+        dx = 0.0;
+        dy = 0.0;
+
+        // matchResult is CV_32FC1 for MatchTemplate. Guard just in case.
+        if (matchResult.Empty() || matchResult.Cols < 3 || matchResult.Rows < 3)
+        {
+            return false;
+        }
+
+        var x = maxLoc.X;
+        var y = maxLoc.Y;
+
+        // Need a full 3x3 neighborhood for a stable 2D quadratic refinement.
+        if (x <= 0 || x >= matchResult.Cols - 1 || y <= 0 || y >= matchResult.Rows - 1)
+        {
+            return false;
+        }
+
+        // Prefer a 5x5 quadratic least-squares fit when we have room. It is more accurate than
+        // simple finite differences when the correlation surface deviates slightly from an ideal
+        // paraboloid due to interpolation and sampling.
+        //
+        // Model (local coordinates):
+        //   f(x,y) = a*x^2 + b*y^2 + c*x*y + d*x + e*y + g
+        // Peak satisfies:
+        //   [2a  c] [x] = [-d]
+        //   [ c 2b] [y]   [-e]
+        if (x >= 2 && x <= matchResult.Cols - 3 && y >= 2 && y <= matchResult.Rows - 3)
+        {
+            // Build normal equations A * p = b for p=[a,b,c,d,e,g].
+            // A is 6x6, b is 6. We solve via Gaussian elimination with partial pivoting.
+            Span<double> A = stackalloc double[36];
+            Span<double> b = stackalloc double[6];
+            Span<double> r = stackalloc double[6];
+
+            for (int j = -2; j <= 2; j++)
+            {
+                for (int i = -2; i <= 2; i++)
+                {
+                    double xi = i;
+                    double yi = j;
+                    double v = matchResult.At<float>(y + j, x + i);
+
+                    double r0 = xi * xi;
+                    double r1 = yi * yi;
+                    double r2 = xi * yi;
+                    double r3 = xi;
+                    double r4 = yi;
+                    double r5 = 1.0;
+
+                    // r = [r0..r5]
+                    r[0] = r0;
+                    r[1] = r1;
+                    r[2] = r2;
+                    r[3] = r3;
+                    r[4] = r4;
+                    r[5] = r5;
+
+                    for (int row = 0; row < 6; row++)
+                    {
+                        b[row] += r[row] * v;
+                        for (int col = 0; col < 6; col++)
+                        {
+                            A[(row * 6) + col] += r[row] * r[col];
+                        }
+                    }
+                }
+            }
+
+            Span<double> p = stackalloc double[6];
+            if (TrySolveLinearSystem6x6(A, b, p))
+            {
+                double a = p[0];
+                double bb = p[1];
+                double c = p[2];
+                double d = p[3];
+                double e = p[4];
+
+                double det = (2.0 * a * 2.0 * bb) - (c * c);
+                if (Math.Abs(det) > 1e-12)
+                {
+                    dx = ((c * e) - (2.0 * bb * d)) / det;
+                    dy = ((c * d) - (2.0 * a * e)) / det;
+
+                    if (!double.IsNaN(dx) && !double.IsInfinity(dx) && !double.IsNaN(dy) && !double.IsInfinity(dy))
+                    {
+                        dx = Math.Clamp(dx, -1.0, 1.0);
+                        dy = Math.Clamp(dy, -1.0, 1.0);
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Fallback: 3x3 finite-difference Hessian solve (fast and allocation-free).
+        double f00 = matchResult.At<float>(y, x);
+        double f10 = matchResult.At<float>(y, x + 1);
+        double fm10 = matchResult.At<float>(y, x - 1);
+        double f01 = matchResult.At<float>(y + 1, x);
+        double f0m1 = matchResult.At<float>(y - 1, x);
+        double f11 = matchResult.At<float>(y + 1, x + 1);
+        double f1m1 = matchResult.At<float>(y - 1, x + 1);
+        double fm11 = matchResult.At<float>(y + 1, x - 1);
+        double fm1m1 = matchResult.At<float>(y - 1, x - 1);
+
+        double fx = (f10 - fm10) * 0.5;
+        double fy = (f01 - f0m1) * 0.5;
+        double fxx = f10 - (2.0 * f00) + fm10;
+        double fyy = f01 - (2.0 * f00) + f0m1;
+        double fxy = (f11 - f1m1 - fm11 + fm1m1) * 0.25;
+
+        double det2 = (fxx * fyy) - (fxy * fxy);
+        if (Math.Abs(det2) < 1e-12)
+        {
+            return false;
+        }
+
+        dx = ((fxy * fy) - (fyy * fx)) / det2;
+        dy = ((fxy * fx) - (fxx * fy)) / det2;
+
+        if (double.IsNaN(dx) || double.IsInfinity(dx) || double.IsNaN(dy) || double.IsInfinity(dy))
+        {
+            dx = 0.0;
+            dy = 0.0;
+            return false;
+        }
+
+        dx = Math.Clamp(dx, -1.0, 1.0);
+        dy = Math.Clamp(dy, -1.0, 1.0);
+
+        return true;
+    }
+
+    private static bool TrySolveLinearSystem6x6(Span<double> A, Span<double> b, Span<double> x)
+    {
+        // Solve A*x=b using Gaussian elimination with partial pivoting.
+        // Mutates A and b (callers should pass fresh arrays).
+        const int n = 6;
+        for (int k = 0; k < n; k++)
+        {
+            int pivotRow = k;
+            double pivotAbs = Math.Abs(A[(k * 6) + k]);
+            for (int r = k + 1; r < n; r++)
+            {
+                double v = Math.Abs(A[(r * 6) + k]);
+                if (v > pivotAbs)
+                {
+                    pivotAbs = v;
+                    pivotRow = r;
+                }
+            }
+
+            if (pivotAbs < 1e-12)
+            {
+                return false;
+            }
+
+            if (pivotRow != k)
+            {
+                for (int c = k; c < n; c++)
+                {
+                    int i1 = (k * 6) + c;
+                    int i2 = (pivotRow * 6) + c;
+                    (A[i1], A[i2]) = (A[i2], A[i1]);
+                }
+                (b[k], b[pivotRow]) = (b[pivotRow], b[k]);
+            }
+
+            double pivot = A[(k * 6) + k];
+            for (int c = k; c < n; c++)
+            {
+                A[(k * 6) + c] /= pivot;
+            }
+            b[k] /= pivot;
+
+            for (int r = 0; r < n; r++)
+            {
+                if (r == k) continue;
+                double factor = A[(r * 6) + k];
+                if (Math.Abs(factor) < 1e-18) continue;
+
+                for (int c = k; c < n; c++)
+                {
+                    A[(r * 6) + c] -= factor * A[(k * 6) + c];
+                }
+                b[r] -= factor * b[k];
+            }
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            x[i] = b[i];
+        }
+
+        return true;
     }
 
     private static Mat RotateImage(Mat src, double angle)
@@ -528,6 +741,8 @@ public class ShapeMatchingOperator : OperatorBase
     {
         public int X { get; init; }
         public int Y { get; init; }
+        public double SubpixelX { get; init; }
+        public double SubpixelY { get; init; }
         public double Angle { get; init; }
         public double Scale { get; init; } = 1.0;
         public double Score { get; init; }

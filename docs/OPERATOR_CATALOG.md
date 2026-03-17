@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-16 23:23:15 +08:00`
+> 生成时间 / Generated At: `2026-03-17 12:35:04 +08:00`
 > 算子总数 / Total Operators: **118**
 
 ## 分类统计 / Category Summary
@@ -116,7 +116,7 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AngleMeasurement` | 角度测量 | 1 | 2 | 7 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [AngleMeasurement](./operators/AngleMeasurement.md) |
-| `OperatorType.CaliperTool` | 卡尺工具 | 2 | 4 | 7 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./operators/CaliperTool.md) |
+| `OperatorType.CaliperTool` | 卡尺工具 | 2 | 7 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./operators/CaliperTool.md) |
 | `OperatorType.CircleMeasurement` | 圆测量 | 1 | 7 | 7 | 100 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [CircleMeasurement](./operators/CircleMeasurement.md) |
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./operators/ContourMeasurement.md) |
 | `OperatorType.GapMeasurement` | 间隙测量 | 2 | 6 | 4 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GapMeasurement](./operators/GapMeasurement.md) |
@@ -145,7 +145,7 @@
 ### 特征提取 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.BlobAnalysis` | Blob分析 | 2 | 3 | 14 | 100 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./operators/BlobAnalysis.md) |
+| `OperatorType.BlobAnalysis` | Blob分析 | 2 | 4 | 17 | 100 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./operators/BlobAnalysis.md) |
 | `OperatorType.ContourDetection` | 轮廓检测 | 1 | 3 | 8 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourDetection](./operators/ContourDetection.md) |
 | `OperatorType.EdgeDetection` | Edge Detection | 1 | 2 | 8 | 76 (B) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [EdgeDetection](./operators/EdgeDetection.md) |
 | `OperatorType.SubpixelEdgeDetection` | Subpixel Edge Detection | 1 | 2 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SubpixelEdgeDetection](./operators/SubpixelEdgeDetection.md) |

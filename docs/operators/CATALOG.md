@@ -1,38 +1,38 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 12:35:04 +08:00`
-> 算子总数 / Total Operators: **118**
+> 生成时间 / Generated At: `2026-03-17 14:27:11 +08:00`
+> 算子总数 / Total Operators: **119**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
 | AI检测 | 4 | 3.4% |
-| 匹配定位 | 6 | 5.1% |
+| 匹配定位 | 6 | 5.0% |
 | 变量 | 4 | 3.4% |
 | 图像处理 | 4 | 3.4% |
 | 定位 | 7 | 5.9% |
 | 拆分组合 | 2 | 1.7% |
-| 数据处理 | 10 | 8.5% |
-| 标定 | 6 | 5.1% |
-| 检测 | 16 | 13.6% |
-| 流程控制 | 6 | 5.1% |
+| 数据处理 | 10 | 8.4% |
+| 标定 | 6 | 5.0% |
+| 检测 | 16 | 13.4% |
+| 流程控制 | 6 | 5.0% |
 | 特征提取 | 4 | 3.4% |
 | 识别 | 2 | 1.7% |
-| 辅助 | 2 | 1.7% |
+| 辅助 | 3 | 2.5% |
 | 输出 | 2 | 1.7% |
-| 通信 | 8 | 6.8% |
+| 通信 | 8 | 6.7% |
 | 通用 | 4 | 3.4% |
 | 逻辑工具 | 5 | 4.2% |
 | 采集 | 1 | 0.8% |
-| 预处理 | 23 | 19.5% |
+| 预处理 | 23 | 19.3% |
 | 颜色处理 | 2 | 1.7% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **88.8**
+- 平均分 / Average: **88.9**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 78 |
-| B | 34 |
+| A | 80 |
+| B | 33 |
 | C | 6 |
 
 ## 分类索引 / Grouped Index
@@ -156,17 +156,18 @@
 | `OperatorType.CodeRecognition` | 条码识别 | 1 | 4 | 2 | 94 (A) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [CodeRecognition](./CodeRecognition.md) |
 | `OperatorType.OcrRecognition` | OCR 识别 | 1 | 2 | 0 | 100 (A) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [OcrRecognition](./OcrRecognition.md) |
 
-### 辅助 (2)
+### 辅助 (3)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.Comment` | 注释 | 1 | 2 | 1 | 61 (C) | `1.0.0` | 该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。 | [Comment](./Comment.md) |
 | `OperatorType.RoiManager` | ROI管理器 | 1 | 2 | 10 | 100 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [RoiManager](./RoiManager.md) |
+| `OperatorType.RoiTransform` | ROI跟踪 | 2 | 1 | 1 | 86 (A) | `1.0.0` | - | [RoiTransform](./RoiTransform.md) |
 
 ### 输出 (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ImageSave` | 图像保存 | 1 | 2 | 3 | 83 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ImageSave](./ImageSave.md) |
-| `OperatorType.ResultOutput` | 结果输出 | 4 | 6 | 2 | 84 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
+| `OperatorType.ResultOutput` | 结果输出 | 4 | 6 | 2 | 98 (A) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
 
 ### 通信 (8)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

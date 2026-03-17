@@ -58,6 +58,10 @@ public class OperatorContractReconciliationTests
         var shapeMatching = factory.GetMetadata(OperatorType.ShapeMatching)!;
         shapeMatching.DisplayName.Should().Be("旋转尺度模板匹配");
 
+        var roiTransform = factory.GetMetadata(OperatorType.RoiTransform)!;
+        roiTransform.InputPorts.Select(p => p.Name).Should().Contain(new[] { "BaseRoi", "Matches" });
+        roiTransform.OutputPorts.Select(p => p.Name).Should().Contain("SearchRegion");
+
         // ArrayIndexer 契约检查 - 输入输出键名一致性
         var arrayIndexer = factory.GetMetadata(OperatorType.ArrayIndexer)!;
         arrayIndexer.InputPorts.Select(p => p.Name).Should().Contain("List");

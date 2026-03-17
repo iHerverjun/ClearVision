@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-17T12:35:04.9178309+08:00",
-  "totalCount": 118,
+  "generatedAt": "2026-03-17T14:27:11.6128169+08:00",
+  "totalCount": 119,
   "categories": {
     "AI检测": {
       "count": 4,
@@ -134,10 +134,11 @@
       ]
     },
     "辅助": {
-      "count": 2,
+      "count": 3,
       "operators": [
         "Comment",
-        "RoiManager"
+        "RoiManager",
+        "RoiTransform"
       ]
     },
     "输出": {
@@ -1785,13 +1786,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
+        "totalScore": 98,
+        "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 35,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
+        "errorHandlingScore": 90,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
       },
       "docPath": "docs/operators/ResultOutput.md"
     },
@@ -15027,6 +15028,65 @@
         "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "docs/operators/MeanFilter.md"
+    },
+    {
+      "id": "RoiTransform",
+      "type": 216,
+      "displayName": "ROI跟踪",
+      "description": "Transforms a base ROI using match pose (CenterX/CenterY/Angle/Scale) and outputs SearchRegion.",
+      "category": "辅助",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "BaseRoi",
+          "displayName": "Base ROI",
+          "dataType": "Rectangle",
+          "isRequired": true
+        },
+        {
+          "name": "Matches",
+          "displayName": "Matches",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "SearchRegion",
+          "displayName": "Search Region",
+          "dataType": "Rectangle",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "MatchIndex",
+          "displayName": "Match Index",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 86,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+      },
+      "docPath": "docs/operators/RoiTransform.md"
     }
   ]
 }

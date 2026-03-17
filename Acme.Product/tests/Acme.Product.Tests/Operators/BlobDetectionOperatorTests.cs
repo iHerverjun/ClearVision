@@ -8,6 +8,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -69,5 +70,42 @@ public class BlobDetectionOperatorTests
         var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
         blobs.Should().HaveCount(1);
         Convert.ToDouble(blobs[0]["Rectangularity"]).Should().BeGreaterThan(0.9);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithSyntheticCircle_ShouldHaveHighCircularity()
+    {
+        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MaxArea", 300000, "int"));
+
+        using var mat = new Mat(512, 512, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Circle(mat, new Point(256, 256), 200, Scalar.White, -1);
+
+        var inputs = TestHelpers.CreateImageInputs(new ImageWrapper(mat));
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToInt32(result.OutputData!["BlobCount"]).Should().Be(1);
+
+        var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
+        Convert.ToDouble(blobs[0]["Circularity"]).Should().BeGreaterThan(0.99);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithSyntheticRectangle_ShouldHaveHighRectangularity()
+    {
+        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+
+        using var mat = new Mat(512, 512, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(156, 206, 200, 100), Scalar.White, -1);
+
+        var inputs = TestHelpers.CreateImageInputs(new ImageWrapper(mat));
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToInt32(result.OutputData!["BlobCount"]).Should().Be(1);
+
+        var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
+        Convert.ToDouble(blobs[0]["Rectangularity"]).Should().BeGreaterThan(0.95);
     }
 }

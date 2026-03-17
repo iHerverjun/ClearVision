@@ -85,8 +85,19 @@ public class ResultOutputOperator : OperatorBase
 
             if (saveToFile)
             {
-                var filePath = SaveFormattedOutput(formattedText, format);
-                output["FilePath"] = filePath;
+                try
+                {
+                    var filePath = SaveFormattedOutput(formattedText, format);
+                    output["FilePath"] = filePath;
+                }
+                catch (Exception ex)
+                {
+                    // Result output should remain usable even if the local filesystem is unavailable
+                    // (e.g. restricted CI environments or temp folder issues).
+                    Logger.LogWarning(ex, "Failed to save formatted output to file. Format={Format}", format);
+                    output["FilePath"] = string.Empty;
+                    output["SaveError"] = ex.Message;
+                }
             }
         }
         else if (output.TryGetValue("Result", out var resultValue))

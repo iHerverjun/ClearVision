@@ -308,14 +308,15 @@ public class BlobDetectionOperator : OperatorBase
                 }
 
                 var perimeter = Math.Max(1e-6, Cv2.ArcLength(contour, true));
+                var contourArea = Math.Abs(Cv2.ContourArea(contour));
                 var hull = Cv2.ConvexHull(contour);
                 var hullArea = hull.Length >= 3 ? Math.Abs(Cv2.ContourArea(hull)) : 0.0;
-                var convexity = hullArea > 0 ? area / hullArea : 0.0;
+                var convexity = hullArea > 0 ? contourArea / hullArea : 0.0;
 
                 var rectArea = (double)width * height;
-                var rectangularity = rectArea > 0 ? area / rectArea : 0.0;
+                var rectangularity = rectArea > 0 ? contourArea / rectArea : 0.0;
 
-                var circularity = area > 0 ? 4 * Math.PI * area / (perimeter * perimeter) : 0.0;
+                var circularity = ComputeCircularity(contour, contourArea, perimeter);
 
                 var moments = Cv2.Moments(mask, true);
                 var (eccentricity, inertiaRatio) = ComputeEccentricityAndInertia(moments);
@@ -367,6 +368,7 @@ public class BlobDetectionOperator : OperatorBase
                 var featureValues = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Area"] = area,
+                    ["ContourArea"] = contourArea,
                     ["Perimeter"] = perimeter,
                     ["Circularity"] = circularity,
                     ["Convexity"] = convexity,
@@ -404,6 +406,7 @@ public class BlobDetectionOperator : OperatorBase
                 {
                     { "Id", nextId++ },
                     { "Area", area },
+                    { "ContourArea", contourArea },
                     { "Perimeter", perimeter },
                     { "Circularity", circularity },
                     { "Convexity", convexity },
@@ -547,6 +550,50 @@ public class BlobDetectionOperator : OperatorBase
         }
 
         return holes;
+    }
+
+    private static double ComputeCircularity(Point[] contour, double contourArea, double contourPerimeter)
+    {
+        if (contourArea <= 0 || contourPerimeter <= 1e-12)
+        {
+            return 0.0;
+        }
+
+        try
+        {
+            // Raw circularity based on pixel contour is sensitive to rasterization.
+            // We approximate the contour to suppress staircase artifacts and use the
+            // simplified perimeter for a closer-to-analytic estimate.
+            var perimeter = contourPerimeter;
+            if (contour.Length >= 12)
+            {
+                var epsilon = Math.Max(1.0, contourPerimeter * 0.002);
+                var approx = Cv2.ApproxPolyDP(contour, epsilon, true);
+                if (approx.Length >= 3)
+                {
+                    perimeter = Math.Max(1e-6, Cv2.ArcLength(approx, true));
+                }
+            }
+
+            var circularity = 4 * Math.PI * contourArea / (perimeter * perimeter);
+
+            if (double.IsNaN(circularity) || double.IsInfinity(circularity))
+            {
+                return 0.0;
+            }
+
+            return Math.Clamp(circularity, 0.0, 1.0);
+        }
+        catch
+        {
+            var circularity = 4 * Math.PI * contourArea / (contourPerimeter * contourPerimeter);
+            if (double.IsNaN(circularity) || double.IsInfinity(circularity))
+            {
+                return 0.0;
+            }
+
+            return Math.Clamp(circularity, 0.0, 1.0);
+        }
     }
 
     private static bool TryEvaluateFeatureFilter(

@@ -842,6 +842,12 @@ public class ShapeMatcher
 | 遮挡鲁棒性 | 人工遮挡30% | 分数>0.6 |
 | 光照鲁棒性 | 亮度±50% | 分数变化<0.1 |
 
+#### W4自动化用例（已固化）
+
+- 自动化测试文件：`Acme.Product/tests/Acme.Product.Tests/Operators/Stage1_W4_ShapeMatchVerificationTests.cs`
+- 覆盖项：精度阈值（<0.1px）、30%遮挡（score>0.6）、光照±50%（score change<0.1）
+- 建议运行命令：`dotnet test .\\Acme.Product\\tests\\Acme.Product.Tests\\Acme.Product.Tests.csproj -c Release --filter FullyQualifiedName~Stage1_W4_ShapeMatchVerificationTests`
+
 ---
 
 ## 四、每日Vibe Coding节奏
@@ -927,6 +933,14 @@ public class ShapeMatcher
 | RoiTracker | <1ms | 1MB | 单个ROI变换 |
 | ShapeMatcher (无遮挡) | <200ms | 200MB | 512x512搜索图，64x64模板 |
 | ShapeMatcher (50%遮挡) | <250ms | 200MB | 同上 |
+
+#### W5性能预算固化（已固化）
+
+- 性能预算验收测试：`Acme.Product/tests/Acme.Product.Tests/Integration/PerformanceBudgetAcceptanceTests.cs`
+- 覆盖算子：TemplateMatch、ShapeMatch、BlobAnalysis、CaliperTool、Undistort（512x512，模板64x64）
+- 默认放宽系数：`CV_PERF_BUDGET_SCALE=2.0`（如需在基准机严格验收，可设为 `1.0`）
+- 迭代次数可调：`CV_PERF_WARMUP_ITERS`、`CV_PERF_MEASURE_ITERS`
+- 建议运行命令：`dotnet test .\\Acme.Product\\tests\\Acme.Product.Tests\\Acme.Product.Tests.csproj -c Release --filter FullyQualifiedName~PerformanceBudgetAcceptanceTests`
 
 ### 性能优化建议
 
@@ -1089,3 +1103,13 @@ _logger.LogError(
 **版本记录**：
 - V1.0 (2026-03-16)：初始版本
 - V2.1 (2026-03-16)：增加W0基础设施、W1-5镜头畸变、W4-2遮挡处理、性能预算、错误处理标准
+- V2.2 (2026-03-17)：补齐W4验证集自动化用例与W5性能预算验收测试；阶段1进入收尾状态
+
+---
+
+## 阶段1验收结论（2026-03-17）
+
+- W1-W3：已完成（含W1-3 Blob过滤参数暴露、W2 ROI变换与卡尺边对统计打通）。
+- W4：验证集已自动化并可重复执行（精度、遮挡、光照 3 项）。
+- W5：性能预算已通过性能验收测试固化（可用环境变量调整严格度）。
+- 无乱码收尾：仓库内未检出典型“编码混用导致的乱码”token；如果终端仍显示乱码，优先检查 PowerShell/终端的 UTF-8 输出编码设置。
