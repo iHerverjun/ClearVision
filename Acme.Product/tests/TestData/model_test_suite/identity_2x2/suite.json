@@ -1,0 +1,11 @@
+{
+  "name": "identity_2x2_suite",
+  "cases": [
+    {
+      "name": "identity_rgb_reference",
+      "imagePath": "input.png",
+      "expectedOutputPath": "expected_output.json",
+      "allowedMaxRelativeErrorPercent": 0.1
+    }
+  ]
+}

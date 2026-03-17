@@ -274,7 +274,9 @@ public enum OperatorType
 
     LawsTextureFilter = 223,
 
-    GlcmTexture = 224
+    GlcmTexture = 224,
+
+    SemanticSegmentation = 225
 }
 
 public enum OperatorExecutionStatus

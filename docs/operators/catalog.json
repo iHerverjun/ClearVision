@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-17T20:35:24.6239395+08:00",
-  "totalCount": 127,
+  "generatedAt": "2026-03-17T21:47:00.4490121+08:00",
+  "totalCount": 128,
   "categories": {
     "3D": {
       "count": 6,
@@ -14,11 +14,12 @@
       ]
     },
     "AI检测": {
-      "count": 4,
+      "count": 5,
       "operators": [
         "DeepLearning",
         "DualModalVoting",
         "EdgePairDefect",
+        "SemanticSegmentation",
         "SurfaceDefectDetection"
       ]
     },
@@ -16032,6 +16033,189 @@
         "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/GlcmTexture.md"
+    },
+    {
+      "id": "SemanticSegmentation",
+      "type": 225,
+      "displayName": "语义分割",
+      "description": "Runs an ONNX semantic segmentation model and returns class map, colored visualization, and per-class masks.",
+      "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "SegmentationMap",
+          "displayName": "Segmentation Map",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "ColoredMap",
+          "displayName": "Colored Map",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "ClassMasks",
+          "displayName": "Class Masks",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "ClassCount",
+          "displayName": "Class Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "PresentClasses",
+          "displayName": "Present Classes",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "ModelPath",
+          "displayName": "Model Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "InputSize",
+          "displayName": "Input Size",
+          "dataType": "string",
+          "description": "Width,Height",
+          "defaultValue": "512,512",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NumClasses",
+          "displayName": "Num Classes",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "21",
+          "min": "2",
+          "max": "4096",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ClassNames",
+          "displayName": "Class Names",
+          "dataType": "string",
+          "description": "JSON array or comma-separated names",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ExecutionProvider",
+          "displayName": "Execution Provider",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "cpu",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "cpu",
+              "label": "CPU"
+            },
+            {
+              "value": "cuda",
+              "label": "CUDA"
+            }
+          ]
+        },
+        {
+          "name": "ScaleToUnitRange",
+          "displayName": "Scale To Unit Range",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ChannelOrder",
+          "displayName": "Channel Order",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "RGB",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "RGB",
+              "label": "RGB"
+            },
+            {
+              "value": "BGR",
+              "label": "BGR"
+            }
+          ]
+        },
+        {
+          "name": "Mean",
+          "displayName": "Mean",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "0,0,0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Std",
+          "displayName": "Std",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "1,1,1",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/SemanticSegmentation.md"
     }
   ]
 }
