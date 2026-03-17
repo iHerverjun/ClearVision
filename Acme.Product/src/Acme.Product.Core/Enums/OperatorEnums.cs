@@ -276,7 +276,13 @@ public enum OperatorType
 
     GlcmTexture = 224,
 
-    SemanticSegmentation = 225
+    SemanticSegmentation = 225,
+
+    AnomalyDetection = 226,
+
+    HandEyeCalibration = 227,
+
+    HandEyeCalibrationValidator = 228
 }
 
 public enum OperatorExecutionStatus

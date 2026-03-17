@@ -1,0 +1,16 @@
+{
+  "models": [
+    {
+      "id": "semantic_identity_2x2",
+      "name": "Semantic Identity 2x2",
+      "type": "segmentation",
+      "path": "Acme.Product/tests/TestData/model_test_suite/identity_2x2/identity_2x2.onnx",
+      "input_size": [2, 2],
+      "num_classes": 3,
+      "class_names": ["red", "green", "blue"],
+      "version": "1.0.0",
+      "execution_provider": "cpu",
+      "source": "repo-testdata"
+    }
+  ]
+}

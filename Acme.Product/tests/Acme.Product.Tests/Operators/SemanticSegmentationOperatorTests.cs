@@ -66,6 +66,40 @@ public sealed class SemanticSegmentationOperatorTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithModelIdAndCatalog_ShouldResolveModelRepositoryDefaults()
+    {
+        var sut = new SemanticSegmentationOperator(Substitute.For<ILogger<SemanticSegmentationOperator>>());
+        var op = new Operator("segmentation_catalog", OperatorType.SemanticSegmentation, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("ModelId", "semantic_identity_2x2", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ModelCatalogPath", ResolveRepoPath("models/model_catalog.json"), "file"));
+        op.AddParameter(TestHelpers.CreateParameter("ModelPath", string.Empty, "file"));
+        op.AddParameter(TestHelpers.CreateParameter("InputSize", "512,512", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("NumClasses", 21, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("ClassNames", string.Empty, "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ExecutionProvider", "cpu", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleToUnitRange", true, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("ChannelOrder", "RGB", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Mean", "0,0,0", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Std", "1,1,1", "string"));
+
+        using var image = new ImageWrapper(Cv2.ImRead(ResolveTestDataPath(@"model_test_suite\identity_2x2\input.png"), ImreadModes.Color));
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["ClassCount"].Should().Be(3);
+        result.OutputData["PresentClasses"].Should().BeOfType<string[]>().Subject.Should().BeEquivalentTo(["red", "green", "blue"]);
+
+        var segmentationMap = result.OutputData["SegmentationMap"].Should().BeOfType<ImageWrapper>().Subject;
+        var coloredMap = result.OutputData["ColoredMap"].Should().BeOfType<ImageWrapper>().Subject;
+        segmentationMap.Dispose();
+        coloredMap.Dispose();
+        foreach (var mask in result.OutputData["ClassMasks"].Should().BeOfType<Dictionary<string, object>>().Subject.Values.OfType<ImageWrapper>())
+        {
+            mask.Dispose();
+        }
+    }
+
     private static Operator CreateOperator(string inputSize = "2,2")
     {
         var op = new Operator("segmentation", OperatorType.SemanticSegmentation, 0, 0);
@@ -102,5 +136,21 @@ public sealed class SemanticSegmentationOperatorTests
         }
 
         return candidate;
+    }
+
+    private static string ResolveRepoPath(string relativePath)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !dir.Name.Equals("ClearVision", StringComparison.OrdinalIgnoreCase))
+        {
+            dir = dir.Parent;
+        }
+
+        if (dir == null)
+        {
+            throw new DirectoryNotFoundException("Failed to resolve repository root.");
+        }
+
+        return Path.Combine(dir.FullName, relativePath.Replace('/', Path.DirectorySeparatorChar));
     }
 }

@@ -5,6 +5,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.AI.Runtime;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
@@ -27,6 +28,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("ClassMasks", "Class Masks", PortDataType.Any)]
 [OutputPort("ClassCount", "Class Count", PortDataType.Integer)]
 [OutputPort("PresentClasses", "Present Classes", PortDataType.Any)]
+[OperatorParam("ModelId", "Model Id", "string", DefaultValue = "")]
+[OperatorParam("ModelCatalogPath", "Model Catalog Path", "file", DefaultValue = "")]
 [OperatorParam("ModelPath", "Model Path", "file", DefaultValue = "")]
 [OperatorParam("InputSize", "Input Size", "string", DefaultValue = "512,512", Description = "Width,Height")]
 [OperatorParam("NumClasses", "Num Classes", "int", DefaultValue = 21, Min = 2, Max = 4096)]
@@ -38,6 +41,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Std", "Std", "string", DefaultValue = "1,1,1")]
 public sealed class SemanticSegmentationOperator : OperatorBase
 {
+    private static readonly string[] SupportedCatalogTypes = ["segmentation"];
     private static readonly ConcurrentDictionary<string, InferenceSession> SessionCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> SessionLocks = new(StringComparer.OrdinalIgnoreCase);
 
@@ -64,10 +68,15 @@ public sealed class SemanticSegmentationOperator : OperatorBase
             return OperatorExecutionOutput.Failure("Input image is invalid.");
         }
 
-        var modelPath = GetStringParam(@operator, "ModelPath", string.Empty);
-        if (string.IsNullOrWhiteSpace(modelPath))
+        string modelPath;
+        ModelCatalogEntry? modelCatalogEntry;
+        try
         {
-            return OperatorExecutionOutput.Failure("ModelPath is required.");
+            modelPath = ResolveModelPath(@operator, out modelCatalogEntry);
+        }
+        catch (Exception ex)
+        {
+            return OperatorExecutionOutput.Failure(ex.Message);
         }
 
         if (!File.Exists(modelPath))
@@ -75,12 +84,17 @@ public sealed class SemanticSegmentationOperator : OperatorBase
             return OperatorExecutionOutput.Failure($"Model file not found: {modelPath}");
         }
 
-        if (!TryParseSize(GetStringParam(@operator, "InputSize", "512,512"), out var inputWidth, out var inputHeight))
+        var rawInputSize = GetStringParam(@operator, "InputSize", "512,512");
+        var effectiveInputSize = ShouldUseCatalogInputSize(rawInputSize, modelCatalogEntry)
+            ? $"{modelCatalogEntry!.InputSize[0]},{modelCatalogEntry.InputSize[1]}"
+            : rawInputSize;
+
+        if (!TryParseSize(effectiveInputSize, out var inputWidth, out var inputHeight))
         {
             return OperatorExecutionOutput.Failure("InputSize must be in 'width,height' format.");
         }
 
-        var numClasses = GetIntParam(@operator, "NumClasses", 21, min: 2, max: 4096);
+        var numClasses = ResolveNumClasses(@operator, modelCatalogEntry);
         if (!TryParseFloatTriplet(GetStringParam(@operator, "Mean", "0,0,0"), out var mean) ||
             !TryParseFloatTriplet(GetStringParam(@operator, "Std", "1,1,1"), out var std) ||
             std.Any(x => x <= 0f))
@@ -91,7 +105,7 @@ public sealed class SemanticSegmentationOperator : OperatorBase
         var executionProvider = NormalizeExecutionProvider(GetStringParam(@operator, "ExecutionProvider", "cpu"));
         var useUnitRange = GetBoolParam(@operator, "ScaleToUnitRange", true);
         var channelOrder = ParseChannelOrder(GetStringParam(@operator, "ChannelOrder", "RGB"));
-        var classNames = ParseClassNames(GetStringParam(@operator, "ClassNames", string.Empty), numClasses);
+        var classNames = ResolveClassNames(@operator, modelCatalogEntry, numClasses);
 
         InferenceSession session;
         try
@@ -139,10 +153,15 @@ public sealed class SemanticSegmentationOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var modelPath = GetStringParam(@operator, "ModelPath", string.Empty);
-        if (string.IsNullOrWhiteSpace(modelPath))
+        string modelPath;
+        ModelCatalogEntry? modelCatalogEntry;
+        try
         {
-            return ValidationResult.Invalid("ModelPath is required.");
+            modelPath = ResolveModelPath(@operator, out modelCatalogEntry);
+        }
+        catch (Exception ex)
+        {
+            return ValidationResult.Invalid(ex.Message);
         }
 
         if (!File.Exists(modelPath))
@@ -150,12 +169,17 @@ public sealed class SemanticSegmentationOperator : OperatorBase
             return ValidationResult.Invalid($"Model file not found: {modelPath}");
         }
 
-        if (!TryParseSize(GetStringParam(@operator, "InputSize", "512,512"), out _, out _))
+        var rawInputSize = GetStringParam(@operator, "InputSize", "512,512");
+        var effectiveInputSize = ShouldUseCatalogInputSize(rawInputSize, modelCatalogEntry)
+            ? $"{modelCatalogEntry!.InputSize[0]},{modelCatalogEntry.InputSize[1]}"
+            : rawInputSize;
+
+        if (!TryParseSize(effectiveInputSize, out _, out _))
         {
             return ValidationResult.Invalid("InputSize must be in 'width,height' format.");
         }
 
-        _ = GetIntParam(@operator, "NumClasses", 21, min: 2, max: 4096);
+        _ = ResolveNumClasses(@operator, modelCatalogEntry);
 
         if (!TryParseFloatTriplet(GetStringParam(@operator, "Mean", "0,0,0"), out _))
         {
@@ -174,9 +198,58 @@ public sealed class SemanticSegmentationOperator : OperatorBase
         }
 
         _ = ParseChannelOrder(GetStringParam(@operator, "ChannelOrder", "RGB"));
-        _ = ParseClassNames(GetStringParam(@operator, "ClassNames", string.Empty), GetIntParam(@operator, "NumClasses", 21, min: 2, max: 4096));
+        _ = ResolveClassNames(@operator, modelCatalogEntry, ResolveNumClasses(@operator, modelCatalogEntry));
 
         return ValidationResult.Valid();
+    }
+
+    private string ResolveModelPath(Operator @operator, out ModelCatalogEntry? modelCatalogEntry)
+    {
+        var modelPath = GetStringParam(@operator, "ModelPath", string.Empty);
+        var modelId = GetStringParam(@operator, "ModelId", string.Empty);
+        var modelCatalogPath = GetStringParam(@operator, "ModelCatalogPath", string.Empty);
+
+        var resolved = ModelCatalog.ResolveExplicitOrCatalogPath(
+            modelPath,
+            modelId,
+            modelCatalogPath,
+            SupportedCatalogTypes,
+            out modelCatalogEntry);
+
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            throw new InvalidOperationException("ModelPath is required.");
+        }
+
+        return resolved;
+    }
+
+    private static bool ShouldUseCatalogInputSize(string rawInputSize, ModelCatalogEntry? modelCatalogEntry)
+    {
+        return modelCatalogEntry?.InputSize?.Length == 2 &&
+               string.Equals(rawInputSize.Trim(), "512,512", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int ResolveNumClasses(Operator @operator, ModelCatalogEntry? modelCatalogEntry)
+    {
+        var configured = GetIntParam(@operator, "NumClasses", 21, min: 2, max: 4096);
+        if (configured == 21 && modelCatalogEntry?.NumClasses > 0)
+        {
+            return modelCatalogEntry.NumClasses;
+        }
+
+        return configured;
+    }
+
+    private string[] ResolveClassNames(Operator @operator, ModelCatalogEntry? modelCatalogEntry, int numClasses)
+    {
+        var rawClassNames = GetStringParam(@operator, "ClassNames", string.Empty);
+        if (string.IsNullOrWhiteSpace(rawClassNames) && modelCatalogEntry?.ClassNames?.Length > 0)
+        {
+            return ParseClassNames(JsonSerializer.Serialize(modelCatalogEntry.ClassNames), numClasses);
+        }
+
+        return ParseClassNames(rawClassNames, numClasses);
     }
 
     private async Task<InferenceSession> GetOrCreateSessionAsync(string modelPath, string executionProvider, CancellationToken cancellationToken)

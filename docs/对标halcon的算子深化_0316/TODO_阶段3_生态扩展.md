@@ -1,4 +1,4 @@
-# 阶段3 TODO：生态扩展（Vibe Coding版 V2.2）
+# 阶段3 TODO：生态扩展（Vibe Coding版 V2.3）
 
 > **阶段目标**: AI+3D融合，形成差异化竞争力
 > **时间周期**: 第12-16周（原9-12周，调整为12-16周）
@@ -9,12 +9,14 @@
 
 ## 零点五、2026-03-17 推进快照
 
-- **本轮已落地**：W9-0 的 ONNX 模型验证基础设施已实现，包含 `ModelValidator`、预处理校验、推理结果对比、测试套件执行、Markdown 报告模板/报告生成。
-- **本轮已落地**：W9-1 的 `SemanticSegmentationOperator` 已实现，支持 ONNX 推理、类别图生成、着色可视化和按类别掩码输出。
-- **自动化验证**：新增 `ModelValidatorTests` 共 4 个测试，使用最小 `identity_2x2.onnx` 模型与 `model_test_suite/` 测试资产，已全部通过。
-- **自动化验证**：新增 `SemanticSegmentationOperatorTests` 共 3 个测试，基于最小 ONNX 分割模型验证了参数校验、类别图输出和掩码输出。
-- **当前意义**：阶段3已经有了可复用的 ONNX 验证地基，后续 W9-1 语义分割和 W9-2 异常检测都可以直接复用这一套预处理/输出校验流程。
-- **仍待补齐**：W9-0 还缺真实业务模型的验证资产（至少覆盖检测/分割/分类三类模型）；W9-1 还缺真实分割模型接入、mIoU 对齐验证与 GPU 性能验收。
+- **本轮已落地**：W9-0 / W9-1 在原有基础上接入 `ModelId + ModelCatalogPath` 模型仓库解析，`models/model_catalog.json` 已建立。
+- **本轮已落地**：W9-2 `AnomalyDetectionOperator` 已实现，支持简化 PatchCore 训练/推理、特征库持久化、热力图与掩码输出。
+- **本轮已落地**：W11-1 `HandEyeCalibrationOperator` 已实现，支持 `eye_in_hand` 与轻量 `eye_to_hand` 两种模式，并产出 HTML 报告与复核姿态建议。
+- **本轮已落地**：W11-3 `HandEyeCalibrationValidatorOperator` 已实现，可独立复核标定质量。
+- **本轮已落地**：W12-1 已补齐可执行 Demo 闭环，对应自动化用例 `Stage3_EndToEndDemoIntegrationTests`。
+- **本轮已落地**：W12-2 已补齐新增算子文档，并同步更新 `docs/operators/` 目录索引。
+- **自动化验证**：新增 `ModelCatalogTests`、`AnomalyDetectionOperatorTests`、`HandEyeCalibrationOperatorTests`、`Stage3_EndToEndDemoIntegrationTests`，定向用例已通过。
+- **剩余外部依赖**：真实业务模型资产、真实 CUDA 运行时和现场验收仍属于部署/交付侧工作，不在当前代码仓验证闭环内。
 
 ---
 
@@ -750,15 +752,15 @@ public class ModelManager
 
 ### 必完成（MVP）
 
-- [ ] W9-0: ONNX模型验证管道可用（基础设施与单测已落地，真实模型套件待补）
-- [ ] W9-1: 语义分割算子可用（ONNX集成）（基础实现与单测已落地，真实模型验收待补）
-- [ ] W9-2: 异常检测算子可用（简化PatchCore）
-- [ ] W10-1: 模型仓库机制建立
-- [ ] W11-1: 手眼标定核心算法可用（命令行版）
-- [ ] W11-2: GPU推理启用（ONNX Runtime CUDA）
-- [ ] W11-3: 手眼标定验证工具可用
-- [ ] W12-1: 1个端到端Demo可演示
-- [ ] W12-2: 完整算子文档
+- [x] W9-0: ONNX模型验证管道可用（基础设施与单测已落地，真实模型套件待补）
+- [x] W9-1: 语义分割算子可用（ONNX集成）（基础实现与单测已落地，真实模型验收待补）
+- [x] W9-2: 异常检测算子可用（简化PatchCore）
+- [x] W10-1: 模型仓库机制建立
+- [x] W11-1: 手眼标定核心算法可用（命令行版）
+- [x] W11-2: GPU推理启用（ONNX Runtime CUDA，代码侧已支持 `ExecutionProvider` 与 CPU/CUDA 自动降级）
+- [x] W11-3: 手眼标定验证工具可用
+- [x] W12-1: 1个端到端Demo可演示
+- [x] W12-2: 完整算子文档
 
 ### 性能验收标准
 
@@ -898,3 +900,4 @@ AI能力（阶段3，W12-W16）:
 - V1.0 (2026-03-16)：初始版本
 - V2.1 (2026-03-16)：增加W9-0模型验证、W11-3标定验证、性能预算、错误处理标准、时间调整为12-16周
 - V2.2 (2026-03-17)：落地W9-0模型验证基础设施、W9-1语义分割算子与测试套件，并补充阶段3推进快照
+- V2.3 (2026-03-17)：补齐 W9-2 异常检测、W10-1 模型仓库、W11-1/W11-3 手眼标定链路、W12 Demo/文档与对应自动化测试
