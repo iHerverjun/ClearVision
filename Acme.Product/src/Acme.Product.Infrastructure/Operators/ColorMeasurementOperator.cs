@@ -19,7 +19,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "颜色处理",
     IconName = "color-measure",
     Keywords = new[] { "color", "deltaE", "lab", "hsv" },
-    Version = "1.0.1"
+    Version = "1.0.2"
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
 [InputPort("ReferenceColor", "Reference Color", PortDataType.Any, IsRequired = false)]
@@ -87,21 +87,22 @@ public class ColorMeasurementOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("ROI is invalid"));
         }
 
+        using var lab = new Mat();
         using var hsv = new Mat();
+        Cv2.CvtColor(src, lab, ColorConversionCodes.BGR2Lab);
         Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
 
+        using var labRoi = new Mat(lab, roi);
         using var hsvRoi = new Mat(hsv, roi);
 
-        // CIE L*a*b* mean over ROI (sRGB/D65), in standard units:
-        // L*: [0..100], a*: [-128..127], b*: [-128..127] approximately.
-        var cieMean = CieLabConverter.ComputeMeanLabBgr8U(src, roi);
-
         var hsvMean = Cv2.Mean(hsvRoi);
+        var labMean = Cv2.Mean(labRoi);
 
-        // Keep outputs in CIE units (not OpenCV's 0..255 Lab scaling).
-        var lValue = cieMean.L;
-        var aValue = cieMean.A;
-        var bValue = cieMean.B;
+        // Convert OpenCV Lab scaling back to standard CIE units:
+        // L: 0..255 -> 0..100, a/b: 0..255 with 128 as zero.
+        var lValue = labMean.Val0 * (100.0 / 255.0);
+        var aValue = labMean.Val1 - 128.0;
+        var bValue = labMean.Val2 - 128.0;
 
         var hValue = hsvMean.Val0;
         var sValue = hsvMean.Val1;

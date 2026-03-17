@@ -117,21 +117,38 @@ public sealed class PPFMatcher
             return new PPFMatchResult(false, Matrix4x4.Identity, bestInliers.Length, correspondences.Count, bestRms);
         }
 
-        // Refine using a larger subset of model points with nearest-neighbor correspondences (ICP-like 3 iterations).
-        var refineIndices = BuildEvaluationIndices(modelWithNormals.Count, targetCount: 6000);
+        // Refine using a larger subset of model points with nearest-neighbor correspondences (ICP-like).
+        // We do a coarse stage with a larger capture range, then a fine stage at inlierThreshold.
+        var refineIndices = BuildEvaluationIndices(modelWithNormals.Count, targetCount: 7000);
+
+        var coarseThreshold = MathF.Min(0.10f, MathF.Max(inlierThreshold * 4f, 0.03f));
+        var coarseGrid = SpatialHashGrid.Build(scenePoints, sceneWithNormals.Count, cellSize: coarseThreshold);
+        var (coarseT, coarseInliers, coarseRms) = RefineTransform(
+            modelPoints,
+            scenePoints,
+            coarseGrid,
+            refineIndices,
+            bestT,
+            threshold2: (double)coarseThreshold * coarseThreshold,
+            iterations: 6,
+            minInliers: minInliers);
+
         var (refined, refinedInliers, refinedRms) = RefineTransform(
             modelPoints,
             scenePoints,
             nnGrid,
             refineIndices,
-            bestT,
+            coarseT,
             threshold2: (double)inlierThreshold * inlierThreshold,
-            iterations: 3,
+            iterations: 4,
             minInliers: minInliers);
 
         if (refinedInliers.Length < minInliers)
         {
-            return new PPFMatchResult(false, Matrix4x4.Identity, refinedInliers.Length, correspondences.Count, refinedRms);
+            // Provide the best available refinement RMS for diagnostics.
+            var rr = double.IsFinite(refinedRms) ? refinedRms : coarseRms;
+            var cc = refinedInliers.Length > 0 ? refinedInliers.Length : coarseInliers.Length;
+            return new PPFMatchResult(false, Matrix4x4.Identity, cc, correspondences.Count, rr);
         }
 
         return new PPFMatchResult(true, refined, refinedInliers.Length, correspondences.Count, refinedRms);
@@ -249,6 +266,7 @@ public sealed class PPFMatcher
     }
 
     private readonly record struct ModelPair(int RefIndex, int NeighborIndex);
+    private readonly record struct PairCorrespondence(int ModelRefIndex, int ModelNeighborIndex, int SceneRefIndex, int SceneNeighborIndex);
     private readonly record struct Correspondence(int ModelIndex, int SceneIndex);
 
     private ModelHash BuildModelHash(
@@ -321,6 +339,76 @@ public sealed class PPFMatcher
         }
 
         list.Add(pair);
+    }
+
+    private List<PairCorrespondence> BuildScenePairCorrespondences(
+        ModelHash modelHash,
+        MatIndexer<float> scenePoints,
+        MatIndexer<float> sceneNormals,
+        int sceneCount,
+        float featureRadius,
+        float distanceStep,
+        float angleStepRad,
+        int numSamples,
+        int maxCorrespondences)
+    {
+        var grid = SpatialHashGrid.Build(scenePoints, sceneCount, cellSize: featureRadius);
+        var r2 = (double)featureRadius * featureRadius;
+        var neighbors = new List<int>(capacity: 64);
+
+        var correspondences = new List<PairCorrespondence>(capacity: Math.Min(maxCorrespondences, 8192));
+
+        var sampleCount = Math.Min(numSamples, sceneCount);
+        for (int s = 0; s < sampleCount; s++)
+        {
+            var i = _rng.Next(sceneCount);
+
+            neighbors.Clear();
+            SpatialHashGrid.CollectRadiusNeighbors(scenePoints, i, grid, featureRadius, r2, neighbors);
+            if (neighbors.Count == 0)
+            {
+                continue;
+            }
+
+            var p1 = new Vector3(scenePoints[i, 0], scenePoints[i, 1], scenePoints[i, 2]);
+            var n1 = new Vector3(sceneNormals[i, 0], sceneNormals[i, 1], sceneNormals[i, 2]);
+
+            // Pair correspondences: each (scene ref, scene neighbor) PPF bin yields multiple (model ref, model neighbor) candidates.
+            // We intentionally keep a bounded subset to keep RANSAC stable and fast.
+            var takeNeighbors = Math.Min(neighbors.Count, 24);
+            for (int t = 0; t < takeNeighbors; t++)
+            {
+                var j = neighbors[t];
+                var p2 = new Vector3(scenePoints[j, 0], scenePoints[j, 1], scenePoints[j, 2]);
+                var n2 = new Vector3(sceneNormals[j, 0], sceneNormals[j, 1], sceneNormals[j, 2]);
+
+                var f = PPFFeature.Compute(p1, n1, p2, n2);
+                if (f.Distance <= 0)
+                {
+                    continue;
+                }
+
+                var key = QuantizeKey(f, distanceStep, angleStepRad);
+                if (!modelHash.Table.TryGetValue(key, out var candidates))
+                {
+                    continue;
+                }
+
+                // Add a few candidates per feature to keep correspondence pool bounded.
+                var take = Math.Min(candidates.Count, 6);
+                for (int c = 0; c < take; c++)
+                {
+                    var pair = candidates[c];
+                    correspondences.Add(new PairCorrespondence(pair.RefIndex, pair.NeighborIndex, i, j));
+                    if (correspondences.Count >= maxCorrespondences)
+                    {
+                        return correspondences;
+                    }
+                }
+            }
+        }
+
+        return correspondences;
     }
 
     private List<Correspondence> BuildSceneCorrespondences(
@@ -428,6 +516,184 @@ public sealed class PPFMatcher
         qan = Math.Clamp(qan, 0, 63);
 
         return (qd) | (qa1 << 10) | (qa2 << 16) | (qan << 22);
+    }
+
+    private (Matrix4x4 Transform, Correspondence[] Inliers, double BestRms) RansacRigidTransformFromPairs(
+        List<PairCorrespondence> pool,
+        MatIndexer<float> modelPoints,
+        MatIndexer<float> modelNormals,
+        MatIndexer<float> scenePoints,
+        MatIndexer<float> sceneNormals,
+        SpatialHashGridIndex sceneGrid,
+        int[] evalModelIndices,
+        int iterations,
+        float inlierThreshold,
+        int minInliers)
+    {
+        var threshold2 = (double)inlierThreshold * inlierThreshold;
+
+        Matrix4x4 bestT = Matrix4x4.Identity;
+        int bestCount = 0;
+        double bestRms = double.PositiveInfinity;
+
+        // If we get a near-perfect fit early, stop.
+        var earlyStop = Math.Max(minInliers, (int)(evalModelIndices.Length * 0.90));
+
+        for (int it = 0; it < iterations; it++)
+        {
+            var pc = pool[_rng.Next(pool.Count)];
+
+            if (!TryEstimateTransformFromPair(
+                modelPoints,
+                modelNormals,
+                scenePoints,
+                sceneNormals,
+                pc,
+                out var tform))
+            {
+                continue;
+            }
+
+            var (count, sum2) = ScoreTransform(modelPoints, scenePoints, sceneGrid, evalModelIndices, tform, threshold2);
+            if (count == 0)
+            {
+                continue;
+            }
+
+            var rms = Math.Sqrt(sum2 / count);
+            if (count > bestCount || (count == bestCount && rms < bestRms))
+            {
+                bestCount = count;
+                bestRms = rms;
+                bestT = tform;
+
+                if (bestCount >= earlyStop)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (bestCount < minInliers)
+        {
+            return (bestT, Array.Empty<Correspondence>(), bestRms);
+        }
+
+        // Build inlier correspondences for refinement (NN correspondences under bestT).
+        var inliers = new List<Correspondence>(capacity: bestCount);
+        for (int i = 0; i < evalModelIndices.Length; i++)
+        {
+            var mi = evalModelIndices[i];
+            var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
+            var tp = Vector3.Transform(mp, bestT);
+
+            if (TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out var sj, out _))
+            {
+                inliers.Add(new Correspondence(mi, sj));
+            }
+        }
+
+        return (bestT, inliers.ToArray(), bestRms);
+    }
+
+    private static bool TryEstimateTransformFromPair(
+        MatIndexer<float> modelPoints,
+        MatIndexer<float> modelNormals,
+        MatIndexer<float> scenePoints,
+        MatIndexer<float> sceneNormals,
+        PairCorrespondence pc,
+        out Matrix4x4 transformModelToScene)
+    {
+        var pm = new Vector3(modelPoints[pc.ModelRefIndex, 0], modelPoints[pc.ModelRefIndex, 1], modelPoints[pc.ModelRefIndex, 2]);
+        var qm = new Vector3(modelPoints[pc.ModelNeighborIndex, 0], modelPoints[pc.ModelNeighborIndex, 1], modelPoints[pc.ModelNeighborIndex, 2]);
+        var nm = new Vector3(modelNormals[pc.ModelRefIndex, 0], modelNormals[pc.ModelRefIndex, 1], modelNormals[pc.ModelRefIndex, 2]);
+
+        var ps = new Vector3(scenePoints[pc.SceneRefIndex, 0], scenePoints[pc.SceneRefIndex, 1], scenePoints[pc.SceneRefIndex, 2]);
+        var qs = new Vector3(scenePoints[pc.SceneNeighborIndex, 0], scenePoints[pc.SceneNeighborIndex, 1], scenePoints[pc.SceneNeighborIndex, 2]);
+        var ns = new Vector3(sceneNormals[pc.SceneRefIndex, 0], sceneNormals[pc.SceneRefIndex, 1], sceneNormals[pc.SceneRefIndex, 2]);
+
+        if (!TryNormalize(nm, out nm) || !TryNormalize(ns, out ns))
+        {
+            transformModelToScene = Matrix4x4.Identity;
+            return false;
+        }
+
+        var dm = qm - pm;
+        var ds = qs - ps;
+        if (!TryNormalize(dm, out dm) || !TryNormalize(ds, out ds))
+        {
+            transformModelToScene = Matrix4x4.Identity;
+            return false;
+        }
+
+        // 1) Align reference normals.
+        var r1 = RotationFromTo(nm, ns);
+
+        // 2) Resolve remaining rotation around the scene normal by aligning neighbor directions.
+        var dm1 = Vector3.TransformNormal(dm, r1);
+
+        // Project directions onto plane orthogonal to ns.
+        var u = dm1 - (ns * Vector3.Dot(dm1, ns));
+        var v = ds - (ns * Vector3.Dot(ds, ns));
+
+        if (!TryNormalize(u, out u) || !TryNormalize(v, out v))
+        {
+            transformModelToScene = Matrix4x4.Identity;
+            return false;
+        }
+
+        var sin = Vector3.Dot(ns, Vector3.Cross(u, v));
+        var cos = Vector3.Dot(u, v);
+        var angle = MathF.Atan2(sin, cos);
+        var r2 = Matrix4x4.CreateFromAxisAngle(ns, angle);
+
+        var r = r2 * r1;
+        var t = ps - Vector3.Transform(pm, r);
+        r.M41 = t.X;
+        r.M42 = t.Y;
+        r.M43 = t.Z;
+
+        transformModelToScene = r;
+        return true;
+    }
+
+    private static Matrix4x4 RotationFromTo(Vector3 from, Vector3 to)
+    {
+        // Assumes both vectors are normalized.
+        var v = Vector3.Cross(from, to);
+        var c = Vector3.Dot(from, to);
+
+        if (v.LengthSquared() <= 1e-12f)
+        {
+            // Parallel or anti-parallel.
+            if (c > 0.9999f)
+            {
+                return Matrix4x4.Identity;
+            }
+
+            // 180-degree rotation around an arbitrary axis orthogonal to from.
+            var axis = Vector3.Cross(from, MathF.Abs(from.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY);
+            _ = TryNormalize(axis, out axis);
+            return Matrix4x4.CreateFromAxisAngle(axis, MathF.PI);
+        }
+
+        var s = MathF.Sqrt(v.LengthSquared());
+        var axisN = v / s;
+        var angle = MathF.Atan2(s, c);
+        return Matrix4x4.CreateFromAxisAngle(axisN, angle);
+    }
+
+    private static bool TryNormalize(Vector3 v, out Vector3 normalized)
+    {
+        var len2 = v.LengthSquared();
+        if (!float.IsFinite(len2) || len2 <= 1e-20f)
+        {
+            normalized = default;
+            return false;
+        }
+
+        normalized = v / MathF.Sqrt(len2);
+        return true;
     }
 
     private (Matrix4x4 Transform, Correspondence[] Inliers, double BestRms) RansacRigidTransform(
@@ -644,31 +910,54 @@ public sealed class PPFMatcher
 
         for (int it = 0; it < iterations; it++)
         {
-            var list = new List<Correspondence>(capacity: modelIndices.Length);
-            for (int i = 0; i < modelIndices.Length; i++)
-            {
-                var mi = modelIndices[i];
-                var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
-                var tp = Vector3.Transform(mp, t);
-
-                if (TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out var sj, out _))
-                {
-                    list.Add(new Correspondence(mi, sj));
-                }
-            }
-
-            inliers = list.ToArray();
-            if (inliers.Length < minInliers)
+            var inliers0 = CollectInliers(modelPoints, scenePoints, sceneGrid, modelIndices, t, threshold2);
+            if (inliers0.Length < minInliers)
             {
                 rms = double.PositiveInfinity;
                 break;
             }
 
-            t = RigidTransformEstimator.Estimate(modelPoints, scenePoints, inliers);
+            var tNew = RigidTransformEstimator.Estimate(modelPoints, scenePoints, inliers0);
+
+            // Re-collect inliers under the updated transform so reported RMS reflects the final transform,
+            // not the pre-update correspondence set.
+            var inliers1 = CollectInliers(modelPoints, scenePoints, sceneGrid, modelIndices, tNew, threshold2);
+            if (inliers1.Length < minInliers)
+            {
+                rms = double.PositiveInfinity;
+                break;
+            }
+
+            t = tNew;
+            inliers = inliers1;
             rms = ComputeRms(modelPoints, scenePoints, inliers, t);
         }
 
         return (t, inliers, rms);
+    }
+
+    private static Correspondence[] CollectInliers(
+        MatIndexer<float> modelPoints,
+        MatIndexer<float> scenePoints,
+        SpatialHashGridIndex sceneGrid,
+        int[] modelIndices,
+        Matrix4x4 t,
+        double threshold2)
+    {
+        var list = new List<Correspondence>(capacity: modelIndices.Length);
+        for (int i = 0; i < modelIndices.Length; i++)
+        {
+            var mi = modelIndices[i];
+            var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
+            var tp = Vector3.Transform(mp, t);
+
+            if (TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out var sj, out _))
+            {
+                list.Add(new Correspondence(mi, sj));
+            }
+        }
+
+        return list.ToArray();
     }
 
     private bool TrySample3(List<Correspondence> pool, out Correspondence c1, out Correspondence c2, out Correspondence c3)

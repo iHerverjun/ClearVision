@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 17:34:19 +08:00`
+> 生成时间 / Generated At: `2026-03-17 20:35:24 +08:00`
 > 算子总数 / Total Operators: **127**
 
 ## 分类统计 / Category Summary
@@ -44,7 +44,7 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 1 | 3 | 3 | 100 (A) | `1.0.0` | - | [EuclideanClusterExtraction](./EuclideanClusterExtraction.md) |
 | `OperatorType.PPFEstimation` | PPF点对特征 | 1 | 3 | 3 | 95 (A) | `1.0.0` | - | [PPFEstimation](./PPFEstimation.md) |
-| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 6 | 9 | 85 (A) | `1.0.0` | - | [PPFMatch](./PPFMatch.md) |
+| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 6 | 10 | 85 (A) | `1.0.1` | - | [PPFMatch](./PPFMatch.md) |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 95 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./VoxelDownsample.md) |
@@ -252,4 +252,4 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ColorDetection` | 颜色检测 | 1 | 4 | 9 | 76 (B) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [ColorDetection](./ColorDetection.md) |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.1` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [ColorMeasurement](./ColorMeasurement.md) |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.2` | - | [ColorMeasurement](./ColorMeasurement.md) |

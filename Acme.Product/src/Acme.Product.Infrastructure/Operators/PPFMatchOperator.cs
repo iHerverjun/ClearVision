@@ -15,7 +15,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "3D",
     IconName = "match3d",
     Keywords = new[] { "PointCloud", "PPF", "Match", "Pose", "3D" },
-    Version = "1.0.0"
+    Version = "1.0.1"
 )]
 [InputPort("ModelPointCloud", "Model Point Cloud", PortDataType.Any, IsRequired = true)]
 [InputPort("ScenePointCloud", "Scene Point Cloud", PortDataType.Any, IsRequired = true)]
@@ -29,6 +29,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("FeatureRadius", "Feature Radius", "double", DefaultValue = 0.08, Min = 1e-6)]
 [OperatorParam("NumSamples", "Num Samples", "int", DefaultValue = 120, Min = 10, Max = 5000)]
 [OperatorParam("ModelRefStride", "Model Ref Stride", "int", DefaultValue = 3, Min = 1, Max = 50)]
+[OperatorParam("Seed", "Seed", "int", DefaultValue = 123, Min = -1, Max = 2147483647, Description = "-1 = random sampling (non-deterministic).")]
 [OperatorParam("RansacIterations", "RANSAC Iterations", "int", DefaultValue = 800, Min = 50, Max = 100000)]
 [OperatorParam("InlierThreshold", "Inlier Threshold", "double", DefaultValue = 0.005, Min = 1e-6)]
 [OperatorParam("MinInliers", "Min Inliers", "int", DefaultValue = 80, Min = 3, Max = 1000000)]
@@ -74,6 +75,7 @@ public sealed class PPFMatchOperator : OperatorBase
         var featureRadius = (float)GetDoubleParam(@operator, "FeatureRadius", 0.08, min: 1e-6, max: 1000);
         var numSamples = GetIntParam(@operator, "NumSamples", 120, min: 10, max: 5000);
         var modelRefStride = GetIntParam(@operator, "ModelRefStride", 3, min: 1, max: 50);
+        var seed = GetIntParam(@operator, "Seed", 123, min: -1, max: int.MaxValue);
         var ransacIterations = GetIntParam(@operator, "RansacIterations", 800, min: 50, max: 100000);
         var inlierThreshold = (float)GetDoubleParam(@operator, "InlierThreshold", 0.005, min: 1e-6, max: 1000);
         var minInliers = GetIntParam(@operator, "MinInliers", 80, min: 3, max: 1_000_000);
@@ -81,7 +83,7 @@ public sealed class PPFMatchOperator : OperatorBase
         var angleStepDeg = (float)GetDoubleParam(@operator, "AngleStepDeg", 5.0, min: 0.1, max: 90.0);
         var angleStepRad = angleStepDeg * (MathF.PI / 180f);
 
-        var matcher = new PPFMatcher();
+        var matcher = seed >= 0 ? new PPFMatcher(seed) : new PPFMatcher();
         PPFMatchResult result;
 
         try
@@ -128,6 +130,7 @@ public sealed class PPFMatchOperator : OperatorBase
         _ = GetDoubleParam(@operator, "FeatureRadius", 0.08, min: 1e-6, max: 1000);
         _ = GetIntParam(@operator, "NumSamples", 120, min: 10, max: 5000);
         _ = GetIntParam(@operator, "ModelRefStride", 3, min: 1, max: 50);
+        _ = GetIntParam(@operator, "Seed", 123, min: -1, max: int.MaxValue);
         _ = GetIntParam(@operator, "RansacIterations", 800, min: 50, max: 100000);
         _ = GetDoubleParam(@operator, "InlierThreshold", 0.005, min: 1e-6, max: 1000);
         _ = GetIntParam(@operator, "MinInliers", 80, min: 3, max: 1_000_000);
@@ -136,4 +139,3 @@ public sealed class PPFMatchOperator : OperatorBase
         return ValidationResult.Valid();
     }
 }
-

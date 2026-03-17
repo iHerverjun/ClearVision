@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-17T17:34:19.2332925+08:00",
+  "generatedAt": "2026-03-17T20:35:24.6239395+08:00",
   "totalCount": 127,
   "categories": {
     "3D": {
@@ -12516,13 +12516,13 @@
       "displayName": "颜色测量",
       "description": "Measures average Lab/HSV values and computes DeltaE.",
       "category": "颜色处理",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "tags": [
         "功能域:测量",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "Image",
@@ -15558,7 +15558,7 @@
       "displayName": "PPF表面匹配",
       "description": "Simplified PPF-based 3D surface matching (model -> scene pose).",
       "category": "3D",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -15659,6 +15659,17 @@
           "defaultValue": "3",
           "min": "1",
           "max": "50",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Seed",
+          "displayName": "Seed",
+          "dataType": "int",
+          "description": "-1 = random sampling (non-deterministic).",
+          "defaultValue": "123",
+          "min": "-1",
+          "max": "2147483647",
           "isRequired": true,
           "options": null
         },
