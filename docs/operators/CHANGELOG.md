@@ -14,7 +14,7 @@
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 匹配定位 | `1.0.0` |
-| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 匹配定位 | `1.0.0` |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 匹配定位 | `1.1.0` |
 | `OperatorType.TemplateMatching` | 模板匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.CycleCounter` | 循环计数器 | 变量 | `1.0.0` |
 | `OperatorType.VariableIncrement` | 变量递增 | 变量 | `1.0.0` |
@@ -71,7 +71,7 @@
 | `OperatorType.ForEach` | ForEach 循环 | 流程控制 | `1.0.0` |
 | `OperatorType.ResultJudgment` | 结果判定 | 流程控制 | `1.0.0` |
 | `OperatorType.TryCatch` | 异常捕获 | 流程控制 | `1.0.0` |
-| `OperatorType.BlobAnalysis` | Blob分析 | 特征提取 | `1.0.0` |
+| `OperatorType.BlobAnalysis` | Blob分析 | 特征提取 | `1.1.0` |
 | `OperatorType.ContourDetection` | 轮廓检测 | 特征提取 | `1.0.0` |
 | `OperatorType.EdgeDetection` | Edge Detection | 特征提取 | `1.0.0` |
 | `OperatorType.SubpixelEdgeDetection` | Subpixel Edge Detection | 特征提取 | `1.0.0` |
@@ -81,7 +81,7 @@
 | `OperatorType.RoiManager` | ROI管理器 | 辅助 | `1.0.0` |
 | `OperatorType.RoiTransform` | ROI跟踪 | 辅助 | `1.0.0` |
 | `OperatorType.ImageSave` | 图像保存 | 输出 | `1.0.0` |
-| `OperatorType.ResultOutput` | 结果输出 | 输出 | `1.0.0` |
+| `OperatorType.ResultOutput` | 结果输出 | 输出 | `1.0.1` |
 | `OperatorType.HttpRequest` | HTTP 请求 | 通信 | `1.0.0` |
 | `OperatorType.MitsubishiMcCommunication` | 三菱MC通信 | 通信 | `1.0.0` |
 | `OperatorType.ModbusCommunication` | Modbus通信 | 通信 | `1.0.0` |
@@ -157,6 +157,7 @@
 ### OperatorType.BlobAnalysis / Blob分析
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.0` | `2026-03-17T14:30:51.0566057+08:00` | `9C4A1922B234` |
 | `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `15C54747CFB6` |
 | `1.0.0` | `2026-03-17T12:35:04.9178309+08:00` | `066BA62991EB` |
 | `1.0.0` | `2026-03-16T23:16:26.6950446+08:00` | `E479498C6334` |
@@ -530,6 +531,7 @@
 ### OperatorType.ResultOutput / 结果输出
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-03-17T14:30:51.0566057+08:00` | `8165811DA08A` |
 | `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `9272BB760587` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `BECDD0398F2A` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `ED19595D838D` |
@@ -551,6 +553,7 @@
 ### OperatorType.ShapeMatching / 旋转尺度模板匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.0` | `2026-03-17T14:30:51.0566057+08:00` | `141086A053D4` |
 | `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `D405977E4DDC` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `35D41D58EBB1` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `ADE360463FD2` |
