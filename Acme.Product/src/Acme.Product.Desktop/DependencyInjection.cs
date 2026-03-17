@@ -219,6 +219,7 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, EuclideanClusterExtractionOperator>();
         services.AddSingleton<IOperatorExecutor, PPFEstimationOperator>();
         services.AddSingleton<IOperatorExecutor, PPFMatchOperator>();
+        services.AddSingleton<IOperatorExecutor, LawsTextureFilterOperator>();
 
         // ==================== Sprint 4: AI 安全沙盒 ====================
         services.AddSingleton<FlowLinter>();

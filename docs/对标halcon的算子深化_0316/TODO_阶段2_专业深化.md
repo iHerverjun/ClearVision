@@ -690,7 +690,7 @@ public class PPFMatcher
 
 ## 五、Week 9：纹理分析
 
-### 任务W9-1：Laws纹理滤波（2小时）
+### 任务W9-1：Laws纹理滤波（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现Laws纹理能量滤波
@@ -736,6 +736,11 @@ public class LawsTextureFilter
 - Brodatz纹理数据集
 - 验证不同纹理的能量差异
 ```
+
+【实现落地】
+- 核心实现：`Acme.Product/src/Acme.Product.Infrastructure/ImageProcessing/LawsTextureFilter.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/LawsTextureFilterOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/ImageProcessing/LawsTextureFilterTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/LawsTextureFilterOperatorTests.cs`
 
 ---
 
