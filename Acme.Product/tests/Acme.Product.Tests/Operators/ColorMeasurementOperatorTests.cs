@@ -26,6 +26,7 @@ public class ColorMeasurementOperatorTests
         var op = CreateOperator(new Dictionary<string, object>
         {
             { "ColorSpace", "Lab" },
+            { "DeltaEMethod", "CIEDE2000" },
             { "RoiX", 0 },
             { "RoiY", 0 },
             { "RoiW", 40 },

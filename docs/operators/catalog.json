@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-17T17:08:04.1722243+08:00",
+  "generatedAt": "2026-03-17T17:30:55.6121854+08:00",
   "totalCount": 127,
   "categories": {
     "3D": {
@@ -12605,6 +12605,26 @@
             {
               "value": "HSV",
               "label": "HSV"
+            }
+          ]
+        },
+        {
+          "name": "DeltaEMethod",
+          "displayName": "DeltaE Method",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "CIEDE2000",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "CIE76",
+              "label": "CIE76"
+            },
+            {
+              "value": "CIEDE2000",
+              "label": "CIEDE2000"
             }
           ]
         },

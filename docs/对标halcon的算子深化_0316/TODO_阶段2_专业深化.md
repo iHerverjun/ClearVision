@@ -799,7 +799,7 @@ public class GLCMTexture
 
 ## 六、Week 10：颜色测量
 
-### 任务W10-1：CIE Lab颜色转换（2小时）
+### 任务W10-1：CIE Lab颜色转换（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现RGB到CIE Lab颜色空间转换
@@ -834,7 +834,7 @@ public class ColorConverter
 
 ---
 
-### 任务W10-2：DeltaE色差计算（2小时）
+### 任务W10-2：DeltaE色差计算（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现CIE76/CIE94/CIEDE2000色差公式
@@ -870,6 +870,12 @@ public class ColorDifference
 【测试】
 - 标准色差数据集验证
 ```
+
+【实现落地】
+- CIE Lab（sRGB/D65）转换：`Acme.Product/src/Acme.Product.Infrastructure/ImageProcessing/CieLabConverter.cs`
+- DeltaE（CIE76/CIEDE2000）：`Acme.Product/src/Acme.Product.Infrastructure/ImageProcessing/ColorDifference.cs`
+- 算子增强（DeltaEMethod + 使用CIE Lab）：`Acme.Product/src/Acme.Product.Infrastructure/Operators/ColorMeasurementOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/ImageProcessing/CieLabConverterTests.cs`、`Acme.Product/tests/Acme.Product.Tests/ImageProcessing/ColorDifferenceTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/ColorMeasurementOperatorTests.cs`
 
 ---
 

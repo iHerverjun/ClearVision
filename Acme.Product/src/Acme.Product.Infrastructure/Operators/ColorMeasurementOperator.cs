@@ -6,6 +6,7 @@ using System.Collections;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -30,6 +31,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("DeltaE", "DeltaE", PortDataType.Float)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OperatorParam("ColorSpace", "Color Space", "enum", DefaultValue = "Lab", Options = new[] { "Lab|Lab", "HSV|HSV" })]
+[OperatorParam("DeltaEMethod", "DeltaE Method", "enum", DefaultValue = "CIEDE2000", Options = new[] { "CIE76|CIE76", "CIEDE2000|CIEDE2000" })]
 [OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0)]
 [OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0)]
 [OperatorParam("RoiW", "ROI W", "int", DefaultValue = 0)]
@@ -84,20 +86,21 @@ public class ColorMeasurementOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("ROI is invalid"));
         }
 
-        using var lab = new Mat();
         using var hsv = new Mat();
-        Cv2.CvtColor(src, lab, ColorConversionCodes.BGR2Lab);
         Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
 
-        using var labRoi = new Mat(lab, roi);
         using var hsvRoi = new Mat(hsv, roi);
 
-        var labMean = Cv2.Mean(labRoi);
+        // CIE L*a*b* mean over ROI (sRGB/D65), in standard units:
+        // L*: [0..100], a*: [-128..127], b*: [-128..127] approximately.
+        var cieMean = CieLabConverter.ComputeMeanLabBgr8U(src, roi);
+
         var hsvMean = Cv2.Mean(hsvRoi);
 
-        var lValue = labMean.Val0;
-        var aValue = labMean.Val1;
-        var bValue = labMean.Val2;
+        // Keep outputs in CIE units (not OpenCV's 0..255 Lab scaling).
+        var lValue = cieMean.L;
+        var aValue = cieMean.A;
+        var bValue = cieMean.B;
 
         var hValue = hsvMean.Val0;
         var sValue = hsvMean.Val1;
@@ -112,10 +115,10 @@ public class ColorMeasurementOperator : OperatorBase
             TryOverrideReference(referenceObj, ref refL, ref refA, ref refB);
         }
 
-        var deltaE = Math.Sqrt(
-            (lValue - refL) * (lValue - refL) +
-            (aValue - refA) * (aValue - refA) +
-            (bValue - refB) * (bValue - refB));
+        var deltaEMethod = GetStringParam(@operator, "DeltaEMethod", "CIEDE2000");
+        var deltaE = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase)
+            ? ColorDifference.DeltaE76(new CieLab(lValue, aValue, bValue), new CieLab(refL, refA, refB))
+            : ColorDifference.DeltaE00(new CieLab(lValue, aValue, bValue), new CieLab(refL, refA, refB));
 
         var resultImage = src.Clone();
         Cv2.Rectangle(resultImage, roi, new Scalar(0, 255, 255), 2);
@@ -150,6 +153,13 @@ public class ColorMeasurementOperator : OperatorBase
         if (!validSpaces.Contains(colorSpace, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("ColorSpace must be Lab or HSV");
+        }
+
+        var deltaEMethod = GetStringParam(@operator, "DeltaEMethod", "CIEDE2000");
+        var validMethods = new[] { "CIE76", "CIEDE2000" };
+        if (!validMethods.Contains(deltaEMethod, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("DeltaEMethod must be CIE76 or CIEDE2000");
         }
 
         var roiW = GetIntParam(@operator, "RoiW", 0);

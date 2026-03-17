@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 17:08:04 +08:00`
+> 生成时间 / Generated At: `2026-03-17 17:30:55 +08:00`
 > 算子总数 / Total Operators: **127**
 
 ## 分类统计 / Category Summary
@@ -252,4 +252,4 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ColorDetection` | 颜色检测 | 1 | 4 | 9 | 76 (B) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [ColorDetection](./ColorDetection.md) |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 8 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [ColorMeasurement](./ColorMeasurement.md) |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [ColorMeasurement](./ColorMeasurement.md) |

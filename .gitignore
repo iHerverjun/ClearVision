@@ -85,3 +85,5 @@ notebooks/.ipynb_checkpoints/
 /Acme.Product/test_results/ui_*.png
 /Acme.Product/test_results/ui_*.json
 /Acme.Product/test_results/ui_*.md
+# Local scratch notes (keep repo clean)
+docs/temp.md
