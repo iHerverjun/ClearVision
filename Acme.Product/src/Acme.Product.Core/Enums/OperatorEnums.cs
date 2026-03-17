@@ -262,7 +262,9 @@ public enum OperatorType
 
     VoxelDownsample = 217,
 
-    StatisticalOutlierRemoval = 218
+    StatisticalOutlierRemoval = 218,
+
+    RansacPlaneSegmentation = 219
 }
 
 public enum OperatorExecutionStatus

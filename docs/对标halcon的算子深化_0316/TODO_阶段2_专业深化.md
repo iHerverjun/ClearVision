@@ -371,7 +371,7 @@ public class StatisticalOutlierRemoval
 
 ## 三、Week 7：点云分割
 
-### 任务W7-1：RANSAC平面分割（3小时）
+### 任务W7-1：RANSAC平面分割（3小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现RANSAC平面分割
@@ -430,6 +430,11 @@ public class RansacPlaneSegmentation
 - 验证分割出的平面法向量正确
 - 验证内点比例>80%
 ```
+
+【实现落地】
+- 算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Segmentation/RansacPlaneSegmentation.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/RansacPlaneSegmentationOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/RansacPlaneSegmentationTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/RansacPlaneSegmentationOperatorTests.cs`
 
 ---
 

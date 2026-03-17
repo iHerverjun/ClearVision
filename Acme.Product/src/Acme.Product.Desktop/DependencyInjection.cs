@@ -215,6 +215,7 @@ public static class DependencyInjection
         // ==================== Stage 2: 3D Point Cloud Operators ====================
         services.AddSingleton<IOperatorExecutor, VoxelDownsampleOperator>();
         services.AddSingleton<IOperatorExecutor, StatisticalOutlierRemovalOperator>();
+        services.AddSingleton<IOperatorExecutor, RansacPlaneSegmentationOperator>();
 
         // ==================== Sprint 4: AI 安全沙盒 ====================
         services.AddSingleton<FlowLinter>();
