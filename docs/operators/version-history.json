@@ -1073,6 +1073,18 @@
       ]
     },
     {
+      "id": "LawsTextureFilter",
+      "displayName": "Laws Texture Filter",
+      "category": "Texture",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "261438B3A43B860E658DEC4B35D24582AA54FB1C4991D9B1C5B2741A2028023A",
+          "recordedAt": "2026-03-17T16:52:44.2376192\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "LineLineDistance",
       "displayName": "\u7EBF\u7EBF\u8DDD\u79BB",
       "category": "\u68C0\u6D4B",

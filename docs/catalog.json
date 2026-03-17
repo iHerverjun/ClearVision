@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-17T16:37:39.7575929+08:00",
-  "totalCount": 125,
+  "generatedAt": "2026-03-17T16:53:17.7982813+08:00",
+  "totalCount": 126,
   "categories": {
     "3D": {
       "count": 6,
@@ -20,6 +20,12 @@
         "DualModalVoting",
         "EdgePairDefect",
         "SurfaceDefectDetection"
+      ]
+    },
+    "Texture": {
+      "count": 1,
+      "operators": [
+        "LawsTextureFilter"
       ]
     },
     "匹配定位": {
@@ -15701,6 +15707,128 @@
         "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "docs/operators/PPFMatch.md"
+    },
+    {
+      "id": "LawsTextureFilter",
+      "type": 223,
+      "displayName": "Laws Texture Filter",
+      "description": "Apply 5x5 Laws texture filtering and compute local energy.",
+      "category": "Texture",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "FilteredImage",
+          "displayName": "Filtered Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "EnergyImage",
+          "displayName": "Energy Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "MeanEnergy",
+          "displayName": "Mean Energy",
+          "dataType": "Float",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "KernelCombo",
+          "displayName": "Kernel Combo",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "E5E5",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SubtractLocalMean",
+          "displayName": "Subtract Local Mean",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "LocalMeanWindowSize",
+          "displayName": "Local Mean Window Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "15",
+          "min": "3",
+          "max": "101",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnergyWindowSize",
+          "displayName": "Energy Window Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "15",
+          "min": "3",
+          "max": "101",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "BorderType",
+          "displayName": "Border Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "1",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "1",
+              "label": "Replicate"
+            },
+            {
+              "value": "2",
+              "label": "Reflect"
+            },
+            {
+              "value": "4",
+              "label": "Default"
+            }
+          ]
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/LawsTextureFilter.md"
     }
   ]
 }
