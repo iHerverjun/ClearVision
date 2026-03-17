@@ -1,7 +1,13 @@
 {
-  "generatedAt": "2026-03-17T14:30:51.0566057+08:00",
-  "totalCount": 119,
+  "generatedAt": "2026-03-17T15:02:44.2227737+08:00",
+  "totalCount": 120,
   "categories": {
+    "3D": {
+      "count": 1,
+      "operators": [
+        "VoxelDownsample"
+      ]
+    },
     "AI检测": {
       "count": 4,
       "operators": [
@@ -15087,6 +15093,65 @@
         "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "docs/operators/RoiTransform.md"
+    },
+    {
+      "id": "VoxelDownsample",
+      "type": 217,
+      "displayName": "体素下采样",
+      "description": "Voxel grid downsampling for point clouds (centroid per voxel).",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "PointCount",
+          "displayName": "Point Count",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "LeafSize",
+          "displayName": "Leaf Size",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.01",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 85,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/VoxelDownsample.md"
     }
   ]
 }

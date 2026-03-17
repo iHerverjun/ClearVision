@@ -2043,6 +2043,18 @@
       ]
     },
     {
+      "id": "VoxelDownsample",
+      "displayName": "\u4F53\u7D20\u4E0B\u91C7\u6837",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "1FDE2F2206BC9713B7C461AC87FD905BC6FE9F74172D33E6B3B7402BE4449EA1",
+          "recordedAt": "2026-03-17T15:02:44.2227737\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "WidthMeasurement",
       "displayName": "\u5BBD\u5EA6\u6D4B\u91CF",
       "category": "\u68C0\u6D4B",
