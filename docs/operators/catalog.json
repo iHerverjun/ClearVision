@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-17T17:30:55.6121854+08:00",
+  "generatedAt": "2026-03-17T17:33:01.9139128+08:00",
   "totalCount": 127,
   "categories": {
     "3D": {
@@ -12516,7 +12516,7 @@
       "displayName": "颜色测量",
       "description": "Measures average Lab/HSV values and computes DeltaE.",
       "category": "颜色处理",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:测量",
         "成熟度:稳定",

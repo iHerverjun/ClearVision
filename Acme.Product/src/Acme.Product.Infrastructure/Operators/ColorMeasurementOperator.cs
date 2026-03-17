@@ -18,7 +18,8 @@ namespace Acme.Product.Infrastructure.Operators;
     Description = "Measures average Lab/HSV values and computes DeltaE.",
     Category = "颜色处理",
     IconName = "color-measure",
-    Keywords = new[] { "color", "deltaE", "lab", "hsv" }
+    Keywords = new[] { "color", "deltaE", "lab", "hsv" },
+    Version = "1.0.1"
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
 [InputPort("ReferenceColor", "Reference Color", PortDataType.Any, IsRequired = false)]
