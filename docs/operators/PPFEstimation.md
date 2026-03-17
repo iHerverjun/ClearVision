@@ -17,11 +17,11 @@
 - 中文：
   - 法向估计使用 PCA（邻域点协方差矩阵最小特征向量）实现 `EstimateNormals`。
   - 邻域搜索使用空间哈希网格（cell size = radius），每点只扫描 27 个相邻 cell，避免暴力 O(n^2)。
-  - PPF 角度计算使用 `acos(abs(dot))`，提升对法向翻转（normal sign ambiguity）的鲁棒性，便于做旋转不变性测试。
+  - PPF 角度计算使用 `acos(dot)`（对 `dot` 做 [-1,1] clamp），保留符号信息；法向翻转（normal sign ambiguity）需要在匹配阶段通过一致的法向朝向或显式处理来消解。
 - English:
   - Normals are estimated via PCA (smallest eigenvector of the local covariance matrix).
   - Neighbor search uses a spatial hash grid (scan 27 adjacent cells per point).
-  - Uses `acos(abs(dot))` for angles to reduce sensitivity to normal flips.
+  - Uses `acos(dot)` (with dot clamped to [-1,1]) to retain signed angle information; normal-flip ambiguity should be handled in the matching stage.
 
 ## 核心 API 调用链 / Core API Call Chain
 - `PPFEstimationOperator.ExecuteCoreAsync`

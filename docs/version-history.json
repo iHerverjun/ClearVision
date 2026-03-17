@@ -1347,6 +1347,18 @@
       ]
     },
     {
+      "id": "PPFMatch",
+      "displayName": "PPF\u8868\u9762\u5339\u914D",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "3F62675CEB39F80FDEE8E015335996D4B0A21A94BD46C3A37222BB6F75C66030",
+          "recordedAt": "2026-03-17T16:34:20.9153387\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "ParallelLineFind",
       "displayName": "\u5E73\u884C\u7EBF\u67E5\u627E",
       "category": "\u5B9A\u4F4D",

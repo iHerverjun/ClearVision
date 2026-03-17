@@ -1,12 +1,13 @@
 {
-  "generatedAt": "2026-03-17T16:06:03.0736962+08:00",
-  "totalCount": 124,
+  "generatedAt": "2026-03-17T16:37:39.7575929+08:00",
+  "totalCount": 125,
   "categories": {
     "3D": {
-      "count": 5,
+      "count": 6,
       "operators": [
         "EuclideanClusterExtraction",
         "PPFEstimation",
+        "PPFMatch",
         "RansacPlaneSegmentation",
         "StatisticalOutlierRemoval",
         "VoxelDownsample"
@@ -15514,6 +15515,183 @@
         }
       ],
       "quality": {
+        "totalScore": 95,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/PPFEstimation.md"
+    },
+    {
+      "id": "PPFMatch",
+      "type": 222,
+      "displayName": "PPF表面匹配",
+      "description": "Simplified PPF-based 3D surface matching (model -> scene pose).",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "ModelPointCloud",
+          "displayName": "Model Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "ScenePointCloud",
+          "displayName": "Scene Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "IsMatched",
+          "displayName": "Is Matched",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "TransformMatrix",
+          "displayName": "Transform Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "InlierCount",
+          "displayName": "Inlier Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "InlierRatio",
+          "displayName": "Inlier Ratio",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "CorrespondenceCount",
+          "displayName": "Correspondence Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "RmsError",
+          "displayName": "RMS Error",
+          "dataType": "Float",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "NormalRadius",
+          "displayName": "Normal Radius",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.03",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "FeatureRadius",
+          "displayName": "Feature Radius",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.08",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NumSamples",
+          "displayName": "Num Samples",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "120",
+          "min": "10",
+          "max": "5000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ModelRefStride",
+          "displayName": "Model Ref Stride",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "50",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RansacIterations",
+          "displayName": "RANSAC Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "800",
+          "min": "50",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "InlierThreshold",
+          "displayName": "Inlier Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.005",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinInliers",
+          "displayName": "Min Inliers",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "80",
+          "min": "3",
+          "max": "1000000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DistanceStep",
+          "displayName": "Distance Step",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.01",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "AngleStepDeg",
+          "displayName": "Angle Step (deg)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "5",
+          "min": "0.1",
+          "max": "90",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
         "totalScore": 85,
         "level": "A",
         "documentationScore": 60,
@@ -15522,7 +15700,7 @@
         "errorHandlingScore": 100,
         "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
       },
-      "docPath": "docs/operators/PPFEstimation.md"
+      "docPath": "docs/operators/PPFMatch.md"
     }
   ]
 }
