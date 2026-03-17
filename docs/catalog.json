@@ -1,10 +1,11 @@
 {
-  "generatedAt": "2026-03-17T15:38:43.2026997+08:00",
-  "totalCount": 122,
+  "generatedAt": "2026-03-17T15:51:46.3051250+08:00",
+  "totalCount": 123,
   "categories": {
     "3D": {
-      "count": 3,
+      "count": 4,
       "operators": [
+        "EuclideanClusterExtraction",
         "RansacPlaneSegmentation",
         "StatisticalOutlierRemoval",
         "VoxelDownsample"
@@ -15347,6 +15348,93 @@
         "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "docs/operators/RansacPlaneSegmentation.md"
+    },
+    {
+      "id": "EuclideanClusterExtraction",
+      "type": 220,
+      "displayName": "欧氏聚类分割",
+      "description": "Euclidean Cluster Extraction for point clouds (3D connected components by distance).",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Clusters",
+          "displayName": "Clusters",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "ClusterCount",
+          "displayName": "Cluster Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "ClusterPointClouds",
+          "displayName": "Cluster Point Clouds",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "ClusterTolerance",
+          "displayName": "Cluster Tolerance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.02",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinClusterSize",
+          "displayName": "Min Cluster Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "100",
+          "min": "1",
+          "max": "10000000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxClusterSize",
+          "displayName": "Max Cluster Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1000000",
+          "min": "1",
+          "max": "10000000",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/EuclideanClusterExtraction.md"
     }
   ]
 }

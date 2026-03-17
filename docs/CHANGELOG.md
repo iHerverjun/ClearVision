@@ -1,11 +1,12 @@
 # 算子版本变更记录 / Operator Version Changelog
 
 > 生成时间 / Generated At: `2026-02-26 21:20:16 +08:00`
-> 算子总数 / Total Operators: **122**
+> 算子总数 / Total Operators: **123**
 
 ## 当前版本快照 / Current Snapshot
 | 枚举 (Enum) | 显示名 (DisplayName) | 分类 (Category) | 版本 (Version) |
 |------|------|------|------|
+| `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 3D | `1.0.0` |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 3D | `1.0.0` |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 3D | `1.0.0` |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 3D | `1.0.0` |

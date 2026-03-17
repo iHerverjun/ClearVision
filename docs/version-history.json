@@ -654,6 +654,18 @@
       ]
     },
     {
+      "id": "EuclideanClusterExtraction",
+      "displayName": "\u6B27\u6C0F\u805A\u7C7B\u5206\u5272",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "80F7E85D31B4A507CBDD374B7BDE5CE98D21E5E9E285AB899D33AD0FCFEE1F1B",
+          "recordedAt": "2026-03-17T15:49:49.5980240\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "Filtering",
       "displayName": "Gaussian Blur",
       "category": "\u9884\u5904\u7406",
