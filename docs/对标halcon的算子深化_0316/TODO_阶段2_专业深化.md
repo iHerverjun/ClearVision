@@ -744,7 +744,7 @@ public class LawsTextureFilter
 
 ---
 
-### 任务W9-2：GLCM纹理特征（3小时）
+### 任务W9-2：GLCM纹理特征（3小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现灰度共生矩阵（GLCM）纹理分析
@@ -789,6 +789,11 @@ public class GLCMTexture
 - 粗糙纹理：高对比度
 - 平滑纹理：高能量，低对比度
 ```
+
+【实现落地】
+- 核心实现：`Acme.Product/src/Acme.Product.Infrastructure/ImageProcessing/GlcmTexture.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/GlcmTextureOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/ImageProcessing/GlcmTextureTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/GlcmTextureOperatorTests.cs`
 
 ---
 

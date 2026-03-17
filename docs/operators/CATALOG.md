@@ -1,39 +1,39 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 16:53:17 +08:00`
-> 算子总数 / Total Operators: **126**
+> 生成时间 / Generated At: `2026-03-17 17:07:32 +08:00`
+> 算子总数 / Total Operators: **127**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
-| 3D | 6 | 4.8% |
-| AI检测 | 4 | 3.2% |
-| Texture | 1 | 0.8% |
-| 匹配定位 | 6 | 4.8% |
-| 变量 | 4 | 3.2% |
-| 图像处理 | 4 | 3.2% |
-| 定位 | 7 | 5.6% |
+| 3D | 6 | 4.7% |
+| AI检测 | 4 | 3.1% |
+| Texture | 2 | 1.6% |
+| 匹配定位 | 6 | 4.7% |
+| 变量 | 4 | 3.1% |
+| 图像处理 | 4 | 3.1% |
+| 定位 | 7 | 5.5% |
 | 拆分组合 | 2 | 1.6% |
 | 数据处理 | 10 | 7.9% |
-| 标定 | 6 | 4.8% |
-| 检测 | 16 | 12.7% |
-| 流程控制 | 6 | 4.8% |
-| 特征提取 | 4 | 3.2% |
+| 标定 | 6 | 4.7% |
+| 检测 | 16 | 12.6% |
+| 流程控制 | 6 | 4.7% |
+| 特征提取 | 4 | 3.1% |
 | 识别 | 2 | 1.6% |
 | 辅助 | 3 | 2.4% |
 | 输出 | 2 | 1.6% |
 | 通信 | 8 | 6.3% |
-| 通用 | 4 | 3.2% |
-| 逻辑工具 | 5 | 4.0% |
+| 通用 | 4 | 3.1% |
+| 逻辑工具 | 5 | 3.9% |
 | 采集 | 1 | 0.8% |
-| 预处理 | 23 | 18.3% |
+| 预处理 | 23 | 18.1% |
 | 颜色处理 | 2 | 1.6% |
 
 ## 质量评分 / Quality Score
 - 平均分 / Average: **89.1**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 87 |
+| A | 88 |
 | B | 33 |
 | C | 6 |
 
@@ -57,9 +57,10 @@
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | 3 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [EdgePairDefect](./EdgePairDefect.md) |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | 2 | 4 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SurfaceDefectDetection](./SurfaceDefectDetection.md) |
 
-### Texture (1)
+### Texture (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.GlcmTexture` | GLCM Texture Features | 1 | 6 | 9 | 90 (A) | `1.0.0` | - | [GlcmTexture](./GlcmTexture.md) |
 | `OperatorType.LawsTextureFilter` | Laws Texture Filter | 1 | 3 | 5 | 90 (A) | `1.0.0` | - | [LawsTextureFilter](./LawsTextureFilter.md) |
 
 ### 匹配定位 (6)

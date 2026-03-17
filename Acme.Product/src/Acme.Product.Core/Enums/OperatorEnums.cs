@@ -272,7 +272,9 @@ public enum OperatorType
 
     PPFMatch = 222,
 
-    LawsTextureFilter = 223
+    LawsTextureFilter = 223,
+
+    GlcmTexture = 224
 }
 
 public enum OperatorExecutionStatus
