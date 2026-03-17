@@ -1335,6 +1335,18 @@
       ]
     },
     {
+      "id": "PPFEstimation",
+      "displayName": "PPF\u70B9\u5BF9\u7279\u5F81",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A311D862B07BB49455397DD5BA627900014080390C8A7FA01F8628AE81CBA6F7",
+          "recordedAt": "2026-03-17T16:06:03.0736962\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "ParallelLineFind",
       "displayName": "\u5E73\u884C\u7EBF\u67E5\u627E",
       "category": "\u5B9A\u4F4D",
