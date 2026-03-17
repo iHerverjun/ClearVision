@@ -212,6 +212,10 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, HistogramAnalysisOperator>();
         services.AddSingleton<IOperatorExecutor, PixelStatisticsOperator>();
 
+        // ==================== Stage 2: 3D Point Cloud Operators ====================
+        services.AddSingleton<IOperatorExecutor, VoxelDownsampleOperator>();
+        services.AddSingleton<IOperatorExecutor, StatisticalOutlierRemovalOperator>();
+
         // ==================== Sprint 4: AI 安全沙盒 ====================
         services.AddSingleton<FlowLinter>();
         services.AddScoped<Acme.Product.Infrastructure.AI.DryRun.DryRunService>();

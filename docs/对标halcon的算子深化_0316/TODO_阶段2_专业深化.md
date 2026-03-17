@@ -327,7 +327,7 @@ public class VoxelGridFilter
 
 ---
 
-### 任务W6-4：统计滤波（2小时）
+### 任务W6-4：统计滤波（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现统计离群点移除（Statistical Outlier Removal）
@@ -361,6 +361,11 @@ public class StatisticalOutlierRemoval
 - 合成点云加入随机离群点
 - 验证滤波后离群点被移除
 ```
+
+【实现落地】
+- 算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Filters/StatisticalOutlierRemoval.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/StatisticalOutlierRemovalOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/StatisticalOutlierRemovalTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/StatisticalOutlierRemovalOperatorTests.cs`
 
 ---
 
@@ -1088,9 +1093,9 @@ protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(...)
 
 ### 必完成项
 
-- [ ] W5-0：合成点云生成器可用，生成至少4种测试点云
-- [ ] W6：PointCloud类完整，支持I/O和基础操作
-- [ ] W6：体素下采样和统计滤波可用，性能满足预算
+- [x] W5-0：合成点云生成器可用，生成至少4种测试点云
+- [x] W6：PointCloud类完整，支持I/O和基础操作
+- [x] W6：体素下采样和统计滤波可用，性能满足预算
 - [ ] W7：RANSAC平面分割精度<1mm，性能<300ms
 - [ ] W7：欧氏聚类可用
 - [ ] W8：PPF特征计算正确，匹配精度<5mm

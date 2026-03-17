@@ -260,7 +260,9 @@ public enum OperatorType
 
     MeanFilter = 215,
 
-    VoxelDownsample = 217
+    VoxelDownsample = 217,
+
+    StatisticalOutlierRemoval = 218
 }
 
 public enum OperatorExecutionStatus
