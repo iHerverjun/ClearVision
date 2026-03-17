@@ -25,10 +25,9 @@ public readonly record struct PPFFeature(float Distance, float Angle1, float Ang
         n1 = SafeNormalize(n1);
         n2 = SafeNormalize(n2);
 
-        // Normal direction is often ambiguous (can flip). Using abs(dot) makes angles stable under normal flips.
-        var a1 = Acos01(MathF.Abs(Vector3.Dot(n1, d)));
-        var a2 = Acos01(MathF.Abs(Vector3.Dot(n2, d)));
-        var an = Acos01(MathF.Abs(Vector3.Dot(n1, n2)));
+        var a1 = AcosSigned(Vector3.Dot(n1, d));
+        var a2 = AcosSigned(Vector3.Dot(n2, d));
+        var an = AcosSigned(Vector3.Dot(n1, n2));
 
         return new PPFFeature(dist, a1, a2, an);
     }
@@ -43,11 +42,10 @@ public readonly record struct PPFFeature(float Distance, float Angle1, float Ang
         return Vector3.Normalize(v);
     }
 
-    private static float Acos01(float x)
+    private static float AcosSigned(float x)
     {
-        // x should be within [0,1], but numerical drift happens.
-        x = Math.Clamp(x, 0f, 1f);
+        // x should be within [-1,1], but numerical drift happens.
+        x = Math.Clamp(x, -1f, 1f);
         return MathF.Acos(x);
     }
 }
-

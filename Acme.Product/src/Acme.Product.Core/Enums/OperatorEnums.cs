@@ -268,7 +268,9 @@ public enum OperatorType
 
     EuclideanClusterExtraction = 220,
 
-    PPFEstimation = 221
+    PPFEstimation = 221,
+
+    PPFMatch = 222
 }
 
 public enum OperatorExecutionStatus

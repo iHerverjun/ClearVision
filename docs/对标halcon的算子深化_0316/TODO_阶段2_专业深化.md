@@ -607,7 +607,7 @@ public class PPFEstimation
 
 ---
 
-### 任务W8-2：基于PPF的表面匹配（3小时）
+### 任务W8-2：基于PPF的表面匹配（3小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现基于PPF的3D表面匹配（简化版）
@@ -680,6 +680,11 @@ public class PPFMatcher
 □ 性能满足预算
 □ 鲁棒性测试（30%遮挡）通过
 ```
+
+【实现落地】
+- 匹配算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Matching/PPFMatcher.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/PPFMatchOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/PPFMatcherTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/PPFMatchOperatorTests.cs`
 
 ---
 
