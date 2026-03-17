@@ -1,7 +1,7 @@
 # 算子版本变更记录 / Operator Version Changelog
 
 > 生成时间 / Generated At: `2026-02-26 21:20:16 +08:00`
-> 算子总数 / Total Operators: **118**
+> 算子总数 / Total Operators: **119**
 
 ## 当前版本快照 / Current Snapshot
 | 枚举 (Enum) | 显示名 (DisplayName) | 分类 (Category) | 版本 (Version) |
@@ -79,6 +79,7 @@
 | `OperatorType.OcrRecognition` | OCR 识别 | 识别 | `1.0.0` |
 | `OperatorType.Comment` | 注释 | 辅助 | `1.0.0` |
 | `OperatorType.RoiManager` | ROI管理器 | 辅助 | `1.0.0` |
+| `OperatorType.RoiTransform` | ROI跟踪 | 辅助 | `1.0.0` |
 | `OperatorType.ImageSave` | 图像保存 | 输出 | `1.0.0` |
 | `OperatorType.ResultOutput` | 结果输出 | 输出 | `1.0.0` |
 | `OperatorType.HttpRequest` | HTTP 请求 | 通信 | `1.0.0` |
@@ -156,6 +157,7 @@
 ### OperatorType.BlobAnalysis / Blob分析
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `15C54747CFB6` |
 | `1.0.0` | `2026-03-17T12:35:04.9178309+08:00` | `066BA62991EB` |
 | `1.0.0` | `2026-03-16T23:16:26.6950446+08:00` | `E479498C6334` |
 | `1.0.0` | `2026-03-16T01:00:41.9846479+08:00` | `DD3B35AC2885` |
@@ -528,6 +530,7 @@
 ### OperatorType.ResultOutput / 结果输出
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `9272BB760587` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `BECDD0398F2A` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `ED19595D838D` |
 | `1.0.0` | `2026-03-04T11:07:12.6855371+08:00` | `F230E925DC3A` |
@@ -548,6 +551,7 @@
 ### OperatorType.ShapeMatching / 旋转尺度模板匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `D405977E4DDC` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `35D41D58EBB1` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `ADE360463FD2` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `C20A8A850891` |

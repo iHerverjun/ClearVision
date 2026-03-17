@@ -23,7 +23,8 @@ namespace Acme.Product.Infrastructure.Operators;
     Description = "连通区域分析",
     Category = "特征提取",
     IconName = "blob",
-    Keywords = new[] { "连通域", "缺陷区域", "斑点", "面积提取", "缺陷分析", "Blob", "Connected components" }
+    Keywords = new[] { "连通域", "缺陷区域", "斑点", "面积提取", "缺陷分析", "Blob", "Connected components" },
+    Version = "1.1.0"
 )]
 [InputPort("Image", "图像", PortDataType.Image, IsRequired = true)]
 [InputPort("SourceImage", "Source Image", PortDataType.Image, IsRequired = false)]

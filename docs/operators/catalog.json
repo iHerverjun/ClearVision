@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-17T14:27:11.6128169+08:00",
+  "generatedAt": "2026-03-17T14:30:51.0566057+08:00",
   "totalCount": 119,
   "categories": {
     "AI检测": {
@@ -843,7 +843,7 @@
       "displayName": "Blob分析",
       "description": "连通区域分析",
       "category": "特征提取",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -1677,7 +1677,7 @@
       "displayName": "结果输出",
       "description": "汇总检测结果并输出，支持 JSON/CSV/Text 格式，可选保存到文件",
       "category": "输出",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:流程",
         "成熟度:稳定",
@@ -4823,7 +4823,7 @@
       "displayName": "旋转尺度模板匹配",
       "description": "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
       "category": "匹配定位",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",

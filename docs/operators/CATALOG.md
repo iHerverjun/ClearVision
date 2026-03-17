@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 14:27:11 +08:00`
+> 生成时间 / Generated At: `2026-03-17 14:30:51 +08:00`
 > 算子总数 / Total Operators: **119**
 
 ## 分类统计 / Category Summary
@@ -52,7 +52,7 @@
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 6 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./GradientShapeMatch.md) |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 5 | 7 | 73 (B) | `1.0.0` | 该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配… | [OrbFeatureMatch](./OrbFeatureMatch.md) |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 2 | 5 | 15 | 83 (B) | `1.0.0` | 该算子围绕模板、特征或几何相似性执行定位匹配，用于判断目标是否存在以及位姿大致位置。 | [PyramidShapeMatch](./PyramidShapeMatch.md) |
-| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.0.0` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./ShapeMatching.md) |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.1.0` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./ShapeMatching.md) |
 | `OperatorType.TemplateMatching` | 模板匹配 | 2 | 6 | 3 | 96 (A) | `1.0.0` | 该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全… | [TemplateMatching](./TemplateMatching.md) |
 
 ### 变量 (4)
@@ -145,7 +145,7 @@
 ### 特征提取 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.BlobAnalysis` | Blob分析 | 2 | 4 | 17 | 100 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./BlobAnalysis.md) |
+| `OperatorType.BlobAnalysis` | Blob分析 | 2 | 4 | 17 | 100 (A) | `1.1.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./BlobAnalysis.md) |
 | `OperatorType.ContourDetection` | 轮廓检测 | 1 | 3 | 8 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourDetection](./ContourDetection.md) |
 | `OperatorType.EdgeDetection` | Edge Detection | 1 | 2 | 8 | 76 (B) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [EdgeDetection](./EdgeDetection.md) |
 | `OperatorType.SubpixelEdgeDetection` | Subpixel Edge Detection | 1 | 2 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SubpixelEdgeDetection](./SubpixelEdgeDetection.md) |
@@ -167,7 +167,7 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ImageSave` | 图像保存 | 1 | 2 | 3 | 83 (B) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ImageSave](./ImageSave.md) |
-| `OperatorType.ResultOutput` | 结果输出 | 4 | 6 | 2 | 98 (A) | `1.0.0` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
+| `OperatorType.ResultOutput` | 结果输出 | 4 | 6 | 2 | 98 (A) | `1.0.1` | 该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。 | [ResultOutput](./ResultOutput.md) |
 
 ### 通信 (8)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

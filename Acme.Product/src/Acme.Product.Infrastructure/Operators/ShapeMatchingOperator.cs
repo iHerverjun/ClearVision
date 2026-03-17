@@ -15,7 +15,8 @@ namespace Acme.Product.Infrastructure.Operators;
     DisplayName = "旋转尺度模板匹配",
     Description = "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
     Category = "Matching",
-    IconName = "shape-match"
+    IconName = "shape-match",
+    Version = "1.1.0"
 )]
 [InputPort("Image", "Search Image", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "Template Image", PortDataType.Image, IsRequired = false)]

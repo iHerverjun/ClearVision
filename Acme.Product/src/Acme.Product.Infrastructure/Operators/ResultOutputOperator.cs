@@ -21,7 +21,8 @@ namespace Acme.Product.Infrastructure.Operators;
     Description = "汇总检测结果并输出，支持 JSON/CSV/Text 格式，可选保存到文件",
     Category = "输出",
     IconName = "output",
-    Keywords = new[] { "输出", "结果", "结束", "呈现", "记录", "Output", "Result", "Display" }
+    Keywords = new[] { "输出", "结果", "结束", "呈现", "记录", "Output", "Result", "Display" },
+    Version = "1.0.1"
 )]
 [InputPort("Image", "图像", PortDataType.Image, IsRequired = false)]
 [InputPort("Result", "结果", PortDataType.Any, IsRequired = false)]

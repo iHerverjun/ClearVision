@@ -144,6 +144,11 @@
           "version": "1.0.0",
           "sourceHash": "066BA62991EB246A82D94FAACFBE185E67E24B0B79B14A28CF119B4D081E055A",
           "recordedAt": "2026-03-17T12:35:04.9178309\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "15C54747CFB686B6BD4BFD21663016F0E4AD4B378DAB1B8534DB2A4516AC5C27",
+          "recordedAt": "2026-03-17T14:27:11.6128169\u002B08:00"
         }
       ]
     },
@@ -1557,6 +1562,11 @@
           "version": "1.0.0",
           "sourceHash": "BECDD0398F2AA2CB22B0D07E47CE1979282E47494A3996886E09B2ABFD6911E3",
           "recordedAt": "2026-03-16T19:59:19.7031372\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "9272BB7605874CEF456E12AA3EBA636C9D3352AFD010E9CAF67757BCEA8DE7F1",
+          "recordedAt": "2026-03-17T14:27:11.6128169\u002B08:00"
         }
       ]
     },
@@ -1569,6 +1579,18 @@
           "version": "1.0.0",
           "sourceHash": "FBE3ADDF8A6066F4C92A37A6F891EE978C05ECAC6453C5961F38958BA2607F4A",
           "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RoiTransform",
+      "displayName": "ROI\u8DDF\u8E2A",
+      "category": "\u8F85\u52A9",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "72CC34B3C57BA107C69209B74A1B81E52ED65EEBF59AD25A06AB0E822CC2D2D0",
+          "recordedAt": "2026-03-17T14:27:11.6128169\u002B08:00"
         }
       ]
     },
@@ -1642,6 +1664,11 @@
           "version": "1.0.0",
           "sourceHash": "35D41D58EBB1780E320F908843E1EA8B9865BF54C3B2D21DCCB3651F170936F6",
           "recordedAt": "2026-03-16T19:59:19.7031372\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "D405977E4DDC5EDD8F45940D80E86B9E60BD45B9AE3E46C351C8F4CACFD537E1",
+          "recordedAt": "2026-03-17T14:27:11.6128169\u002B08:00"
         }
       ]
     },
