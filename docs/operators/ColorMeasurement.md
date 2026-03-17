@@ -10,7 +10,9 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。
+> 中文：在 ROI 内统计颜色特征，输出平均 Lab/HSV 值。若提供参考颜色（`ReferenceColor` 或 `RefL/RefA/RefB`），则计算 DeltaE 色差（支持 CIE76 / CIEDE2000）。
+>
+> English: Computes mean Lab/HSV values inside ROI. If a reference color is provided, computes DeltaE (CIE76 / CIEDE2000).
 
 > English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
 
@@ -32,6 +34,7 @@
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
 | `ColorSpace` | `enum` | `"Lab"` | Lab/Lab；HSV/HSV | 该参数用于在多个实现分支之间切换。 |
+| `DeltaEMethod` | `enum` | `"CIEDE2000"` | CIE76/CIE76；CIEDE2000/CIEDE2000 | DeltaE 计算方法。`CIEDE2000` 更接近工业常用标准。 |
 | `RoiX` | `int` | `0` | - | 限定处理区域。 |
 | `RoiY` | `int` | `0` | - | 限定处理区域。 |
 | `RoiW` | `int` | `0` | - | 限定处理区域。 |

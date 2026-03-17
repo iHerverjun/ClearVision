@@ -132,7 +132,7 @@
 | `OperatorType.ShadingCorrection` | 光照校正 | 预处理 | `1.0.0` |
 | `OperatorType.Thresholding` | 二值化 | 预处理 | `1.0.0` |
 | `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `1.0.0` |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.0` |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.1` |
 
 ## 历史变更 / Historical Changes
 
@@ -242,6 +242,8 @@
 ### OperatorType.ColorMeasurement / 颜色测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-03-17T17:33:01.9139128+08:00` | `13FF4D7C376D` |
+| `1.0.0` | `2026-03-17T17:30:55.6121854+08:00` | `AB581D9F2445` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `31FC57E80C3C` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `970C6588B0A4` |
 
