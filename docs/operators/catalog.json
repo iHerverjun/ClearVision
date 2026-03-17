@@ -1,11 +1,12 @@
 {
-  "generatedAt": "2026-03-17T15:51:46.3051250+08:00",
-  "totalCount": 123,
+  "generatedAt": "2026-03-17T16:06:03.0736962+08:00",
+  "totalCount": 124,
   "categories": {
     "3D": {
-      "count": 4,
+      "count": 5,
       "operators": [
         "EuclideanClusterExtraction",
+        "PPFEstimation",
         "RansacPlaneSegmentation",
         "StatisticalOutlierRemoval",
         "VoxelDownsample"
@@ -15435,6 +15436,93 @@
         "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/EuclideanClusterExtraction.md"
+    },
+    {
+      "id": "PPFEstimation",
+      "type": 221,
+      "displayName": "PPF点对特征",
+      "description": "Compute Point Pair Features (PPF) for a point cloud and build a per-point feature map.",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "PPFMap",
+          "displayName": "PPF Map",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "PointCloudWithNormals",
+          "displayName": "Point Cloud With Normals",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "PointCount",
+          "displayName": "Point Count",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "NormalRadius",
+          "displayName": "Normal Radius",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.03",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "FeatureRadius",
+          "displayName": "Feature Radius",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.05",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseExistingNormals",
+          "displayName": "Use Existing Normals",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 85,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/PPFEstimation.md"
     }
   ]
 }

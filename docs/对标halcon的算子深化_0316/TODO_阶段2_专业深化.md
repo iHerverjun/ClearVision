@@ -490,7 +490,7 @@ for each point i:
 
 ## 四、Week 8：点云匹配（简化为PPF）
 
-### 任务W8-1：PPF点对特征（3小时）⭐ 修订任务
+### 任务W8-1：PPF点对特征（3小时）⭐ 修订任务 ✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现PPF（Point Pair Features）特征描述子
@@ -597,6 +597,13 @@ public class PPFEstimation
 □ 旋转不变性测试通过
 □ 性能：10000点<5秒
 ```
+
+【实现落地】
+- 特征定义：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Features/PPFFeature.cs`
+- 法向估计：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Features/NormalEstimation.cs`
+- 算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Features/PPFEstimation.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/PPFEstimationOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/PPFEstimationTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/PPFEstimationOperatorTests.cs`
 
 ---
 

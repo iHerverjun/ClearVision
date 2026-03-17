@@ -266,7 +266,9 @@ public enum OperatorType
 
     RansacPlaneSegmentation = 219,
 
-    EuclideanClusterExtraction = 220
+    EuclideanClusterExtraction = 220,
+
+    PPFEstimation = 221
 }
 
 public enum OperatorExecutionStatus

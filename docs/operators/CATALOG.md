@@ -1,47 +1,48 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 15:51:46 +08:00`
-> 算子总数 / Total Operators: **123**
+> 生成时间 / Generated At: `2026-03-17 16:06:03 +08:00`
+> 算子总数 / Total Operators: **124**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
-| 3D | 4 | 3.3% |
-| AI检测 | 4 | 3.3% |
-| 匹配定位 | 6 | 4.9% |
-| 变量 | 4 | 3.3% |
-| 图像处理 | 4 | 3.3% |
-| 定位 | 7 | 5.7% |
+| 3D | 5 | 4.0% |
+| AI检测 | 4 | 3.2% |
+| 匹配定位 | 6 | 4.8% |
+| 变量 | 4 | 3.2% |
+| 图像处理 | 4 | 3.2% |
+| 定位 | 7 | 5.6% |
 | 拆分组合 | 2 | 1.6% |
 | 数据处理 | 10 | 8.1% |
-| 标定 | 6 | 4.9% |
-| 检测 | 16 | 13.0% |
-| 流程控制 | 6 | 4.9% |
-| 特征提取 | 4 | 3.3% |
+| 标定 | 6 | 4.8% |
+| 检测 | 16 | 12.9% |
+| 流程控制 | 6 | 4.8% |
+| 特征提取 | 4 | 3.2% |
 | 识别 | 2 | 1.6% |
 | 辅助 | 3 | 2.4% |
 | 输出 | 2 | 1.6% |
 | 通信 | 8 | 6.5% |
-| 通用 | 4 | 3.3% |
-| 逻辑工具 | 5 | 4.1% |
+| 通用 | 4 | 3.2% |
+| 逻辑工具 | 5 | 4.0% |
 | 采集 | 1 | 0.8% |
-| 预处理 | 23 | 18.7% |
+| 预处理 | 23 | 18.5% |
 | 颜色处理 | 2 | 1.6% |
 
 ## 质量评分 / Quality Score
 - 平均分 / Average: **89.1**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 84 |
+| A | 85 |
 | B | 33 |
 | C | 6 |
 
 ## 分类索引 / Grouped Index
 
-### 3D (4)
+### 3D (5)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 1 | 3 | 3 | 100 (A) | `1.0.0` | - | [EuclideanClusterExtraction](./EuclideanClusterExtraction.md) |
+| `OperatorType.PPFEstimation` | PPF点对特征 | 1 | 3 | 3 | 85 (A) | `1.0.0` | - | [PPFEstimation](./PPFEstimation.md) |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 95 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./VoxelDownsample.md) |
