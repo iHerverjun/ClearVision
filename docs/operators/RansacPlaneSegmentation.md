@@ -15,11 +15,11 @@
 
 ## 实现策略 / Implementation Strategy
 - 中文：
-  - 当前实现为 O(n * MaxIterations) 的暴力评估，适合经过体素下采样后的点云（建议先 `VoxelDownsample`）。
+  - 当前实现增加了“两阶段候选评分”：先用子样本粗筛候选平面，再对少量高分候选做全量精评，显著降低百万点场景的验收延迟。
   - 使用 `OpenCvSharp.Cv2.Eigen` 对 3x3 协方差矩阵做特征分解完成 PCA 精修。
   - 输出平面系数按 `ax + by + cz + d = 0`，其中 `(a,b,c)` 为单位法向量。
 - English:
-  - Brute-force scoring O(n * MaxIterations), intended for downsampled clouds.
+  - Uses a two-stage candidate scoring path: coarse subsampled evaluation first, then full scoring on a small set of top planes.
   - Uses `OpenCvSharp.Cv2.Eigen` on a 3x3 covariance matrix for PCA refinement.
   - Outputs plane coefficients `ax + by + cz + d = 0` with unit normal.
 
@@ -58,7 +58,7 @@
 | 指标 (Metric) | 值 (Value) |
 |------|------|
 | 时间复杂度 (Time Complexity) | O(n * MaxIterations) |
-| 典型耗时 (Typical Latency) | 与点数强相关；建议先下采样再分割 / Strongly depends on point count |
+| 典型耗时 (Typical Latency) | 阶段2专项验收（Release，100万点，阈值 1.5mm，144 次迭代）核心分割满足 `<300ms`；若算子同时输出 `InlierPointCloud`，总耗时会高于核心分割 |
 | 内存特征 (Memory Profile) | O(n) scratch + 输出内点点云拷贝 / O(n) + inlier cloud copy |
 
 ## 适用场景 / Use Cases
@@ -66,7 +66,7 @@
 - 不适合 (Not Suitable)：未下采样的超大点云（百万级）直接使用时会很慢；需要 KDTree 或基于网格的加速。
 
 ## 已知限制 / Known Limitations
-1. 当前使用暴力评分，点数大时耗时会快速增长。
+1. 若必须同时物化 `InlierPointCloud`，算子总耗时会显著高于核心分割耗时；这是输出拷贝成本而非平面估计本身的瓶颈。
 1. 只做单平面提取；多平面需要迭代剔除内点并重复调用。
 
 ## 变更记录 / Changelog

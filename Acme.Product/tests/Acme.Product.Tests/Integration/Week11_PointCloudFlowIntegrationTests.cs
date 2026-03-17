@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Numerics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -176,7 +177,9 @@ public sealed class Week11_PointCloudFlowIntegrationTests
             ["ScenePointCloud"] = scene
         };
 
+        var stopwatch = Stopwatch.StartNew();
         var matchResult = await matchExec.ExecuteAsync(matchOp, matchInputs);
+        stopwatch.Stop();
         matchResult.IsSuccess.Should().BeTrue(matchResult.ErrorMessage);
 
         Convert.ToBoolean(matchResult.OutputData!["IsMatched"]).Should().BeTrue();
@@ -190,10 +193,10 @@ public sealed class Week11_PointCloudFlowIntegrationTests
 
         rms.Should().BeLessThan(0.02,
             $"RMS={rms:0.0000}, Inliers={inliers}, TErr={tErr * 1000:0.0}mm, RErr={rErrDeg:0.0}deg");
-
-        // TODO(W11-1): tighten this to <5mm after we enhance the simplified PPF correspondence/voting strategy.
-        // For now, keep a loose pose sanity check to ensure we don't regress into a totally wrong solution.
-        tErr.Should().BeLessThan(0.03);
+        tErr.Should().BeLessThan(0.005,
+            $"PPF translation error should satisfy <5mm acceptance, actual={tErr * 1000:0.00}mm");
+        stopwatch.Elapsed.TotalMilliseconds.Should().BeLessThan(3000,
+            $"PPF matching should satisfy <3s acceptance, actual={stopwatch.Elapsed.TotalMilliseconds:0.0}ms");
     }
 
     private static double TranslationError(Matrix4x4 estimated, Matrix4x4 gt)

@@ -15,6 +15,10 @@ public readonly record struct RansacPlaneResult(Vector3 Normal, float D, int[] I
 /// </summary>
 public sealed class RansacPlaneSegmentation
 {
+    private const int CoarseEvaluationThreshold = 200_000;
+    private const int MaxCoarseSamples = 32_768;
+    private const int MaxCandidatePlanes = 8;
+
     private readonly Random _rng;
     private readonly MatPool _pool;
 
@@ -54,6 +58,9 @@ public sealed class RansacPlaneSegmentation
 
         // Early stop once we have a very dominant plane.
         var earlyStop = Math.Max(minInliers, (int)(n * 0.95));
+        var useCoarseEvaluation = n >= CoarseEvaluationThreshold && maxIterations > 16;
+        var coarseIndices = useCoarseEvaluation ? BuildCoarseSampleIndices(n) : Array.Empty<int>();
+        var candidatePlanes = useCoarseEvaluation ? new List<CandidatePlane>(MaxCandidatePlanes) : null;
 
         for (int iter = 0; iter < maxIterations; iter++)
         {
@@ -79,16 +86,20 @@ public sealed class RansacPlaneSegmentation
             normal = Vector3.Normalize(normal);
             var d = -Vector3.Dot(normal, p1);
 
-            int count = 0;
-            for (int i = 0; i < n; i++)
+            if (useCoarseEvaluation)
             {
-                var p = new Vector3(pIdx[i, 0], pIdx[i, 1], pIdx[i, 2]);
-                var dist = MathF.Abs(Vector3.Dot(normal, p) + d);
-                if (dist <= distanceThreshold)
+                var coarseCount = CountInliers(pIdx, coarseIndices, normal, d, distanceThreshold);
+                AddCandidate(candidatePlanes!, new CandidatePlane(normal, d, coarseCount));
+
+                if (coarseCount >= coarseIndices.Length * 0.94)
                 {
-                    scratch[count++] = i;
+                    break;
                 }
+
+                continue;
             }
+
+            var count = CollectInliers(pIdx, n, normal, d, distanceThreshold, scratch);
 
             if (count > bestCount)
             {
@@ -104,25 +115,43 @@ public sealed class RansacPlaneSegmentation
             }
         }
 
+        if (useCoarseEvaluation)
+        {
+            foreach (var candidate in candidatePlanes!
+                         .OrderByDescending(x => x.InlierCount)
+                         .Take(MaxCandidatePlanes))
+            {
+                var count = CountInliersAll(pIdx, n, candidate.Normal, candidate.D, distanceThreshold);
+                if (count > bestCount)
+                {
+                    bestCount = count;
+                    bestNormal = candidate.Normal;
+                    bestD = candidate.D;
+
+                    if (bestCount >= earlyStop)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         if (bestCount < minInliers)
         {
             return new RansacPlaneResult(Vector3.Zero, 0, Array.Empty<int>());
+        }
+
+        if (useCoarseEvaluation)
+        {
+            var count = CollectInliers(pIdx, n, bestNormal, bestD, distanceThreshold, scratch);
+            bestInliers = scratch.AsSpan(0, count).ToArray();
         }
 
         // Refine using PCA on inliers (smallest eigenvector of covariance matrix).
         (bestNormal, bestD) = RefinePlanePca(pIdx, bestInliers, bestNormal);
 
         // Recompute inliers with refined model (keeps behavior consistent with threshold).
-        int refinedCount = 0;
-        for (int i = 0; i < n; i++)
-        {
-            var p = new Vector3(pIdx[i, 0], pIdx[i, 1], pIdx[i, 2]);
-            var dist = MathF.Abs(Vector3.Dot(bestNormal, p) + bestD);
-            if (dist <= distanceThreshold)
-            {
-                scratch[refinedCount++] = i;
-            }
-        }
+        int refinedCount = CollectInliers(pIdx, n, bestNormal, bestD, distanceThreshold, scratch);
 
         var refinedInliers = scratch.AsSpan(0, refinedCount).ToArray();
         if (refinedInliers.Length < minInliers)
@@ -132,6 +161,101 @@ public sealed class RansacPlaneSegmentation
         }
 
         return new RansacPlaneResult(bestNormal, bestD, refinedInliers);
+    }
+
+    private int[] BuildCoarseSampleIndices(int totalCount)
+    {
+        if (totalCount <= MaxCoarseSamples)
+        {
+            return Enumerable.Range(0, totalCount).ToArray();
+        }
+
+        var indices = new int[MaxCoarseSamples];
+        var step = totalCount / (double)MaxCoarseSamples;
+        for (int i = 0; i < indices.Length; i++)
+        {
+            indices[i] = Math.Min(totalCount - 1, (int)Math.Round(i * step));
+        }
+
+        return indices;
+    }
+
+    private static int CountInliers(OpenCvSharp.MatIndexer<float> points, int[] indices, Vector3 normal, float d, float distanceThreshold)
+    {
+        var nx = normal.X;
+        var ny = normal.Y;
+        var nz = normal.Z;
+        int count = 0;
+        for (int t = 0; t < indices.Length; t++)
+        {
+            var i = indices[t];
+            var dist = MathF.Abs(nx * points[i, 0] + ny * points[i, 1] + nz * points[i, 2] + d);
+            if (dist <= distanceThreshold)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CollectInliers(OpenCvSharp.MatIndexer<float> points, int pointCount, Vector3 normal, float d, float distanceThreshold, int[] scratch)
+    {
+        var nx = normal.X;
+        var ny = normal.Y;
+        var nz = normal.Z;
+        int count = 0;
+        for (int i = 0; i < pointCount; i++)
+        {
+            var dist = MathF.Abs(nx * points[i, 0] + ny * points[i, 1] + nz * points[i, 2] + d);
+            if (dist <= distanceThreshold)
+            {
+                scratch[count++] = i;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountInliersAll(OpenCvSharp.MatIndexer<float> points, int pointCount, Vector3 normal, float d, float distanceThreshold)
+    {
+        var nx = normal.X;
+        var ny = normal.Y;
+        var nz = normal.Z;
+        int count = 0;
+        for (int i = 0; i < pointCount; i++)
+        {
+            var dist = MathF.Abs(nx * points[i, 0] + ny * points[i, 1] + nz * points[i, 2] + d);
+            if (dist <= distanceThreshold)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static void AddCandidate(List<CandidatePlane> candidates, CandidatePlane candidate)
+    {
+        if (candidates.Count < MaxCandidatePlanes)
+        {
+            candidates.Add(candidate);
+            return;
+        }
+
+        int minIndex = 0;
+        for (int i = 1; i < candidates.Count; i++)
+        {
+            if (candidates[i].InlierCount < candidates[minIndex].InlierCount)
+            {
+                minIndex = i;
+            }
+        }
+
+        if (candidate.InlierCount > candidates[minIndex].InlierCount)
+        {
+            candidates[minIndex] = candidate;
+        }
     }
 
     public PointCloud ExtractInlierCloud(PointCloud input, ReadOnlySpan<int> inliers)
@@ -287,5 +411,7 @@ public sealed class RansacPlaneSegmentation
         var d = -Vector3.Dot(normal, centroid);
         return (normal, d);
     }
+
+    private readonly record struct CandidatePlane(Vector3 Normal, float D, int InlierCount);
 }
 

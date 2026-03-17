@@ -1099,9 +1099,9 @@ public sealed class PPFMatcher
             var sCentroid = new Vector3((float)sx, (float)sy, (float)sz);
 
             var rot = new Matrix4x4(
-                (float)r[0, 0], (float)r[0, 1], (float)r[0, 2], 0,
-                (float)r[1, 0], (float)r[1, 1], (float)r[1, 2], 0,
-                (float)r[2, 0], (float)r[2, 1], (float)r[2, 2], 0,
+                (float)r[0, 0], (float)r[1, 0], (float)r[2, 0], 0,
+                (float)r[0, 1], (float)r[1, 1], (float)r[2, 1], 0,
+                (float)r[0, 2], (float)r[1, 2], (float)r[2, 2], 0,
                 0, 0, 0, 1);
 
             var t = sCentroid - Vector3.Transform(mCentroid, rot);
