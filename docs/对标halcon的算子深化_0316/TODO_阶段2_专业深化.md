@@ -438,7 +438,7 @@ public class RansacPlaneSegmentation
 
 ---
 
-### 任务W7-2：欧氏聚类分割（2小时）
+### 任务W7-2：欧氏聚类分割（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现欧氏距离聚类（Euclidean Cluster Extraction）
@@ -480,6 +480,11 @@ for each point i:
 
 【生成代码】略（按上述伪代码实现）
 ```
+
+【实现落地】
+- 算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Segmentation/EuclideanClusterExtraction.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/EuclideanClusterExtractionOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/EuclideanClusterExtractionTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/EuclideanClusterExtractionOperatorTests.cs`
 
 ---
 

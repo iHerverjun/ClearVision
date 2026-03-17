@@ -264,7 +264,9 @@ public enum OperatorType
 
     StatisticalOutlierRemoval = 218,
 
-    RansacPlaneSegmentation = 219
+    RansacPlaneSegmentation = 219,
+
+    EuclideanClusterExtraction = 220
 }
 
 public enum OperatorExecutionStatus

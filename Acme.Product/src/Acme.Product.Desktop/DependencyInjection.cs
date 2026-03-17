@@ -216,6 +216,7 @@ public static class DependencyInjection
         services.AddSingleton<IOperatorExecutor, VoxelDownsampleOperator>();
         services.AddSingleton<IOperatorExecutor, StatisticalOutlierRemovalOperator>();
         services.AddSingleton<IOperatorExecutor, RansacPlaneSegmentationOperator>();
+        services.AddSingleton<IOperatorExecutor, EuclideanClusterExtractionOperator>();
 
         // ==================== Sprint 4: AI 安全沙盒 ====================
         services.AddSingleton<FlowLinter>();
