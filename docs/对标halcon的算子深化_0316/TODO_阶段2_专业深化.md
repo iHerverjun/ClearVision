@@ -11,7 +11,7 @@
 
 > **为什么先做这个？** 没有硬件或测试数据就无法验证3D算子
 
-### 任务W5-0：合成点云生成器（2小时）⭐ 关键任务
+### 任务W5-0：合成点云生成器（2小时）⭐ 关键任务 ✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现标准3D测试点云生成工具
@@ -116,6 +116,12 @@ cylinder.Save("test_cylinder.pcd");
 □ 点云可视化形状正确
 ```
 
+【实现落地】
+- 生成器：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/SyntheticPointCloudGenerator.cs`
+- 点云数据结构：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/PointCloud.cs`
+- 文件I/O：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/PointCloudIO.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/SyntheticPointCloudGeneratorTests.cs`、`Acme.Product/tests/Acme.Product.Tests/PointCloud/PointCloudIOTests.cs`
+
 ### W5验收标准
 
 - ✅ 合成点云生成器可用
@@ -165,7 +171,7 @@ Week 11:  集成测试与优化
 
 ## 二、Week 6：3D点云基础
 
-### 任务W6-1：PointCloud数据结构（2小时）
+### 任务W6-1：PointCloud数据结构（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】设计点云数据类
@@ -219,9 +225,13 @@ public struct AxisAlignedBoundingBox
 - 验证Transform后坐标正确
 ```
 
+【实现落地】
+- `Acme.Product/src/Acme.Product.Infrastructure/PointCloud/PointCloud.cs`
+- `Acme.Product/src/Acme.Product.Infrastructure/PointCloud/AxisAlignedBoundingBox.cs`
+
 ---
 
-### 任务W6-2：PCD/PLY文件读写（2小时）
+### 任务W6-2：PCD/PLY文件读写（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现点云文件I/O
@@ -262,9 +272,13 @@ public static class PointCloudIO
 - 测试加载和保存一致性
 ```
 
+【实现落地】
+- `Acme.Product/src/Acme.Product.Infrastructure/PointCloud/PointCloudIO.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/PointCloudIOTests.cs`
+
 ---
 
-### 任务W6-3：体素下采样（2小时）
+### 任务W6-3：体素下采样（2小时）✅ 已完成（2026-03-17）
 
 ```markdown
 【任务】实现点云体素下采样（Voxel Grid Filter）
@@ -305,6 +319,11 @@ public class VoxelGridFilter
 - 100万点 → 0.01m体素 → 应减少90%以上
 - 验证下采样后点云形状保持
 ```
+
+【实现落地】
+- 算法：`Acme.Product/src/Acme.Product.Infrastructure/PointCloud/Filters/VoxelGridFilter.cs`
+- 算子封装：`Acme.Product/src/Acme.Product.Infrastructure/Operators/VoxelDownsampleOperator.cs`
+- 自动化测试：`Acme.Product/tests/Acme.Product.Tests/PointCloud/VoxelGridFilterTests.cs`、`Acme.Product/tests/Acme.Product.Tests/Operators/VoxelDownsampleOperatorTests.cs`
 
 ---
 

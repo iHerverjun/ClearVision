@@ -258,7 +258,9 @@ public enum OperatorType
 
     PixelStatistics = 214,
 
-    MeanFilter = 215
+    MeanFilter = 215,
+
+    VoxelDownsample = 217
 }
 
 public enum OperatorExecutionStatus
