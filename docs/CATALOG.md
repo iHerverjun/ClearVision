@@ -1,46 +1,47 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 15:27:10 +08:00`
-> 算子总数 / Total Operators: **121**
+> 生成时间 / Generated At: `2026-03-17 15:38:43 +08:00`
+> 算子总数 / Total Operators: **122**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
-| 3D | 2 | 1.7% |
+| 3D | 3 | 2.5% |
 | AI检测 | 4 | 3.3% |
-| 匹配定位 | 6 | 5.0% |
+| 匹配定位 | 6 | 4.9% |
 | 变量 | 4 | 3.3% |
 | 图像处理 | 4 | 3.3% |
-| 定位 | 7 | 5.8% |
-| 拆分组合 | 2 | 1.7% |
-| 数据处理 | 10 | 8.3% |
-| 标定 | 6 | 5.0% |
-| 检测 | 16 | 13.2% |
-| 流程控制 | 6 | 5.0% |
+| 定位 | 7 | 5.7% |
+| 拆分组合 | 2 | 1.6% |
+| 数据处理 | 10 | 8.2% |
+| 标定 | 6 | 4.9% |
+| 检测 | 16 | 13.1% |
+| 流程控制 | 6 | 4.9% |
 | 特征提取 | 4 | 3.3% |
-| 识别 | 2 | 1.7% |
+| 识别 | 2 | 1.6% |
 | 辅助 | 3 | 2.5% |
-| 输出 | 2 | 1.7% |
+| 输出 | 2 | 1.6% |
 | 通信 | 8 | 6.6% |
 | 通用 | 4 | 3.3% |
 | 逻辑工具 | 5 | 4.1% |
 | 采集 | 1 | 0.8% |
-| 预处理 | 23 | 19.0% |
-| 颜色处理 | 2 | 1.7% |
+| 预处理 | 23 | 18.9% |
+| 颜色处理 | 2 | 1.6% |
 
 ## 质量评分 / Quality Score
 - 平均分 / Average: **89.0**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 82 |
+| A | 83 |
 | B | 33 |
 | C | 6 |
 
 ## 分类索引 / Grouped Index
 
-### 3D (2)
+### 3D (3)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 95 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./operators/RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./operators/StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./operators/VoxelDownsample.md) |
 

@@ -1515,6 +1515,18 @@
       ]
     },
     {
+      "id": "RansacPlaneSegmentation",
+      "displayName": "RANSAC\u5E73\u9762\u5206\u5272",
+      "category": "3D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D692426CF8130CF50201F1B90D111D566A000D744ABBE53D1A93BA974BA013A2",
+          "recordedAt": "2026-03-17T15:37:22.1136239\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "RectangleDetection",
       "displayName": "\u77E9\u5F62\u68C0\u6D4B",
       "category": "\u5B9A\u4F4D",

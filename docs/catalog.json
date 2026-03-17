@@ -1,10 +1,11 @@
 {
-  "generatedAt": "2026-03-17T15:27:10.0501496+08:00",
-  "totalCount": 121,
+  "generatedAt": "2026-03-17T15:38:43.2026997+08:00",
+  "totalCount": 122,
   "categories": {
     "3D": {
-      "count": 2,
+      "count": 3,
       "operators": [
+        "RansacPlaneSegmentation",
         "StatisticalOutlierRemoval",
         "VoxelDownsample"
       ]
@@ -15229,6 +15230,123 @@
         "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "docs/operators/StatisticalOutlierRemoval.md"
+    },
+    {
+      "id": "RansacPlaneSegmentation",
+      "type": 219,
+      "displayName": "RANSAC平面分割",
+      "description": "RANSAC plane segmentation for point clouds. Outputs plane coefficients and inliers.",
+      "category": "3D",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PointCloud",
+          "displayName": "Point Cloud",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "PlaneA",
+          "displayName": "Plane A",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "PlaneB",
+          "displayName": "Plane B",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "PlaneC",
+          "displayName": "Plane C",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "PlaneD",
+          "displayName": "Plane D",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "InlierCount",
+          "displayName": "Inlier Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "InlierRatio",
+          "displayName": "Inlier Ratio",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Inliers",
+          "displayName": "Inliers",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "InlierPointCloud",
+          "displayName": "Inlier Point Cloud",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "DistanceThreshold",
+          "displayName": "Distance Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.01",
+          "min": "1E-06",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxIterations",
+          "displayName": "Max Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1000",
+          "min": "1",
+          "max": "200000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinInliers",
+          "displayName": "Min Inliers",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "100",
+          "min": "1",
+          "max": "10000000",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 95,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/RansacPlaneSegmentation.md"
     }
   ]
 }
