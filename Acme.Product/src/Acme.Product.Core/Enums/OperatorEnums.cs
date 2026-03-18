@@ -282,7 +282,55 @@ public enum OperatorType
 
     HandEyeCalibration = 227,
 
-    HandEyeCalibrationValidator = 228
+    HandEyeCalibrationValidator = 228,
+
+    // Phase 4.1: Metrology and Matching Deepening
+    FisheyeCalibration = 229,
+
+    FisheyeUndistort = 230,
+
+    StereoCalibration = 231,
+
+    PixelToWorldTransform = 232,
+
+    PlanarMatching = 233,
+
+    LocalDeformableMatching = 234,
+
+    DistanceTransform = 235,
+
+    MinEnclosingGeometry = 236,
+
+    // Phase 4.2: Region Processing and Measurement
+    RegionErosion = 240,
+
+    RegionDilation = 241,
+
+    RegionOpening = 242,
+
+    RegionClosing = 243,
+
+    RegionSkeleton = 244,
+
+    RegionUnion = 245,
+
+    RegionIntersection = 246,
+
+    RegionDifference = 247,
+
+    RegionComplement = 248,
+
+    ArcCaliper = 249,
+
+    ContourExtrema = 250,
+
+    FFT1D = 251,
+
+    FrequencyFilter = 252,
+
+    InverseFFT1D = 253,
+
+    PhaseClosure = 254
 }
 
 public enum OperatorExecutionStatus
