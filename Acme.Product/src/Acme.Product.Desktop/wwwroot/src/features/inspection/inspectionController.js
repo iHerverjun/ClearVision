@@ -1,6 +1,7 @@
 /**
  * 检测控制模块
  * 负责单次检测、实时检测、相机控制
+ * 【架构修复 v2】支持 SSE + WebMessage 双栈
  */
 
 import httpClient from '../../core/messaging/httpClient.js';
@@ -24,7 +25,12 @@ class InspectionController {
         this.cameraId = null;
         this.abortController = null;
         
-        // 初始化 WebMessage 监听
+        // 【架构修复 v2】SSE 相关
+        this.eventSource = null;
+        this.isSseSupported = typeof EventSource !== 'undefined';
+        this.useSse = false;  // 是否使用 SSE（根据连接成功与否动态决定）
+        
+        // 初始化监听
         this.initializeWebMessage();
     }
 
@@ -43,7 +49,7 @@ class InspectionController {
     }
 
     /**
-     * 初始化 WebMessage 监听
+     * 初始化 WebMessage 监听（降级方案）
      */
     initializeWebMessage() {
         // 监听算子执行事件
@@ -52,7 +58,25 @@ class InspectionController {
             this.updateProgress(data);
         });
 
-        // 监听检测完成事件
+        // 【架构修复 v2】监听状态变更事件
+        webMessageBridge.on('inspectionStateChanged', (data) => {
+            console.log('[InspectionController] 状态变更:', data);
+            this.handleStateChanged(data);
+        });
+
+        // 【架构修复 v2】监听检测结果事件
+        webMessageBridge.on('inspectionResult', (data) => {
+            console.log('[InspectionController] 检测结果:', data);
+            this.handleResultEvent(data);
+        });
+
+        // 【架构修复 v2】监听进度事件
+        webMessageBridge.on('inspectionProgress', (data) => {
+            console.log('[InspectionController] 进度更新:', data);
+            this.updateProgress(data);
+        });
+
+        // 监听检测完成事件（兼容旧版）
         webMessageBridge.on('inspectionCompleted', (data) => {
             console.log('[InspectionController] 检测完成:', data);
             this.handleInspectionCompleted(data);
@@ -65,6 +89,148 @@ class InspectionController {
     }
 
     /**
+     * 【架构修复 v2】订阅 SSE 事件流
+     */
+    subscribeToSseEvents(projectId) {
+        if (!this.isSseSupported) {
+            console.log('[InspectionController] 浏览器不支持 SSE，使用 WebMessage');
+            return false;
+        }
+
+        // 关闭已有连接
+        this.unsubscribeFromSseEvents();
+
+        try {
+            console.log('[InspectionController] 连接 SSE:', projectId);
+            
+            this.eventSource = new EventSource(
+                `/api/inspection/realtime/${projectId}/events`
+            );
+
+            // 初始状态
+            this.eventSource.addEventListener('initialState', (e) => {
+                const data = JSON.parse(e.data);
+                console.log('[InspectionController] SSE 初始状态:', data);
+                setInspectionState({
+                    ...getInspectionState(),
+                    isRealtime: data.status === 'Running' || data.status === 'Starting',
+                    status: data.status === 'Running' ? 'running' : 'idle'
+                });
+            });
+
+            // 状态变更
+            this.eventSource.addEventListener('InspectionStateChangedEvent', (e) => {
+                const data = JSON.parse(e.data);
+                console.log('[InspectionController] SSE 状态变更:', data);
+                this.handleStateChanged(data);
+            });
+
+            // 检测结果
+            this.eventSource.addEventListener('InspectionResultEvent', (e) => {
+                const data = JSON.parse(e.data);
+                console.log('[InspectionController] SSE 检测结果:', data);
+                this.handleResultEvent(data);
+            });
+
+            // 进度更新
+            this.eventSource.addEventListener('InspectionProgressEvent', (e) => {
+                const data = JSON.parse(e.data);
+                console.log('[InspectionController] SSE 进度:', data);
+                this.updateProgress(data);
+            });
+
+            // 心跳
+            this.eventSource.addEventListener('heartbeat', (e) => {
+                // 心跳只用于保活，不处理
+                console.debug('[InspectionController] SSE 心跳');
+            });
+
+            // 打开连接
+            this.eventSource.onopen = () => {
+                console.log('[InspectionController] SSE 连接已建立');
+                this.useSse = true;
+            };
+
+            // 错误处理
+            this.eventSource.onerror = (error) => {
+                console.error('[InspectionController] SSE 错误:', error);
+                this.useSse = false;
+                // 错误时回退到 WebMessage（已自动处理）
+            };
+
+            return true;
+        } catch (error) {
+            console.error('[InspectionController] SSE 连接失败:', error);
+            this.useSse = false;
+            return false;
+        }
+    }
+
+    /**
+     * 【架构修复 v2】取消 SSE 订阅
+     */
+    unsubscribeFromSseEvents() {
+        if (this.eventSource) {
+            console.log('[InspectionController] 关闭 SSE 连接');
+            this.eventSource.close();
+            this.eventSource = null;
+            this.useSse = false;
+        }
+    }
+
+    /**
+     * 【架构修复 v2】处理状态变更
+     */
+    handleStateChanged(data) {
+        const statusMap = {
+            'Starting': 'running',
+            'Running': 'running',
+            'Stopping': 'running',
+            'Stopped': 'idle',
+            'Faulted': 'error'
+        };
+
+        setInspectionState({
+            ...getInspectionState(),
+            isRealtime: data.newState === 'Running' || data.newState === 'Starting',
+            status: statusMap[data.newState] || 'idle'
+        });
+
+        if (data.newState === 'Faulted' && data.errorMessage) {
+            console.error('[InspectionController] 检测故障:', data.errorMessage);
+            this.handleInspectionError(new Error(data.errorMessage));
+        }
+    }
+
+    /**
+     * 【架构修复 v2】处理结果事件
+     */
+    handleResultEvent(data) {
+        // 构造与旧版兼容的结果格式
+        const result = {
+            id: data.resultId,
+            projectId: data.projectId,
+            status: data.status,
+            defects: [],  // 详细数据在完整结果中
+            processingTimeMs: data.processingTimeMs,
+            timestamp: data.timestamp
+        };
+
+        setLastResult(result);
+
+        // 如果有输出图像，显示它
+        if (data.outputImageBase64) {
+            const imageData = `data:image/png;base64,${data.outputImageBase64}`;
+            if (window.inspectionImageViewer) {
+                window.inspectionImageViewer.loadImage(imageData);
+            }
+            if (window.imageViewer) {
+                window.imageViewer.loadImage(imageData);
+            }
+        }
+    }
+
+    /**
      * 执行单次检测
      */
     async executeSingle(imageData = null) {
@@ -72,7 +238,6 @@ class InspectionController {
             throw new Error('未选择工程');
         }
 
-        // 更新状态
         setInspectionState({
             ...getInspectionState(),
             isRunning: true,
@@ -84,7 +249,6 @@ class InspectionController {
             let result;
 
             if (imageData) {
-                // 使用提供的图像数据
                 const base64Data = imageData instanceof Uint8Array 
                     ? btoa(String.fromCharCode(...imageData))
                     : imageData;
@@ -94,18 +258,14 @@ class InspectionController {
                     imageBase64: base64Data
                 });
             } else if (this.cameraId) {
-                // 使用相机采集
                 result = await httpClient.post('/inspection/execute', {
                     projectId: this.projectId,
                     cameraId: this.cameraId
                 });
             } else {
-                // 【关键修复】将当前流程数据（含最新参数）一起发送给后端
-                // 这确保后端使用的是前端编辑过的参数值，而非数据库中的过时数据
                 let flowData = null;
                 if (window.flowCanvas && typeof window.flowCanvas.serialize === 'function') {
                     flowData = window.flowCanvas.serialize();
-                    console.log('[InspectionController] 携带流程数据执行检测:', flowData);
                 }
                 
                 result = await httpClient.post('/inspection/execute', {
@@ -136,7 +296,9 @@ class InspectionController {
             throw new Error('未选择相机');
         }
 
-        // 更新状态
+        // 【架构修复 v2】先订阅 SSE 事件
+        this.subscribeToSseEvents(this.projectId);
+
         setInspectionState({
             ...getInspectionState(),
             isRealtime: true,
@@ -144,10 +306,8 @@ class InspectionController {
         });
 
         try {
-            // 创建 AbortController 用于取消
             this.abortController = new AbortController();
 
-            // 【第二优先级】携带流程数据和运行模式
             const flowData = window.flowCanvas?.serialize?.() || null;
             
             await httpClient.post('/inspection/realtime/start', {
@@ -157,10 +317,11 @@ class InspectionController {
                 flowData: flowData
             });
 
-            console.log('[InspectionController] 实时检测已启动 (相机驱动模式)');
+            console.log('[InspectionController] 实时检测已启动');
 
         } catch (error) {
             console.error('[InspectionController] 启动实时检测失败:', error);
+            this.unsubscribeFromSseEvents();
             this.stopRealtime();
             throw error;
         }
@@ -168,17 +329,15 @@ class InspectionController {
 
     /**
      * 开始实时检测（流程驱动模式）
-     * 【第二优先级】支持PLC触发等流程驱动场景
      */
     async startRealtimeFlowMode() {
         if (!this.projectId) {
             throw new Error('未选择工程');
         }
 
-        // 流程驱动模式下，相机是可选的（由流程内图像采集算子控制）
-        // 不强制检查 cameraId
+        // 【架构修复 v2】先订阅 SSE 事件
+        this.subscribeToSseEvents(this.projectId);
 
-        // 更新状态
         setInspectionState({
             ...getInspectionState(),
             isRealtime: true,
@@ -186,26 +345,25 @@ class InspectionController {
         });
 
         try {
-            // 创建 AbortController 用于取消
             this.abortController = new AbortController();
 
-            // 获取当前流程数据
             const flowData = window.flowCanvas?.serialize?.() || null;
             if (!flowData) {
-                throw new Error('无法获取流程数据，请确保流程编辑器已打开');
+                throw new Error('无法获取流程数据');
             }
 
             await httpClient.post('/inspection/realtime/start', {
                 projectId: this.projectId,
-                cameraId: this.cameraId || null, // 相机可选
-                runMode: 'flow', // 【第二优先级】流程驱动模式
+                cameraId: this.cameraId || null,
+                runMode: 'flow',
                 flowData: flowData
             });
 
-            console.log('[InspectionController] 实时检测已启动 (流程驱动模式)');
+            console.log('[InspectionController] 实时检测已启动 (流程驱动)');
 
         } catch (error) {
-            console.error('[InspectionController] 启动流程驱动检测失败:', error);
+            console.error('[InspectionController] 启动失败:', error);
+            this.unsubscribeFromSseEvents();
             this.stopRealtime();
             throw error;
         }
@@ -223,6 +381,9 @@ class InspectionController {
                 this.abortController = null;
             }
 
+            // 【架构修复 v2】取消 SSE 订阅
+            this.unsubscribeFromSseEvents();
+
             setInspectionState({
                 ...getInspectionState(),
                 isRealtime: false,
@@ -237,10 +398,74 @@ class InspectionController {
     }
 
     /**
+     * 【Phase 3】预览工作流中指定节点的输出
+     * 复用调试缓存机制，执行上游子图到目标节点
+     * 
+     * @param {Guid} targetNodeId - 目标节点ID
+     * @param {Object} options - 预览选项
+     * @param {string} options.debugSessionId - 调试会话ID（用于缓存复用）
+     * @param {string} options.inputImageBase64 - 输入图像（可选）
+     * @param {Object} options.parameters - 覆盖参数（可选）
+     */
+    async previewNode(targetNodeId, options = {}) {
+        if (!this.projectId) {
+            throw new Error('未选择工程');
+        }
+
+        try {
+            const flowData = window.flowCanvas?.serialize?.() || null;
+            if (!flowData) {
+                throw new Error('无法获取流程数据');
+            }
+
+            console.log('[InspectionController] 请求预览节点:', targetNodeId);
+
+            const result = await httpClient.post('/api/flows/preview-node', {
+                projectId: this.projectId,
+                targetNodeId: targetNodeId,
+                debugSessionId: options.debugSessionId || this.generateSessionId(),
+                flowData: flowData,
+                inputImageBase64: options.inputImageBase64,
+                parameters: options.parameters,
+                imageFormat: options.imageFormat || '.png'
+            });
+
+            console.log('[InspectionController] 预览完成:', result);
+
+            // 显示预览结果
+            if (result.outputImageBase64) {
+                const imageData = `data:image/png;base64,${result.outputImageBase64}`;
+                if (window.inspectionImageViewer) {
+                    window.inspectionImageViewer.loadImage(imageData);
+                }
+                if (window.imageViewer) {
+                    window.imageViewer.loadImage(imageData);
+                }
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error('[InspectionController] 预览节点失败:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 【Phase 3】生成调试会话ID
+     */
+    generateSessionId() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    /**
      * 处理检测完成
      */
     handleInspectionCompleted(result) {
-        // 【关键桥接】如果后端返回的是 raw JSON 字符串 (outputDataJson)，则在此处反序列化
         if (result.outputDataJson && (!result.outputData || Object.keys(result.outputData).length === 0)) {
             try {
                 result.outputData = JSON.parse(result.outputDataJson);
@@ -258,7 +483,6 @@ class InspectionController {
             status: result.status === 'Error' ? 'error' : 'completed'
         });
 
-        // 显示处理后的图像，检测页 viewer 优先，通用 viewer 保持兼容更新。
         const outputImage = result.outputImage || result.resultImageBase64;
         if (outputImage) {
             const imageData = `data:image/png;base64,${outputImage}`;
@@ -272,7 +496,6 @@ class InspectionController {
             }
         }
 
-        // 触发所有已注册的完成回调
         if (this._onCompletedCallbacks) {
             this._onCompletedCallbacks.forEach(cb => {
                 try {
@@ -295,7 +518,6 @@ class InspectionController {
             status: 'error'
         });
 
-        // 触发所有已注册的错误回调
         if (this._onErrorCallbacks) {
             this._onErrorCallbacks.forEach(cb => {
                 try {
@@ -313,8 +535,8 @@ class InspectionController {
     updateProgress(data) {
         setInspectionState({
             ...getInspectionState(),
-            progress: data.progress || 0,
-            currentOperator: data.operatorName || null
+            progress: data.progress || data.progressPercentage || 0,
+            currentOperator: data.operatorName || data.currentOperator || null
         });
     }
 
@@ -381,7 +603,6 @@ class InspectionController {
         }
         this._onCompletedCallbacks.push(callback);
         
-        // 返回取消订阅函数
         return () => {
             if (this._onCompletedCallbacks) {
                 this._onCompletedCallbacks = this._onCompletedCallbacks.filter(cb => cb !== callback);
@@ -398,7 +619,6 @@ class InspectionController {
         }
         this._onErrorCallbacks.push(callback);
         
-        // 返回取消订阅函数
         return () => {
             if (this._onErrorCallbacks) {
                 this._onErrorCallbacks = this._onErrorCallbacks.filter(cb => cb !== callback);
