@@ -87,6 +87,30 @@
       ]
     },
     {
+      "id": "AnomalyDetection",
+      "displayName": "\u5F02\u5E38\u68C0\u6D4B",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C16C20BC74A9D7FF96DF995811A5AC09A6DFC1A91FD7509BEDD7A4CA51BC7F08",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ArcCaliper",
+      "displayName": "Arc Caliper",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "A18C33786AE503BD9832BAE7717BA80B70397889FBCB618C06F00F4CB4D475CD",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "ArrayIndexer",
       "displayName": "\u6570\u7EC4\u7D22\u5F15\u5668",
       "category": "\u6570\u636E\u5904\u7406",
@@ -393,6 +417,11 @@
           "version": "1.0.1",
           "sourceHash": "13FF4D7C376DA117897EE935722272798E7065A4078B281DC3B0120C2803EF15",
           "recordedAt": "2026-03-17T17:33:01.9139128\u002B08:00"
+        },
+        {
+          "version": "1.0.2",
+          "sourceHash": "B6BCC41568EBA7830614378A12D6D8481365D60FB3BFA7E059DD4854C6FEB6A4",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -456,6 +485,18 @@
           "version": "1.0.0",
           "sourceHash": "D73488938EDD879F086521E93CDF3FEBFCFD34A6C079F321459B883D794885EF",
           "recordedAt": "2026-03-15T14:24:43.1972535\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "ContourExtrema",
+      "displayName": "Contour Extrema",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "CF1814DC72D3D8932495B330393D617F31A023DA2CF7330811B4CDF25F4CBB8E",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -596,6 +637,18 @@
       ]
     },
     {
+      "id": "DistanceTransform",
+      "displayName": "Distance Transform",
+      "category": "Analysis",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "067E9764FAD380BF610A13312680A8CC4B993B864A6535A2A5940B0F23823B5E",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "DualModalVoting",
       "displayName": "\u53CC\u6A21\u6001\u6295\u7968",
       "category": "AI\u68C0\u6D4B",
@@ -676,6 +729,18 @@
       ]
     },
     {
+      "id": "FFT1D",
+      "displayName": "FFT 1D",
+      "category": "Frequency",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0A819319AA59488D1D29B0DDA717F8409F96EA97507ACAD8C6503376CB304690",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "Filtering",
       "displayName": "Gaussian Blur",
       "category": "\u9884\u5904\u7406",
@@ -684,6 +749,30 @@
           "version": "1.0.0",
           "sourceHash": "10556AD6D71EF2917D0E1032B2FA87FB6007039A570F7C1E21EF6AB2A633D085",
           "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "FisheyeCalibration",
+      "displayName": "Fisheye Calibration",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "72B2E9BED29F8F43836F5328723776B5A4C1B706D49D66D7C726CA4FA46001A4",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "FisheyeUndistort",
+      "displayName": "Fisheye Undistort",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "7B86C470ECE8F053B6587FEDD47CA33DE13E7FBDA7DBF39A799650E46C14E89F",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -713,6 +802,18 @@
           "version": "1.0.0",
           "sourceHash": "2DF9846480B86C86259FEE3089F2921D885067465FC5A586BBAE36743BBB3A97",
           "recordedAt": "2026-03-04T19:17:03.2031512\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "FrequencyFilter",
+      "displayName": "Frequency Filter",
+      "category": "Frequency",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "400CEF87F60B839DD9AD6B5B9B9C6BEFE77B38A14D9DE54A5CB9600514D919BD",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -825,6 +926,30 @@
           "version": "1.0.0",
           "sourceHash": "6E00E64E04AA6AF108282D884C4D38190EAD2808DCAB401CDF422F7E8B2A0CAD",
           "recordedAt": "2026-03-16T19:59:19.7031372\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "HandEyeCalibration",
+      "displayName": "\u624B\u773C\u6807\u5B9A",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0E8F8C1E43EC0D18240BD3879ED6EF963EBFF89F08CD9403A5952DC1F26463B4",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "HandEyeCalibrationValidator",
+      "displayName": "\u624B\u773C\u6807\u5B9A\u9A8C\u8BC1",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "67868CDD56AD1A475C1F5D82E74B531F990756F42B92982C313C373EF4D007F0",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -1071,6 +1196,18 @@
       ]
     },
     {
+      "id": "InverseFFT1D",
+      "displayName": "Inverse FFT 1D",
+      "category": "Frequency",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "C1A839CCFE841A59EC1A5A84C50A6B0EC61B7E92DE4504F2C56C0380F3844E4D",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "JsonExtractor",
       "displayName": "JSON \u63D0\u53D6\u5668",
       "category": "\u6570\u636E\u5904\u7406",
@@ -1136,6 +1273,18 @@
       ]
     },
     {
+      "id": "LocalDeformableMatching",
+      "displayName": "Local Deformable Matching",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "D31FBB0020ED1186F18F745A68C965A447B8962A8CAD270CBAEB0F8C6979049C",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "LogicGate",
       "displayName": "\u903B\u8F91\u95E8",
       "category": "\u901A\u7528",
@@ -1197,6 +1346,18 @@
           "version": "1.0.0",
           "sourceHash": "2809B653B9756CD453348E6765BC5C9B7C5EEBB54CD1FD83FCAAC751FD1D7FC2",
           "recordedAt": "2026-02-26T21:18:02.8071504\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "MinEnclosingGeometry",
+      "displayName": "Min Enclosing Geometry",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "9A00C29AC41AFF5B58A92F17A0170F9EA7283E05400244884B0B8234677EA8EB",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -1389,6 +1550,11 @@
           "version": "1.0.0",
           "sourceHash": "3F62675CEB39F80FDEE8E015335996D4B0A21A94BD46C3A37222BB6F75C66030",
           "recordedAt": "2026-03-17T16:34:20.9153387\u002B08:00"
+        },
+        {
+          "version": "1.0.1",
+          "sourceHash": "E64DEFAE4B959FE8A4E8F8AE2338938DB5DD8B1782C2FC794A74C882A4389A9D",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -1427,6 +1593,18 @@
       ]
     },
     {
+      "id": "PhaseClosure",
+      "displayName": "Phase Closure",
+      "category": "\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0AA74A983A97D1815B76DC1726FD1A98A2A67EA09A610A1121DE8A7D62072304",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "PixelStatistics",
       "displayName": "\u50CF\u7D20\u7EDF\u8BA1",
       "category": "\u68C0\u6D4B",
@@ -1440,6 +1618,30 @@
           "version": "1.0.0",
           "sourceHash": "82DC78427BAFB0971ECC3257AB748D762993F3C6BF023A496F090842C4D19A0D",
           "recordedAt": "2026-03-04T19:17:03.2031512\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PixelToWorldTransform",
+      "displayName": "Pixel To World Transform",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "DD71E7F3F1AAD67538441DEA0B0943F3BA011F5A1E7FBA79C86B5EF26A8C314C",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "PlanarMatching",
+      "displayName": "Planar Matching",
+      "category": "\u5339\u914D\u5B9A\u4F4D",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "2706B43F0B0EE4E379B97D0E8A2C8C46D9EB94736DF36A1E94F4D7B19149AB90",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -1614,6 +1816,114 @@
       ]
     },
     {
+      "id": "RegionClosing",
+      "displayName": "Region Closing",
+      "category": "Morphology",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "51C06A810144F578855D0250D979735737DCB9C7F6A700F3A778B8899C8ACF24",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionComplement",
+      "displayName": "Region Complement",
+      "category": "Region",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "8BD7259C4E0C3D049078E07795A187FB2EBA5C3B7CA9070B4E9DFD8A434D7D9C",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionDifference",
+      "displayName": "Region Difference",
+      "category": "Region",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "4035E96533FB167FFD91483DF54B8F0C2AFB05CDA075DD4244B5D4D80231A29F",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionDilation",
+      "displayName": "Region Dilation",
+      "category": "Morphology",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "665F8400F9BB81CBC3AF220FCFC5D1F015B7185D928E52DAF780829E57AAFB10",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionErosion",
+      "displayName": "Region Erosion",
+      "category": "Morphology",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "08885F6CC3012F6A01740E8F14D3DC6D31E44CC1A3D040A6DDFEC60B8DAF8E77",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionIntersection",
+      "displayName": "Region Intersection",
+      "category": "Region",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "B29DEF5EB888BF26F9ED20403520126AF4D74E965BA948610E97B27B2C37A070",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionOpening",
+      "displayName": "Region Opening",
+      "category": "Morphology",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "B1DA89F6441DA24CAB0FA85B3D57DFD2B339EB673CFFCAFAED3CA7DC50DEE6C1",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionSkeleton",
+      "displayName": "Region Skeleton",
+      "category": "Morphology",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "0B331757C5AAE4FD807C00C2E88D98DA0E72725E76327156CAAA9762095BD688",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "RegionUnion",
+      "displayName": "Region Union",
+      "category": "Region",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "148881C196DD21067BC4CCDC37ED7E183A144BCC6F8B5054C47F4F32A8ED8D3E",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
+        }
+      ]
+    },
+    {
       "id": "ResultJudgment",
       "displayName": "\u7ED3\u679C\u5224\u5B9A",
       "category": "\u6D41\u7A0B\u63A7\u5236",
@@ -1700,6 +2010,18 @@
           "version": "1.0.0",
           "sourceHash": "5FFF3B6EEC5174A70AA790EB59BA8F8A419F4EFAFAC146283DA014DBF0BFD921",
           "recordedAt": "2026-03-04T19:17:03.2031512\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "SemanticSegmentation",
+      "displayName": "\u8BED\u4E49\u5206\u5272",
+      "category": "AI\u68C0\u6D4B",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "F78A9BC39DE0BFB1FC4B407ABA6D4F8A60CCB01344885E23112303B5B21B90BD",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },
@@ -1839,6 +2161,18 @@
           "version": "1.0.0",
           "sourceHash": "4E2FDAE0D79187DE0D71A94355ADA9A863909A8F5D8041128B90D83AC475B693",
           "recordedAt": "2026-03-04T19:17:03.2031512\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "StereoCalibration",
+      "displayName": "Stereo Calibration",
+      "category": "\u6807\u5B9A",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "EB7C28467E72A543A11087A3335495E4FE2D6D288CEA196E768C22BA103859F3",
+          "recordedAt": "2026-03-18T19:00:25.2910689\u002B08:00"
         }
       ]
     },

@@ -1,26 +1,43 @@
 # 算子版本变更记录 / Operator Version Changelog
 
 > 生成时间 / Generated At: `2026-02-26 21:20:16 +08:00`
-> 算子总数 / Total Operators: **127**
+> 算子总数 / Total Operators: **154**
 
 ## 当前版本快照 / Current Snapshot
 | 枚举 (Enum) | 显示名 (DisplayName) | 分类 (Category) | 版本 (Version) |
 |------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 3D | `1.0.0` |
 | `OperatorType.PPFEstimation` | PPF点对特征 | 3D | `1.0.0` |
-| `OperatorType.PPFMatch` | PPF表面匹配 | 3D | `1.0.0` |
+| `OperatorType.PPFMatch` | PPF表面匹配 | 3D | `1.0.1` |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 3D | `1.0.0` |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 3D | `1.0.0` |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 3D | `1.0.0` |
+| `OperatorType.AnomalyDetection` | 异常检测 | AI检测 | `1.0.0` |
 | `OperatorType.DeepLearning` | 深度学习 | AI检测 | `1.0.0` |
 | `OperatorType.DualModalVoting` | 双模态投票 | AI检测 | `1.0.0` |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | AI检测 | `1.0.0` |
+| `OperatorType.SemanticSegmentation` | 语义分割 | AI检测 | `1.0.0` |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `1.0.0` |
+| `OperatorType.DistanceTransform` | Distance Transform | Analysis | `1.0.0` |
+| `OperatorType.FFT1D` | FFT 1D | Frequency | `1.0.0` |
+| `OperatorType.FrequencyFilter` | Frequency Filter | Frequency | `1.0.0` |
+| `OperatorType.InverseFFT1D` | Inverse FFT 1D | Frequency | `1.0.0` |
+| `OperatorType.RegionClosing` | Region Closing | Morphology | `1.0.0` |
+| `OperatorType.RegionDilation` | Region Dilation | Morphology | `1.0.0` |
+| `OperatorType.RegionErosion` | Region Erosion | Morphology | `1.0.0` |
+| `OperatorType.RegionOpening` | Region Opening | Morphology | `1.0.0` |
+| `OperatorType.RegionSkeleton` | Region Skeleton | Morphology | `1.0.0` |
+| `OperatorType.RegionComplement` | Region Complement | Region | `1.0.0` |
+| `OperatorType.RegionDifference` | Region Difference | Region | `1.0.0` |
+| `OperatorType.RegionIntersection` | Region Intersection | Region | `1.0.0` |
+| `OperatorType.RegionUnion` | Region Union | Region | `1.0.0` |
 | `OperatorType.GlcmTexture` | GLCM Texture Features | Texture | `1.0.0` |
 | `OperatorType.LawsTextureFilter` | Laws Texture Filter | Texture | `1.0.0` |
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 匹配定位 | `1.0.0` |
+| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 匹配定位 | `1.0.0` |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 匹配定位 | `1.0.0` |
+| `OperatorType.PlanarMatching` | Planar Matching | 匹配定位 | `1.0.0` |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 匹配定位 | `1.1.0` |
 | `OperatorType.TemplateMatching` | 模板匹配 | 匹配定位 | `1.0.0` |
@@ -54,12 +71,20 @@
 | `OperatorType.CalibrationLoader` | 标定加载 | 标定 | `1.0.0` |
 | `OperatorType.CameraCalibration` | Camera Calibration | 标定 | `1.0.0` |
 | `OperatorType.CoordinateTransform` | 坐标转换 | 标定 | `1.0.0` |
+| `OperatorType.FisheyeCalibration` | Fisheye Calibration | 标定 | `1.0.0` |
+| `OperatorType.FisheyeUndistort` | Fisheye Undistort | 标定 | `1.0.0` |
+| `OperatorType.HandEyeCalibration` | 手眼标定 | 标定 | `1.0.0` |
+| `OperatorType.HandEyeCalibrationValidator` | 手眼标定验证 | 标定 | `1.0.0` |
 | `OperatorType.NPointCalibration` | N点标定 | 标定 | `1.0.0` |
+| `OperatorType.PixelToWorldTransform` | Pixel To World Transform | 标定 | `1.0.0` |
+| `OperatorType.StereoCalibration` | Stereo Calibration | 标定 | `1.0.0` |
 | `OperatorType.TranslationRotationCalibration` | 平移旋转标定 | 标定 | `1.0.0` |
 | `OperatorType.Undistort` | Undistort | 标定 | `1.0.0` |
 | `OperatorType.AngleMeasurement` | 角度测量 | 检测 | `1.0.0` |
+| `OperatorType.ArcCaliper` | Arc Caliper | 检测 | `1.0.0` |
 | `OperatorType.CaliperTool` | 卡尺工具 | 检测 | `1.0.0` |
 | `OperatorType.CircleMeasurement` | 圆测量 | 检测 | `1.0.0` |
+| `OperatorType.ContourExtrema` | Contour Extrema | 检测 | `1.0.0` |
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 检测 | `1.0.0` |
 | `OperatorType.GapMeasurement` | 间隙测量 | 检测 | `1.0.0` |
 | `OperatorType.GeoMeasurement` | 几何测量 | 检测 | `1.0.0` |
@@ -69,6 +94,8 @@
 | `OperatorType.LineLineDistance` | 线线距离 | 检测 | `1.0.0` |
 | `OperatorType.LineMeasurement` | 直线测量 | 检测 | `1.0.0` |
 | `OperatorType.Measurement` | 测量 | 检测 | `1.0.0` |
+| `OperatorType.MinEnclosingGeometry` | Min Enclosing Geometry | 检测 | `1.0.0` |
+| `OperatorType.PhaseClosure` | Phase Closure | 检测 | `1.0.0` |
 | `OperatorType.PixelStatistics` | 像素统计 | 检测 | `1.0.0` |
 | `OperatorType.PointLineDistance` | 点线距离 | 检测 | `1.0.0` |
 | `OperatorType.SharpnessEvaluation` | 清晰度评估 | 检测 | `1.0.0` |
@@ -132,7 +159,7 @@
 | `OperatorType.ShadingCorrection` | 光照校正 | 预处理 | `1.0.0` |
 | `OperatorType.Thresholding` | 二值化 | 预处理 | `1.0.0` |
 | `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `1.0.0` |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.1` |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.2` |
 
 ## 历史变更 / Historical Changes
 
@@ -242,6 +269,7 @@
 ### OperatorType.ColorMeasurement / 颜色测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.2` | `2026-03-18T19:00:25.2910689+08:00` | `B6BCC41568EB` |
 | `1.0.1` | `2026-03-17T17:33:01.9139128+08:00` | `13FF4D7C376D` |
 | `1.0.0` | `2026-03-17T17:30:55.6121854+08:00` | `AB581D9F2445` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `31FC57E80C3C` |
@@ -464,6 +492,12 @@
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `AE7C4204010A` |
 | `1.0.0` | `2026-03-04T10:35:29.6469155+08:00` | `024F1AD3150C` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `260BD860C2E1` |
+
+### OperatorType.PPFMatch / PPF表面匹配
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.1` | `2026-03-18T19:00:25.2910689+08:00` | `E64DEFAE4B95` |
+| `1.0.0` | `2026-03-17T16:34:20.9153387+08:00` | `3F62675CEB39` |
 
 ### OperatorType.ParallelLineFind / 平行线查找
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |

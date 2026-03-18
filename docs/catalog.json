@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-17T17:34:19.2332925+08:00",
-  "totalCount": 127,
+  "generatedAt": "2026-03-18T19:00:34.8691424+08:00",
+  "totalCount": 154,
   "categories": {
     "3D": {
       "count": 6,
@@ -14,12 +14,47 @@
       ]
     },
     "AI检测": {
-      "count": 4,
+      "count": 6,
       "operators": [
+        "AnomalyDetection",
         "DeepLearning",
         "DualModalVoting",
         "EdgePairDefect",
+        "SemanticSegmentation",
         "SurfaceDefectDetection"
+      ]
+    },
+    "Analysis": {
+      "count": 1,
+      "operators": [
+        "DistanceTransform"
+      ]
+    },
+    "Frequency": {
+      "count": 3,
+      "operators": [
+        "FFT1D",
+        "FrequencyFilter",
+        "InverseFFT1D"
+      ]
+    },
+    "Morphology": {
+      "count": 5,
+      "operators": [
+        "RegionClosing",
+        "RegionDilation",
+        "RegionErosion",
+        "RegionOpening",
+        "RegionSkeleton"
+      ]
+    },
+    "Region": {
+      "count": 4,
+      "operators": [
+        "RegionComplement",
+        "RegionDifference",
+        "RegionIntersection",
+        "RegionUnion"
       ]
     },
     "Texture": {
@@ -30,11 +65,13 @@
       ]
     },
     "匹配定位": {
-      "count": 6,
+      "count": 8,
       "operators": [
         "AkazeFeatureMatch",
         "GradientShapeMatch",
+        "LocalDeformableMatching",
         "OrbFeatureMatch",
+        "PlanarMatching",
         "PyramidShapeMatch",
         "ShapeMatching",
         "TemplateMatching"
@@ -93,22 +130,30 @@
       ]
     },
     "标定": {
-      "count": 6,
+      "count": 12,
       "operators": [
         "CalibrationLoader",
         "CameraCalibration",
         "CoordinateTransform",
+        "FisheyeCalibration",
+        "FisheyeUndistort",
+        "HandEyeCalibration",
+        "HandEyeCalibrationValidator",
         "NPointCalibration",
+        "PixelToWorldTransform",
+        "StereoCalibration",
         "TranslationRotationCalibration",
         "Undistort"
       ]
     },
     "检测": {
-      "count": 16,
+      "count": 20,
       "operators": [
         "AngleMeasurement",
+        "ArcCaliper",
         "CaliperTool",
         "CircleMeasurement",
+        "ContourExtrema",
         "ContourMeasurement",
         "GapMeasurement",
         "GeoMeasurement",
@@ -118,6 +163,8 @@
         "LineLineDistance",
         "LineMeasurement",
         "Measurement",
+        "MinEnclosingGeometry",
+        "PhaseClosure",
         "PixelStatistics",
         "PointLineDistance",
         "SharpnessEvaluation",
@@ -12516,13 +12563,13 @@
       "displayName": "颜色测量",
       "description": "Measures average Lab/HSV values and computes DeltaE.",
       "category": "颜色处理",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "tags": [
         "功能域:测量",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "Image",
@@ -15558,7 +15605,7 @@
       "displayName": "PPF表面匹配",
       "description": "Simplified PPF-based 3D surface matching (model -> scene pose).",
       "category": "3D",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -15663,6 +15710,17 @@
           "options": null
         },
         {
+          "name": "Seed",
+          "displayName": "Seed",
+          "dataType": "int",
+          "description": "-1 = random sampling (non-deterministic).",
+          "defaultValue": "123",
+          "min": "-1",
+          "max": "2147483647",
+          "isRequired": true,
+          "options": null
+        },
+        {
           "name": "RansacIterations",
           "displayName": "RANSAC Iterations",
           "dataType": "int",
@@ -15719,13 +15777,13 @@
         }
       ],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 95,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "docs/operators/PPFMatch.md"
     },
@@ -16021,6 +16079,3492 @@
         "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "docs/operators/GlcmTexture.md"
+    },
+    {
+      "id": "SemanticSegmentation",
+      "type": 225,
+      "displayName": "语义分割",
+      "description": "Runs an ONNX semantic segmentation model and returns class map, colored visualization, and per-class masks.",
+      "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "SegmentationMap",
+          "displayName": "Segmentation Map",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "ColoredMap",
+          "displayName": "Colored Map",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "ClassMasks",
+          "displayName": "Class Masks",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "ClassCount",
+          "displayName": "Class Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "PresentClasses",
+          "displayName": "Present Classes",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "ModelId",
+          "displayName": "Model Id",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ModelCatalogPath",
+          "displayName": "Model Catalog Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ModelPath",
+          "displayName": "Model Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "InputSize",
+          "displayName": "Input Size",
+          "dataType": "string",
+          "description": "Width,Height",
+          "defaultValue": "512,512",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NumClasses",
+          "displayName": "Num Classes",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "21",
+          "min": "2",
+          "max": "4096",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ClassNames",
+          "displayName": "Class Names",
+          "dataType": "string",
+          "description": "JSON array or comma-separated names",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ExecutionProvider",
+          "displayName": "Execution Provider",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "cpu",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "cpu",
+              "label": "CPU"
+            },
+            {
+              "value": "cuda",
+              "label": "CUDA"
+            }
+          ]
+        },
+        {
+          "name": "ScaleToUnitRange",
+          "displayName": "Scale To Unit Range",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ChannelOrder",
+          "displayName": "Channel Order",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "RGB",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "RGB",
+              "label": "RGB"
+            },
+            {
+              "value": "BGR",
+              "label": "BGR"
+            }
+          ]
+        },
+        {
+          "name": "Mean",
+          "displayName": "Mean",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "0,0,0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Std",
+          "displayName": "Std",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "1,1,1",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/SemanticSegmentation.md"
+    },
+    {
+      "id": "AnomalyDetection",
+      "type": 226,
+      "displayName": "异常检测",
+      "description": "Runs a simplified PatchCore-style anomaly detector with train/inference modes and feature-bank persistence.",
+      "category": "AI检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:基于OpenCV"
+      ],
+      "algorithm": "Simplified PatchCore",
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": false
+        },
+        {
+          "name": "NormalImages",
+          "displayName": "Normal Images",
+          "dataType": "Any",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "AnomalyScore",
+          "displayName": "Anomaly Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "IsAnomaly",
+          "displayName": "Is Anomaly",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "AnomalyMap",
+          "displayName": "Anomaly Map",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "AnomalyMask",
+          "displayName": "Anomaly Mask",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "FeatureBankPath",
+          "displayName": "Feature Bank Path",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "PatchCount",
+          "displayName": "Patch Count",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Mode",
+          "displayName": "Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "inference",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "inference",
+              "label": "Inference"
+            },
+            {
+              "value": "train",
+              "label": "Train"
+            }
+          ]
+        },
+        {
+          "name": "FeatureBankPath",
+          "displayName": "Feature Bank Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SaveFeatureBankPath",
+          "displayName": "Save Feature Bank Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ModelId",
+          "displayName": "Model Id",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ModelCatalogPath",
+          "displayName": "Model Catalog Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Backbone",
+          "displayName": "Backbone",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "simple_patchcore",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PatchSize",
+          "displayName": "Patch Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "32",
+          "min": "4",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PatchStride",
+          "displayName": "Patch Stride",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "16",
+          "min": "1",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CoresetRatio",
+          "displayName": "Coreset Ratio",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.2",
+          "min": "0.01",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Threshold",
+          "displayName": "Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.35",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/AnomalyDetection.md"
+    },
+    {
+      "id": "HandEyeCalibration",
+      "type": 227,
+      "displayName": "手眼标定",
+      "description": "Solves eye-in-hand or simplified eye-to-hand calibration from robot poses and calibration-board poses.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:基于OpenCV"
+      ],
+      "algorithm": "OpenCV Hand-Eye Calibration",
+      "inputPorts": [
+        {
+          "name": "RobotPoses",
+          "displayName": "Robot Poses",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "CalibrationBoardPoses",
+          "displayName": "Calibration Board Poses",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "HandEyeMatrix",
+          "displayName": "Hand Eye Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "InverseHandEyeMatrix",
+          "displayName": "Inverse Hand Eye Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "ReprojectionError",
+          "displayName": "Reprojection Error",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "CalibrationQuality",
+          "displayName": "Calibration Quality",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "MatrixConvention",
+          "displayName": "Matrix Convention",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "HtmlReport",
+          "displayName": "HTML Report",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "Suggestions",
+          "displayName": "Suggestions",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "SuggestedValidationPoses",
+          "displayName": "Suggested Validation Poses",
+          "dataType": "String",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "CalibrationType",
+          "displayName": "Calibration Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "eye_in_hand",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "eye_in_hand",
+              "label": "Eye In Hand"
+            },
+            {
+              "value": "eye_to_hand",
+              "label": "Eye To Hand"
+            }
+          ]
+        },
+        {
+          "name": "Method",
+          "displayName": "Method",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "TSAI",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "TSAI",
+              "label": "Tsai"
+            },
+            {
+              "value": "PARK",
+              "label": "Park"
+            },
+            {
+              "value": "HORAUD",
+              "label": "Horaud"
+            },
+            {
+              "value": "ANDREFF",
+              "label": "Andreff"
+            },
+            {
+              "value": "DANIILIDIS",
+              "label": "Daniilidis"
+            }
+          ]
+        },
+        {
+          "name": "CameraMatrix",
+          "displayName": "Camera Matrix",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DistortionCoeffs",
+          "displayName": "Distortion Coeffs",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/HandEyeCalibration.md"
+    },
+    {
+      "id": "HandEyeCalibrationValidator",
+      "type": 228,
+      "displayName": "手眼标定验证",
+      "description": "Validates a hand-eye calibration matrix and produces quality metrics, HTML report, and pose suggestions.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:第三方SDK"
+      ],
+      "algorithm": "Hand-Eye Consistency Validation",
+      "inputPorts": [
+        {
+          "name": "RobotPoses",
+          "displayName": "Robot Poses",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "CalibrationBoardPoses",
+          "displayName": "Calibration Board Poses",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "HandEyeMatrix",
+          "displayName": "Hand Eye Matrix",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "MeanError",
+          "displayName": "Mean Error",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MaxError",
+          "displayName": "Max Error",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MeanRotationError",
+          "displayName": "Mean Rotation Error",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Quality",
+          "displayName": "Quality",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "HtmlReport",
+          "displayName": "HTML Report",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "Suggestions",
+          "displayName": "Suggestions",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "SuggestedValidationPoses",
+          "displayName": "Suggested Validation Poses",
+          "dataType": "String",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "CalibrationType",
+          "displayName": "Calibration Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "eye_in_hand",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "eye_in_hand",
+              "label": "Eye In Hand"
+            },
+            {
+              "value": "eye_to_hand",
+              "label": "Eye To Hand"
+            }
+          ]
+        }
+      ],
+      "quality": {
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/HandEyeCalibrationValidator.md"
+    },
+    {
+      "id": "FisheyeCalibration",
+      "type": 229,
+      "displayName": "Fisheye Calibration",
+      "description": "Calibrates fisheye camera intrinsics and distortion parameters using chessboard or circle grid patterns.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Result Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "CameraMatrix",
+          "displayName": "Camera Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "DistCoeffs",
+          "displayName": "Distortion Coefficients",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "PatternType",
+          "displayName": "Pattern Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Chessboard",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Chessboard",
+              "label": "Chessboard"
+            },
+            {
+              "value": "CircleGrid",
+              "label": "CircleGrid"
+            }
+          ]
+        },
+        {
+          "name": "BoardWidth",
+          "displayName": "Board Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "9",
+          "min": "2",
+          "max": "30",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "BoardHeight",
+          "displayName": "Board Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "6",
+          "min": "2",
+          "max": "30",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SquareSize",
+          "displayName": "Square Size(mm)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "25",
+          "min": "0.1",
+          "max": "1000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Mode",
+          "displayName": "Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "SingleImage",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "SingleImage",
+              "label": "SingleImage"
+            },
+            {
+              "value": "FolderCalibration",
+              "label": "FolderCalibration"
+            }
+          ]
+        },
+        {
+          "name": "ImageFolder",
+          "displayName": "Image Folder",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CalibrationOutputPath",
+          "displayName": "Calibration Output Path",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "fisheye_calibration_result.json",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RecomputeExtrinsic",
+          "displayName": "Recompute Extrinsic",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CheckConditions",
+          "displayName": "Check Conditions",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/FisheyeCalibration.md"
+    },
+    {
+      "id": "FisheyeUndistort",
+      "type": 230,
+      "displayName": "Fisheye Undistort",
+      "description": "Correct fisheye lens distortion using calibration data with LUT acceleration.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Undistorted Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "UndistortedImage",
+          "displayName": "Undistorted Image",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "CalibrationFile",
+          "displayName": "Calibration File",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseLut",
+          "displayName": "Use LUT Acceleration",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "LutCacheSize",
+          "displayName": "LUT Cache Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "10",
+          "min": "1",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Balance",
+          "displayName": "Balance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NewImageSizeFactor",
+          "displayName": "New Image Size Factor",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0.1",
+          "max": "2",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/FisheyeUndistort.md"
+    },
+    {
+      "id": "StereoCalibration",
+      "type": 231,
+      "displayName": "Stereo Calibration",
+      "description": "Calibrates stereo camera pair and generates rectification maps for epipolar alignment.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "LeftImage",
+          "displayName": "Left Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "RightImage",
+          "displayName": "Right Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Result Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "CalibrationData",
+          "displayName": "Stereo Calibration Data",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "LeftMap1",
+          "displayName": "Left Rectification Map1",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "LeftMap2",
+          "displayName": "Left Rectification Map2",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "RightMap1",
+          "displayName": "Right Rectification Map1",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "RightMap2",
+          "displayName": "Right Rectification Map2",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "PatternType",
+          "displayName": "Pattern Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Chessboard",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Chessboard",
+              "label": "Chessboard"
+            },
+            {
+              "value": "CircleGrid",
+              "label": "CircleGrid"
+            }
+          ]
+        },
+        {
+          "name": "BoardWidth",
+          "displayName": "Board Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "9",
+          "min": "2",
+          "max": "30",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "BoardHeight",
+          "displayName": "Board Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "6",
+          "min": "2",
+          "max": "30",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SquareSize",
+          "displayName": "Square Size(mm)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "25",
+          "min": "0.1",
+          "max": "1000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Mode",
+          "displayName": "Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "SinglePair",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "SinglePair",
+              "label": "Single Pair"
+            },
+            {
+              "value": "FolderCalibration",
+              "label": "Folder Calibration"
+            }
+          ]
+        },
+        {
+          "name": "LeftImageFolder",
+          "displayName": "Left Image Folder",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RightImageFolder",
+          "displayName": "Right Image Folder",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CalibrationOutputPath",
+          "displayName": "Calibration Output Path",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "stereo_calibration_result.json",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinValidPairs",
+          "displayName": "Minimum Valid Pairs",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "12",
+          "min": "3",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ZeroDisparity",
+          "displayName": "Zero Disparity",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Alpha",
+          "displayName": "Alpha (0=Crop, 1=Preserve)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "-1",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/StereoCalibration.md"
+    },
+    {
+      "id": "PixelToWorldTransform",
+      "type": 232,
+      "displayName": "Pixel To World Transform",
+      "description": "Transforms between pixel coordinates and world plane coordinates using calibration data. Supports both forward (pixel→world) and inverse (world→pixel) transformations.",
+      "category": "标定",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        },
+        {
+          "name": "Points",
+          "displayName": "Input Points (Pixel or World)",
+          "dataType": "PointList",
+          "isRequired": false
+        },
+        {
+          "name": "CalibrationData",
+          "displayName": "Calibration Data JSON",
+          "dataType": "String",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Visualization Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "TransformedPoints",
+          "displayName": "Transformed Points",
+          "dataType": "PointList",
+          "isRequired": null
+        },
+        {
+          "name": "TransformResult",
+          "displayName": "Transform Result Details",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "CalibrationFile",
+          "displayName": "Calibration File Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "TransformMode",
+          "displayName": "Transform Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "PixelToWorld",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "PixelToWorld",
+              "label": "Pixel to World"
+            },
+            {
+              "value": "WorldToPixel",
+              "label": "World to Pixel"
+            }
+          ]
+        },
+        {
+          "name": "WorldPlaneZ",
+          "displayName": "World Plane Z (mm)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UnitScale",
+          "displayName": "Unit Scale (mm per unit)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1",
+          "min": "0.0001",
+          "max": "10000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "InputPointX",
+          "displayName": "Input Point X (Single Point Mode)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "InputPointY",
+          "displayName": "Input Point Y (Single Point Mode)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseDistortion",
+          "displayName": "Use Distortion Model",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutputCoordinateSystem",
+          "displayName": "Output Coordinate System",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "World",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "World",
+              "label": "World (mm)"
+            },
+            {
+              "value": "Image",
+              "label": "Image (pixels)"
+            },
+            {
+              "value": "Normalized",
+              "label": "Normalized (0-1)"
+            }
+          ]
+        },
+        {
+          "name": "GenerateReport",
+          "displayName": "Generate Accuracy Report",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/PixelToWorldTransform.md"
+    },
+    {
+      "id": "PlanarMatching",
+      "type": 233,
+      "displayName": "Planar Matching",
+      "description": "Detects planar objects using feature matching and homography estimation. Supports perspective deformation.",
+      "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Search Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "Template",
+          "displayName": "Template Image",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Result Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "MatchResult",
+          "displayName": "Match Result",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Homography",
+          "displayName": "Homography Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Corners",
+          "displayName": "Detected Corners",
+          "dataType": "PointList",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "TemplatePath",
+          "displayName": "Template Image Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DetectorType",
+          "displayName": "Feature Detector",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "ORB",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "ORB",
+              "label": "ORB"
+            },
+            {
+              "value": "AKAZE",
+              "label": "AKAZE"
+            },
+            {
+              "value": "SIFT",
+              "label": "SIFT"
+            },
+            {
+              "value": "BRISK",
+              "label": "BRISK"
+            }
+          ]
+        },
+        {
+          "name": "MaxFeatures",
+          "displayName": "Max Features",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1000",
+          "min": "100",
+          "max": "5000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScaleFactor",
+          "displayName": "Scale Factor",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1.2",
+          "min": "1.01",
+          "max": "2",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NLevels",
+          "displayName": "Pyramid Levels",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "8",
+          "min": "1",
+          "max": "16",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MatchRatio",
+          "displayName": "Match Ratio (Lowe's)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.75",
+          "min": "0.5",
+          "max": "0.95",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RansacThreshold",
+          "displayName": "RANSAC Threshold (px)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "3",
+          "min": "0.5",
+          "max": "10",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinMatchCount",
+          "displayName": "Min Match Count",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "10",
+          "min": "4",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinInlierRatio",
+          "displayName": "Min Inlier Ratio",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.25",
+          "min": "0.1",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScoreThreshold",
+          "displayName": "Score Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.5",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseRoi",
+          "displayName": "Use ROI",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiX",
+          "displayName": "ROI X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiY",
+          "displayName": "ROI Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiWidth",
+          "displayName": "ROI Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiHeight",
+          "displayName": "ROI Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableMultiScale",
+          "displayName": "Enable Multi-Scale",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ScaleRange",
+          "displayName": "Scale Range (±)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.2",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableEarlyExit",
+          "displayName": "Enable Early Exit",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/PlanarMatching.md"
+    },
+    {
+      "id": "LocalDeformableMatching",
+      "type": 234,
+      "displayName": "Local Deformable Matching",
+      "description": "Local deformable matching with TPS deformation field estimation, multi-candidate search and NMS-based multi-target output.",
+      "category": "匹配定位",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Search Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "Template",
+          "displayName": "Template Image",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Result Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "MatchResult",
+          "displayName": "Match Result",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Matches",
+          "displayName": "Match List",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "MatchCount",
+          "displayName": "Match Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "DeformationField",
+          "displayName": "Deformation Field",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "OcclusionMask",
+          "displayName": "Occlusion Mask",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "TemplatePath",
+          "displayName": "Template Image Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PyramidLevels",
+          "displayName": "Pyramid Levels",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "6",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "TPSGridSize",
+          "displayName": "TPS Grid Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "4",
+          "min": "2",
+          "max": "8",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "TPSLambda",
+          "displayName": "TPS Regularization",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.01",
+          "min": "0.001",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxDeformation",
+          "displayName": "Max Deformation (px)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "20",
+          "min": "5",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OcclusionThreshold",
+          "displayName": "Occlusion Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.3",
+          "min": "0.1",
+          "max": "0.9",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinMatchScore",
+          "displayName": "Min Match Score",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.6",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableFallback",
+          "displayName": "Enable Fallback to Rigid",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxIterations",
+          "displayName": "Max Refinement Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "5",
+          "min": "1",
+          "max": "20",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ConvergenceThreshold",
+          "displayName": "Convergence Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.5",
+          "min": "0.1",
+          "max": "5",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxMatches",
+          "displayName": "Maximum Matches",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "5",
+          "min": "1",
+          "max": "20",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CandidateThreshold",
+          "displayName": "Candidate Seed Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.65",
+          "min": "0.1",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableNms",
+          "displayName": "Enable NMS",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "NmsThreshold",
+          "displayName": "NMS IoU Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.35",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ParallelCandidates",
+          "displayName": "Parallel Candidate Evaluation",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/LocalDeformableMatching.md"
+    },
+    {
+      "id": "DistanceTransform",
+      "type": 235,
+      "displayName": "Distance Transform",
+      "description": "Computes the distance from each pixel to the nearest zero pixel. Supports multiple distance metrics and signed distances.",
+      "category": "Analysis",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image (Binary or Grayscale)",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Distance Transform Result",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "DistanceMap",
+          "displayName": "Distance Map (Float)",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "MaxDistance",
+          "displayName": "Maximum Distance",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MaxLocation",
+          "displayName": "Maximum Distance Location",
+          "dataType": "Point",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "DistanceType",
+          "displayName": "Distance Type",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Euclidean",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Euclidean",
+              "label": "Euclidean"
+            },
+            {
+              "value": "Manhattan",
+              "label": "Manhattan (L1)"
+            },
+            {
+              "value": "Chessboard",
+              "label": "Chessboard"
+            },
+            {
+              "value": "C",
+              "label": "3x3 C"
+            },
+            {
+              "value": "L12",
+              "label": "3x3 L12"
+            }
+          ]
+        },
+        {
+          "name": "MaskSize",
+          "displayName": "Mask Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "5",
+          "min": "3",
+          "max": "7",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Signed",
+          "displayName": "Compute Signed Distance",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Threshold",
+          "displayName": "Binary Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "127",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Invert",
+          "displayName": "Invert Input",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Normalize",
+          "displayName": "Normalize Output",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxDistanceLimit",
+          "displayName": "Max Distance Limit (0=unlimited)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "10000",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/DistanceTransform.md"
+    },
+    {
+      "id": "MinEnclosingGeometry",
+      "type": 236,
+      "displayName": "Min Enclosing Geometry",
+      "description": "Computes minimum enclosing geometry (circle, rectangle, triangle) and robust arc fitting with RANSAC.",
+      "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Result Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "GeometryResult",
+          "displayName": "Geometry Result",
+          "dataType": "Any",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Operation",
+          "displayName": "Operation",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "SmallestCircle",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "SmallestCircle",
+              "label": "Smallest Enclosing Circle"
+            },
+            {
+              "value": "MinAreaRect",
+              "label": "Minimum Area Rectangle"
+            },
+            {
+              "value": "MinAreaTriangle",
+              "label": "Minimum Area Triangle"
+            },
+            {
+              "value": "ConvexHull",
+              "label": "Convex Hull"
+            },
+            {
+              "value": "FitArc",
+              "label": "Fit Arc (RANSAC)"
+            },
+            {
+              "value": "FitCircleRobust",
+              "label": "Fit Circle (Robust)"
+            },
+            {
+              "value": "FitEllipseDirect",
+              "label": "Fit Ellipse (Direct)"
+            }
+          ]
+        },
+        {
+          "name": "Threshold",
+          "displayName": "Binary Threshold",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "127",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinArea",
+          "displayName": "Min Contour Area",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "100",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ContourSelection",
+          "displayName": "Contour Selection",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "LargestContour",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "LargestContour",
+              "label": "Largest Contour"
+            },
+            {
+              "value": "AllContours",
+              "label": "All Contours"
+            },
+            {
+              "value": "FirstContour",
+              "label": "First Contour"
+            }
+          ]
+        },
+        {
+          "name": "RansacIterations",
+          "displayName": "RANSAC Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "500",
+          "min": "10",
+          "max": "5000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RansacInlierThreshold",
+          "displayName": "RANSAC Inlier Threshold (px)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "2",
+          "min": "0.1",
+          "max": "50",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinArcAngle",
+          "displayName": "Min Arc Angle (degrees)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "30",
+          "min": "5",
+          "max": "350",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MaxArcAngle",
+          "displayName": "Max Arc Angle (degrees)",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "330",
+          "min": "10",
+          "max": "360",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutlierRatio",
+          "displayName": "Expected Outlier Ratio",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.3",
+          "min": "0",
+          "max": "0.9",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "CheckConditionNumber",
+          "displayName": "Check Condition Number",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 100,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+      },
+      "docPath": "docs/operators/MinEnclosingGeometry.md"
+    },
+    {
+      "id": "RegionErosion",
+      "type": 240,
+      "displayName": "Region Erosion",
+      "description": "Erodes a region using a specified structuring element (Region-based morphology).",
+      "category": "Morphology",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Eroded Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Eroded Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "KernelShape",
+          "displayName": "Structuring Element Shape",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Rectangle",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Rectangle",
+              "label": "Rectangle"
+            },
+            {
+              "value": "Ellipse",
+              "label": "Ellipse"
+            },
+            {
+              "value": "Cross",
+              "label": "Cross"
+            }
+          ]
+        },
+        {
+          "name": "KernelWidth",
+          "displayName": "Kernel Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "KernelHeight",
+          "displayName": "Kernel Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Iterations",
+          "displayName": "Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1",
+          "min": "1",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionErosion.md"
+    },
+    {
+      "id": "RegionDilation",
+      "type": 241,
+      "displayName": "Region Dilation",
+      "description": "Dilates a region using a specified structuring element (Region-based morphology).",
+      "category": "Morphology",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Dilated Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Dilated Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "KernelShape",
+          "displayName": "Structuring Element Shape",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Rectangle",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Rectangle",
+              "label": "Rectangle"
+            },
+            {
+              "value": "Ellipse",
+              "label": "Ellipse"
+            },
+            {
+              "value": "Cross",
+              "label": "Cross"
+            }
+          ]
+        },
+        {
+          "name": "KernelWidth",
+          "displayName": "Kernel Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "KernelHeight",
+          "displayName": "Kernel Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Iterations",
+          "displayName": "Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "1",
+          "min": "1",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionDilation.md"
+    },
+    {
+      "id": "RegionOpening",
+      "type": 242,
+      "displayName": "Region Opening",
+      "description": "Opening operation (erosion followed by dilation) for noise removal and smooth region boundaries.",
+      "category": "Morphology",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Opened Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Opened Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "KernelShape",
+          "displayName": "Structuring Element Shape",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Rectangle",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Rectangle",
+              "label": "Rectangle"
+            },
+            {
+              "value": "Ellipse",
+              "label": "Ellipse"
+            },
+            {
+              "value": "Cross",
+              "label": "Cross"
+            }
+          ]
+        },
+        {
+          "name": "KernelWidth",
+          "displayName": "Kernel Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "KernelHeight",
+          "displayName": "Kernel Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionOpening.md"
+    },
+    {
+      "id": "RegionClosing",
+      "type": 243,
+      "displayName": "Region Closing",
+      "description": "Closing operation (dilation followed by erosion) for filling small holes and connecting nearby regions.",
+      "category": "Morphology",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Closed Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Closed Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "KernelShape",
+          "displayName": "Structuring Element Shape",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Rectangle",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Rectangle",
+              "label": "Rectangle"
+            },
+            {
+              "value": "Ellipse",
+              "label": "Ellipse"
+            },
+            {
+              "value": "Cross",
+              "label": "Cross"
+            }
+          ]
+        },
+        {
+          "name": "KernelWidth",
+          "displayName": "Kernel Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "KernelHeight",
+          "displayName": "Kernel Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "3",
+          "min": "1",
+          "max": "99",
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionClosing.md"
+    },
+    {
+      "id": "RegionSkeleton",
+      "type": 244,
+      "displayName": "Region Skeleton",
+      "description": "Extracts skeleton using Zhang-Suen thinning algorithm. Preserves topology and connectivity.",
+      "category": "Morphology",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (Optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Skeleton Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "SkeletonLength",
+          "displayName": "Skeleton Length",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "BranchPoints",
+          "displayName": "Branch Point Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "EndPoints",
+          "displayName": "End Point Count",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "MaxIterations",
+          "displayName": "Max Iterations",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "100",
+          "min": "1",
+          "max": "1000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PreserveTopology",
+          "displayName": "Preserve Topology",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 63,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionSkeleton.md"
+    },
+    {
+      "id": "RegionUnion",
+      "type": 245,
+      "displayName": "Region Union",
+      "description": "Computes the union of two regions (A ∪ B).",
+      "category": "Region",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region1",
+          "displayName": "First Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Region2",
+          "displayName": "Second Region",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Union Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Union Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/RegionUnion.md"
+    },
+    {
+      "id": "RegionIntersection",
+      "type": 246,
+      "displayName": "Region Intersection",
+      "description": "Computes the intersection of two regions (A ∩ B).",
+      "category": "Region",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region1",
+          "displayName": "First Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Region2",
+          "displayName": "Second Region",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Intersection Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Intersection Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/RegionIntersection.md"
+    },
+    {
+      "id": "RegionDifference",
+      "type": 247,
+      "displayName": "Region Difference",
+      "description": "Computes the difference of two regions (A - B).",
+      "category": "Region",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region1",
+          "displayName": "First Region (Minuend)",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Region2",
+          "displayName": "Second Region (Subtrahend)",
+          "dataType": "Any",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Difference Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Difference Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/RegionDifference.md"
+    },
+    {
+      "id": "RegionComplement",
+      "type": 248,
+      "displayName": "Region Complement",
+      "description": "Computes the complement of a region relative to an image size.",
+      "category": "Region",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Input Region",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "ImageWidth",
+          "displayName": "Image Width",
+          "dataType": "Integer",
+          "isRequired": false
+        },
+        {
+          "name": "ImageHeight",
+          "displayName": "Image Height",
+          "dataType": "Integer",
+          "isRequired": false
+        },
+        {
+          "name": "Image",
+          "displayName": "Reference Image (optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Region",
+          "displayName": "Complement Region",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Area",
+          "displayName": "Complement Area",
+          "dataType": "Integer",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 58,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/RegionComplement.md"
+    },
+    {
+      "id": "ArcCaliper",
+      "type": 249,
+      "displayName": "Arc Caliper",
+      "description": "Detects edges along an arc path with subpixel accuracy.",
+      "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Image",
+          "displayName": "Input Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "CenterX",
+          "displayName": "Arc Center X",
+          "dataType": "Integer",
+          "isRequired": true
+        },
+        {
+          "name": "CenterY",
+          "displayName": "Arc Center Y",
+          "dataType": "Integer",
+          "isRequired": true
+        },
+        {
+          "name": "Radius",
+          "displayName": "Arc Radius",
+          "dataType": "Integer",
+          "isRequired": true
+        },
+        {
+          "name": "StartAngle",
+          "displayName": "Start Angle (deg)",
+          "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "EndAngle",
+          "displayName": "End Angle (deg)",
+          "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "Transition",
+          "displayName": "Transition Type",
+          "dataType": "String",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Points",
+          "displayName": "Detected Edge Points",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 58,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/ArcCaliper.md"
+    },
+    {
+      "id": "ContourExtrema",
+      "type": 250,
+      "displayName": "Contour Extrema",
+      "description": "Finds extremal points of a contour in specified directions.",
+      "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Contour",
+          "displayName": "Input Contour (Points)",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Direction",
+          "displayName": "Search Direction",
+          "dataType": "String",
+          "isRequired": false
+        },
+        {
+          "name": "ReferencePoint",
+          "displayName": "Reference Point (optional)",
+          "dataType": "Any",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "ExtremaPoints",
+          "displayName": "Extremal Points",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "MinPoint",
+          "displayName": "Minimum Point",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "MaxPoint",
+          "displayName": "Maximum Point",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "MinValue",
+          "displayName": "Minimum Value",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MaxValue",
+          "displayName": "Maximum Value",
+          "dataType": "Float",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 58,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/ContourExtrema.md"
+    },
+    {
+      "id": "FFT1D",
+      "type": 251,
+      "displayName": "FFT 1D",
+      "description": "Performs 1D Fast Fourier Transform on input signal or image rows/columns.",
+      "category": "Frequency",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Input",
+          "displayName": "Input Signal or Image",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "Axis",
+          "displayName": "Transform Axis (0=row, 1=col)",
+          "dataType": "Integer",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Spectrum",
+          "displayName": "Frequency Spectrum",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Magnitude",
+          "displayName": "Magnitude Spectrum",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Phase",
+          "displayName": "Phase Spectrum",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/FFT1D.md"
+    },
+    {
+      "id": "FrequencyFilter",
+      "type": 252,
+      "displayName": "Frequency Filter",
+      "description": "Applies frequency domain filters (low-pass, high-pass, band-pass, band-stop) to spectrum.",
+      "category": "Frequency",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Spectrum",
+          "displayName": "Input Frequency Spectrum",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "FilterType",
+          "displayName": "Filter Type",
+          "dataType": "String",
+          "isRequired": true
+        },
+        {
+          "name": "CutoffLow",
+          "displayName": "Low Cutoff Frequency",
+          "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "CutoffHigh",
+          "displayName": "High Cutoff Frequency",
+          "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "Order",
+          "displayName": "Filter Order",
+          "dataType": "Integer",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "FilteredSpectrum",
+          "displayName": "Filtered Spectrum",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "FilterMask",
+          "displayName": "Filter Mask",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/FrequencyFilter.md"
+    },
+    {
+      "id": "InverseFFT1D",
+      "type": 253,
+      "displayName": "Inverse FFT 1D",
+      "description": "Performs 1D Inverse Fast Fourier Transform to convert frequency spectrum back to time domain.",
+      "category": "Frequency",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Spectrum",
+          "displayName": "Input Frequency Spectrum",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "OutputSize",
+          "displayName": "Desired Output Size",
+          "dataType": "Integer",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "Signal",
+          "displayName": "Reconstructed Signal",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Real",
+          "displayName": "Real Part",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Imaginary",
+          "displayName": "Imaginary Part",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 75,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+      },
+      "docPath": "docs/operators/InverseFFT1D.md"
+    },
+    {
+      "id": "PhaseClosure",
+      "type": 254,
+      "displayName": "Phase Closure",
+      "description": "Computes phase closure by unwrapping wrapped phase from interferometric measurements.",
+      "category": "检测",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "PhaseImage",
+          "displayName": "Wrapped Phase Image",
+          "dataType": "Image",
+          "isRequired": true
+        },
+        {
+          "name": "Wavelength",
+          "displayName": "Wavelength (nm)",
+          "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "UnwrapMethod",
+          "displayName": "Unwrapping Method",
+          "dataType": "String",
+          "isRequired": false
+        },
+        {
+          "name": "QualityMap",
+          "displayName": "Quality Map (optional)",
+          "dataType": "Image",
+          "isRequired": false
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "UnwrappedPhase",
+          "displayName": "Unwrapped Phase",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Discontinuities",
+          "displayName": "Phase Discontinuities",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "Quality",
+          "displayName": "Quality Metric",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Image",
+          "displayName": "Visualization",
+          "dataType": "Image",
+          "isRequired": null
+        }
+      ],
+      "parameters": [],
+      "quality": {
+        "totalScore": 58,
+        "level": "C",
+        "documentationScore": 60,
+        "testCoverageScore": 30,
+        "parameterValidationScore": 80,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/PhaseClosure.md"
     }
   ]
 }

@@ -1,41 +1,45 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-17 17:34:19 +08:00`
-> 算子总数 / Total Operators: **127**
+> 生成时间 / Generated At: `2026-03-18 19:00:34 +08:00`
+> 算子总数 / Total Operators: **154**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
-| 3D | 6 | 4.7% |
-| AI检测 | 4 | 3.1% |
-| Texture | 2 | 1.6% |
-| 匹配定位 | 6 | 4.7% |
-| 变量 | 4 | 3.1% |
-| 图像处理 | 4 | 3.1% |
-| 定位 | 7 | 5.5% |
-| 拆分组合 | 2 | 1.6% |
-| 数据处理 | 10 | 7.9% |
-| 标定 | 6 | 4.7% |
-| 检测 | 16 | 12.6% |
-| 流程控制 | 6 | 4.7% |
-| 特征提取 | 4 | 3.1% |
-| 识别 | 2 | 1.6% |
-| 辅助 | 3 | 2.4% |
-| 输出 | 2 | 1.6% |
-| 通信 | 8 | 6.3% |
-| 通用 | 4 | 3.1% |
-| 逻辑工具 | 5 | 3.9% |
-| 采集 | 1 | 0.8% |
-| 预处理 | 23 | 18.1% |
-| 颜色处理 | 2 | 1.6% |
+| 3D | 6 | 3.9% |
+| AI检测 | 6 | 3.9% |
+| Analysis | 1 | 0.6% |
+| Frequency | 3 | 1.9% |
+| Morphology | 5 | 3.2% |
+| Region | 4 | 2.6% |
+| Texture | 2 | 1.3% |
+| 匹配定位 | 8 | 5.2% |
+| 变量 | 4 | 2.6% |
+| 图像处理 | 4 | 2.6% |
+| 定位 | 7 | 4.5% |
+| 拆分组合 | 2 | 1.3% |
+| 数据处理 | 10 | 6.5% |
+| 标定 | 12 | 7.8% |
+| 检测 | 20 | 13.0% |
+| 流程控制 | 6 | 3.9% |
+| 特征提取 | 4 | 2.6% |
+| 识别 | 2 | 1.3% |
+| 辅助 | 3 | 1.9% |
+| 输出 | 2 | 1.3% |
+| 通信 | 8 | 5.2% |
+| 通用 | 4 | 2.6% |
+| 逻辑工具 | 5 | 3.2% |
+| 采集 | 1 | 0.6% |
+| 预处理 | 23 | 14.9% |
+| 颜色处理 | 2 | 1.3% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **89.1**
+- 平均分 / Average: **86.4**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 88 |
-| B | 33 |
-| C | 6 |
+| A | 99 |
+| B | 34 |
+| C | 21 |
 
 ## 分类索引 / Grouped Index
 
@@ -44,18 +48,49 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 1 | 3 | 3 | 100 (A) | `1.0.0` | - | [EuclideanClusterExtraction](./operators/EuclideanClusterExtraction.md) |
 | `OperatorType.PPFEstimation` | PPF点对特征 | 1 | 3 | 3 | 95 (A) | `1.0.0` | - | [PPFEstimation](./operators/PPFEstimation.md) |
-| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 6 | 9 | 85 (A) | `1.0.0` | - | [PPFMatch](./operators/PPFMatch.md) |
+| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 6 | 10 | 95 (A) | `1.0.1` | - | [PPFMatch](./operators/PPFMatch.md) |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 95 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./operators/RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./operators/StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./operators/VoxelDownsample.md) |
 
-### AI检测 (4)
+### AI检测 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.AnomalyDetection` | 异常检测 | 2 | 6 | 10 | 90 (A) | `1.0.0` | Simplified PatchCore | [AnomalyDetection](./operators/AnomalyDetection.md) |
 | `OperatorType.DeepLearning` | 深度学习 | 1 | 6 | 9 | 100 (A) | `1.0.0` | 当前实现是一个基于 ONNX Runtime 的 YOLO 推理算子，支持： | [DeepLearning](./operators/DeepLearning.md) |
 | `OperatorType.DualModalVoting` | 双模态投票 | 2 | 3 | 6 | 90 (A) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [DualModalVoting](./operators/DualModalVoting.md) |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | 3 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [EdgePairDefect](./operators/EdgePairDefect.md) |
+| `OperatorType.SemanticSegmentation` | 语义分割 | 1 | 5 | 11 | 90 (A) | `1.0.0` | - | [SemanticSegmentation](./operators/SemanticSegmentation.md) |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | 2 | 4 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SurfaceDefectDetection](./operators/SurfaceDefectDetection.md) |
+
+### Analysis (1)
+| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
+|------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.DistanceTransform` | Distance Transform | 1 | 4 | 7 | 90 (A) | `1.0.0` | - | [DistanceTransform](./operators/DistanceTransform.md) |
+
+### Frequency (3)
+| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
+|------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.FFT1D` | FFT 1D | 2 | 4 | 0 | 61 (C) | `1.0.0` | - | [FFT1D](./operators/FFT1D.md) |
+| `OperatorType.FrequencyFilter` | Frequency Filter | 5 | 3 | 0 | 61 (C) | `1.0.0` | - | [FrequencyFilter](./operators/FrequencyFilter.md) |
+| `OperatorType.InverseFFT1D` | Inverse FFT 1D | 2 | 4 | 0 | 61 (C) | `1.0.0` | - | [InverseFFT1D](./operators/InverseFFT1D.md) |
+
+### Morphology (5)
+| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
+|------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.RegionClosing` | Region Closing | 2 | 3 | 3 | 63 (C) | `1.0.0` | - | [RegionClosing](./operators/RegionClosing.md) |
+| `OperatorType.RegionDilation` | Region Dilation | 2 | 3 | 4 | 63 (C) | `1.0.0` | - | [RegionDilation](./operators/RegionDilation.md) |
+| `OperatorType.RegionErosion` | Region Erosion | 2 | 3 | 4 | 63 (C) | `1.0.0` | - | [RegionErosion](./operators/RegionErosion.md) |
+| `OperatorType.RegionOpening` | Region Opening | 2 | 3 | 3 | 63 (C) | `1.0.0` | - | [RegionOpening](./operators/RegionOpening.md) |
+| `OperatorType.RegionSkeleton` | Region Skeleton | 2 | 5 | 2 | 63 (C) | `1.0.0` | - | [RegionSkeleton](./operators/RegionSkeleton.md) |
+
+### Region (4)
+| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
+|------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.RegionComplement` | Region Complement | 4 | 3 | 0 | 58 (C) | `1.0.0` | - | [RegionComplement](./operators/RegionComplement.md) |
+| `OperatorType.RegionDifference` | Region Difference | 2 | 3 | 0 | 61 (C) | `1.0.0` | - | [RegionDifference](./operators/RegionDifference.md) |
+| `OperatorType.RegionIntersection` | Region Intersection | 2 | 3 | 0 | 61 (C) | `1.0.0` | - | [RegionIntersection](./operators/RegionIntersection.md) |
+| `OperatorType.RegionUnion` | Region Union | 2 | 3 | 0 | 61 (C) | `1.0.0` | - | [RegionUnion](./operators/RegionUnion.md) |
 
 ### Texture (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -63,12 +98,14 @@
 | `OperatorType.GlcmTexture` | GLCM Texture Features | 1 | 6 | 9 | 90 (A) | `1.0.0` | - | [GlcmTexture](./operators/GlcmTexture.md) |
 | `OperatorType.LawsTextureFilter` | Laws Texture Filter | 1 | 3 | 5 | 90 (A) | `1.0.0` | - | [LawsTextureFilter](./operators/LawsTextureFilter.md) |
 
-### 匹配定位 (6)
+### 匹配定位 (8)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 2 | 5 | 5 | 73 (B) | `1.0.0` | 该算子基于局部特征点匹配完成模板定位，核心流程是： | [AkazeFeatureMatch](./operators/AkazeFeatureMatch.md) |
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 6 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./operators/GradientShapeMatch.md) |
+| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 2 | 6 | 15 | 90 (A) | `1.0.0` | - | [LocalDeformableMatching](./operators/LocalDeformableMatching.md) |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 5 | 7 | 73 (B) | `1.0.0` | 该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配… | [OrbFeatureMatch](./operators/OrbFeatureMatch.md) |
+| `OperatorType.PlanarMatching` | Planar Matching | 2 | 4 | 18 | 90 (A) | `1.0.0` | - | [PlanarMatching](./operators/PlanarMatching.md) |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 2 | 5 | 15 | 83 (B) | `1.0.0` | 该算子围绕模板、特征或几何相似性执行定位匹配，用于判断目标是否存在以及位姿大致位置。 | [PyramidShapeMatch](./operators/PyramidShapeMatch.md) |
 | `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.1.0` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./operators/ShapeMatching.md) |
 | `OperatorType.TemplateMatching` | 模板匹配 | 2 | 6 | 3 | 96 (A) | `1.0.0` | 该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全… | [TemplateMatching](./operators/TemplateMatching.md) |
@@ -120,22 +157,30 @@
 | `OperatorType.PointCorrection` | 点位修正 | 4 | 4 | 3 | 94 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [PointCorrection](./operators/PointCorrection.md) |
 | `OperatorType.UnitConvert` | 单位换算 | 2 | 2 | 4 | 96 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [UnitConvert](./operators/UnitConvert.md) |
 
-### 标定 (6)
+### 标定 (12)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.CalibrationLoader` | 标定加载 | 0 | 4 | 2 | 100 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [CalibrationLoader](./operators/CalibrationLoader.md) |
 | `OperatorType.CameraCalibration` | Camera Calibration | 1 | 2 | 7 | 100 (A) | `1.0.0` | 该算子基于标定板角点/圆点，估计相机内参矩阵 CameraMatrix 和畸变参数 … | [CameraCalibration](./operators/CameraCalibration.md) |
 | `OperatorType.CoordinateTransform` | 坐标转换 | 3 | 3 | 4 | 100 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [CoordinateTransform](./operators/CoordinateTransform.md) |
+| `OperatorType.FisheyeCalibration` | Fisheye Calibration | 1 | 4 | 9 | 90 (A) | `1.0.0` | - | [FisheyeCalibration](./operators/FisheyeCalibration.md) |
+| `OperatorType.FisheyeUndistort` | Fisheye Undistort | 2 | 2 | 5 | 90 (A) | `1.0.0` | - | [FisheyeUndistort](./operators/FisheyeUndistort.md) |
+| `OperatorType.HandEyeCalibration` | 手眼标定 | 2 | 8 | 4 | 90 (A) | `1.0.0` | OpenCV Hand-Eye Calibration | [HandEyeCalibration](./operators/HandEyeCalibration.md) |
+| `OperatorType.HandEyeCalibrationValidator` | 手眼标定验证 | 3 | 7 | 1 | 73 (B) | `1.0.0` | Hand-Eye Consistency Validation | [HandEyeCalibrationValidator](./operators/HandEyeCalibrationValidator.md) |
 | `OperatorType.NPointCalibration` | N点标定 | 1 | 3 | 3 | 100 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [NPointCalibration](./operators/NPointCalibration.md) |
+| `OperatorType.PixelToWorldTransform` | Pixel To World Transform | 3 | 3 | 9 | 90 (A) | `1.0.0` | - | [PixelToWorldTransform](./operators/PixelToWorldTransform.md) |
+| `OperatorType.StereoCalibration` | Stereo Calibration | 2 | 6 | 11 | 90 (A) | `1.0.0` | - | [StereoCalibration](./operators/StereoCalibration.md) |
 | `OperatorType.TranslationRotationCalibration` | 平移旋转标定 | 1 | 3 | 3 | 100 (A) | `1.0.0` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [TranslationRotationCalibration](./operators/TranslationRotationCalibration.md) |
 | `OperatorType.Undistort` | Undistort | 2 | 1 | 1 | 95 (A) | `1.0.0` | 该算子根据相机标定结果中的内参矩阵 CameraMatrix 和畸变系数 DistC… | [Undistort](./operators/Undistort.md) |
 
-### 检测 (16)
+### 检测 (20)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AngleMeasurement` | 角度测量 | 1 | 2 | 7 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [AngleMeasurement](./operators/AngleMeasurement.md) |
+| `OperatorType.ArcCaliper` | Arc Caliper | 7 | 2 | 0 | 58 (C) | `1.0.0` | - | [ArcCaliper](./operators/ArcCaliper.md) |
 | `OperatorType.CaliperTool` | 卡尺工具 | 2 | 7 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./operators/CaliperTool.md) |
 | `OperatorType.CircleMeasurement` | 圆测量 | 1 | 7 | 7 | 100 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [CircleMeasurement](./operators/CircleMeasurement.md) |
+| `OperatorType.ContourExtrema` | Contour Extrema | 3 | 6 | 0 | 58 (C) | `1.0.0` | - | [ContourExtrema](./operators/ContourExtrema.md) |
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./operators/ContourMeasurement.md) |
 | `OperatorType.GapMeasurement` | 间隙测量 | 2 | 6 | 4 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GapMeasurement](./operators/GapMeasurement.md) |
 | `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 2 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeoMeasurement](./operators/GeoMeasurement.md) |
@@ -145,6 +190,8 @@
 | `OperatorType.LineLineDistance` | 线线距离 | 2 | 5 | 1 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [LineLineDistance](./operators/LineLineDistance.md) |
 | `OperatorType.LineMeasurement` | 直线测量 | 1 | 5 | 4 | 94 (A) | `1.0.0` | 该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。 | [LineMeasurement](./operators/LineMeasurement.md) |
 | `OperatorType.Measurement` | 测量 | 3 | 2 | 5 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [Measurement](./operators/Measurement.md) |
+| `OperatorType.MinEnclosingGeometry` | Min Enclosing Geometry | 1 | 2 | 10 | 90 (A) | `1.0.0` | - | [MinEnclosingGeometry](./operators/MinEnclosingGeometry.md) |
+| `OperatorType.PhaseClosure` | Phase Closure | 4 | 4 | 0 | 58 (C) | `1.0.0` | - | [PhaseClosure](./operators/PhaseClosure.md) |
 | `OperatorType.PixelStatistics` | 像素统计 | 2 | 6 | 5 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [PixelStatistics](./operators/PixelStatistics.md) |
 | `OperatorType.PointLineDistance` | 点线距离 | 2 | 2 | 0 | 91 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [PointLineDistance](./operators/PointLineDistance.md) |
 | `OperatorType.SharpnessEvaluation` | 清晰度评估 | 1 | 3 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [SharpnessEvaluation](./operators/SharpnessEvaluation.md) |
@@ -252,4 +299,4 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ColorDetection` | 颜色检测 | 1 | 4 | 9 | 76 (B) | `1.0.0` | 该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。 | [ColorDetection](./operators/ColorDetection.md) |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.1` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [ColorMeasurement](./operators/ColorMeasurement.md) |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.2` | - | [ColorMeasurement](./operators/ColorMeasurement.md) |
