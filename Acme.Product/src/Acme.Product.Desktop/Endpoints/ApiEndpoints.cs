@@ -41,6 +41,9 @@ public static class ApiEndpoints
         // 算子库端点
         MapOperatorEndpoints(app);
 
+        // 【Phase 3】节点预览端点（复用调试缓存机制）
+        app.MapPreviewNodeEndpoints();
+
         // 图像相关端点
         MapImageEndpoints(app);
 

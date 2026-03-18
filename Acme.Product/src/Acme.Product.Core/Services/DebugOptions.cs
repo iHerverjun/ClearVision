@@ -33,6 +33,12 @@ public class DebugOptions
     /// 调试会话ID
     /// </summary>
     public Guid DebugSessionId { get; set; } = Guid.NewGuid();
+
+    /// <summary>
+    /// 【Phase 3】执行到指定算子后停止（用于预览中间节点）
+    /// 如果设置，流程执行到此算子后返回，不执行后续算子
+    /// </summary>
+    public Guid? BreakAtOperatorId { get; set; }
 }
 
 /// <summary>

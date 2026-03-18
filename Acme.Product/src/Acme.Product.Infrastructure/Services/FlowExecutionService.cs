@@ -1126,6 +1126,15 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
                 TouchDebugSession(options.DebugSessionId);
                 completedCount++;
+
+                // 【Phase 3】检查是否到达指定的断点算子
+                if (options.BreakAtOperatorId.HasValue && op.Id == options.BreakAtOperatorId.Value)
+                {
+                    pausedOperatorId = op.Id;
+                    result.PausedOperatorId = pausedOperatorId;
+                    _logger.LogInformation("[调试] 到达断点算子: {OperatorName} ({OperatorId})，停止执行", op.Name, op.Id);
+                    break;
+                }
             }
 
             stopwatch.Stop();
