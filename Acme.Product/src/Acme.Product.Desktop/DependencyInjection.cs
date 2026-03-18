@@ -2,6 +2,7 @@
 // 注册服务
 // 作者：蘅芜君
 
+using System;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Interfaces;
@@ -12,7 +13,11 @@ using Acme.Product.Infrastructure.Data;
 using Acme.Product.Infrastructure.Logging;
 using Acme.Product.Infrastructure.Operators;
 using Acme.Product.Infrastructure.Repositories;
+using Acme.Product.Infrastructure.Events;
+using Acme.Product.Infrastructure.Metrics;
 using Acme.Product.Infrastructure.Services;
+using Microsoft.Extensions.Hosting;
+using Acme.Product.Core.Events;
 using IConfigurationService = Acme.Product.Core.Interfaces.IConfigurationService;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +52,25 @@ public static class DependencyInjection
         services.AddScoped<IOperatorRepository, OperatorRepository>();
         services.AddScoped<IInspectionResultRepository, InspectionResultRepository>();
         services.AddSingleton<IImageCacheRepository, ImageCacheRepository>(); // 缓存可以是 Singleton
+
+        // 【架构修复 v2】实时检测运行时 - 进程级单例
+        services.AddSingleton<IInspectionRuntimeCoordinator, InspectionRuntimeCoordinator>();
+        services.AddSingleton<InspectionWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<InspectionWorker>());
+        services.AddSingleton<IInspectionWorker>(sp => sp.GetRequiredService<InspectionWorker>());
+        
+        // 【架构修复 v2】可观测性
+        services.AddSingleton<InspectionMetrics>();
+        
+        // 【架构修复 v2】事件总线
+        services.AddSingleton<IEventStore, InMemoryEventStore>();
+        services.AddSingleton<IInspectionEventBus, InMemoryInspectionEventBus>();
+        services.AddSingleton<SseHeartbeatService>();
+        services.AddHostedService(sp => sp.GetRequiredService<SseHeartbeatService>());
+
+        // 【Phase 4】LLM 闭环验证 - 预览指标分析和自动调参
+        services.AddScoped<IPreviewMetricsAnalyzer, PreviewMetricsAnalyzer>();
+        services.AddScoped<IAutoTuneService, AutoTuneService>();
 
         // 应用服务
         services.AddScoped<ProjectService>();
@@ -248,7 +272,10 @@ public static class DependencyInjection
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Acme.Product.Application.Commands.Projects.CreateProjectCommand).Assembly));
 
         // 注册 AutoMapper
-        services.AddAutoMapper(typeof(Acme.Product.Application.Commands.Projects.CreateProjectCommand).Assembly);
+        services.AddAutoMapper(cfg =>
+        {
+            cfg.LicenseKey = Environment.GetEnvironmentVariable("AUTOMAPPER_LICENSE") ?? string.Empty;
+        }, typeof(Acme.Product.Application.Commands.Projects.CreateProjectCommand).Assembly);
 
         // 序列化与导出
         services.AddSingleton<IProjectSerializer, ProjectJsonSerializer>();

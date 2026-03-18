@@ -201,6 +201,12 @@ static class Program
             // 结果分析和演示工程 API
             RegisterExtendedApiEndpoints(app);
 
+            // 【Phase 4】LLM 闭环验证 - 自动调参端点
+            app.MapAutoTuneEndpoints();
+
+            // 【架构修复 v2】检测事件 SSE 端点
+            app.MapInspectionEventEndpoints();
+
             _host = app;
 
             Task.Run(async () =>
@@ -269,12 +275,14 @@ static class Program
 
     /// <summary>
     /// 停止 Web 服务器
+    /// 【架构修复 v2】配置 60 秒关机超时，确保 Worker 优雅关机
     /// </summary>
     static async Task StopWebServer()
     {
         if (_host != null)
         {
-            await _host.StopAsync();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await _host.StopAsync(cts.Token);
             _host.Dispose();
         }
     }
