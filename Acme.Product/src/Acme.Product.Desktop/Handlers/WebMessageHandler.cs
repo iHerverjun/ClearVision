@@ -7,6 +7,7 @@ using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.Events;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Extensions;
@@ -27,13 +28,18 @@ namespace Acme.Product.Desktop.Handlers;
 /// <summary>
 /// WebView2 消息处理器
 /// </summary>
-public class WebMessageHandler
+public class WebMessageHandler : IDisposable
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOperatorFactory _operatorFactory;
+    private readonly IInspectionEventBus _eventBus;
     private readonly ILogger<WebMessageHandler> _logger;
     private WebView2? _webViewControl;
     private CoreWebView2? _webView;
+
+    // 事件订阅句柄
+    private readonly List<IDisposable> _subscriptions = new();
+    private bool _isSubscribed = false;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -45,10 +51,12 @@ public class WebMessageHandler
     public WebMessageHandler(
         IServiceScopeFactory scopeFactory,
         IOperatorFactory operatorFactory,
+        IInspectionEventBus eventBus,
         ILogger<WebMessageHandler> logger)
     {
         _scopeFactory = scopeFactory;
         _operatorFactory = operatorFactory;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -104,6 +112,76 @@ public class WebMessageHandler
         _webViewControl = webViewControl;
         _webView = webViewControl.CoreWebView2;
         _webView.WebMessageReceived += OnWebMessageReceived;
+        
+        // 【架构修复 v2】订阅事件总线
+        InitializeEventSubscriptions();
+    }
+    
+    /// <summary>
+    /// 【架构修复 v2】订阅事件总线
+    /// </summary>
+    private void InitializeEventSubscriptions()
+    {
+        if (_isSubscribed) return;
+        
+        try
+        {
+            _logger.LogInformation("[WebMessageHandler] 初始化事件订阅");
+            
+            // 订阅状态变更事件
+            _subscriptions.Add(_eventBus.Subscribe<InspectionStateChangedEvent>(async (evt, ct) =>
+            {
+                SendProgressMessage("inspectionStateChanged", new
+                {
+                    projectId = evt.ProjectId,
+                    sessionId = evt.SessionId,
+                    oldState = evt.OldState,
+                    newState = evt.NewState,
+                    error = evt.ErrorMessage,
+                    timestamp = evt.Timestamp
+                });
+                await Task.CompletedTask;
+            }));
+            
+            // 订阅结果事件
+            _subscriptions.Add(_eventBus.Subscribe<InspectionResultEvent>(async (evt, ct) =>
+            {
+                SendProgressMessage("inspectionResult", new
+                {
+                    projectId = evt.ProjectId,
+                    sessionId = evt.SessionId,
+                    resultId = evt.ResultId,
+                    status = evt.Status,
+                    defectCount = evt.DefectCount,
+                    processingTimeMs = evt.ProcessingTimeMs,
+                    timestamp = evt.Timestamp
+                });
+                await Task.CompletedTask;
+            }));
+            
+            // 订阅进度事件
+            _subscriptions.Add(_eventBus.Subscribe<InspectionProgressEvent>(async (evt, ct) =>
+            {
+                SendProgressMessage("inspectionProgress", new
+                {
+                    projectId = evt.ProjectId,
+                    sessionId = evt.SessionId,
+                    processedCount = evt.ProcessedCount,
+                    totalCount = evt.TotalCount,
+                    progressPercentage = evt.ProgressPercentage,
+                    currentOperator = evt.CurrentOperator,
+                    timestamp = evt.Timestamp
+                });
+                await Task.CompletedTask;
+            }));
+            
+            _isSubscribed = true;
+            _logger.LogInformation("[WebMessageHandler] 事件订阅完成，共 {Count} 个订阅", _subscriptions.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WebMessageHandler] 事件订阅失败");
+        }
     }
 
     /// <summary>
@@ -229,7 +307,7 @@ public class WebMessageHandler
 
             var result = await flowService.ExecuteOperatorAsync(op, NormalizeDictionary(command.Inputs));
 
-            var eventData = new OperatorExecutedEvent
+            var eventData = new Contracts.Messages.OperatorExecutedEvent
             {
                 OperatorId = command.OperatorId,
                 OperatorName = op.Name,
@@ -243,7 +321,7 @@ public class WebMessageHandler
         }
         catch (Exception ex)
         {
-            var eventData = new OperatorExecutedEvent
+            var eventData = new Contracts.Messages.OperatorExecutedEvent
             {
                 OperatorId = command.OperatorId,
                 OperatorName = "Unknown",
@@ -1051,5 +1129,31 @@ public class WebMessageHandler
         }
 
         webView.PostWebMessageAsJson(json);
+    }
+
+    public void Dispose()
+    {
+        _logger.LogInformation("[WebMessageHandler] 正在释放资源");
+        
+        foreach (var subscription in _subscriptions)
+        {
+            try
+            {
+                subscription.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[WebMessageHandler] 取消订阅时异常");
+            }
+        }
+        _subscriptions.Clear();
+        _isSubscribed = false;
+        
+        if (_webView != null)
+        {
+            _webView.WebMessageReceived -= OnWebMessageReceived;
+        }
+        
+        _logger.LogInformation("[WebMessageHandler] 资源已释放");
     }
 }

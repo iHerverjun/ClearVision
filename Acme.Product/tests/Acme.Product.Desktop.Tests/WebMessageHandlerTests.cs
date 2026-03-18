@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Handlers;
+using Acme.Product.Infrastructure.Events;
 using Acme.Product.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -150,9 +151,13 @@ public class WebMessageHandlerTests
 
     private static WebMessageHandler CreateHandler(ServiceProvider serviceProvider, OperatorFactory operatorFactory)
     {
+        var eventStore = new InMemoryEventStore(NullLogger<InMemoryEventStore>.Instance);
+        var eventBus = new InMemoryInspectionEventBus(NullLogger<InMemoryInspectionEventBus>.Instance, eventStore);
+
         return new WebMessageHandler(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             operatorFactory,
+            eventBus,
             NullLogger<WebMessageHandler>.Instance);
     }
 
