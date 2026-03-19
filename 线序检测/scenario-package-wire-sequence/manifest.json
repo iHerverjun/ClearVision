@@ -1,0 +1,90 @@
+{
+  "SchemaVersion": "1.0",
+  "ScenarioKey": "wire-sequence-terminal",
+  "ScenarioName": "Terminal Wire Sequence",
+  "Version": "1.0.0",
+  "Description": "Reusable package for wire-sequence inspection with detection + order judgment.",
+  "CreatedAtUtc": "2026-03-19T00:00:00Z",
+  "CreatedBy": "clearvision-team",
+  "Assets": [
+    {
+      "ArtifactType": "Template",
+      "ArtifactName": "terminal-wire-sequence-template",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "template/terminal-wire-sequence.flow.template.json",
+      "Required": true,
+      "ChecksumSha256": null,
+      "Metadata": {
+        "entryPoint": "true"
+      }
+    },
+    {
+      "ArtifactType": "Model",
+      "ArtifactName": "wire-seq-yolo",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "models/wire-seq-yolo-v1.1.onnx",
+      "Required": true,
+      "ChecksumSha256": null,
+      "Metadata": {
+        "inputSize": "640x640",
+        "requiredLabels": "Wire_Brown,Wire_Black,Wire_Blue"
+      }
+    },
+    {
+      "ArtifactType": "Rule",
+      "ArtifactName": "wire-sequence-rule",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "rules/sequence-rule.v1.json",
+      "Required": true,
+      "ChecksumSha256": null,
+      "Metadata": {
+        "judgeOperatorType": "DetectionSequenceJudge"
+      }
+    },
+    {
+      "ArtifactType": "Label",
+      "ArtifactName": "wire-label-set",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "labels/labels.txt",
+      "Required": true,
+      "ChecksumSha256": null,
+      "Metadata": {}
+    },
+    {
+      "ArtifactType": "Sample",
+      "ArtifactName": "wire-sequence-sample-set",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "samples/README.md",
+      "Required": false,
+      "ChecksumSha256": null,
+      "Metadata": {
+        "optional": "true"
+      }
+    },
+    {
+      "ArtifactType": "Faq",
+      "ArtifactName": "wire-sequence-faq",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "faq/README.md",
+      "Required": false,
+      "ChecksumSha256": null,
+      "Metadata": {
+        "optional": "true"
+      }
+    }
+  ],
+  "Constraints": {
+    "RequiredLabels": [
+      "Wire_Brown",
+      "Wire_Black",
+      "Wire_Blue"
+    ],
+    "ExpectedSequence": [
+      "Wire_Brown",
+      "Wire_Black",
+      "Wire_Blue"
+    ],
+    "ExpectedDetectionCount": 3,
+    "JudgeOperatorType": "DetectionSequenceJudge"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "Terminal Wire Sequence Template",
+  "description": "DeepLearning + DetectionSequenceJudge baseline.",
+  "scenarioKey": "wire-sequence-terminal",
+  "templateVersion": "1.0.0",
+  "operators": [
+    {
+      "id": "op_1",
+      "type": "ImageAcquisition",
+      "name": "Acquire"
+    },
+    {
+      "id": "op_2",
+      "type": "ImageResize",
+      "name": "Resize640"
+    },
+    {
+      "id": "op_3",
+      "type": "DeepLearning",
+      "name": "WireDetection",
+      "params": {
+        "ModelPath": "models/wire-seq-yolo-v1.1.onnx",
+        "Confidence": "0.5",
+        "TargetClasses": "Wire_Brown,Wire_Black,Wire_Blue"
+      }
+    },
+    {
+      "id": "op_4",
+      "type": "DetectionSequenceJudge",
+      "name": "SequenceJudge",
+      "params": {
+        "ExpectedLabels": "Wire_Brown,Wire_Black,Wire_Blue",
+        "SortBy": "CenterX",
+        "Direction": "Ascending",
+        "ExpectedCount": "3"
+      }
+    },
+    {
+      "id": "op_5",
+      "type": "ResultOutput",
+      "name": "Output"
+    }
+  ],
+  "connections": [
+    {
+      "source": "op_1",
+      "sourcePort": "Image",
+      "target": "op_2",
+      "targetPort": "Image"
+    },
+    {
+      "source": "op_2",
+      "sourcePort": "Image",
+      "target": "op_3",
+      "targetPort": "Image"
+    },
+    {
+      "source": "op_3",
+      "sourcePort": "Detections",
+      "target": "op_4",
+      "targetPort": "Detections"
+    },
+    {
+      "source": "op_4",
+      "sourcePort": "Message",
+      "target": "op_5",
+      "targetPort": "Result"
+    }
+  ]
+}

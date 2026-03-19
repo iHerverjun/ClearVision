@@ -1,0 +1,23 @@
+{
+  "ruleName": "wire-sequence-rule",
+  "ruleVersion": "1.0.0",
+  "scenarioKey": "wire-sequence-terminal",
+  "expectedSequence": [
+    "Wire_Brown",
+    "Wire_Black",
+    "Wire_Blue"
+  ],
+  "expectedDetectionCount": 3,
+  "allowMissing": false,
+  "allowDuplicate": false,
+  "minConfidence": 0.5,
+  "sortBy": "CenterX",
+  "direction": "Ascending",
+  "diagnosticTags": [
+    "MissingExpectedClass",
+    "DuplicateDetectedClass",
+    "DetectionCountMismatch",
+    "LowDetectionConfidence",
+    "OrderMismatch"
+  ]
+}
