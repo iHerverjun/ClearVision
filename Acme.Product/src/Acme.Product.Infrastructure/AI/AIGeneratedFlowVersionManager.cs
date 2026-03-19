@@ -40,6 +40,23 @@ public class AIGeneratedFlowVersion
 public class FlowVersionList
 {
     public List<AIGeneratedFlowVersion> Versions { get; set; } = new();
+    public List<ScenarioArtifactVersionRecord> ScenarioArtifactVersions { get; set; } = new();
+}
+
+public class ScenarioArtifactVersionRecord
+{
+    public Guid Id { get; set; }
+    public string ScenarioKey { get; set; } = string.Empty;
+    public ScenarioArtifactType ArtifactType { get; set; }
+    public string ArtifactName { get; set; } = string.Empty;
+    public string ArtifactVersion { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+    public string? ChecksumSha256 { get; set; }
+    public Guid? SourceFlowVersionId { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public Dictionary<string, string> Metadata { get; set; } = new();
 }
 
 public interface IAIGeneratedFlowVersionManager
@@ -48,12 +65,35 @@ public interface IAIGeneratedFlowVersionManager
     Task<AIGeneratedFlowVersion?> GetVersionAsync(Guid versionId);
     Task<List<AIGeneratedFlowVersion>> GetFlowHistoryAsync(Guid flowId);
     Task MarkAsDeployedAsync(Guid versionId);
+    Task<ScenarioArtifactVersionRecord> SaveScenarioArtifactVersionAsync(
+        string scenarioKey,
+        ScenarioArtifactType artifactType,
+        string artifactName,
+        string artifactVersion,
+        string relativePath,
+        Guid? sourceFlowVersionId = null,
+        string? checksumSha256 = null,
+        Dictionary<string, string>? metadata = null,
+        string createdBy = "System");
+    Task<List<ScenarioArtifactVersionRecord>> GetScenarioArtifactHistoryAsync(string scenarioKey, ScenarioArtifactType? artifactType = null);
+    Task MarkScenarioArtifactActiveAsync(Guid artifactVersionId);
+    Task<ScenarioPackageManifest?> BuildScenarioManifestAsync(
+        string scenarioKey,
+        string scenarioName,
+        string description,
+        string packageVersion,
+        string createdBy = "System");
 }
 
 public class AIGeneratedFlowVersionManager : IAIGeneratedFlowVersionManager
 {
     private readonly string _filePath;
     private readonly object _lock = new();
+    private readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
 
     public AIGeneratedFlowVersionManager(string? baseDirectory = null)
     {
@@ -79,7 +119,7 @@ public class AIGeneratedFlowVersionManager : IAIGeneratedFlowVersionManager
             try
             {
                 var json = File.ReadAllText(_filePath);
-                return JsonSerializer.Deserialize<FlowVersionList>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new FlowVersionList();
+                return JsonSerializer.Deserialize<FlowVersionList>(json, _jsonOptions) ?? new FlowVersionList();
             }
             catch
             {
@@ -92,7 +132,7 @@ public class AIGeneratedFlowVersionManager : IAIGeneratedFlowVersionManager
     {
         lock (_lock)
         {
-            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(data, _jsonOptions);
             File.WriteAllText(_filePath, json);
         }
     }
@@ -172,5 +212,209 @@ public class AIGeneratedFlowVersionManager : IAIGeneratedFlowVersionManager
             SaveData(data);
         }
         return Task.CompletedTask;
+    }
+
+    public Task<ScenarioArtifactVersionRecord> SaveScenarioArtifactVersionAsync(
+        string scenarioKey,
+        ScenarioArtifactType artifactType,
+        string artifactName,
+        string artifactVersion,
+        string relativePath,
+        Guid? sourceFlowVersionId = null,
+        string? checksumSha256 = null,
+        Dictionary<string, string>? metadata = null,
+        string createdBy = "System")
+    {
+        if (string.IsNullOrWhiteSpace(scenarioKey))
+            throw new ArgumentException("Scenario key is required.", nameof(scenarioKey));
+        if (string.IsNullOrWhiteSpace(artifactName))
+            throw new ArgumentException("Artifact name is required.", nameof(artifactName));
+        if (string.IsNullOrWhiteSpace(artifactVersion))
+            throw new ArgumentException("Artifact version is required.", nameof(artifactVersion));
+        if (string.IsNullOrWhiteSpace(relativePath))
+            throw new ArgumentException("Artifact relative path is required.", nameof(relativePath));
+
+        var normalizedScenarioKey = scenarioKey.Trim();
+        var normalizedArtifactName = artifactName.Trim();
+        var normalizedArtifactVersion = artifactVersion.Trim();
+        var normalizedRelativePath = NormalizeRelativePath(relativePath);
+
+        var data = LoadData();
+        var existingActive = data.ScenarioArtifactVersions
+            .Where(item =>
+                item.IsActive &&
+                item.ScenarioKey.Equals(normalizedScenarioKey, StringComparison.OrdinalIgnoreCase) &&
+                item.ArtifactType == artifactType &&
+                item.ArtifactName.Equals(normalizedArtifactName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var activeVersion in existingActive)
+        {
+            activeVersion.IsActive = false;
+        }
+
+        var artifactRecord = new ScenarioArtifactVersionRecord
+        {
+            Id = Guid.NewGuid(),
+            ScenarioKey = normalizedScenarioKey,
+            ArtifactType = artifactType,
+            ArtifactName = normalizedArtifactName,
+            ArtifactVersion = normalizedArtifactVersion,
+            RelativePath = normalizedRelativePath,
+            SourceFlowVersionId = sourceFlowVersionId,
+            ChecksumSha256 = string.IsNullOrWhiteSpace(checksumSha256) ? null : checksumSha256.Trim(),
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedBy = createdBy,
+            IsActive = true,
+            Metadata = metadata ?? new Dictionary<string, string>()
+        };
+
+        data.ScenarioArtifactVersions.Add(artifactRecord);
+        SaveData(data);
+
+        return Task.FromResult(artifactRecord);
+    }
+
+    public Task<List<ScenarioArtifactVersionRecord>> GetScenarioArtifactHistoryAsync(string scenarioKey, ScenarioArtifactType? artifactType = null)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioKey))
+            return Task.FromResult(new List<ScenarioArtifactVersionRecord>());
+
+        var normalizedScenarioKey = scenarioKey.Trim();
+        var data = LoadData();
+        var query = data.ScenarioArtifactVersions
+            .Where(item => item.ScenarioKey.Equals(normalizedScenarioKey, StringComparison.OrdinalIgnoreCase));
+
+        if (artifactType.HasValue)
+        {
+            query = query.Where(item => item.ArtifactType == artifactType.Value);
+        }
+
+        var result = query
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToList();
+        return Task.FromResult(result);
+    }
+
+    public Task MarkScenarioArtifactActiveAsync(Guid artifactVersionId)
+    {
+        var data = LoadData();
+        var target = data.ScenarioArtifactVersions.FirstOrDefault(item => item.Id == artifactVersionId);
+        if (target == null)
+            return Task.CompletedTask;
+
+        foreach (var candidate in data.ScenarioArtifactVersions.Where(item =>
+                     item.ScenarioKey.Equals(target.ScenarioKey, StringComparison.OrdinalIgnoreCase) &&
+                     item.ArtifactType == target.ArtifactType &&
+                     item.ArtifactName.Equals(target.ArtifactName, StringComparison.OrdinalIgnoreCase)))
+        {
+            candidate.IsActive = candidate.Id == target.Id;
+        }
+
+        SaveData(data);
+        return Task.CompletedTask;
+    }
+
+    public Task<ScenarioPackageManifest?> BuildScenarioManifestAsync(
+        string scenarioKey,
+        string scenarioName,
+        string description,
+        string packageVersion,
+        string createdBy = "System")
+    {
+        if (string.IsNullOrWhiteSpace(scenarioKey))
+            return Task.FromResult<ScenarioPackageManifest?>(null);
+
+        var normalizedScenarioKey = scenarioKey.Trim();
+        var data = LoadData();
+        var activeRecords = data.ScenarioArtifactVersions
+            .Where(item => item.IsActive && item.ScenarioKey.Equals(normalizedScenarioKey, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ToList();
+
+        if (activeRecords.Count == 0)
+            return Task.FromResult<ScenarioPackageManifest?>(null);
+
+        var assets = activeRecords
+            .GroupBy(item => (item.ArtifactType, ArtifactName: item.ArtifactName.ToLowerInvariant()))
+            .Select(group => group.OrderByDescending(item => item.CreatedAtUtc).First())
+            .Select(item => new ScenarioPackageAsset
+            {
+                ArtifactType = item.ArtifactType,
+                ArtifactName = item.ArtifactName,
+                ArtifactVersion = item.ArtifactVersion,
+                RelativePath = item.RelativePath,
+                Required = !TryReadBoolMetadata(item.Metadata, "optional"),
+                ChecksumSha256 = item.ChecksumSha256,
+                Metadata = new Dictionary<string, string>(item.Metadata)
+            })
+            .OrderBy(item => item.ArtifactType)
+            .ThenBy(item => item.ArtifactName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var constraints = BuildConstraints(activeRecords);
+        var manifest = new ScenarioPackageManifest
+        {
+            SchemaVersion = "1.0",
+            ScenarioKey = normalizedScenarioKey,
+            ScenarioName = scenarioName,
+            Version = packageVersion,
+            Description = description,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedBy = createdBy,
+            Assets = assets,
+            Constraints = constraints
+        };
+
+        return Task.FromResult<ScenarioPackageManifest?>(manifest);
+    }
+
+    private static ScenarioPackageConstraints BuildConstraints(List<ScenarioArtifactVersionRecord> artifactRecords)
+    {
+        var constraints = new ScenarioPackageConstraints();
+        foreach (var artifact in artifactRecords)
+        {
+            if (artifact.Metadata.TryGetValue("requiredLabels", out var requiredLabelsValue))
+            {
+                constraints.RequiredLabels = SplitCsv(requiredLabelsValue);
+            }
+
+            if (artifact.Metadata.TryGetValue("expectedSequence", out var expectedSequenceValue))
+            {
+                constraints.ExpectedSequence = SplitCsv(expectedSequenceValue);
+            }
+
+            if (artifact.Metadata.TryGetValue("expectedDetectionCount", out var expectedDetectionCountValue) &&
+                int.TryParse(expectedDetectionCountValue, out var expectedCount))
+            {
+                constraints.ExpectedDetectionCount = expectedCount;
+            }
+
+            if (artifact.Metadata.TryGetValue("judgeOperatorType", out var judgeOperatorTypeValue))
+            {
+                constraints.JudgeOperatorType = judgeOperatorTypeValue;
+            }
+        }
+
+        return constraints;
+    }
+
+    private static bool TryReadBoolMetadata(Dictionary<string, string> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) && bool.TryParse(value, out var parsed) && parsed;
+    }
+
+    private static List<string> SplitCsv(string value)
+    {
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string NormalizeRelativePath(string path)
+    {
+        return path.Trim().Replace('\\', '/');
     }
 }

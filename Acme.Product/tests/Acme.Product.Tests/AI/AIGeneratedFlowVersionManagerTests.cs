@@ -47,6 +47,93 @@ public class AIGeneratedFlowVersionManagerTests : IDisposable
         history.Should().ContainSingle(v => v.Id == version1.Id && !v.IsDeployed);
     }
 
+    [Fact]
+    public async Task SaveScenarioArtifactVersionAsync_ShouldKeepOnlyLatestActivePerArtifact()
+    {
+        var tempDir = CreateTempDir();
+        var sut = new AIGeneratedFlowVersionManager(tempDir);
+        const string scenarioKey = "wire-sequence-terminal";
+
+        var modelV1 = await sut.SaveScenarioArtifactVersionAsync(
+            scenarioKey,
+            ScenarioArtifactType.Model,
+            "wire-seq-yolo",
+            "1.0.0",
+            "models/wire-seq-yolo-v1.onnx");
+
+        var modelV2 = await sut.SaveScenarioArtifactVersionAsync(
+            scenarioKey,
+            ScenarioArtifactType.Model,
+            "wire-seq-yolo",
+            "1.1.0",
+            "models/wire-seq-yolo-v1.1.onnx");
+
+        var history = await sut.GetScenarioArtifactHistoryAsync(scenarioKey, ScenarioArtifactType.Model);
+
+        history.Should().HaveCount(2);
+        history.Should().ContainSingle(item => item.Id == modelV2.Id && item.IsActive);
+        history.Should().ContainSingle(item => item.Id == modelV1.Id && !item.IsActive);
+    }
+
+    [Fact]
+    public async Task BuildScenarioManifestAsync_ShouldUseCurrentActiveArtifactsAndConstraints()
+    {
+        var tempDir = CreateTempDir();
+        var sut = new AIGeneratedFlowVersionManager(tempDir);
+        const string scenarioKey = "wire-sequence-terminal";
+
+        await sut.SaveScenarioArtifactVersionAsync(
+            scenarioKey,
+            ScenarioArtifactType.Template,
+            "terminal-wire-sequence-template",
+            "1.0.0",
+            "template/terminal-wire-sequence.flow.template.json");
+
+        var modelV1 = await sut.SaveScenarioArtifactVersionAsync(
+            scenarioKey,
+            ScenarioArtifactType.Model,
+            "wire-seq-yolo",
+            "1.0.0",
+            "models/wire-seq-yolo-v1.onnx");
+
+        var modelV2 = await sut.SaveScenarioArtifactVersionAsync(
+            scenarioKey,
+            ScenarioArtifactType.Model,
+            "wire-seq-yolo",
+            "1.1.0",
+            "models/wire-seq-yolo-v1.1.onnx",
+            metadata: new Dictionary<string, string>
+            {
+                ["requiredLabels"] = "Wire_Brown,Wire_Black,Wire_Blue",
+                ["expectedSequence"] = "Wire_Brown,Wire_Black,Wire_Blue",
+                ["expectedDetectionCount"] = "3",
+                ["judgeOperatorType"] = "DetectionSequenceJudge"
+            });
+
+        await sut.MarkScenarioArtifactActiveAsync(modelV2.Id);
+        await sut.MarkScenarioArtifactActiveAsync(modelV1.Id);
+        await sut.MarkScenarioArtifactActiveAsync(modelV2.Id);
+
+        var manifest = await sut.BuildScenarioManifestAsync(
+            scenarioKey,
+            "Terminal Wire Sequence",
+            "Wire sequence package",
+            "1.0.0",
+            createdBy: "tester");
+
+        manifest.Should().NotBeNull();
+        manifest!.ScenarioKey.Should().Be(scenarioKey);
+        manifest.Assets.Should().ContainSingle(item =>
+            item.ArtifactType == ScenarioArtifactType.Model &&
+            item.ArtifactVersion == "1.1.0" &&
+            item.RelativePath == "models/wire-seq-yolo-v1.1.onnx");
+
+        manifest.Constraints.RequiredLabels.Should().Equal("Wire_Brown", "Wire_Black", "Wire_Blue");
+        manifest.Constraints.ExpectedSequence.Should().Equal("Wire_Brown", "Wire_Black", "Wire_Blue");
+        manifest.Constraints.ExpectedDetectionCount.Should().Be(3);
+        manifest.Constraints.JudgeOperatorType.Should().Be("DetectionSequenceJudge");
+    }
+
     public void Dispose()
     {
         foreach (var dir in _tempDirs)

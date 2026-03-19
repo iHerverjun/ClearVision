@@ -4,6 +4,7 @@
 // 作者：蘅芜君
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 using Acme.Product.Contracts.Messages;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Services;
@@ -69,7 +70,11 @@ public class GenerateFlowMessageHandler
                 Reasoning = result.Reasoning,
                 ParametersNeedingReview = result.ParametersNeedingReview,
                 SessionId = result.SessionId,
-                DetectedIntent = result.DetectedIntent
+                DetectedIntent = result.DetectedIntent,
+                DryRunResult = result.DryRunResult,
+                RecommendedTemplate = MapRecommendedTemplate(result.RecommendedTemplate),
+                PendingParameters = MapPendingParameters(result.PendingParameters),
+                MissingResources = MapMissingResources(result.MissingResources)
             };
 
             return JsonSerializer.Serialize(response, _jsonOptions);
@@ -86,5 +91,45 @@ public class GenerateFlowMessageHandler
 
             return JsonSerializer.Serialize(errorResponse, _jsonOptions);
         }
+    }
+
+    private static GenerateFlowTemplateRecommendation? MapRecommendedTemplate(AiRecommendedTemplateInfo? template)
+    {
+        if (template == null)
+            return null;
+
+        return new GenerateFlowTemplateRecommendation
+        {
+            TemplateId = template.TemplateId,
+            TemplateName = template.TemplateName,
+            MatchReason = template.MatchReason,
+            MatchMode = template.MatchMode,
+            Confidence = template.Confidence
+        };
+    }
+
+    private static List<GenerateFlowPendingParameter> MapPendingParameters(IReadOnlyCollection<AiPendingParameterInfo>? parameters)
+    {
+        if (parameters == null || parameters.Count == 0)
+            return new List<GenerateFlowPendingParameter>();
+
+        return parameters.Select(item => new GenerateFlowPendingParameter
+        {
+            OperatorId = item.OperatorId,
+            ParameterNames = item.ParameterNames?.Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>()
+        }).ToList();
+    }
+
+    private static List<GenerateFlowMissingResource> MapMissingResources(IReadOnlyCollection<AiMissingResourceInfo>? resources)
+    {
+        if (resources == null || resources.Count == 0)
+            return new List<GenerateFlowMissingResource>();
+
+        return resources.Select(item => new GenerateFlowMissingResource
+        {
+            ResourceType = item.ResourceType,
+            ResourceKey = item.ResourceKey,
+            Description = item.Description
+        }).ToList();
     }
 }

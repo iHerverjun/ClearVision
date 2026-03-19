@@ -20,6 +20,15 @@ public interface IFlowTemplateService
     Task<FlowTemplate> SaveTemplateAsync(
         FlowTemplate template,
         CancellationToken cancellationToken = default);
+
+    Task<FlowTemplate> CreateTemplateAsync(
+        FlowTemplate template,
+        CancellationToken cancellationToken = default);
+
+    Task<FlowTemplate?> UpdateTemplateAsync(
+        Guid id,
+        FlowTemplate template,
+        CancellationToken cancellationToken = default);
 }
 
 public class FlowTemplateService : IFlowTemplateService
@@ -101,6 +110,48 @@ public class FlowTemplateService : IFlowTemplateService
         return Task.FromResult(template);
     }
 
+    public Task<FlowTemplate> CreateTemplateAsync(FlowTemplate template, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (template == null)
+            throw new ArgumentNullException(nameof(template));
+
+        lock (_syncRoot)
+        {
+            var templates = LoadTemplates();
+            template.Id = template.Id == Guid.Empty ? Guid.NewGuid() : template.Id;
+            template.CreatedAt = template.CreatedAt == default ? DateTime.UtcNow : template.CreatedAt;
+            templates.Add(template);
+            SaveTemplates(templates);
+        }
+
+        return Task.FromResult(template);
+    }
+
+    public Task<FlowTemplate?> UpdateTemplateAsync(Guid id, FlowTemplate template, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (template == null)
+            throw new ArgumentNullException(nameof(template));
+
+        lock (_syncRoot)
+        {
+            var templates = LoadTemplates();
+            var existing = templates.FirstOrDefault(item => item.Id == id);
+            if (existing == null)
+                return Task.FromResult<FlowTemplate?>(null);
+
+            existing.Name = template.Name;
+            existing.Description = template.Description;
+            existing.Industry = template.Industry;
+            existing.Tags = template.Tags;
+            existing.FlowJson = template.FlowJson;
+
+            SaveTemplates(templates);
+            return Task.FromResult<FlowTemplate?>(existing);
+        }
+    }
+
     private void EnsureTemplateStore()
     {
         var directory = Path.GetDirectoryName(_templateFilePath)
@@ -127,6 +178,7 @@ public class FlowTemplateService : IFlowTemplateService
 
                 if (templates == null || templates.Count == 0)
                 {
+                    BackupCorruptedTemplateFile();
                     templates = CreateBuiltInTemplates();
                     SaveTemplates(templates);
                 }
@@ -135,6 +187,7 @@ public class FlowTemplateService : IFlowTemplateService
             }
             catch
             {
+                BackupCorruptedTemplateFile();
                 var templates = CreateBuiltInTemplates();
                 SaveTemplates(templates);
                 return templates;
@@ -145,7 +198,67 @@ public class FlowTemplateService : IFlowTemplateService
     private void SaveTemplates(List<FlowTemplate> templates)
     {
         var json = JsonSerializer.Serialize(templates, _jsonOptions);
-        File.WriteAllText(_templateFilePath, json);
+        ValidateTemplatePayload(json);
+
+        var directory = Path.GetDirectoryName(_templateFilePath)
+                        ?? throw new InvalidOperationException("Template directory path is invalid.");
+        Directory.CreateDirectory(directory);
+
+        var tempFilePath = Path.Combine(directory, $"flow_templates.{Guid.NewGuid():N}.tmp");
+        var backupPath = Path.Combine(directory, $"flow_templates.swapbackup.{DateTime.UtcNow:yyyyMMddHHmmssfff}.{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(tempFilePath, json);
+            ValidateTemplatePayload(File.ReadAllText(tempFilePath));
+
+            if (File.Exists(_templateFilePath))
+            {
+                File.Replace(tempFilePath, _templateFilePath, backupPath, true);
+                TryDeleteFile(backupPath);
+            }
+            else
+            {
+                File.Move(tempFilePath, _templateFilePath);
+            }
+        }
+        finally
+        {
+            TryDeleteFile(tempFilePath);
+        }
+    }
+
+    private static void ValidateTemplatePayload(string json)
+    {
+        var parsed = JsonSerializer.Deserialize<List<FlowTemplate>>(json, _jsonOptions);
+        if (parsed == null)
+            throw new InvalidDataException("Serialized template payload is invalid.");
+    }
+
+    private void BackupCorruptedTemplateFile()
+    {
+        if (!File.Exists(_templateFilePath))
+            return;
+
+        var directory = Path.GetDirectoryName(_templateFilePath)
+                        ?? throw new InvalidOperationException("Template directory path is invalid.");
+        Directory.CreateDirectory(directory);
+
+        var backupPath = Path.Combine(directory, $"flow_templates.corrupted.{DateTime.UtcNow:yyyyMMddHHmmssfff}.{Guid.NewGuid():N}.json");
+        File.Copy(_templateFilePath, backupPath, overwrite: false);
+    }
+
+    private static void TryDeleteFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch
+        {
+            // 忽略清理阶段异常，避免掩盖主流程写入结果
+        }
     }
 
     private static List<FlowTemplate> CreateBuiltInTemplates()
@@ -379,7 +492,80 @@ public class FlowTemplateService : IFlowTemplateService
                         ["op_4"] = ["IpAddress", "Port"],
                         ["op_5"] = ["IpAddress", "Port"]
                     }
-                })
+                }),
+            new FlowTemplate
+            {
+                Id = Guid.NewGuid(),
+                Name = "端子线序检测",
+                Description = "端子排局部区域的线序检测模板，内置检测 + 顺序判定主干。",
+                Industry = "线束装配",
+                Tags = ["线序", "YOLO", "端子", "PLC"],
+                TemplateVersion = "1.0.0",
+                ScenarioKey = "wire-sequence-terminal",
+                ScenarioPackage = new ScenarioPackageBinding
+                {
+                    PackageKey = "wire-sequence-terminal",
+                    PackageVersion = "1.0.0",
+                    AssetVersionIds =
+                    [
+                        "template:terminal-wire-sequence-template@1.0.0",
+                        "model:wire-seq-yolo@1.1.0",
+                        "rule:wire-sequence-rule@1.0.0",
+                        "label:wire-label-set@1.0.0"
+                    ],
+                    RequiredResources =
+                    [
+                        "DeepLearning.ModelPath",
+                        "DeepLearning.LabelsPath",
+                        "ModbusCommunication.IpAddress",
+                        "ModbusCommunication.Port"
+                    ]
+                },
+                FlowJson = JsonSerializer.Serialize(new
+                {
+                    explanation = "适用于线束装配工位的端子线序判定，优先复用模板骨架后再补模型、PLC 和 ROI 参数。",
+                    operators = new object[]
+                    {
+                        Node("op_1", "ImageAcquisition", "图像采集", new Dictionary<string, string> { ["sourceType"] = "camera" }),
+                        Node("op_2", "ImageResize", "尺寸适配", new Dictionary<string, string> { ["Width"] = "640", ["Height"] = "640" }),
+                        Node("op_3", "DeepLearning", "线序检测", new Dictionary<string, string>
+                        {
+                            ["Confidence"] = "0.5",
+                            ["TargetClasses"] = "Wire_Brown,Wire_Black,Wire_Blue"
+                        }),
+                        Node("op_4", "DetectionSequenceJudge", "顺序判定", new Dictionary<string, string>
+                        {
+                            ["ExpectedLabels"] = "Wire_Brown,Wire_Black,Wire_Blue",
+                            ["SortBy"] = "CenterX",
+                            ["Direction"] = "Ascending",
+                            ["ExpectedCount"] = "3"
+                        }),
+                        Node("op_5", "ConditionalBranch", "OK/NG分支", new Dictionary<string, string>
+                        {
+                            ["Condition"] = "Equals",
+                            ["CompareValue"] = "True"
+                        }),
+                        Node("op_6", "ModbusCommunication", "PLC信号"),
+                        Node("op_7", "ResultOutput", "结果输出")
+                    },
+                    connections = new object[]
+                    {
+                        Link("op_1", "Image", "op_2", "Image"),
+                        Link("op_2", "Image", "op_3", "Image"),
+                        Link("op_3", "Detections", "op_4", "Detections"),
+                        Link("op_4", "IsMatch", "op_5", "Value"),
+                        Link("op_5", "False", "op_6", "Data"),
+                        Link("op_4", "Message", "op_7", "Result")
+                    },
+                    parametersNeedingReview = new Dictionary<string, List<string>>
+                    {
+                        ["op_3"] = ["ModelPath", "LabelsPath", "Confidence", "TargetClasses"],
+                        ["op_4"] = ["ExpectedLabels", "ExpectedCount"],
+                        ["op_6"] = ["IpAddress", "Port"]
+                    }
+                }, _jsonOptions),
+                CreatedAt = DateTime.UtcNow
+            }
         };
     }
 

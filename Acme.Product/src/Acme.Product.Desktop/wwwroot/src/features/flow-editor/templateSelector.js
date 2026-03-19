@@ -12,6 +12,7 @@ export class TemplateSelector {
         this.templates = [];
         this.operatorMetadata = new Map();
         this.activeTag = '';
+        this.activeTemplateId = null;
         this.isLoading = false;
 
         this.overlay = null;
@@ -25,6 +26,7 @@ export class TemplateSelector {
         await this._ensureDataLoaded();
         this._renderFilters();
         this._renderTemplateCards();
+        this._updateActionButtons();
     }
 
     close() {
@@ -52,6 +54,9 @@ export class TemplateSelector {
     async _loadTemplates() {
         const templates = await httpClient.get('/templates');
         this.templates = Array.isArray(templates) ? templates : [];
+        if (this.activeTemplateId && !this.templates.some(item => String(item.id) === String(this.activeTemplateId))) {
+            this.activeTemplateId = null;
+        }
     }
 
     async _loadOperatorMetadata() {
@@ -86,7 +91,11 @@ export class TemplateSelector {
                         <h3>从模板创建流程</h3>
                         <p>选择预设模板，快速生成可运行的流程骨架。</p>
                     </div>
-                    <button type="button" class="btn btn-secondary" id="btn-template-close">关闭</button>
+                    <div class="template-selector-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-template-save">另存为模板</button>
+                        <button type="button" class="btn btn-secondary" id="btn-template-update">更新当前模板</button>
+                        <button type="button" class="btn btn-secondary" id="btn-template-close">关闭</button>
+                    </div>
                 </div>
 
                 <div class="template-selector-filters">
@@ -109,6 +118,10 @@ export class TemplateSelector {
 
         const closeBtn = this.overlay.querySelector('#btn-template-close');
         closeBtn.addEventListener('click', () => this.close());
+        const saveBtn = this.overlay.querySelector('#btn-template-save');
+        saveBtn.addEventListener('click', () => this._saveAsTemplate());
+        const updateBtn = this.overlay.querySelector('#btn-template-update');
+        updateBtn.addEventListener('click', () => this._updateActiveTemplate());
 
         this.overlay.addEventListener('click', (event) => {
             if (event.target === this.overlay) {
@@ -127,6 +140,8 @@ export class TemplateSelector {
                 this.close();
             }
         });
+
+        this._updateActionButtons();
     }
 
     _renderFilters() {
@@ -269,6 +284,8 @@ export class TemplateSelector {
             this.flowCanvas.onNodeSelected(null);
         }
 
+        this.activeTemplateId = template.id || null;
+        this._updateActionButtons();
         showToast(`模板已应用：${template.name}`, 'success');
         this.close();
     }
@@ -277,6 +294,10 @@ export class TemplateSelector {
         const parsedFlow = typeof template.flowJson === 'string'
             ? JSON.parse(template.flowJson)
             : template.flowJson;
+
+        if (this._isCanvasFlow(parsedFlow)) {
+            return parsedFlow;
+        }
 
         const operators = parsedFlow?.operators || [];
         const connections = parsedFlow?.connections || [];
@@ -360,6 +381,139 @@ export class TemplateSelector {
             operators: operatorDtos,
             connections: connectionDtos
         };
+    }
+
+    _isCanvasFlow(flow) {
+        if (!flow || !Array.isArray(flow.operators) || !Array.isArray(flow.connections)) {
+            return false;
+        }
+
+        if (flow.operators.length === 0) {
+            return false;
+        }
+
+        const firstOperator = flow.operators[0];
+        return Boolean(firstOperator.id && firstOperator.type);
+    }
+
+    _updateActionButtons() {
+        if (!this.overlay) {
+            return;
+        }
+
+        const updateBtn = this.overlay.querySelector('#btn-template-update');
+        if (!updateBtn) {
+            return;
+        }
+
+        const hasActiveTemplate = Boolean(this.activeTemplateId);
+        updateBtn.disabled = !hasActiveTemplate;
+        updateBtn.title = hasActiveTemplate ? '' : '请先应用一个模板后再更新';
+    }
+
+    async _saveAsTemplate() {
+        try {
+            const payload = this._buildTemplatePayload();
+            const created = await httpClient.post('/templates', payload);
+            if (created?.id) {
+                this.activeTemplateId = created.id;
+            }
+            await this._loadTemplates();
+            this._renderFilters();
+            this._renderTemplateCards();
+            this._updateActionButtons();
+            showToast('模板保存成功', 'success');
+        } catch (error) {
+            if (error?.message === '已取消保存。') {
+                showToast('已取消保存模板', 'info');
+                return;
+            }
+            console.error('[TemplateSelector] 保存模板失败:', error);
+            showToast(`保存模板失败: ${error.message}`, 'error');
+        }
+    }
+
+    async _updateActiveTemplate() {
+        const activeTemplate = this.templates.find(item => String(item.id) === String(this.activeTemplateId));
+        if (!activeTemplate?.id) {
+            showToast('请先应用一个模板，再执行更新。', 'warning');
+            return;
+        }
+
+        try {
+            const payload = this._buildTemplatePayload(activeTemplate);
+            await httpClient.put(`/templates/${activeTemplate.id}`, payload);
+            await this._loadTemplates();
+            this._renderFilters();
+            this._renderTemplateCards();
+            this._updateActionButtons();
+            showToast('模板更新成功', 'success');
+        } catch (error) {
+            if (error?.message === '已取消保存。') {
+                showToast('已取消更新模板', 'info');
+                return;
+            }
+            console.error('[TemplateSelector] 更新模板失败:', error);
+            showToast(`更新模板失败: ${error.message}`, 'error');
+        }
+    }
+
+    _buildTemplatePayload(existingTemplate = null) {
+        if (!this.flowCanvas || typeof this.flowCanvas.serialize !== 'function') {
+            throw new Error('当前画布不支持序列化，无法保存模板。');
+        }
+
+        const flowData = this.flowCanvas.serialize();
+        if (!flowData || !Array.isArray(flowData.operators) || flowData.operators.length === 0) {
+            throw new Error('当前流程为空，无法保存模板。');
+        }
+
+        const defaultName = existingTemplate?.name || `自定义模板-${new Date().toISOString().slice(0, 10)}`;
+        const defaultDescription = existingTemplate?.description || '';
+        const defaultIndustry = existingTemplate?.industry || '';
+        const defaultTags = Array.isArray(existingTemplate?.tags) ? existingTemplate.tags.join(',') : '';
+
+        const name = window.prompt('请输入模板名称：', defaultName);
+        if (name === null) {
+            throw new Error('已取消保存。');
+        }
+        if (!String(name).trim()) {
+            throw new Error('模板名称不能为空。');
+        }
+
+        const description = window.prompt('请输入模板描述（可留空）：', defaultDescription);
+        if (description === null) {
+            throw new Error('已取消保存。');
+        }
+
+        const industry = window.prompt('请输入行业（可留空）：', defaultIndustry);
+        if (industry === null) {
+            throw new Error('已取消保存。');
+        }
+
+        const tagsInput = window.prompt('请输入标签（逗号分隔，可留空）：', defaultTags);
+        if (tagsInput === null) {
+            throw new Error('已取消保存。');
+        }
+
+        return {
+            name: String(name).trim(),
+            description: String(description).trim(),
+            industry: String(industry).trim(),
+            tags: this._parseTags(tagsInput),
+            flowData
+        };
+    }
+
+    _parseTags(tagsInput) {
+        if (!tagsInput) {
+            return [];
+        }
+
+        return String(tagsInput)
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean);
     }
 
     _buildLayout(operators, connections) {

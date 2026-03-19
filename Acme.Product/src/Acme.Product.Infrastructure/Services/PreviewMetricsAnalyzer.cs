@@ -43,14 +43,16 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
 
         try
         {
+            var detectionSummary = DetectionOutputInspector.Inspect(outputData);
+
             // 1. 图像统计
             metrics.ImageStats = CalculateImageStats(image);
 
             // 2. Blob 统计
-            metrics.BlobStats = ExtractBlobStats(outputData);
+            metrics.BlobStats = ExtractBlobStats(outputData, detectionSummary);
 
             // 3. 诊断标签
-            metrics.Diagnostics = GenerateDiagnostics(image, metrics.BlobStats, metrics.ImageStats);
+            metrics.Diagnostics = GenerateDiagnostics(image, metrics.BlobStats, metrics.ImageStats, detectionSummary, goal);
 
             // 4. 可优化目标与评分
             metrics.Goals = CalculateGoals(metrics.BlobStats, goal);
@@ -140,9 +142,34 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
     /// <summary>
     /// 提取 Blob 统计
     /// </summary>
-    private List<BlobStat> ExtractBlobStats(Dictionary<string, object>? outputData)
+    private List<BlobStat> ExtractBlobStats(
+        Dictionary<string, object>? outputData,
+        DetectionOutputSummary detectionSummary)
     {
         var blobStats = new List<BlobStat>();
+
+        if (detectionSummary.Detections.Count > 0)
+        {
+            return detectionSummary.Detections
+                .Select((detection, index) => new BlobStat
+                {
+                    Id = index,
+                    CentroidX = detection.CenterX,
+                    CentroidY = detection.CenterY,
+                    BoundingBox = new BoundingBox
+                    {
+                        X = detection.X,
+                        Y = detection.Y,
+                        Width = detection.Width,
+                        Height = detection.Height
+                    },
+                    Area = detection.Area,
+                    Circularity = detection.Width <= 0 || detection.Height <= 0
+                        ? 0
+                        : Math.Min(detection.Width, detection.Height) / Math.Max(detection.Width, detection.Height)
+                })
+                .ToList();
+        }
 
         if (outputData == null)
             return blobStats;
@@ -204,47 +231,87 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
     /// <summary>
     /// 生成诊断标签
     /// </summary>
-    private List<string> GenerateDiagnostics(Mat image, List<BlobStat> blobStats, ImageStats imageStats)
+    private List<string> GenerateDiagnostics(
+        Mat image,
+        List<BlobStat> blobStats,
+        ImageStats imageStats,
+        DetectionOutputSummary detectionSummary,
+        AutoTuneGoal? goal)
     {
         var diagnostics = new List<string>();
 
         // 1. 检查反光（高亮区域占比）
-        double highIntensityRatio = imageStats.Histogram.Skip(200).Sum() / (double)imageStats.Histogram.Sum();
+        double highIntensityRatio = imageStats.Histogram.Sum() == 0
+            ? 0
+            : imageStats.Histogram.Skip(200).Sum() / (double)imageStats.Histogram.Sum();
         if (highIntensityRatio > 0.3)
         {
-            diagnostics.Add("SpecularHighlightsDominant");
+            diagnostics.Add(PreviewDiagnosticTags.SpecularHighlightsDominant);
         }
 
         // 2. 检查噪声（小 Blob 数量）
         int smallBlobs = blobStats.Count(b => b.Area < 50);
         if (smallBlobs > blobStats.Count * 0.5 && blobStats.Count > 5)
         {
-            diagnostics.Add("MaskTooNoisy");
+            diagnostics.Add(PreviewDiagnosticTags.MaskTooNoisy);
         }
 
         // 3. 检查碎片化（Blob 数量异常多）
         if (blobStats.Count > 20)
         {
-            diagnostics.Add("StrapFragmented");
+            diagnostics.Add(PreviewDiagnosticTags.StrapFragmented);
         }
 
         // 4. 检查对比度
         if (imageStats.StdDev < 30)
         {
-            diagnostics.Add("LowContrast");
+            diagnostics.Add(PreviewDiagnosticTags.LowContrast);
         }
 
         // 5. 检查清晰度
         if (imageStats.LaplacianVariance < 100)
         {
-            diagnostics.Add("BlurryImage");
+            diagnostics.Add(PreviewDiagnosticTags.BlurryImage);
         }
 
         // 6. 检查光照不均
         double cornerMean = CalculateCornerMean(image);
         if (Math.Abs(cornerMean - imageStats.MeanIntensity) > 50)
         {
-            diagnostics.Add("UnevenIllumination");
+            diagnostics.Add(PreviewDiagnosticTags.UnevenIllumination);
+        }
+
+        if (detectionSummary.HasDetectionSemantics)
+        {
+            var expectedCount = detectionSummary.ExpectedCount ??
+                (goal?.TargetBlobCount > 0 ? goal.TargetBlobCount : detectionSummary.ExpectedLabels.Count);
+
+            if (detectionSummary.MissingLabels.Count > 0)
+            {
+                diagnostics.Add(PreviewDiagnosticTags.MissingExpectedClass);
+            }
+
+            if (detectionSummary.DuplicateLabels.Count > 0)
+            {
+                diagnostics.Add(PreviewDiagnosticTags.DuplicateDetectedClass);
+            }
+
+            if (expectedCount > 0 && detectionSummary.DetectionCount != expectedCount)
+            {
+                diagnostics.Add(PreviewDiagnosticTags.DetectionCountMismatch);
+            }
+
+            if (detectionSummary.MinConfidence.HasValue &&
+                detectionSummary.MinConfidence.Value < detectionSummary.RequiredMinConfidence)
+            {
+                diagnostics.Add(PreviewDiagnosticTags.LowDetectionConfidence);
+            }
+
+            if (detectionSummary.ExpectedLabels.Count > 0 &&
+                !detectionSummary.ExpectedLabels.SequenceEqual(detectionSummary.ActualOrder, StringComparer.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(PreviewDiagnosticTags.OrderMismatch);
+            }
         }
 
         return diagnostics;
@@ -355,7 +422,7 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
         {
             switch (diagnostic)
             {
-                case "SpecularHighlightsDominant":
+                case PreviewDiagnosticTags.SpecularHighlightsDominant:
                     suggestions.Add(new ParameterSuggestion
                     {
                         ParameterName = "Threshold",
@@ -365,7 +432,7 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                     });
                     break;
 
-                case "MaskTooNoisy":
+                case PreviewDiagnosticTags.MaskTooNoisy:
                     suggestions.Add(new ParameterSuggestion
                     {
                         ParameterName = "MinArea",
@@ -382,7 +449,7 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                     });
                     break;
 
-                case "StrapFragmented":
+                case PreviewDiagnosticTags.StrapFragmented:
                     suggestions.Add(new ParameterSuggestion
                     {
                         ParameterName = "MorphologyOperation",
@@ -392,13 +459,63 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                     });
                     break;
 
-                case "LowContrast":
+                case PreviewDiagnosticTags.LowContrast:
                     suggestions.Add(new ParameterSuggestion
                     {
                         ParameterName = "ClaheEnhancement",
                         SuggestedValue = "启用",
                         Reason = "图像对比度低",
                         ExpectedImprovement = "增强局部对比度"
+                    });
+                    break;
+
+                case PreviewDiagnosticTags.MissingExpectedClass:
+                    suggestions.Add(new ParameterSuggestion
+                    {
+                        ParameterName = "ExpectedLabels",
+                        SuggestedValue = "review",
+                        Reason = "Expected labels are missing in the current detection result.",
+                        ExpectedImprovement = "Helps align model output with the target sequence."
+                    });
+                    break;
+
+                case PreviewDiagnosticTags.DuplicateDetectedClass:
+                    suggestions.Add(new ParameterSuggestion
+                    {
+                        ParameterName = "BoxNms/BoxFilter",
+                        SuggestedValue = "tighten",
+                        Reason = "Duplicate detections were found for the same class.",
+                        ExpectedImprovement = "Reduces duplicate boxes before sequence judgment."
+                    });
+                    break;
+
+                case PreviewDiagnosticTags.DetectionCountMismatch:
+                    suggestions.Add(new ParameterSuggestion
+                    {
+                        ParameterName = "Confidence",
+                        SuggestedValue = "adjust",
+                        Reason = "Detection count does not match the expected count.",
+                        ExpectedImprovement = "Helps detections converge to the expected quantity."
+                    });
+                    break;
+
+                case PreviewDiagnosticTags.LowDetectionConfidence:
+                    suggestions.Add(new ParameterSuggestion
+                    {
+                        ParameterName = "Confidence",
+                        SuggestedValue = "review",
+                        Reason = "At least one detection confidence is lower than the working threshold.",
+                        ExpectedImprovement = "Improves sequence stability by reducing marginal detections."
+                    });
+                    break;
+
+                case PreviewDiagnosticTags.OrderMismatch:
+                    suggestions.Add(new ParameterSuggestion
+                    {
+                        ParameterName = "ExpectedLabels",
+                        SuggestedValue = "verify-order",
+                        Reason = "Detected label order does not match the expected sequence.",
+                        ExpectedImprovement = "Makes order mismatches easier to diagnose and correct."
                     });
                     break;
             }

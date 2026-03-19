@@ -164,4 +164,66 @@ public class GenerateFlowMessageHandlerTests
         firstOp.GetProperty("type").ValueKind.Should().Be(JsonValueKind.String);
         firstOp.GetProperty("type").GetString().Should().Be("ImageAcquisition");
     }
+
+    [Fact(DisplayName = "GenerateFlowMessageHandler should include template-first structured fields")]
+    public async Task HandleAsync_ShouldSerializeTemplateFirstStructuredPayload()
+    {
+        // Arrange
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = true,
+                Flow = new { operators = Array.Empty<object>(), connections = Array.Empty<object>() },
+                RecommendedTemplate = new AiRecommendedTemplateInfo
+                {
+                    TemplateId = Guid.NewGuid().ToString(),
+                    TemplateName = "端子线序检测",
+                    MatchReason = "命中关键词：线序、端子",
+                    MatchMode = "template-first",
+                    Confidence = 0.91
+                },
+                PendingParameters =
+                [
+                    new AiPendingParameterInfo
+                    {
+                        OperatorId = "op_3",
+                        ParameterNames = ["ModelPath", "Confidence"]
+                    }
+                ],
+                MissingResources =
+                [
+                    new AiMissingResourceInfo
+                    {
+                        ResourceType = "Model",
+                        ResourceKey = "DeepLearning.ModelPath",
+                        Description = "缺少模型文件路径"
+                    }
+                ]
+            }));
+
+        // Act
+        var resultJson = await handler.HandleAsync("线序检测");
+
+        // Assert
+        using var doc = JsonDocument.Parse(resultJson);
+        var root = doc.RootElement;
+        root.GetProperty("recommendedTemplate").GetProperty("templateName").GetString()
+            .Should().Be("端子线序检测");
+        root.GetProperty("recommendedTemplate").GetProperty("matchMode").GetString()
+            .Should().Be("template-first");
+        root.GetProperty("pendingParameters").GetArrayLength().Should().Be(1);
+        root.GetProperty("pendingParameters")[0].GetProperty("operatorId").GetString().Should().Be("op_3");
+        root.GetProperty("missingResources").GetArrayLength().Should().Be(1);
+        root.GetProperty("missingResources")[0].GetProperty("resourceKey").GetString()
+            .Should().Be("DeepLearning.ModelPath");
+    }
 }

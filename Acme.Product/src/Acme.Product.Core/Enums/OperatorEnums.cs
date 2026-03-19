@@ -97,6 +97,8 @@ public enum OperatorType
 
     ResultJudgment = 60,
 
+    DetectionSequenceJudge = 61,
+
 
     ModbusRtuCommunication = 70,
 

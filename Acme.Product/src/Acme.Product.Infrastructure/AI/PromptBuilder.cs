@@ -37,6 +37,8 @@ public class PromptBuilder
         sb.AppendLine();
         sb.AppendLine(GetDomainKnowledge());
         sb.AppendLine();
+        sb.AppendLine(GetTemplateFirstStrategy());
+        sb.AppendLine();
         sb.AppendLine(GetPhase1OperatorExtensions());
         sb.AppendLine();
         sb.AppendLine(GetPhase2OperatorExtensions());
@@ -136,6 +138,19 @@ public class PromptBuilder
            工业图像通常有噪声，直接做边缘检测或Blob分析会产生大量误检，应先 Filtering
         """;
 
+    private string GetTemplateFirstStrategy() => """
+        # 模板优先策略（高频场景）
+
+        当用户描述命中以下关键词时，优先走“模板优先”而不是“全量自由编排”：
+        - 线序 / 端子 / 接线顺序 / 排针顺序
+        - wire sequence / terminal order / connector order
+
+        对命中场景的要求：
+        1. 优先复用与场景最匹配的模板结构，再补充必要算子与参数。
+        2. 不要从零开始构造无关算子链，保持模板主干稳定。
+        3. 输出中应包含推荐模板、待确认参数、缺失资源信息，便于工程师快速落地。
+        """;
+
     private string GetPhase1OperatorExtensions() => """
         # Phase 1 Operator Extensions
         ## New workflow patterns
@@ -143,6 +158,8 @@ public class PromptBuilder
            ImageAcquisition -> Filtering -> CaliperTool -> WidthMeasurement -> UnitConvert -> ResultJudgment -> ResultOutput
         2. AI post-processing:
            ImageAcquisition -> DeepLearning -> BoxNms -> BoxFilter -> ResultJudgment -> ResultOutput
+        2.1. Detection sequence judgment:
+            ImageAcquisition -> DeepLearning -> BoxNms -> DetectionSequenceJudge -> ConditionalBranch/ResultOutput
         3. Image quality gate:
            ImageAcquisition -> SharpnessEvaluation -> ConditionalBranch -> (continue or reject)
         4. Position-first inspection:
@@ -156,6 +173,7 @@ public class PromptBuilder
         - "line to line distance/parallelism" => LineLineDistance
         - "remove duplicate boxes / NMS" => BoxNms
         - "filter detections by class/area/score" => BoxFilter
+        - "wire sequence / terminal order / connector order" => DetectionSequenceJudge
         - "is image sharp / focus check / blur" => SharpnessEvaluation
         - "correct ROI position / offset compensation" => PositionCorrection
         - "N-point calibration / affine calibration" => NPointCalibration
@@ -551,9 +569,32 @@ public class PromptBuilder
           ],
           "parametersNeedingReview": {
             "op_3": ["ModelPath", "Confidence"]
-          }
+          },
+          "recommendedTemplate": {
+            "templateId": "template-guid-or-empty",
+            "templateName": "端子线序检测",
+            "matchReason": "命中关键词：线序、端子、接线顺序",
+            "matchMode": "template-first",
+            "confidence": 0.92
+          },
+          "pendingParameters": [
+            {
+              "operatorId": "op_3",
+              "parameterNames": ["ModelPath", "Confidence", "TargetClasses"]
+            }
+          ],
+          "missingResources": [
+            {
+              "resourceType": "Model",
+              "resourceKey": "DeepLearning.ModelPath",
+              "description": "缺少可用模型文件路径"
+            }
+          ]
         }
         ```
+
+        > `recommendedTemplate` / `pendingParameters` / `missingResources` 为可选字段。
+        > 若未命中高频模板场景，可输出空对象或空数组。
 
         ## 关于参数配置 (parameters)
         - 根据用户的描述推断合理的参数值。如果描述中包含数量、尺寸、大小等信息，应转换为相应的数值
@@ -564,6 +605,18 @@ public class PromptBuilder
         ## 关于 parametersNeedingReview
         列出你无法从用户描述中确定明确值、必须由用户提供真实环境数据的参数。
         例如：文件路径、IP 地址、模型文件路径、特定尺寸阈值等。
+
+        ## 关于 pendingParameters
+        - 与 `parametersNeedingReview` 保持语义一致，但结构更适合前端直接渲染。
+        - 每项包含 `operatorId` 和需要确认的 `parameterNames`。
+
+        ## 关于 missingResources
+        - 用于表达模板落地缺口，如模型文件、标签文件、PLC 地址、标定文件等。
+        - 每项包含 `resourceType` / `resourceKey` / `description`。
+
+        ## 关于 recommendedTemplate
+        - 高频场景（如线序/端子）应优先给出模板推荐信息。
+        - `matchMode` 推荐固定为 `template-first`。
 
         ## 关于 tempId
         格式固定为 op_1, op_2, op_3...，按算子在流程中的执行顺序递增。

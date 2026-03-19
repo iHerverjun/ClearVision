@@ -53,6 +53,31 @@ public record GenerateFlowResponse
     public string? SessionId { get; init; }
     public string? DetectedIntent { get; init; }
     public object? DryRunResult { get; init; }
+    public GenerateFlowTemplateRecommendation? RecommendedTemplate { get; init; }
+    public List<GenerateFlowPendingParameter> PendingParameters { get; init; } = new();
+    public List<GenerateFlowMissingResource> MissingResources { get; init; } = new();
+}
+
+public record GenerateFlowTemplateRecommendation
+{
+    public string? TemplateId { get; init; }
+    public string TemplateName { get; init; } = string.Empty;
+    public string MatchReason { get; init; } = string.Empty;
+    public string MatchMode { get; init; } = string.Empty;
+    public double Confidence { get; init; }
+}
+
+public record GenerateFlowPendingParameter
+{
+    public string OperatorId { get; init; } = string.Empty;
+    public List<string> ParameterNames { get; init; } = new();
+}
+
+public record GenerateFlowMissingResource
+{
+    public string ResourceType { get; init; } = string.Empty;
+    public string ResourceKey { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
 }
 
 

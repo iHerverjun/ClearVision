@@ -46,6 +46,7 @@ internal static class OperatorMetadataLocalization
             [OperatorType.CycleCounter] = new("循环计数器", "变量"),
             [OperatorType.DatabaseWrite] = new("数据库写入", "数据"),
             [OperatorType.DeepLearning] = new("深度学习", "AI检测"),
+            [OperatorType.DetectionSequenceJudge] = new("线序判定", "AI检测"),
             [OperatorType.Delay] = new("延时", "流程控制"),
             [OperatorType.DualModalVoting] = new("双模态投票", "AI检测"),
             [OperatorType.EdgeDetection] = new("边缘检测", "特征提取"),

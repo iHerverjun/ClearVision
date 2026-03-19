@@ -3,6 +3,7 @@ using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Desktop.Endpoints;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using OpenCvSharp;
+using DetectionResultValue = Acme.Product.Core.ValueObjects.DetectionResult;
 
 namespace Acme.Product.Desktop.Tests;
 
@@ -182,6 +184,82 @@ public class PreviewNodeEndpointsTests
         metrics.GetProperty("areaStats").GetProperty("min").GetDouble().Should().Be(4d);
         metrics.GetProperty("areaStats").GetProperty("max").GetDouble().Should().Be(6d);
         metrics.GetProperty("areaStats").GetProperty("mean").GetDouble().Should().Be(5d);
+    }
+
+    [Fact]
+    public async Task PreviewNode_ReturnsDetectionFeedbackMetrics()
+    {
+        var projectId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = true,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 18,
+                    IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                    {
+                        [targetNodeId] = new()
+                        {
+                            ["DetectionList"] = new DetectionList(new[]
+                            {
+                                new DetectionResultValue("Wire_Brown", 0.98f, 10f, 10f, 8f, 8f),
+                                new DetectionResultValue("Wire_Black", 0.66f, 30f, 10f, 8f, 8f)
+                            }),
+                            ["ObjectCount"] = 2,
+                            ["ExpectedLabels"] = new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" },
+                            ["RequiredMinConfidence"] = 0.8
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = new FlowData
+            {
+                Operators = new List<OperatorData>
+                {
+                    new()
+                    {
+                        Id = targetNodeId,
+                        Name = "Judge",
+                        Type = "DetectionSequenceJudge"
+                    }
+                }
+            }
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var metrics = document.RootElement.GetProperty("metrics");
+
+        metrics.GetProperty("detectionCount").GetInt32().Should().Be(2);
+        metrics.GetProperty("objectCount").GetInt32().Should().Be(2);
+        metrics.GetProperty("sortedLabels")[0].GetString().Should().Be("Wire_Brown");
+        metrics.GetProperty("sortedLabels")[1].GetString().Should().Be("Wire_Black");
+        metrics.GetProperty("missingLabels")[0].GetString().Should().Be("Wire_Blue");
+        metrics.GetProperty("diagnostics").EnumerateArray().Select(item => item.GetString()).Should()
+            .Contain(new[]
+            {
+                PreviewDiagnosticTags.MissingExpectedClass,
+                PreviewDiagnosticTags.DetectionCountMismatch,
+                PreviewDiagnosticTags.LowDetectionConfidence,
+                PreviewDiagnosticTags.OrderMismatch
+            });
+
+        var perClassCount = metrics.GetProperty("perClassCount");
+        perClassCount.GetProperty("Wire_Brown").GetInt32().Should().Be(1);
+        perClassCount.GetProperty("Wire_Black").GetInt32().Should().Be(1);
     }
 
     private static int ReadIntValue(object? value)

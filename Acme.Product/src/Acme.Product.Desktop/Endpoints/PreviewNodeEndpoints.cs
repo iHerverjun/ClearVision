@@ -8,6 +8,7 @@ using Acme.Product.Application.Services;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Services;
 using Port = Acme.Product.Core.ValueObjects.Port;
 using Parameter = Acme.Product.Core.ValueObjects.Parameter;
 using Microsoft.AspNetCore.Builder;
@@ -44,12 +45,12 @@ public static class PreviewNodeEndpoints
                     request.ProjectId, request.TargetNodeId, request.DebugSessionId);
 
                 // 从数据库加载流程，或直接使用前端传来的流程数据
-                Acme.Product.Core.Entities.OperatorFlow flow;
+                Acme.Product.Core.Entities.OperatorFlow? flow;
                 
                 if (request.FlowData?.Operators?.Count > 0)
                 {
                     // 使用前端传来的流程数据
-                    flow = request.FlowData.ToEntity();
+                    flow = FlowEntityMapper.ToEntity(request.FlowData);
                 }
                 else
                 {
@@ -220,10 +221,18 @@ public static class PreviewNodeEndpoints
         byte[]? outputImageBytes,
         string? errorMessage)
     {
+        var detectionSummary = DetectionOutputInspector.Inspect(outputData);
         var areas = ExtractBlobAreas(outputData);
+        if (areas.Count == 0 && detectionSummary.Detections.Count > 0)
+        {
+            areas = detectionSummary.Detections
+                .Select(detection => (double)detection.Area)
+                .ToList();
+        }
+
         return new PreviewFeedbackMetrics
         {
-            BlobCount = ResolveBlobCount(outputData, areas.Count),
+            BlobCount = ResolveBlobCount(outputData, areas.Count, detectionSummary),
             AreaStats = areas.Count == 0
                 ? null
                 : new PreviewAreaStats
@@ -232,14 +241,25 @@ public static class PreviewNodeEndpoints
                     Max = areas.Max(),
                     Mean = areas.Average()
                 },
+            DetectionCount = detectionSummary.HasDetectionSemantics ? detectionSummary.DetectionCount : null,
+            ObjectCount = detectionSummary.DeclaredCount ?? (detectionSummary.HasDetectionSemantics ? detectionSummary.DetectionCount : null),
+            PerClassCount = detectionSummary.PerClassCount.Count > 0 ? detectionSummary.PerClassCount : null,
+            SortedLabels = detectionSummary.ActualOrder.Count > 0 ? detectionSummary.ActualOrder : null,
+            MinConfidence = detectionSummary.MinConfidence,
+            MissingLabels = detectionSummary.MissingLabels.Count > 0 ? detectionSummary.MissingLabels : null,
+            DuplicateLabels = detectionSummary.DuplicateLabels.Count > 0 ? detectionSummary.DuplicateLabels : null,
+            Diagnostics = CreateDetectionDiagnostics(detectionSummary),
             BinaryRatio = ComputeBinaryRatio(outputImageBytes),
             ErrorMessage = errorMessage
         };
     }
 
-    private static int ResolveBlobCount(Dictionary<string, object> outputData, int fallbackCount)
+    private static int ResolveBlobCount(
+        Dictionary<string, object> outputData,
+        int fallbackCount,
+        DetectionOutputSummary detectionSummary)
     {
-        foreach (var key in new[] { "BlobCount", "blobCount", "DefectCount", "defectCount" })
+        foreach (var key in new[] { "BlobCount", "blobCount", "DefectCount", "defectCount", "DetectionCount", "detectionCount", "ObjectCount", "objectCount" })
         {
             if (outputData.TryGetValue(key, out var value) && TryReadInt(value, out var count))
             {
@@ -247,12 +267,17 @@ public static class PreviewNodeEndpoints
             }
         }
 
-        foreach (var key in new[] { "Defects", "defects", "Blobs", "blobs" })
+        foreach (var key in new[] { "DetectionList", "detectionList", "Objects", "objects", "Defects", "defects", "Blobs", "blobs" })
         {
             if (outputData.TryGetValue(key, out var value) && TryGetCollectionCount(value, out var count))
             {
                 return count;
             }
+        }
+
+        if (detectionSummary.HasDetectionSemantics)
+        {
+            return detectionSummary.DetectionCount;
         }
 
         return fallbackCount;
@@ -400,6 +425,12 @@ public static class PreviewNodeEndpoints
 
     private static bool TryGetCollectionCount(object? value, out int count)
     {
+        if (value is DetectionList detectionList)
+        {
+            count = detectionList.Count;
+            return true;
+        }
+
         if (value is JsonElement element && element.ValueKind == JsonValueKind.Array)
         {
             count = element.GetArrayLength();
@@ -420,6 +451,46 @@ public static class PreviewNodeEndpoints
 
         count = 0;
         return false;
+    }
+
+    private static List<string>? CreateDetectionDiagnostics(DetectionOutputSummary detectionSummary)
+    {
+        if (!detectionSummary.HasDetectionSemantics)
+        {
+            return null;
+        }
+
+        var diagnostics = new List<string>();
+        var expectedCount = detectionSummary.ExpectedCount ?? detectionSummary.ExpectedLabels.Count;
+
+        if (detectionSummary.MissingLabels.Count > 0)
+        {
+            diagnostics.Add(PreviewDiagnosticTags.MissingExpectedClass);
+        }
+
+        if (detectionSummary.DuplicateLabels.Count > 0)
+        {
+            diagnostics.Add(PreviewDiagnosticTags.DuplicateDetectedClass);
+        }
+
+        if (expectedCount > 0 && detectionSummary.DetectionCount != expectedCount)
+        {
+            diagnostics.Add(PreviewDiagnosticTags.DetectionCountMismatch);
+        }
+
+        if (detectionSummary.MinConfidence.HasValue &&
+            detectionSummary.MinConfidence.Value < detectionSummary.RequiredMinConfidence)
+        {
+            diagnostics.Add(PreviewDiagnosticTags.LowDetectionConfidence);
+        }
+
+        if (detectionSummary.ExpectedLabels.Count > 0 &&
+            !detectionSummary.ExpectedLabels.SequenceEqual(detectionSummary.ActualOrder, StringComparer.OrdinalIgnoreCase))
+        {
+            diagnostics.Add(PreviewDiagnosticTags.OrderMismatch);
+        }
+
+        return diagnostics.Count > 0 ? diagnostics : null;
     }
 
     private static double ComputeBinaryRatio(byte[]? outputImageBytes)
@@ -455,6 +526,14 @@ public class PreviewFeedbackMetrics
 {
     public int BlobCount { get; set; }
     public PreviewAreaStats? AreaStats { get; set; }
+    public int? DetectionCount { get; set; }
+    public int? ObjectCount { get; set; }
+    public Dictionary<string, int>? PerClassCount { get; set; }
+    public List<string>? SortedLabels { get; set; }
+    public double? MinConfidence { get; set; }
+    public List<string>? MissingLabels { get; set; }
+    public List<string>? DuplicateLabels { get; set; }
+    public List<string>? Diagnostics { get; set; }
     public double BinaryRatio { get; set; }
     public string? ErrorMessage { get; set; }
 }
@@ -576,6 +655,8 @@ public class ExecutedOperatorInfo
 /// </summary>
 public class FlowData
 {
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "PreviewFlow";
     public List<OperatorData> Operators { get; set; } = new();
     public List<ConnectionData> Connections { get; set; } = new();
 
@@ -690,10 +771,12 @@ public class PortData
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string DataType { get; set; } = string.Empty;
+    public bool IsRequired { get; set; }
 }
 
 public class ConnectionData
 {
+    public Guid Id { get; set; }
     public Guid SourceOperatorId { get; set; }
     public Guid SourcePortId { get; set; }
     public Guid TargetOperatorId { get; set; }

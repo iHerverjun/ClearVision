@@ -23,6 +23,11 @@ public class OperatorContractReconciliationTests
         deepLearning.OutputPorts.Select(p => p.Name).Should().Contain("DetectionList");
         deepLearning.Parameters.Select(p => p.Name).Should().Contain(new[] { "UseGpu", "GpuDeviceId" });
 
+        var sequenceJudge = factory.GetMetadata(OperatorType.DetectionSequenceJudge)!;
+        sequenceJudge.InputPorts.Select(p => p.Name).Should().Contain("Detections");
+        sequenceJudge.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "IsMatch", "SortedDetections", "Message" });
+        sequenceJudge.Parameters.Select(p => p.Name).Should().Contain(new[] { "ExpectedLabels", "SortBy", "Direction", "ExpectedCount", "MinConfidence" });
+
         var trigger = factory.GetMetadata(OperatorType.TriggerModule)!;
         trigger.InputPorts.Select(p => p.Name).Should().Contain("Signal");
 

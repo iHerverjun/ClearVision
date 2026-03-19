@@ -70,6 +70,21 @@ public class AiFlowGenerationResult
     /// 沙盒空跑验证的结果（覆盖率等信息）
     /// </summary>
     public object? DryRunResult { get; set; }
+
+    /// <summary>
+    /// 模板优先命中时的推荐模板信息
+    /// </summary>
+    public AiRecommendedTemplateInfo? RecommendedTemplate { get; set; }
+
+    /// <summary>
+    /// 结构化待确认参数（用于前端更精准展示）
+    /// </summary>
+    public List<AiPendingParameterInfo> PendingParameters { get; set; } = new();
+
+    /// <summary>
+    /// 模板落地所缺资源（模型/地址/标定等）
+    /// </summary>
+    public List<AiMissingResourceInfo> MissingResources { get; set; } = new();
 }
 
 /// <summary>
@@ -96,6 +111,43 @@ public class AiGeneratedFlowJson
     /// 需要用户确认的参数（算子临时ID → 参数名列表）
     /// </summary>
     public Dictionary<string, List<string>> ParametersNeedingReview { get; set; } = new();
+
+    /// <summary>
+    /// AI 输出的推荐模板信息（可选）
+    /// </summary>
+    public AiRecommendedTemplateInfo? RecommendedTemplate { get; set; }
+
+    /// <summary>
+    /// AI 输出的待确认参数（可选）
+    /// </summary>
+    public List<AiPendingParameterInfo> PendingParameters { get; set; } = new();
+
+    /// <summary>
+    /// AI 输出的缺失资源（可选）
+    /// </summary>
+    public List<AiMissingResourceInfo> MissingResources { get; set; } = new();
+}
+
+public class AiRecommendedTemplateInfo
+{
+    public string? TemplateId { get; set; }
+    public string TemplateName { get; set; } = string.Empty;
+    public string MatchReason { get; set; } = string.Empty;
+    public string MatchMode { get; set; } = string.Empty;
+    public double Confidence { get; set; }
+}
+
+public class AiPendingParameterInfo
+{
+    public string OperatorId { get; set; } = string.Empty;
+    public List<string> ParameterNames { get; set; } = new();
+}
+
+public class AiMissingResourceInfo
+{
+    public string ResourceType { get; set; } = string.Empty;
+    public string ResourceKey { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }
 
 public class AiGeneratedOperator
