@@ -128,6 +128,7 @@ public static class DependencyInjection
 
         // 【第一优先级】结果判定算子
         services.AddSingleton<IOperatorExecutor, ResultJudgmentOperator>();
+        services.AddSingleton<IOperatorExecutor, DetectionSequenceJudgeOperator>();
 
         // 【第三优先级】新增算子 - 预处理
         services.AddSingleton<IOperatorExecutor, ClaheEnhancementOperator>();

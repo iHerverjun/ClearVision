@@ -2,6 +2,7 @@
 // 深度学习算子测试
 // 作者：蘅芜君
 
+using System.Reflection;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -54,6 +55,22 @@ public class DeepLearningOperatorTests
 
         // Assert
         result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Fact]
+    public void ParseTargetClasses_WithCustomLabels_ShouldPreferLoadedLabels()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "ParseTargetClasses",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var labels = new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" };
+        var result = method!.Invoke(_operator, new object?[] { "Wire_Brown,Wire_Blue", labels });
+
+        result.Should().BeAssignableTo<HashSet<int>>();
+        result.As<HashSet<int>>().Should().BeEquivalentTo(new[] { 0, 2 });
     }
 
     #endregion

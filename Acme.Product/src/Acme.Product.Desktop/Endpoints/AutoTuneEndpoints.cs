@@ -108,7 +108,7 @@ public static class AutoTuneEndpoints
                     request.FlowId, request.TargetNodeId);
 
                 // 转换流程数据
-                var flow = request.FlowData.ToEntity();
+                var flow = FlowEntityMapper.ToEntity(request.FlowData);
 
                 var result = await autoTuneService.AutoTuneInFlowAsync(
                     flow,
@@ -606,6 +606,10 @@ public class StrategyInfoDto
 /// </summary>
 public class FlowDataDto
 {
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "AutoTuneFlow";
+    public List<OperatorData> Operators { get; set; } = new();
+
     /// <summary>
     /// 节点列表
     /// </summary>
@@ -621,6 +625,8 @@ public class FlowDataDto
     /// </summary>
     public OperatorFlow ToEntity()
     {
+        return FlowEntityMapper.ToEntity(this);
+
         var flow = new OperatorFlow("AutoTuneFlow");
 
         // 创建算子
@@ -655,8 +661,9 @@ public class FlowDataDto
 public class FlowNodeDto
 {
     public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
     public OperatorType Type { get; set; }
-    public Dictionary<string, string> Parameters { get; set; } = new();
+    public Dictionary<string, object> Parameters { get; set; } = new();
     public PositionDto Position { get; set; } = new();
 }
 
@@ -668,8 +675,13 @@ public class PositionDto
 
 public class FlowConnectionDto
 {
+    public Guid Id { get; set; }
     public Guid SourceId { get; set; }
     public Guid TargetId { get; set; }
+    public Guid SourceOperatorId { get; set; }
+    public Guid SourcePortId { get; set; }
+    public Guid TargetOperatorId { get; set; }
+    public Guid TargetPortId { get; set; }
 }
 
 #endregion

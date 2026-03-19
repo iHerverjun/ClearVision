@@ -501,7 +501,7 @@ public class AutoTuneService : IAutoTuneService
         var newParams = new Dictionary<string, object>(currentParams);
 
         // 根据噪声情况调整面积阈值
-        if (metrics.Diagnostics.Contains("noise"))
+        if (metrics.Diagnostics.Contains(PreviewDiagnosticTags.MaskTooNoisy))
         {
             double currentMinArea = GetParamValue(currentParams, "MinArea", 100);
             newParams["MinArea"] = currentMinArea * 1.5; // 提高最小面积过滤噪声
@@ -510,7 +510,7 @@ public class AutoTuneService : IAutoTuneService
         }
 
         // 根据碎片化情况调整
-        if (metrics.Diagnostics.Contains("fragmentation"))
+        if (metrics.Diagnostics.Contains(PreviewDiagnosticTags.StrapFragmented))
         {
             double currentMinCircularity = GetParamValue(currentParams, "MinCircularity", 0);
             newParams["MinCircularity"] = Math.Min(currentMinCircularity + 0.1, 1.0);
@@ -551,7 +551,7 @@ public class AutoTuneService : IAutoTuneService
         var newParams = new Dictionary<string, object>(currentParams);
 
         // 碎片化 -> 增加闭运算迭代次数
-        if (metrics.Diagnostics.Contains("fragmentation"))
+        if (metrics.Diagnostics.Contains(PreviewDiagnosticTags.StrapFragmented))
         {
             int currentIterations = (int)GetParamValue(currentParams, "Iterations", 1);
             newParams["Iterations"] = Math.Min(currentIterations + 1, 5);
@@ -559,7 +559,7 @@ public class AutoTuneService : IAutoTuneService
         }
 
         // 噪声 -> 增加开运算
-        if (metrics.Diagnostics.Contains("noise"))
+        if (metrics.Diagnostics.Contains(PreviewDiagnosticTags.MaskTooNoisy))
         {
             int currentIterations = (int)GetParamValue(currentParams, "Iterations", 1);
             newParams["Iterations"] = Math.Min(currentIterations + 1, 5);
@@ -580,7 +580,8 @@ public class AutoTuneService : IAutoTuneService
         var newParams = new Dictionary<string, object>(currentParams);
 
         // 噪声多 -> 增加模糊程度
-        if (metrics.Diagnostics.Contains("noise") || metrics.Diagnostics.Contains("reflection"))
+        if (metrics.Diagnostics.Contains(PreviewDiagnosticTags.MaskTooNoisy) ||
+            metrics.Diagnostics.Contains(PreviewDiagnosticTags.SpecularHighlightsDominant))
         {
             double currentSigma = GetParamValue(currentParams, "SigmaX", 1.0);
             newParams["SigmaX"] = Math.Min(currentSigma + 0.5, 5.0);

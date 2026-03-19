@@ -152,13 +152,13 @@ public class DeepLearningOperator : OperatorBase
         var yoloVersionStr = GetStringParam(@operator, "ModelVersion", "Auto");
         var yoloVersion = ParseYoloVersion(yoloVersionStr);
         var targetClassesStr = GetStringParam(@operator, "TargetClasses", string.Empty);
-        var targetClasses = ParseTargetClasses(targetClassesStr);
         var labelFile = GetStringParam(@operator, "LabelFile", "");
 
         // 2.1 加载自定义标签
-        _currentLabels = LoadLabels(labelFile, modelPath);
-        Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", _currentLabels.Length, targetClassesStr);
-        if (_currentLabels.Length > 0 && _currentLabels != CocoClassNames)
+        var labels = LoadLabels(labelFile, modelPath);
+        var targetClasses = ParseTargetClasses(targetClassesStr, labels);
+        Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", labels.Length, targetClassesStr);
+        if (labels.Length > 0 && !ReferenceEquals(labels, CocoClassNames))
         {
             Logger.LogInformation("[DeepLearning] 使用自定义标签");
         }
@@ -215,13 +215,13 @@ public class DeepLearningOperator : OperatorBase
         Logger.LogInformation("[DeepLearning] 检测到目标数量: {DetectionCount}", detections.Count);
 
         // 10. 绘制结果
-        var outputImage = DrawResults(src, detections);
+        var outputImage = DrawResults(src, detections, labels);
 
         // 11. 构建输出 - Sprint 1 Task 1.2: 使用 DetectionList 类型
         var detectionList = new DetectionList(
             detections.Select((d, index) => new Core.ValueObjects.DetectionResult
             {
-                Label = GetClassName(d.ClassId),
+                Label = GetClassName(d.ClassId, labels),
                 Confidence = d.Confidence,
                 X = d.X,
                 Y = d.Y,
@@ -847,7 +847,7 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 解析目标类别字符串
     /// </summary>
-    private HashSet<int>? ParseTargetClasses(string targetClassesStr)
+    private HashSet<int>? ParseTargetClasses(string targetClassesStr, IReadOnlyList<string>? labels)
     {
         if (string.IsNullOrWhiteSpace(targetClassesStr))
             return null;
@@ -866,8 +866,7 @@ public class DeepLearningOperator : OperatorBase
             else
             {
                 // 尝试作为类别名称解析，查找对应的classId
-                var index = Array.FindIndex(CocoClassNames, name =>
-                    name.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+                var index = FindClassIndex(labels, trimmed);
                 if (index >= 0)
                 {
                     result.Add(index);
@@ -918,15 +917,12 @@ public class DeepLearningOperator : OperatorBase
     }
 
     // 存储当前使用的标签数组
-    private string[] _currentLabels = Array.Empty<string>();
-
     /// <summary>
     /// 获取类别名称
     /// </summary>
-    private string GetClassName(int classId, string[]? customLabels = null)
+    private string GetClassName(int classId, IReadOnlyList<string>? labels)
     {
-        var labels = customLabels ?? _currentLabels;
-        if (labels.Length > 0 && classId >= 0 && classId < labels.Length)
+        if (labels != null && classId >= 0 && classId < labels.Count)
             return labels[classId];
         if (classId >= 0 && classId < CocoClassNames.Length)
             return CocoClassNames[classId];
@@ -936,7 +932,7 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 绘制检测结果 - 返回Mat实现零拷贝 (P0优先级)
     /// </summary>
-    private Mat DrawResults(Mat src, List<DetectionResult> detections)
+    private Mat DrawResults(Mat src, List<DetectionResult> detections, IReadOnlyList<string>? labels)
     {
         var result = src.Clone();
 
@@ -950,7 +946,7 @@ public class DeepLearningOperator : OperatorBase
             Cv2.Rectangle(result, rect, color, 2);
 
             // 准备标签 - 使用真实类别名称
-            var className = GetClassName(det.ClassId);
+            var className = GetClassName(det.ClassId, labels);
             var label = $"{className}: {det.Confidence:P0}";
 
             // 计算标签大小
@@ -992,6 +988,23 @@ public class DeepLearningOperator : OperatorBase
         );
 
         return result;
+    }
+
+    private static int FindClassIndex(IReadOnlyList<string>? labels, string className)
+    {
+        if (labels != null)
+        {
+            for (var i = 0; i < labels.Count; i++)
+            {
+                if (string.Equals(labels[i], className, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+        }
+
+        return Array.FindIndex(CocoClassNames, name =>
+            string.Equals(name, className, StringComparison.OrdinalIgnoreCase));
     }
 
 
