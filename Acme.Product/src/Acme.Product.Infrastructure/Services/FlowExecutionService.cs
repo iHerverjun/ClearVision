@@ -4,6 +4,8 @@
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -32,6 +34,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
     // 调试模式：缓存中间结果 - Key: (DebugSessionId, OperatorId)
     private readonly ConcurrentDictionary<(Guid DebugSessionId, Guid OperatorId), Dictionary<string, object>> _debugCache = new();
+    private readonly ConcurrentDictionary<(Guid DebugSessionId, Guid OperatorId), string> _debugCacheFingerprints = new();
     private readonly ConcurrentDictionary<Guid, DebugOptions> _debugOptions = new();
     private readonly ConcurrentDictionary<Guid, DateTime> _debugSessionLastAccess = new();
     private readonly Timer _debugCacheCleanupTimer;
@@ -1077,12 +1080,53 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
                 // 准备输入数据
                 var inputs = PrepareOperatorInputs(flow, op, operatorOutputs);
+                var normalizedInputSnapshot = ConvertImageWrappersToBytes(inputs);
+                var cacheKey = (options.DebugSessionId, op.Id);
+                var cacheFingerprint = CreateDebugCacheFingerprint(op, normalizedInputSnapshot);
 
-                // 记录输入快照
-                var inputSnapshot = new Dictionary<string, object>(inputs);
+                if (options.EnableIntermediateCache &&
+                    _debugCache.TryGetValue(cacheKey, out var cachedOutputs) &&
+                    _debugCacheFingerprints.TryGetValue(cacheKey, out var cachedFingerprint) &&
+                    string.Equals(cachedFingerprint, cacheFingerprint, StringComparison.Ordinal))
+                {
+                    var cachedCopy = CloneNormalizedDictionary(cachedOutputs);
+                    operatorOutputs[op.Id] = cachedCopy;
+
+                    var cachedDebugResult = new OperatorDebugResult
+                    {
+                        OperatorId = op.Id,
+                        OperatorName = op.Name,
+                        IsSuccess = true,
+                        ExecutionTimeMs = 0,
+                        ExecutionOrder = completedCount,
+                        StartTime = DateTime.UtcNow,
+                        EndTime = DateTime.UtcNow,
+                        IsBreakpoint = options.Breakpoints.Contains(op.Id),
+                        InputSnapshot = CloneNormalizedDictionary(normalizedInputSnapshot),
+                        OutputData = CloneNormalizedDictionary(cachedCopy),
+                        OutputSnapshot = CloneNormalizedDictionary(cachedCopy)
+                    };
+
+                    result.DebugOperatorResults.Add(cachedDebugResult);
+                    result.OperatorResults.Add(cachedDebugResult);
+                    result.IntermediateResults[op.Id] = CloneNormalizedDictionary(cachedCopy);
+                    TouchDebugSession(options.DebugSessionId);
+                    completedCount++;
+
+                    if (options.BreakAtOperatorId.HasValue && op.Id == options.BreakAtOperatorId.Value)
+                    {
+                        pausedOperatorId = op.Id;
+                        result.PausedOperatorId = pausedOperatorId;
+                        _logger.LogInformation("[调试] 复用缓存并停在断点算子: {OperatorName} ({OperatorId})", op.Name, op.Id);
+                        break;
+                    }
+
+                    continue;
+                }
 
                 // 执行算子
                 var opResult = await ExecuteOperatorInternalAsync(op, executor, inputs, cts.Token);
+                var normalizedOutputData = ConvertImageWrappersToBytes(opResult.OutputData);
 
                 // 创建调试结果
                 var debugOpResult = new OperatorDebugResult
@@ -1092,13 +1136,13 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                     IsSuccess = opResult.IsSuccess,
                     ExecutionTimeMs = opResult.ExecutionTimeMs,
                     ErrorMessage = opResult.ErrorMessage,
-                    OutputData = opResult.OutputData,
+                    OutputData = CloneNormalizedDictionary(normalizedOutputData),
                     ExecutionOrder = completedCount,
                     StartTime = DateTime.UtcNow.AddMilliseconds(-opResult.ExecutionTimeMs),
                     EndTime = DateTime.UtcNow,
                     IsBreakpoint = options.Breakpoints.Contains(op.Id),
-                    InputSnapshot = inputSnapshot,
-                    OutputSnapshot = opResult.OutputData != null ? new Dictionary<string, object>(opResult.OutputData) : null
+                    InputSnapshot = CloneNormalizedDictionary(normalizedInputSnapshot),
+                    OutputSnapshot = CloneNormalizedDictionary(normalizedOutputData)
                 };
 
                 result.DebugOperatorResults.Add(debugOpResult);
@@ -1117,10 +1161,12 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
 
                 // 调试模式：缓存中间结果
-                if (options.EnableIntermediateCache && opResult.OutputData != null)
+                if (options.EnableIntermediateCache && normalizedOutputData.Count > 0)
                 {
-                    _debugCache[(options.DebugSessionId, op.Id)] = new Dictionary<string, object>(opResult.OutputData);
-                    result.IntermediateResults[op.Id] = new Dictionary<string, object>(opResult.OutputData);
+                    var normalizedOutputCopy = CloneNormalizedDictionary(normalizedOutputData);
+                    _debugCache[cacheKey] = normalizedOutputCopy;
+                    _debugCacheFingerprints[cacheKey] = cacheFingerprint;
+                    result.IntermediateResults[op.Id] = CloneNormalizedDictionary(normalizedOutputCopy);
                     TouchDebugSession(options.DebugSessionId);
                 }
 
@@ -1204,7 +1250,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         if (_debugCache.TryGetValue((debugSessionId, operatorId), out var result))
         {
             TouchDebugSession(debugSessionId);
-            return new Dictionary<string, object>(result);
+            return CloneNormalizedDictionary(result);
         }
         return null;
     }
@@ -1219,6 +1265,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         foreach (var key in keysToRemove)
         {
             _debugCache.TryRemove(key, out _);
+            _debugCacheFingerprints.TryRemove(key, out _);
         }
 
         _debugOptions.TryRemove(debugSessionId, out _);
@@ -1226,6 +1273,78 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
         _logger.LogInformation("[Debug] Cleared debug cache: {DebugSessionId}", debugSessionId);
         return Task.CompletedTask;
+    }
+
+    private static Dictionary<string, object> CloneNormalizedDictionary(Dictionary<string, object> source)
+    {
+        var clone = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in source)
+        {
+            clone[key] = CloneNormalizedValue(value)!;
+        }
+
+        return clone;
+    }
+
+    private static object? CloneNormalizedValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            byte[] bytes => bytes.ToArray(),
+            Dictionary<string, object> dictionary => CloneNormalizedDictionary(dictionary),
+            IDictionary<string, object> typedDictionary => CloneNormalizedDictionary(
+                typedDictionary.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase)),
+            IEnumerable enumerable when value is not string => enumerable.Cast<object?>().Select(CloneNormalizedValue).ToList(),
+            _ => value
+        };
+    }
+
+    private static string CreateDebugCacheFingerprint(Operator op, Dictionary<string, object> inputs)
+    {
+        var fingerprintPayload = new
+        {
+            operatorId = op.Id,
+            operatorType = op.Type.ToString(),
+            parameters = op.Parameters
+                .OrderBy(parameter => parameter.Name, StringComparer.Ordinal)
+                .ToDictionary(
+                    parameter => parameter.Name,
+                    parameter => NormalizeFingerprintValue(parameter.GetValue()),
+                    StringComparer.Ordinal),
+            inputs = inputs
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(
+                    pair => pair.Key,
+                    pair => NormalizeFingerprintValue(pair.Value),
+                    StringComparer.Ordinal)
+        };
+
+        var json = JsonSerializer.Serialize(fingerprintPayload);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(hash);
+    }
+
+    private static object? NormalizeFingerprintValue(object? value)
+    {
+        if (!TryNormalizeOutputValue(value, out var normalized))
+        {
+            return null;
+        }
+
+        return normalized switch
+        {
+            byte[] bytes => new
+            {
+                byteCount = bytes.Length,
+                sha256 = Convert.ToHexString(SHA256.HashData(bytes))
+            },
+            IDictionary<string, object?> dictionary => dictionary
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(pair => pair.Key, pair => NormalizeFingerprintValue(pair.Value), StringComparer.Ordinal),
+            IEnumerable enumerable when normalized is not string => enumerable.Cast<object?>().Select(NormalizeFingerprintValue).ToList(),
+            _ => normalized
+        };
     }
 
     private void TouchDebugSession(Guid debugSessionId)

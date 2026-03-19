@@ -249,6 +249,23 @@ public class InspectionService : IInspectionService
 
         if (stopped)
         {
+            var workerExited = await _worker.WaitForRunExitAsync(
+                projectId,
+                TimeSpan.FromSeconds(3),
+                CancellationToken.None);
+
+            if (!workerExited)
+            {
+                _logger.LogError("[InspectionService] Stop timeout, worker is still running: {ProjectId}", projectId);
+                throw new InvalidOperationException("实时检测停止超时，后台任务仍未退出。");
+            }
+
+            var stateReleased = await WaitForStateReleaseAsync(projectId, TimeSpan.FromSeconds(3));
+            if (!stateReleased)
+            {
+                _logger.LogError("[InspectionService] Stop completed but runtime state was not released: {ProjectId}", projectId);
+                throw new InvalidOperationException("实时检测停止后状态仍未释放。");
+            }
             _logger.LogInformation("[InspectionService] 实时检测停止请求已发送: {ProjectId}", projectId);
         }
         else
@@ -263,6 +280,22 @@ public class InspectionService : IInspectionService
     public RuntimeState? GetRealtimeState(Guid projectId)
     {
         return _coordinator.GetState(projectId);
+    }
+
+    private async Task<bool> WaitForStateReleaseAsync(Guid projectId, TimeSpan timeout)
+    {
+        var startedAt = DateTime.UtcNow;
+        while (DateTime.UtcNow - startedAt <= timeout)
+        {
+            if (_coordinator.GetState(projectId) == null)
+            {
+                return true;
+            }
+
+            await Task.Delay(50);
+        }
+
+        return _coordinator.GetState(projectId) == null;
     }
 
     #endregion
