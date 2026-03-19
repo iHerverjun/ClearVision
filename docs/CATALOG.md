@@ -1,12 +1,13 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-03-18 19:00:34 +08:00`
-> 算子总数 / Total Operators: **154**
+> 生成时间 / Generated At: `2026-03-19 21:05:32 +08:00`
+> 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
 | 分类 (Category) | 数量 (Count) | 占比 (Ratio) |
 |------|------:|------:|
 | 3D | 6 | 3.9% |
+| AI Inspection | 1 | 0.6% |
 | AI检测 | 6 | 3.9% |
 | Analysis | 1 | 0.6% |
 | Frequency | 3 | 1.9% |
@@ -19,8 +20,8 @@
 | 定位 | 7 | 4.5% |
 | 拆分组合 | 2 | 1.3% |
 | 数据处理 | 10 | 6.5% |
-| 标定 | 12 | 7.8% |
-| 检测 | 20 | 13.0% |
+| 标定 | 12 | 7.7% |
+| 检测 | 20 | 12.9% |
 | 流程控制 | 6 | 3.9% |
 | 特征提取 | 4 | 2.6% |
 | 识别 | 2 | 1.3% |
@@ -30,15 +31,15 @@
 | 通用 | 4 | 2.6% |
 | 逻辑工具 | 5 | 3.2% |
 | 采集 | 1 | 0.6% |
-| 预处理 | 23 | 14.9% |
+| 预处理 | 23 | 14.8% |
 | 颜色处理 | 2 | 1.3% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **86.4**
+- 平均分 / Average: **86.3**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
 | A | 99 |
-| B | 34 |
+| B | 35 |
 | C | 21 |
 
 ## 分类索引 / Grouped Index
@@ -52,6 +53,11 @@
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 95 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./operators/RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 95 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./operators/StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./operators/VoxelDownsample.md) |
+
+### AI Inspection (1)
+| 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
+|------|------|------:|------:|------:|------|------|------|------|
+| `OperatorType.DetectionSequenceJudge` | Detection Sequence Judge | 1 | 7 | 7 | 80 (B) | `1.0.0` | - | [DetectionSequenceJudge](./operators/DetectionSequenceJudge.md) |
 
 ### AI检测 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

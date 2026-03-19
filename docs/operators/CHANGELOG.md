@@ -1,7 +1,7 @@
 # 算子版本变更记录 / Operator Version Changelog
 
 > 生成时间 / Generated At: `2026-02-26 21:20:16 +08:00`
-> 算子总数 / Total Operators: **154**
+> 算子总数 / Total Operators: **155**
 
 ## 当前版本快照 / Current Snapshot
 | 枚举 (Enum) | 显示名 (DisplayName) | 分类 (Category) | 版本 (Version) |
@@ -12,6 +12,7 @@
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 3D | `1.0.0` |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 3D | `1.0.0` |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 3D | `1.0.0` |
+| `OperatorType.DetectionSequenceJudge` | Detection Sequence Judge | AI Inspection | `1.0.0` |
 | `OperatorType.AnomalyDetection` | 异常检测 | AI检测 | `1.0.0` |
 | `OperatorType.DeepLearning` | 深度学习 | AI检测 | `1.0.0` |
 | `OperatorType.DualModalVoting` | 双模态投票 | AI检测 | `1.0.0` |
@@ -308,6 +309,7 @@
 ### OperatorType.DeepLearning / 深度学习
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-03-19T21:05:20.9090050+08:00` | `BA294CCA79B2` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `1080D0ECD2E1` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `5EC82567EBEA` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `B029BB23CF34` |

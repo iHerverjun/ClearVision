@@ -616,6 +616,11 @@
           "version": "1.0.0",
           "sourceHash": "1080D0ECD2E1C268A1DA7039D7563D70DF40EC602589DFE4739B08AFC15DC0A6",
           "recordedAt": "2026-03-16T19:59:19.7031372\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "BA294CCA79B2668AF0642671568CADC416FE1BC6E19264E68D9EEC8933087CCC",
+          "recordedAt": "2026-03-19T21:05:20.9090050\u002B08:00"
         }
       ]
     },
@@ -633,6 +638,18 @@
           "version": "1.0.0",
           "sourceHash": "D68E60C7245748956C31A2EE90EE0C6870ED082D4E1AEA4D0363C47E0B091464",
           "recordedAt": "2026-03-04T19:17:03.2031512\u002B08:00"
+        }
+      ]
+    },
+    {
+      "id": "DetectionSequenceJudge",
+      "displayName": "Detection Sequence Judge",
+      "category": "AI Inspection",
+      "records": [
+        {
+          "version": "1.0.0",
+          "sourceHash": "FBDBEFB1AF7FA8287285ED61A02795433C2B28B7061D3B824016DC80308CF88E",
+          "recordedAt": "2026-03-19T21:05:20.9090050\u002B08:00"
         }
       ]
     },

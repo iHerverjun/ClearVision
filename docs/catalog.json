@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-18T19:00:34.8691424+08:00",
-  "totalCount": 154,
+  "generatedAt": "2026-03-19T21:05:32.3561939+08:00",
+  "totalCount": 155,
   "categories": {
     "3D": {
       "count": 6,
@@ -11,6 +11,12 @@
         "RansacPlaneSegmentation",
         "StatisticalOutlierRemoval",
         "VoxelDownsample"
+      ]
+    },
+    "AI Inspection": {
+      "count": 1,
+      "operators": [
+        "DetectionSequenceJudge"
       ]
     },
     "AI检测": {
@@ -6528,6 +6534,203 @@
         "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
       },
       "docPath": "docs/operators/ResultJudgment.md"
+    },
+    {
+      "id": "DetectionSequenceJudge",
+      "type": 61,
+      "displayName": "Detection Sequence Judge",
+      "description": "Sorts detections and compares the resulting label order against an expected sequence.",
+      "category": "AI Inspection",
+      "version": "1.0.0",
+      "tags": [
+        "功能域:检测",
+        "成熟度:稳定",
+        "算法类型:自研"
+      ],
+      "algorithm": null,
+      "inputPorts": [
+        {
+          "name": "Detections",
+          "displayName": "Detections",
+          "dataType": "DetectionList",
+          "isRequired": true
+        }
+      ],
+      "outputPorts": [
+        {
+          "name": "IsMatch",
+          "displayName": "Is Match",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "ActualOrder",
+          "displayName": "Actual Order",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Count",
+          "displayName": "Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "MissingLabels",
+          "displayName": "Missing Labels",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "DuplicateLabels",
+          "displayName": "Duplicate Labels",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "SortedDetections",
+          "displayName": "Sorted Detections",
+          "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
+          "name": "Message",
+          "displayName": "Message",
+          "dataType": "String",
+          "isRequired": null
+        }
+      ],
+      "parameters": [
+        {
+          "name": "ExpectedLabels",
+          "displayName": "Expected Labels",
+          "dataType": "string",
+          "description": "Comma-separated expected labels in order.",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SortBy",
+          "displayName": "Sort By",
+          "dataType": "enum",
+          "description": "Field used to sort detections before judging the sequence.",
+          "defaultValue": "CenterX",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "CenterX",
+              "label": "Center X"
+            },
+            {
+              "value": "CenterY",
+              "label": "Center Y"
+            },
+            {
+              "value": "Confidence",
+              "label": "Confidence"
+            },
+            {
+              "value": "Area",
+              "label": "Area"
+            }
+          ]
+        },
+        {
+          "name": "Direction",
+          "displayName": "Direction",
+          "dataType": "enum",
+          "description": "Ordering direction after sorting.",
+          "defaultValue": "Ascending",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Ascending",
+              "label": "Ascending"
+            },
+            {
+              "value": "Descending",
+              "label": "Descending"
+            },
+            {
+              "value": "LeftToRight",
+              "label": "Left To Right"
+            },
+            {
+              "value": "RightToLeft",
+              "label": "Right To Left"
+            },
+            {
+              "value": "TopToBottom",
+              "label": "Top To Bottom"
+            },
+            {
+              "value": "BottomToTop",
+              "label": "Bottom To Top"
+            }
+          ]
+        },
+        {
+          "name": "ExpectedCount",
+          "displayName": "Expected Count",
+          "dataType": "int",
+          "description": "Expected detection count. Use 0 to derive from ExpectedLabels.",
+          "defaultValue": "0",
+          "min": "0",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinConfidence",
+          "displayName": "Min Confidence",
+          "dataType": "double",
+          "description": "Ignore detections below this confidence before sequence judgment.",
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "AllowMissing",
+          "displayName": "Allow Missing",
+          "dataType": "bool",
+          "description": "Whether missing expected labels should still be treated as a match.",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "AllowDuplicate",
+          "displayName": "Allow Duplicate",
+          "dataType": "bool",
+          "description": "Whether duplicate labels should still be treated as a match.",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        }
+      ],
+      "quality": {
+        "totalScore": 80,
+        "level": "B",
+        "documentationScore": 60,
+        "testCoverageScore": 100,
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 60,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+      },
+      "docPath": "docs/operators/DetectionSequenceJudge.md"
     },
     {
       "id": "ClaheEnhancement",
