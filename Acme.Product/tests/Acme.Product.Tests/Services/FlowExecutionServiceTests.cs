@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,5 +76,85 @@ public class FlowExecutionServiceTests
 
         // Assert
         result.IsSuccess.Should().BeFalse("Flow execution should be cancelled");
+    }
+
+    [Fact]
+    public async Task ExecuteFlowDebugAsync_ReusesCachedUpstreamOutputs_WhenOnlyTargetParametersChange()
+    {
+        var callCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+        _executor.ValidateParameters(Arg.Any<Operator>()).Returns(new ValidationResult { IsValid = true });
+        _executor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var op = callInfo.Arg<Operator>();
+                callCounts.AddOrUpdate(op.Name, 1, (_, current) => current + 1);
+
+                return Task.FromResult(OperatorExecutionOutput.Success(
+                    new Dictionary<string, object>
+                    {
+                        ["Image"] = new byte[] { (byte)callCounts[op.Name] },
+                        ["BlobCount"] = op.Parameters.FirstOrDefault(p => p.Name == "Threshold")?.GetValue() ?? 0
+                    },
+                    executionTimeMs: 5));
+            });
+
+        var flow = new OperatorFlow("DebugFlow");
+        var upstream = CreateOperatorWithPorts("Upstream", OperatorType.Thresholding);
+        var target = CreateOperatorWithPorts("Target", OperatorType.Thresholding);
+        target.AddParameter(new Parameter(Guid.NewGuid(), "Threshold", "Threshold", string.Empty, "int", 128, 0, 255, true));
+
+        flow.AddOperator(upstream);
+        flow.AddOperator(target);
+        flow.AddConnection(CreateConnection(upstream, target));
+
+        var debugSessionId = Guid.NewGuid();
+        var inputData = new Dictionary<string, object> { ["Image"] = new byte[] { 1, 2, 3 } };
+
+        var firstResult = await _sut.ExecuteFlowDebugAsync(
+            flow,
+            new DebugOptions
+            {
+                DebugSessionId = debugSessionId,
+                EnableIntermediateCache = true,
+                BreakAtOperatorId = target.Id
+            },
+            inputData);
+
+        target.Parameters.Single(parameter => parameter.Name == "Threshold").SetValue(180);
+
+        var secondResult = await _sut.ExecuteFlowDebugAsync(
+            flow,
+            new DebugOptions
+            {
+                DebugSessionId = debugSessionId,
+                EnableIntermediateCache = true,
+                BreakAtOperatorId = target.Id
+            },
+            inputData);
+
+        firstResult.IsSuccess.Should().BeTrue();
+        secondResult.IsSuccess.Should().BeTrue();
+        callCounts["Upstream"].Should().Be(1, "upstream outputs should be reused from the debug cache");
+        callCounts["Target"].Should().Be(2, "the edited target node still needs to run again");
+    }
+
+    private static Operator CreateOperatorWithPorts(string name, OperatorType type)
+    {
+        var op = new Operator(name, type, 0, 0);
+        op.AddInputPort("Input", PortDataType.Image, true);
+        op.AddOutputPort("Output", PortDataType.Image);
+        return op;
+    }
+
+    private static OperatorConnection CreateConnection(Operator source, Operator target)
+    {
+        return new OperatorConnection(
+            source.Id,
+            source.OutputPorts.First().Id,
+            target.Id,
+            target.InputPorts.First().Id);
     }
 }
