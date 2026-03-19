@@ -543,10 +543,15 @@ export class AiPanel {
 
         const ops = data.flow?.operators || [];
         const connections = data.flow?.connections || [];
-        
-        // 方案概览数字动画
-        this.container.querySelector('#ai-result-summary').innerHTML = 
-            `该方案包含 <span class="result-count">${ops.length}</span> 个算子和 <span class="result-count">${connections.length}</span> 条连线。`;
+
+        const summaryLines = [
+            `该方案包含 <span class="result-count">${ops.length}</span> 个算子和 <span class="result-count">${connections.length}</span> 条连线。`
+        ];
+        const templateSummary = this._buildTemplateFirstSummary(data);
+        if (templateSummary) {
+            summaryLines.push(templateSummary);
+        }
+        this.container.querySelector('#ai-result-summary').innerHTML = summaryLines.join('<br/>');
             
         // 算子列表逐个淡入
         const opsContainer = this.container.querySelector('#ai-result-ops');
@@ -568,8 +573,45 @@ export class AiPanel {
             }, 80 * i);
         });
         
-        // 添加结果成功消息到聊天
-        this._addMessage('ai', `工程方案已生成！包含 ${ops.length} 个算子、${connections.length} 条连线。可继续输入修改指令。`);
+        const matchedTemplateName = data?.recommendedTemplate?.templateName || '';
+        const templateNotice = matchedTemplateName ? ` 已按模板优先命中「${matchedTemplateName}」。` : '';
+        this._addMessage('ai', `工程方案已生成！包含 ${ops.length} 个算子、${connections.length} 条连线。${templateNotice}可继续输入修改指令。`);
+    }
+
+    _buildTemplateFirstSummary(data) {
+        const recommended = data?.recommendedTemplate || null;
+        const pending = Array.isArray(data?.pendingParameters) ? data.pendingParameters : [];
+        const missing = Array.isArray(data?.missingResources) ? data.missingResources : [];
+
+        if (!recommended && pending.length === 0 && missing.length === 0) {
+            return '';
+        }
+
+        const parts = [];
+        if (recommended && recommended.templateName) {
+            const templateName = this._escapeHtml(String(recommended.templateName));
+            const reason = this._escapeHtml(String(recommended.matchReason || '命中高频场景'));
+            const confidence = Number(recommended.confidence);
+            const confidenceText = Number.isFinite(confidence) && confidence > 0
+                ? `，置信度 ${(confidence * 100).toFixed(0)}%`
+                : '';
+            parts.push(`模板优先：<span class="result-count">${templateName}</span>（${reason}${confidenceText}）`);
+        }
+
+        if (pending.length > 0) {
+            parts.push(`待确认参数：<span class="result-count">${pending.length}</span> 组`);
+        }
+
+        if (missing.length > 0) {
+            const missingPreview = missing
+                .slice(0, 2)
+                .map(item => this._escapeHtml(String(item?.resourceKey || item?.description || '未知资源')))
+                .join('、');
+            const suffix = missing.length > 2 ? '...' : '';
+            parts.push(`缺失资源：<span class="result-count">${missing.length}</span> 项（${missingPreview}${suffix}）`);
+        }
+
+        return parts.join('；');
     }
     
     /**
