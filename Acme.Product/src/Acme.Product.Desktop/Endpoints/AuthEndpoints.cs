@@ -4,6 +4,7 @@
 
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
+using Acme.Product.Core.Interfaces;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -78,7 +79,8 @@ public static class AuthEndpoints
         app.MapPost("/api/auth/change-password", async (
             HttpContext context, 
             ChangePasswordRequest request, 
-            IAuthService authService) =>
+            IAuthService authService,
+            IConfigurationService configService) =>
         {
             var token = GetTokenFromHeader(context);
             if (string.IsNullOrEmpty(token))
@@ -95,6 +97,12 @@ public static class AuthEndpoints
             if (string.IsNullOrWhiteSpace(request.OldPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
             {
                 return Results.BadRequest(new { Error = "密码不能为空" });
+            }
+
+            var minPasswordLength = Math.Max(6, configService.GetCurrent()?.Security?.PasswordMinLength ?? 6);
+            if (request.NewPassword.Trim().Length < minPasswordLength)
+            {
+                return Results.BadRequest(new { Error = $"新密码长度不能少于 {minPasswordLength} 位" });
             }
 
             var result = await authService.ChangePasswordAsync(

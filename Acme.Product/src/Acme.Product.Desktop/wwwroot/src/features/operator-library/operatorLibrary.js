@@ -20,6 +20,7 @@ export class OperatorLibraryPanel {
         this.operators = [];
         this.filteredOperators = [];
         this.categories = new Map();
+        this.metadataByType = new Map();
 
         // 事件回调
         this.onOperatorDragStart = null;
@@ -271,8 +272,7 @@ export class OperatorLibraryPanel {
      */
     async loadOperators() {
         try {
-            // 从后端获取算子库
-            const operators = await httpClient.get('/operators/library');
+            const operators = await this.loadOperatorsFromMetadata();
             this.operators = operators;
             this.filteredOperators = operators;
             this.renderOperatorTree();
@@ -285,6 +285,70 @@ export class OperatorLibraryPanel {
             this.renderOperatorTree();
             showToast('使用默认算子数据', 'warning');
         }
+    }
+
+    async loadOperatorsFromMetadata() {
+        try {
+            const types = await httpClient.get('/operators/types');
+            if (Array.isArray(types) && types.length > 0) {
+                const operators = await Promise.all(types.map(async (type) => {
+                    const typeIdentifier = typeof type === 'string'
+                        ? type
+                        : (type?.name || type?.Name || type?.type || type?.Type || String(type));
+                    try {
+                        const metadata = await httpClient.get(`/operators/${encodeURIComponent(typeIdentifier)}/metadata`);
+                        const normalized = this.normalizeOperatorMetadata(metadata, typeIdentifier);
+                        if (normalized) {
+                            this.metadataByType.set(normalized.type, normalized);
+                        }
+                        return normalized;
+                    } catch (error) {
+                        console.warn('[OperatorLibraryPanel] 加载算子元数据失败:', typeIdentifier, error);
+                        return null;
+                    }
+                }));
+
+                const validOperators = operators.filter(Boolean);
+                if (validOperators.length > 0) {
+                    return validOperators;
+                }
+            }
+        } catch (error) {
+            console.warn('[OperatorLibraryPanel] 获取算子类型失败，回退到算子库接口:', error);
+        }
+
+        const operators = await httpClient.get('/operators/library');
+        return operators.map(operator => this.normalizeOperatorMetadata(operator, operator.type || operator.Type)).filter(Boolean);
+    }
+
+    normalizeOperatorMetadata(metadata, fallbackType = '') {
+        if (!metadata || typeof metadata !== 'object') {
+            return null;
+        }
+
+        const type = String(metadata.type || metadata.Type || fallbackType || '').trim();
+        if (!type) {
+            return null;
+        }
+
+        const category = metadata.category || metadata.Category || '其他';
+        const displayName = metadata.displayName || metadata.DisplayName || metadata.name || metadata.Name || type;
+        const parameters = metadata.parameters || metadata.Parameters || [];
+        const inputPorts = metadata.inputPorts || metadata.InputPorts || [];
+        const outputPorts = metadata.outputPorts || metadata.OutputPorts || [];
+
+        return {
+            ...metadata,
+            type,
+            category,
+            displayName,
+            description: metadata.description || metadata.Description || '暂无描述',
+            parameters,
+            inputPorts,
+            outputPorts,
+            inputType: metadata.inputType || metadata.InputType || (inputPorts[0]?.dataType || inputPorts[0]?.DataType || '图像'),
+            outputType: metadata.outputType || metadata.OutputType || (outputPorts[0]?.dataType || outputPorts[0]?.DataType || '图像/数据')
+        };
     }
 
     /**
@@ -884,39 +948,99 @@ export class OperatorLibraryPanel {
      */
     showOperatorPreview(operator) {
         const preview = this.container.querySelector('#operator-preview');
+        const resolvedOperator = this.metadataByType.get(operator.type) || operator;
+        const inputPorts = Array.isArray(resolvedOperator.inputPorts) ? resolvedOperator.inputPorts : [];
+        const outputPorts = Array.isArray(resolvedOperator.outputPorts) ? resolvedOperator.outputPorts : [];
         
         preview.innerHTML = `
             <div class="operator-detail">
                 <div class="detail-header">
-                    <span class="detail-icon">${operator.icon || this.getSvgIcon(this.getOperatorIconPath(operator.type, operator.category))}</span>
-                    <h4>${operator.displayName || operator.name}</h4>
+                    <span class="detail-icon">${resolvedOperator.icon || this.getSvgIcon(this.getOperatorIconPath(resolvedOperator.type, resolvedOperator.category))}</span>
+                    <h4>${resolvedOperator.displayName || resolvedOperator.name}</h4>
                 </div>
                 <div class="detail-meta">
-                    <span class="detail-category">${operator.category || '其他'}</span>
-                    <span class="detail-type">${operator.type}</span>
+                    <span class="detail-category">${resolvedOperator.category || '其他'}</span>
+                    <span class="detail-type">${resolvedOperator.type}</span>
                 </div>
-                <p class="detail-description">${operator.description || '暂无描述'}</p>
+                <p class="detail-description">${resolvedOperator.description || '暂无描述'}</p>
                 
                 <div class="detail-params">
                     <h5>参数配置</h5>
-                    ${this.renderParameterList(operator.parameters)}
+                    ${this.renderParameterList(resolvedOperator.parameters)}
                 </div>
                 
                 <div class="detail-ports">
                     <h5>端口定义</h5>
                     <div class="ports-list">
-                        <div class="port-item input">
-                            <span class="port-dot input"></span>
-                            <span>输入: ${operator.inputType || '图像'}</span>
-                        </div>
-                        <div class="port-item output">
-                            <span class="port-dot output"></span>
-                            <span>输出: ${operator.outputType || '图像/数据'}</span>
-                        </div>
+                        ${inputPorts.length > 0
+                            ? inputPorts.map(port => `
+                                <div class="port-item input">
+                                    <span class="port-dot input"></span>
+                                    <span>输入: ${port.displayName || port.DisplayName || port.name || port.Name || '未命名'} (${port.dataType || port.DataType || 'Any'})</span>
+                                </div>
+                            `).join('')
+                            : `
+                                <div class="port-item input">
+                                    <span class="port-dot input"></span>
+                                    <span>输入: ${resolvedOperator.inputType || '图像'}</span>
+                                </div>
+                            `}
+                        ${outputPorts.length > 0
+                            ? outputPorts.map(port => `
+                                <div class="port-item output">
+                                    <span class="port-dot output"></span>
+                                    <span>输出: ${port.displayName || port.DisplayName || port.name || port.Name || '未命名'} (${port.dataType || port.DataType || 'Any'})</span>
+                                </div>
+                            `).join('')
+                            : `
+                                <div class="port-item output">
+                                    <span class="port-dot output"></span>
+                                    <span>输出: ${resolvedOperator.outputType || '图像/数据'}</span>
+                                </div>
+                            `}
                     </div>
+                </div>
+                <div class="detail-actions" style="margin-top:16px;">
+                    <button class="cv-btn cv-btn-secondary" id="btn-show-autotune-strategies">查看自动调参策略</button>
+                    <div id="autotune-strategies-panel" style="margin-top:12px;"></div>
                 </div>
             </div>
         `;
+
+        preview.querySelector('#btn-show-autotune-strategies')?.addEventListener('click', async () => {
+            const panel = preview.querySelector('#autotune-strategies-panel');
+            if (!panel) {
+                return;
+            }
+
+            panel.innerHTML = '<div class="params-empty">正在加载自动调参策略...</div>';
+
+            try {
+                const strategies = await httpClient.get('/autotune/strategies');
+                if (!Array.isArray(strategies) || strategies.length === 0) {
+                    panel.innerHTML = '<div class="params-empty">暂无可用自动调参策略</div>';
+                    return;
+                }
+
+                panel.innerHTML = `
+                    <div class="detail-params">
+                        <h5>自动调参策略</h5>
+                        <ul class="params-list">
+                            ${strategies.map(strategy => `
+                                <li class="param-item">
+                                    <span class="param-name">${strategy.name || strategy.Name || '未命名策略'}</span>
+                                    <span class="param-type">${strategy.category || strategy.Category || '策略'}</span>
+                                    <span class="param-default">${strategy.description || strategy.Description || '暂无描述'}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('[OperatorLibraryPanel] 获取自动调参策略失败:', error);
+                panel.innerHTML = `<div class="params-empty">加载失败：${error.message}</div>`;
+            }
+        });
     }
 
     /**

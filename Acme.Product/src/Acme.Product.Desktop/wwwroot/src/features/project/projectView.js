@@ -393,6 +393,24 @@ export class ProjectView {
                 <label for="new-project-desc">描述</label>
                 <input type="text" id="new-project-desc" class="cv-input" placeholder="可选描述" />
             </div>
+            <div class="form-group">
+                <label>创建方式</label>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="radio" name="new-project-mode" value="standard" checked />
+                        标准工程
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="radio" name="new-project-mode" value="demo" />
+                        示例工程（完整引导）
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="radio" name="new-project-mode" value="simple-demo" />
+                        示例工程（简化版）
+                    </label>
+                </div>
+                <div style="margin-top:8px; color:var(--text-muted); font-size:12px;">选择示例工程时，系统会直接调用后端 Demo 工程接口创建工程。</div>
+            </div>
         `;
         
         let modalOverlay = null;
@@ -408,18 +426,25 @@ export class ProjectView {
             onClick: async () => {
                 const nameInput = document.getElementById('new-project-name');
                 const descInput = document.getElementById('new-project-desc');
+                const modeInput = content.querySelector('input[name="new-project-mode"]:checked');
+                const mode = modeInput?.value || 'standard';
                 const name = nameInput?.value?.trim();
                 const desc = descInput?.value?.trim() || '';
                 
-                if (!name) {
+                if (mode === 'standard' && !name) {
                     showToast('请输入工程名称', 'warning');
                     nameInput?.focus();
                     return;
                 }
                 
                 try {
-                    const project = await projectManager.createProject(name, desc);
-                    showToast(`工程 "${name}" 已创建`, 'success');
+                    const project = mode === 'demo'
+                        ? await projectManager.createDemoProject('full')
+                        : (mode === 'simple-demo'
+                            ? await projectManager.createDemoProject('simple')
+                            : await projectManager.createProject(name, desc));
+                    const displayName = project?.name || name || '示例工程';
+                    showToast(`工程 "${displayName}" 已创建`, 'success');
                     closeModal(modalOverlay);
                     
                     // 触发工程打开事件，切换到流程视图
@@ -430,11 +455,28 @@ export class ProjectView {
                 }
             }
         });
+
+        const btnGuide = createButton({
+            text: '引导说明',
+            type: 'secondary',
+            onClick: async () => {
+                try {
+                    const guide = await projectManager.getDemoGuide();
+                    const guideText = typeof guide === 'string'
+                        ? guide
+                        : JSON.stringify(guide, null, 2);
+                    window.alert(guideText);
+                } catch (error) {
+                    console.error('[ProjectView] 获取引导说明失败:', error);
+                    showToast('获取引导说明失败: ' + error.message, 'error');
+                }
+            }
+        });
         
         modalOverlay = createModal({
             title: '新建工程',
             content,
-            footer: [btnCancel, btnCreate],
+            footer: [btnCancel, btnGuide, btnCreate],
             width: '400px'
         });
         

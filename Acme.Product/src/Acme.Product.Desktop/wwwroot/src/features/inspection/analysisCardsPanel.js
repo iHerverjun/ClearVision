@@ -248,8 +248,7 @@ class AnalysisCardsPanel {
                 ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
                 : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
 
-            // 范围条 (示例范围，实际可从 Comparator 结果中获取)
-            const rangeBarHtml = typeof val === 'number' ? this._renderRangeBar(val, isNG) : '';
+            const rangeBarHtml = typeof val === 'number' ? this._renderRangeBar(item, val, isNG) : '';
 
             return `
                 <div class="ac-measurement-row">
@@ -287,11 +286,19 @@ class AnalysisCardsPanel {
 
         // 模拟置信度（如果有 Score/Confidence 字段）
         const confidenceItem = items.find(i => i.key === 'Confidence' || i.key === 'confidence' || i.key === 'Score' || i.key === 'score');
-        const confidence = confidenceItem && typeof confidenceItem.value === 'number'
+        const hasConfidence = confidenceItem && typeof confidenceItem.value === 'number';
+        const confidence = hasConfidence
             ? (confidenceItem.value > 1 ? confidenceItem.value : confidenceItem.value * 100)
-            : (isNG ? 45.5 : 98.5); // 默认值演示
+            : null;
 
-        const confidenceHtml = `
+        const confidenceHtml = confidence === null ? `
+            <div class="ac-ocr-confidence">
+                <div class="ac-ocr-conf-header">
+                    <span class="ac-ocr-conf-label">置信度</span>
+                    <span class="ac-ocr-conf-value low">暂无数据</span>
+                </div>
+            </div>
+        ` : `
             <div class="ac-ocr-confidence">
                 <div class="ac-ocr-conf-header">
                     <span class="ac-ocr-conf-label">置信度</span>
@@ -508,9 +515,16 @@ class AnalysisCardsPanel {
     /**
      * 范围条渲染器
      */
-    _renderRangeBar(value, isNG) {
-        const min = value * 0.9;
-        const max = value * 1.1;
+    _renderRangeBar(item, value, isNG) {
+        const minRaw = item?.min ?? item?.Min ?? item?.lowerBound ?? item?.LowerBound;
+        const maxRaw = item?.max ?? item?.Max ?? item?.upperBound ?? item?.UpperBound;
+        const min = Number.parseFloat(minRaw);
+        const max = Number.parseFloat(maxRaw);
+
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+            return '';
+        }
+
         const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
 
         return `

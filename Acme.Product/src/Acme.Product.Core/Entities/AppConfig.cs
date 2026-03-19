@@ -35,6 +35,11 @@ public class AppConfig
     public List<CameraBindingConfig> Cameras { get; set; } = new();
 
     /// <summary>
+    /// 安全策略配置
+    /// </summary>
+    public SecurityConfig Security { get; set; } = new();
+
+    /// <summary>
     /// 当前活动相机的逻辑ID
     /// </summary>
     public string ActiveCameraId { get; set; } = "";
@@ -126,6 +131,34 @@ public class RuntimeConfig
     /// 连续 NG 停机阈值
     /// </summary>
     public int StopOnConsecutiveNg { get; set; } = 0;
+
+    /// <summary>
+    /// 缺料等待超时（秒）
+    /// </summary>
+    public int MissingMaterialTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// 是否启用运行保护规则
+    /// </summary>
+    public bool ApplyProtectionRules { get; set; } = true;
+}
+
+public class SecurityConfig
+{
+    /// <summary>
+    /// 密码最小长度
+    /// </summary>
+    public int PasswordMinLength { get; set; } = 6;
+
+    /// <summary>
+    /// 会话自动超时（分钟）
+    /// </summary>
+    public int SessionTimeoutMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// 登录失败锁定次数
+    /// </summary>
+    public int LoginFailureLockoutCount { get; set; } = 5;
 }
 
 /// <summary>

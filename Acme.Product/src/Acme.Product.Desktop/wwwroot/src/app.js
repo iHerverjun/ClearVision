@@ -97,7 +97,6 @@ import projectManager, {
     subscribeProject 
 } from './features/project/projectManager.js';
 import { ResultPanel } from './features/results/resultPanel.js';
-import { AiGenerationDialog } from './features/ai-generation/aiGenerationDialog.js';
 
 // 全局状态
 const [getCurrentView, setCurrentView, subscribeView] = createSignal('flow');
@@ -123,7 +122,6 @@ let propertyPanel = null;
 let projectView = null;
 let resultPanel = null;
 let inspectionPanel = null;
-let aiGenerationDialog = null;
 let aiPanel = null;
 
 // 自动保存定时器
@@ -188,7 +186,6 @@ function initializeApp() {
     initializeResultPanel();
 
     // 初始化 AI 生成对话框
-    initializeAiGeneration();
 
     // 初始化主题
     initializeTheme();
@@ -290,12 +287,9 @@ function switchView(view) {
                     console.log('[App] 切换到检测视图，加载已保存的检测结果图像');
                     const imageData = `data:image/png;base64,${window._lastInspectionResult.outputImage}`;
                     window.inspectionImageViewer.loadImage(imageData);
-                    
-                    // 更新检测面板
-                    if (inspectionPanel) {
-                        inspectionPanel.handleInspectionResult(window._lastInspectionResult);
-                    }
                 }
+
+                inspectionPanel?.refresh?.();
             });
             break;
         case 'results':
@@ -509,6 +503,8 @@ function initializeInspectionController() {
 
         // 添加结果到数显面板
         if (resultPanel) {
+            const currentProject = getCurrentProject();
+            resultPanel.setProjectContext(currentProject?.id || null);
             resultPanel.addResult({
                 status: result.status,
                 defects: result.defects || [],
@@ -518,10 +514,15 @@ function initializeInspectionController() {
                 imageData: result.outputImage,
                 outputData: result.outputData || {}
             });
-        }
 
-        // 更新右侧结果面板（简化显示）
-        updateResultsPanel(result);
+            if (currentProject?.id && typeof resultPanel.loadServerAnalytics === 'function') {
+                setTimeout(() => {
+                    resultPanel.loadServerAnalytics().catch(error => {
+                        console.warn('[App] 刷新结果页服务端分析失败:', error);
+                    });
+                }, 300);
+            }
+        }
 
         // 显示结果提示
         let status = 'info';
@@ -625,6 +626,11 @@ function initializeProjectView() {
         setCurrentView('flow');
         switchView('flow');
 
+        if (resultPanel) {
+            resultPanel.setProjectContext(project.id);
+            resultPanel.clear();
+        }
+
         // 更新导航按钮
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.remove('active');
@@ -664,9 +670,9 @@ function initializeResultPanel() {
     const clearBtn = document.getElementById('btn-clear-results');
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
-            if (confirm('确定要清空所有检测结果吗？')) {
+            if (confirm('确定要清空当前结果视图吗？此操作不会删除后端历史记录。')) {
                 resultPanel.clear();
-                showToast('检测结果已清空', 'success');
+                showToast('当前结果视图已清空，历史记录未删除', 'success');
             }
         });
     }
@@ -686,24 +692,36 @@ async function loadInspectionHistory() {
 
     try {
         console.log('[App] 正在加载检测历史数据...');
-        // 调用后端 API 获取历史数据
-        const response = await httpClient.get(`/inspection/history/${project.id}?limit=50`);
+        const response = await httpClient.get(`/inspection/history/${project.id}`, {
+            pageIndex: 0,
+            pageSize: 50
+        });
 
-        if (response && Array.isArray(response)) {
-            // 清空现有数据并加载历史数据
-            resultPanel.clear();
-            response.forEach(result => {
-                resultPanel.addResult({
-                    status: result.status,
-                    defects: result.defects || [],
-                    processingTime: result.processingTimeMs,
-                    timestamp: result.timestamp,
-                    confidenceScore: result.confidenceScore,
-                    imageData: result.imageData,
-                    outputData: result.outputData || {}
-                });
-            });
-            console.log(`[App] 已加载 ${response.length} 条历史检测记录`);
+        const results = Array.isArray(response)
+            ? response
+            : (response?.items || response?.Items || []);
+
+        if (resultPanel) {
+            resultPanel.setProjectContext(project.id);
+        }
+
+        if (Array.isArray(results)) {
+            const normalizedResults = results.map(result => ({
+                status: result.status,
+                defects: result.defects || result.Defects || [],
+                processingTime: result.processingTimeMs ?? result.processingTime ?? result.executionTimeMs,
+                timestamp: result.timestamp || result.Timestamp,
+                confidenceScore: result.confidenceScore ?? result.ConfidenceScore,
+                imageData: result.imageData || result.ImageData,
+                imageId: result.imageId || result.ImageId,
+                outputData: result.outputData || result.OutputData || {}
+            }));
+
+            resultPanel.loadResults(normalizedResults);
+            if (typeof resultPanel.loadServerAnalytics === 'function') {
+                await resultPanel.loadServerAnalytics();
+            }
+            console.log(`[App] 已加载 ${normalizedResults.length} 条历史检测记录`);
         }
     } catch (error) {
         console.error('[App] 加载检测历史数据失败:', error);
@@ -716,7 +734,7 @@ async function loadInspectionHistory() {
  */
 function updateResultsPanel(data) {
     // 更新结果面板 - 显示检测结果
-    const resultsPanel = document.getElementById('results-panel');
+    const resultsPanel = document.getElementById('inspection-results-panel') || document.getElementById('results-panel');
     if (resultsPanel) {
         // 清空现有内容
         resultsPanel.innerHTML = '';
@@ -1254,9 +1272,9 @@ function initializeToolbar() {
     // 登出按钮
     const logoutBtn = document.getElementById('btn-logout');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
+        logoutBtn.addEventListener('click', async () => {
             console.log('[App] 用户登出');
-            logout();
+            await logout();
         });
     }
 
@@ -1323,8 +1341,12 @@ async function loadProject(projectId) {
             window.flowCanvas.clear();
         }
         
-        // 设置检测控制器的工程
+        // 设置检测控制器和结果页上下文
         inspectionController.setProject(projectId);
+        if (resultPanel) {
+            resultPanel.setProjectContext(projectId);
+            resultPanel.clear();
+        }
         
         showToast(`工程 "${project.name}" 已加载`, 'success');
         return project;
@@ -1357,8 +1379,12 @@ async function createProject(name, description = '', preserveCanvas = false) {
             }
         }
         
-        // 设置检测控制器的工程
+        // 设置检测控制器和结果页上下文
         inspectionController.setProject(project.id);
+        if (resultPanel) {
+            resultPanel.setProjectContext(project.id);
+            resultPanel.clear();
+        }
         
         showToast(`工程 "${name}" 已创建`, 'success');
         return project;
@@ -1464,10 +1490,10 @@ async function triggerAutoSave() {
                 flow: project.flow
             }));
             console.log('[AutoSave] 手动触发保存完成');
-            showToast('工程已自动保存', 'success');
+            showToast('流程草稿已保存到本地缓存', 'success');
         } catch (err) {
             console.error('[AutoSave] 手动保存失败:', err);
-            showToast('自动保存失败', 'error');
+            showToast('本地草稿保存失败', 'error');
         }
     }
 }

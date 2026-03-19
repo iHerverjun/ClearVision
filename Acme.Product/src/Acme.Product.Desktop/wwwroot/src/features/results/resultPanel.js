@@ -10,6 +10,11 @@ class ResultPanel {
         this.container = document.getElementById(containerId);
         this.results = [];
         this.filteredResults = [];
+        this.projectId = null;
+        this.serverReport = null;
+        this.serverAnalysis = null;
+        this.serverAnalysisSource = 'local';
+        this._analyticsRefreshTimer = null;
         this.statistics = {
             total: 0,
             ok: 0,
@@ -106,30 +111,247 @@ class ResultPanel {
      */
     setTimeRange(range) {
         this.timeRange = range;
-        const now = new Date();
+        const { startTime, endTime } = this.getTimeRangeBounds(range);
+        this.filters.startTime = startTime;
+        this.filters.endTime = endTime;
         
+        this.applyFilters();
+        this.render();
+
+        if (this.projectId) {
+            this.loadServerAnalytics().catch(error => {
+                console.warn('[ResultPanel] 刷新服务端分析失败:', error);
+            });
+        }
+    }
+
+    getTimeRangeBounds(range = this.timeRange) {
+        const now = new Date();
+
         switch (range) {
             case 'today':
-                this.filters.startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                this.filters.endTime = now;
-                break;
-            case 'week':
+                return {
+                    startTime: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+                    endTime: now
+                };
+            case 'week': {
                 const weekStart = new Date(now);
                 weekStart.setDate(now.getDate() - now.getDay());
                 weekStart.setHours(0, 0, 0, 0);
-                this.filters.startTime = weekStart;
-                this.filters.endTime = now;
-                break;
+                return {
+                    startTime: weekStart,
+                    endTime: now
+                };
+            }
             case 'month':
-                this.filters.startTime = new Date(now.getFullYear(), now.getMonth(), 1);
-                this.filters.endTime = now;
-                break;
+                return {
+                    startTime: new Date(now.getFullYear(), now.getMonth(), 1),
+                    endTime: now
+                };
             case 'custom':
-                // 保持当前筛选或重置
-                break;
+                return {
+                    startTime: this.filters.startTime,
+                    endTime: this.filters.endTime
+                };
+            default:
+                return {
+                    startTime: null,
+                    endTime: null
+                };
         }
-        
-        this.applyFilters();
+    }
+
+    setProjectContext(projectId) {
+        const normalizedProjectId = projectId || null;
+        if (this.projectId !== normalizedProjectId) {
+            this.projectId = normalizedProjectId;
+            this.serverReport = null;
+            this.serverAnalysis = null;
+            this.serverAnalysisSource = 'local';
+        }
+    }
+
+    getAnalyticsQueryParams() {
+        const { startTime, endTime } = this.getTimeRangeBounds(this.timeRange);
+        const params = {};
+
+        if (startTime instanceof Date && !Number.isNaN(startTime.getTime())) {
+            params.startTime = startTime.toISOString();
+        }
+
+        if (endTime instanceof Date && !Number.isNaN(endTime.getTime())) {
+            params.endTime = endTime.toISOString();
+        }
+
+        return params;
+    }
+
+    queueServerAnalyticsRefresh(delayMs = 800) {
+        if (!this.projectId) {
+            return;
+        }
+
+        if (this._analyticsRefreshTimer) {
+            clearTimeout(this._analyticsRefreshTimer);
+        }
+
+        this._analyticsRefreshTimer = window.setTimeout(() => {
+            this._analyticsRefreshTimer = null;
+            this.loadServerAnalytics().catch(error => {
+                console.warn('[ResultPanel] Server analytics refresh failed:', error);
+            });
+        }, delayMs);
+    }
+
+    normalizeStatistics(statistics) {
+        if (!statistics || typeof statistics !== 'object') {
+            return null;
+        }
+
+        return {
+            total: statistics.totalCount ?? statistics.TotalCount ?? 0,
+            ok: statistics.okCount ?? statistics.OKCount ?? 0,
+            ng: statistics.ngCount ?? statistics.NGCount ?? 0,
+            error: statistics.errorCount ?? statistics.ErrorCount ?? 0,
+            avgTime: Math.round(statistics.averageProcessingTimeMs ?? statistics.AverageProcessingTimeMs ?? 0)
+        };
+    }
+
+    normalizeDefectDistribution(defectDistribution) {
+        const items = defectDistribution?.items || defectDistribution?.Items || [];
+        return items.reduce((accumulator, item) => {
+            const defectType = item.defectType || item.DefectType || '未知';
+            const count = item.count ?? item.Count ?? 0;
+            accumulator[defectType] = count;
+            return accumulator;
+        }, {});
+    }
+
+    normalizeTrendPoints(trend) {
+        const points = trend?.dataPoints || trend?.DataPoints || [];
+        return points.map(point => ({
+            time: new Date(point.timestamp || point.Timestamp || Date.now()),
+            status: (point.ngCount ?? point.NGCount ?? 0) > 0
+                ? 'NG'
+                : ((point.errorCount ?? point.ErrorCount ?? 0) > 0 ? 'Error' : 'OK'),
+            defectCount: point.defectCount ?? point.DefectCount ?? 0
+        }));
+    }
+
+    applyServerAnalysis({ report = null, statistics = null, defectDistribution = null, trend = null } = {}) {
+        const normalizedStatistics = this.normalizeStatistics(
+            report?.summary || report?.Summary || statistics
+        );
+        const normalizedDefects = this.normalizeDefectDistribution(
+            report?.defectDistribution || report?.DefectDistribution || defectDistribution
+        );
+        const normalizedTrend = this.normalizeTrendPoints(
+            report?.hourlyTrend || report?.HourlyTrend || trend
+        );
+
+        if (normalizedStatistics) {
+            this.statistics = normalizedStatistics;
+        }
+
+        if (Object.keys(normalizedDefects).length > 0) {
+            this.defectTypes = normalizedDefects;
+            this.updateDefectTypeFilter();
+        }
+
+        if (normalizedTrend.length > 0) {
+            this.trendData = normalizedTrend;
+        }
+
+        this.serverReport = report || this.serverReport;
+        this.serverAnalysis = {
+            statistics: normalizedStatistics,
+            defectTypes: normalizedDefects,
+            trendData: normalizedTrend
+        };
+        this.serverAnalysisSource = 'server';
+    }
+
+    async loadServerAnalytics(projectId = this.projectId) {
+        if (!projectId) {
+            return;
+        }
+
+        const commonParams = this.getAnalyticsQueryParams();
+
+        const reportPromise = httpClient.get(`/analysis/report/${projectId}`, commonParams)
+            .catch(error => {
+                console.warn('[ResultPanel] Failed to load analysis report:', error);
+                return null;
+            });
+
+        const statisticsPromise = httpClient.get(`/analysis/statistics/${projectId}`, commonParams)
+            .catch(error => {
+                console.warn('[ResultPanel] Failed to load statistics:', error);
+                return null;
+            });
+        const defectDistributionPromise = httpClient.get(`/analysis/defect-distribution/${projectId}`, commonParams)
+            .catch(error => {
+                console.warn('[ResultPanel] 获取缺陷分布失败:', error);
+                return null;
+            });
+
+        const trendPromise = commonParams.startTime && commonParams.endTime
+            ? httpClient.get(`/analysis/trend/${projectId}`, {
+                interval: this.timeRange === 'today' ? 'Hour' : 'Day',
+                startTime: commonParams.startTime,
+                endTime: commonParams.endTime
+            }).catch(error => {
+                console.warn('[ResultPanel] 获取趋势分析失败:', error);
+                return null;
+            })
+            : Promise.resolve(null);
+
+        const [report, statistics, defectDistribution, trend] = await Promise.all([
+            reportPromise,
+            statisticsPromise,
+            defectDistributionPromise,
+            trendPromise
+        ]);
+
+        if (report || statistics || defectDistribution || trend) {
+            this.applyServerAnalysis({ report, statistics, defectDistribution, trend });
+            this.render();
+            return;
+        }
+
+        this.serverAnalysisSource = 'local';
+
+        if (statistics) {
+            this.statistics = {
+                total: statistics.totalCount ?? statistics.TotalCount ?? this.statistics.total,
+                ok: statistics.okCount ?? statistics.OKCount ?? this.statistics.ok,
+                ng: statistics.ngCount ?? statistics.NGCount ?? this.statistics.ng,
+                error: statistics.errorCount ?? statistics.ErrorCount ?? this.statistics.error,
+                avgTime: Math.round(statistics.averageProcessingTimeMs ?? statistics.AverageProcessingTimeMs ?? this.statistics.avgTime ?? 0)
+            };
+        }
+
+        if (defectDistribution?.items || defectDistribution?.Items) {
+            const items = defectDistribution.items || defectDistribution.Items || [];
+            this.defectTypes = items.reduce((accumulator, item) => {
+                const defectType = item.defectType || item.DefectType || '未知';
+                const count = item.count ?? item.Count ?? 0;
+                accumulator[defectType] = count;
+                return accumulator;
+            }, {});
+        }
+
+        if (trend?.dataPoints || trend?.DataPoints) {
+            const points = trend.dataPoints || trend.DataPoints || [];
+            this.trendData = points.map(point => ({
+                time: new Date(point.timestamp || point.Timestamp || Date.now()),
+                status: (point.ngCount ?? point.NGCount ?? 0) > 0
+                    ? 'NG'
+                    : ((point.errorCount ?? point.ErrorCount ?? 0) > 0 ? 'Error' : 'OK'),
+                defectCount: point.defectCount ?? point.DefectCount ?? 0
+            }));
+        }
+
         this.render();
     }
     
@@ -183,7 +405,11 @@ class ResultPanel {
                 this.defectTypes[type] = (this.defectTypes[type] || 0) + 1;
             });
         }
-        
+
+        if (this.projectId) {
+            this.queueServerAnalyticsRefresh();
+        }
+
         this.render();
     }
     
@@ -332,9 +558,32 @@ class ResultPanel {
         this.trendData = [];
         this.defectTypes = {};
         this.statistics = { total: 0, ok: 0, ng: 0, error: 0, avgTime: 0 };
+        this.serverReport = null;
+        this.serverAnalysis = null;
+        this.serverAnalysisSource = 'local';
         this.currentPage = 1;
         this.applyFilters();
         this.render();
+    }
+
+    getResultImageSrc(result) {
+        if (!result) {
+            return '';
+        }
+
+        if (result.imageUrl) {
+            return result.imageUrl;
+        }
+
+        if (result.imageId) {
+            return httpClient.buildRequestUrl(`/images/${result.imageId}`);
+        }
+
+        if (result.imageData) {
+            return `data:image/png;base64,${result.imageData}`;
+        }
+
+        return '';
     }
     
     /**
@@ -633,6 +882,20 @@ class ResultPanel {
      * 导出结果
      */
     exportResults(format = 'json') {
+        const exportContext = this.getExportPayload(format);
+        if (exportContext) {
+            const blob = new Blob([exportContext.content], { type: exportContext.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = exportContext.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            return;
+        }
+
         if (this.filteredResults.length === 0) {
             alert('没有可导出的结果');
             return;
@@ -670,6 +933,31 @@ class ResultPanel {
     /**
      * 转换为 CSV
      */
+    getExportPayload(format = 'json') {
+        const timestamp = Date.now();
+        const report = this.serverReport;
+
+        if (report && this.projectId) {
+            if (format === 'json') {
+                return {
+                    content: JSON.stringify(report, null, 2),
+                    filename: `inspection_report_${timestamp}.json`,
+                    mimeType: 'application/json'
+                };
+            }
+
+            if (format === 'csv' || format === 'excel') {
+                return {
+                    content: this.convertReportToCSV(report),
+                    filename: `inspection_report_${timestamp}.csv`,
+                    mimeType: 'text/csv'
+                };
+            }
+        }
+
+        return null;
+    }
+
     convertToCSV(results) {
         const headers = ['时间', '状态', '缺陷数', '处理时间(ms)', '置信度'];
         const rows = results.map(r => [
@@ -686,6 +974,47 @@ class ResultPanel {
     /**
      * 显示结果详情
      */
+    convertReportToCSV(report) {
+        const summary = report?.summary || report?.Summary || {};
+        const period = report?.period || report?.Period || {};
+        const recommendations = report?.recommendations || report?.Recommendations || [];
+        const defectItems = report?.defectDistribution?.items
+            || report?.defectDistribution?.Items
+            || report?.DefectDistribution?.Items
+            || [];
+        const trendItems = report?.hourlyTrend?.dataPoints
+            || report?.hourlyTrend?.DataPoints
+            || report?.HourlyTrend?.DataPoints
+            || [];
+
+        const lines = [
+            'Section,Key,Value',
+            `Summary,ProjectId,${report?.projectId || report?.ProjectId || this.projectId || ''}`,
+            `Summary,GeneratedAt,${report?.generatedAt || report?.GeneratedAt || ''}`,
+            `Summary,StartTime,${period.startTime || period.StartTime || ''}`,
+            `Summary,EndTime,${period.endTime || period.EndTime || ''}`,
+            `Summary,TotalCount,${summary.totalCount ?? summary.TotalCount ?? 0}`,
+            `Summary,OKCount,${summary.okCount ?? summary.OKCount ?? 0}`,
+            `Summary,NGCount,${summary.ngCount ?? summary.NGCount ?? 0}`,
+            `Summary,ErrorCount,${summary.errorCount ?? summary.ErrorCount ?? 0}`,
+            `Summary,AverageProcessingTimeMs,${summary.averageProcessingTimeMs ?? summary.AverageProcessingTimeMs ?? 0}`
+        ];
+
+        defectItems.forEach(item => {
+            lines.push(`DefectDistribution,${item.defectType || item.DefectType || '未知'},${item.count ?? item.Count ?? 0}`);
+        });
+
+        trendItems.forEach(point => {
+            lines.push(`Trend,${point.timestamp || point.Timestamp || ''},${point.totalCount ?? point.TotalCount ?? 0}`);
+        });
+
+        recommendations.forEach((recommendation, index) => {
+            lines.push(`Recommendation,${index + 1},"${String(recommendation).replace(/"/g, '""')}"`);
+        });
+
+        return lines.join('\n');
+    }
+
     showResultDetail(result) {
         console.log('[ResultPanel] 查看结果详情:', result);
         
@@ -695,6 +1024,7 @@ class ResultPanel {
         const statusClass = result.status?.toLowerCase() || 'unknown';
         const time = result.timestamp ? new Date(result.timestamp).toLocaleString() : '--';
         const processingTime = result.processingTime || result.executionTimeMs || '--';
+        const imageSrc = this.getResultImageSrc(result);
         
         modal.innerHTML = `
             <div class="result-detail-overlay"></div>
@@ -705,7 +1035,7 @@ class ResultPanel {
                     <button class="result-detail-close">✕</button>
                 </div>
                 <div class="result-detail-body">
-                    ${result.imageData ? `<div class="result-detail-image"><img src="data:image/png;base64,${result.imageData}" alt="检测结果图像" /></div>` : ''}
+                    ${imageSrc ? `<div class="result-detail-image"><img src="${imageSrc}" alt="检测结果图像" /></div>` : ''}
                     <div class="result-detail-data">
                         <div class="detail-section">
                             <div class="detail-item"><span class="detail-label">状态</span><span class="detail-value status-${statusClass}">${result.status || '--'}</span></div>

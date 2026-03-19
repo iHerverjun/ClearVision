@@ -410,7 +410,7 @@ class InspectionController {
 
             console.log('[InspectionController] 请求预览节点:', targetNodeId);
 
-            const result = await httpClient.post('/api/flows/preview-node', {
+            const result = await httpClient.post('/flows/preview-node', {
                 projectId: this.projectId,
                 targetNodeId: targetNodeId,
                 debugSessionId: options.debugSessionId || this.generateSessionId(),

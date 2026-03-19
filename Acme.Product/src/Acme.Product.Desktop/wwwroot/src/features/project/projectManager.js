@@ -80,6 +80,34 @@ class ProjectManager {
         }
     }
 
+    async createDemoProject(mode = 'full') {
+        const endpoint = mode === 'simple' ? '/demo/create-simple' : '/demo/create';
+
+        try {
+            const project = await httpClient.post(endpoint);
+
+            this.currentProject = project;
+            setCurrentProject(project);
+            this.unsavedChanges = false;
+            this.updateStatusBar(project);
+
+            console.log('[ProjectManager] 示例工程创建成功:', project.id, '| mode:', mode);
+            return project;
+        } catch (error) {
+            console.error('[ProjectManager] 创建示例工程失败:', error);
+            throw error;
+        }
+    }
+
+    async getDemoGuide() {
+        try {
+            return await httpClient.get('/demo/guide');
+        } catch (error) {
+            console.error('[ProjectManager] 获取示例工程引导失败:', error);
+            throw error;
+        }
+    }
+
     /**
      * 打开工程
      */

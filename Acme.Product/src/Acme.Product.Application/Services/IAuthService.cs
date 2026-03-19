@@ -104,5 +104,7 @@ public class UserSession
     /// <summary>
     /// 是否已过期
     /// </summary>
-    public bool IsExpired => DateTime.UtcNow > ExpiresAt;
+    public bool IsExpired => IsExpiredAt(DateTime.UtcNow);
+
+    public bool IsExpiredAt(DateTime utcNow) => utcNow > ExpiresAt;
 }

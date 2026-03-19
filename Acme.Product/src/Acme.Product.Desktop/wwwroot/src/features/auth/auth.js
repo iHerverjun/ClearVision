@@ -10,6 +10,7 @@ import {
     isHostInjectedEnvironment,
     saveApiPort
 } from '../../core/messaging/apiConfig.js';
+import httpClient from '../../core/messaging/httpClient.js';
 import { clearAuthSession, getStoredToken, getStoredUser } from './authStorage.js';
 
 /**
@@ -66,9 +67,17 @@ export function isOperator() {
 /**
  * 登出
  */
-export function logout() {
-    clearAuthSession();
-    window.location.href = '/login.html';
+export async function logout() {
+    try {
+        if (getToken()) {
+            await httpClient.post('/auth/logout');
+        }
+    } catch (error) {
+        console.warn('[Auth] 服务端登出失败，将继续清理本地会话。', error);
+    } finally {
+        clearAuthSession();
+        window.location.href = '/login.html';
+    }
 }
 
 /**

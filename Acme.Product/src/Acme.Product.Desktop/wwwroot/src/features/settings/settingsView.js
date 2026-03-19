@@ -14,6 +14,7 @@ class SettingsView {
         // 尝试从本地存储或全局对象中获取当前用户信息
         const storedUser = localStorage.getItem('cv_current_user');
         const currentUser = window.currentUser || (storedUser ? JSON.parse(storedUser) : {});
+        this.currentUser = currentUser || {};
         this.isAdmin = currentUser?.role === 'Admin';
         
         this.aiModels = [];
@@ -243,6 +244,11 @@ class SettingsView {
             imageSavePathInput.addEventListener('change', refreshDiskUsage);
             imageSavePathInput.addEventListener('blur', refreshDiskUsage);
         }
+
+        this.container.querySelector('#btn-change-password')?.addEventListener('click', () => this.changePassword());
+        this.container.querySelector('#btn-reset-settings')?.addEventListener('click', () => this.resetSettings());
+        this.container.querySelector('#btn-apply-protection-rules')?.addEventListener('click', () => this.save());
+        this.container.querySelector('#btn-save-security-policy')?.addEventListener('click', () => this.save());
     }
     
     bindPlcSettingsEvents() {
@@ -901,12 +907,14 @@ class SettingsView {
                 const exposureRaw = binding.exposureTimeUs ?? binding.ExposureTimeUs;
                 const gainRaw = binding.gainDb ?? binding.GainDb;
                 const triggerRaw = binding.triggerMode ?? binding.TriggerMode;
+                const connectionStatus = binding.connectionStatus ?? binding.ConnectionStatus ?? binding.status ?? binding.Status ?? null;
 
                 return {
                     ...binding,
                     exposureTimeUs: Number.isFinite(Number(exposureRaw)) ? Number(exposureRaw) : 5000,
                     gainDb: Number.isFinite(Number(gainRaw)) ? Number(gainRaw) : 1.0,
-                    triggerMode: typeof triggerRaw === 'string' && triggerRaw.trim() ? triggerRaw.trim() : 'Software'
+                    triggerMode: typeof triggerRaw === 'string' && triggerRaw.trim() ? triggerRaw.trim() : 'Software',
+                    connectionStatus: typeof connectionStatus === 'string' && connectionStatus.trim() ? connectionStatus.trim() : null
                 };
             });
 
@@ -995,6 +1003,7 @@ class SettingsView {
                                             data-sn="${d.cameraId || ''}"
                                             data-man="${d.manufacturer}"
                                             data-model="${d.model}"
+                                            data-ip="${d.ipAddress || d.IpAddress || ''}"
                                             style="padding:6px 12px; font-size:13px; border-radius:6px;">
                                         添加绑定
                                     </button>
@@ -1034,13 +1043,14 @@ class SettingsView {
                 if (!displayName) return;
 
                 const newBinding = {
-                    id: Math.random().toString(36).substr(2, 8), // 模拟 GUID
+                    id: `cam_${Date.now().toString(36)}`,
                     displayName: displayName,
                     serialNumber: sn,
                     manufacturer: manufacturer,
                     modelName: model,
-                    ipAddress: sn, // 简单的演示赋值
+                    ipAddress: btn.dataset.ip || '',
                     isEnabled: true,
+                    connectionStatus: 'Unknown',
                     exposureTimeUs: 5000,
                     gainDb: 1.0,
                     triggerMode: 'Software'
@@ -1087,10 +1097,19 @@ class SettingsView {
         }
 
         tbody.innerHTML = this.cameraBindings.map((b, index) => {
-            const isConnected = b.isEnabled !== false; // 假设字段
-            const statusClass = isConnected ? 'status-connected' : 'status-error';
-            const statusDotClass = isConnected ? 'status-dot' : 'status-dot status-error';
-            const statusText = isConnected ? '已连接' : '已断开';
+            const rawConnectionStatus = String(
+                b.connectionStatus ?? b.ConnectionStatus ?? b.status ?? b.Status ?? ''
+            ).trim();
+            const normalizedStatus = rawConnectionStatus.toLowerCase();
+            const isConnected = ['connected', 'online', 'ready', 'active', '已连接'].includes(normalizedStatus);
+            const isDisconnected = ['disconnected', 'offline', 'error', '已断开'].includes(normalizedStatus);
+            const statusClass = isConnected
+                ? 'status-connected'
+                : (isDisconnected ? 'status-error' : 'status-disconnected');
+            const statusDotClass = isConnected
+                ? 'status-dot'
+                : (isDisconnected ? 'status-dot status-error' : 'status-dot');
+            const statusText = rawConnectionStatus || '未知';
             const bgClass = index === 0 ? '#fee2e2' : '#e0e7ff';
             const fgClass = index === 0 ? 'var(--cinnabar)' : 'var(--primary)';
             const isSelected = this.selectedCameraBindingId === b.id;
@@ -1108,7 +1127,7 @@ class SettingsView {
                         </div>
                     </div>
                 </td>
-                <td><span class="font-mono">${b.ipAddress || '192.168.x.x'}</span></td>
+                <td><span class="font-mono">${b.ipAddress || b.IpAddress || '未知'}</span></td>
                 <td>${b.manufacturer || '未知'}</td>
                 <td><span class="settings-status-badge ${statusClass}"><span class="${statusDotClass}"></span> ${statusText}</span></td>
                 <td><button class="action-icon-btn" title="删除" style="color:var(--cinnabar);"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>
@@ -1228,12 +1247,23 @@ class SettingsView {
             general: { softwareTitle: 'ClearVision', theme: 'dark', autoStart: false },
             communication: { plcIpAddress: '192.168.1.100', plcPort: 502, protocol: 'ModbusTcp', heartbeatIntervalMs: 1000, mappings: [] },
             storage: { imageSavePath: 'D:\\VisionData\\Images', savePolicy: 'NgOnly', retentionDays: 30, minFreeSpaceGb: 5 },
-            runtime: { autoRun: false, stopOnConsecutiveNg: 0 }
+            runtime: {
+                autoRun: false,
+                stopOnConsecutiveNg: 0,
+                missingMaterialTimeoutSeconds: 30,
+                applyProtectionRules: true
+            },
+            security: {
+                passwordMinLength: 6,
+                sessionTimeoutMinutes: 30,
+                loginFailureLockoutCount: 5
+            }
         };
     }
 
     renderGeneralTab() {
         const general = this.config?.general || this.getDefaultConfig().general;
+        const security = this.config?.security || this.getDefaultConfig().security;
         const runtimeTheme = localStorage.getItem('cv_theme') || general.theme || 'light';
         return `
             <div class="settings-section-title">
@@ -1271,6 +1301,38 @@ class SettingsView {
                                 <input type="checkbox" id="cfg-autoStart" ${general.autoStart ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--cinnabar);">
                                 开机自动启动软件
                             </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-modern-card" style="margin-top:24px;">
+                <div class="settings-card-header">
+                    <div class="settings-header-left">
+                        <svg viewBox="0 0 24 24" class="settings-header-icon"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                        <span>账号与安全</span>
+                    </div>
+                </div>
+                <div class="settings-card-body">
+                    <div style="display:flex; gap:24px; flex-wrap:wrap;">
+                        <div class="settings-fieldset" style="flex:1; min-width:220px;">
+                            <label>当前密码</label>
+                            <input type="password" class="cv-input" id="cfg-current-password" autocomplete="current-password" placeholder="请输入当前密码">
+                        </div>
+                        <div class="settings-fieldset" style="flex:1; min-width:220px;">
+                            <label>新密码</label>
+                            <input type="password" class="cv-input" id="cfg-new-password" autocomplete="new-password" placeholder="至少 ${security.passwordMinLength || 6} 位">
+                        </div>
+                        <div class="settings-fieldset" style="flex:1; min-width:220px;">
+                            <label>确认新密码</label>
+                            <input type="password" class="cv-input" id="cfg-confirm-password" autocomplete="new-password" placeholder="请再次输入新密码">
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:20px; flex-wrap:wrap;">
+                        <span class="settings-field-hint">当前密码策略：最少 ${security.passwordMinLength || 6} 位。</span>
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button class="cv-btn settings-btn-light" id="btn-reset-settings">恢复默认设置</button>
+                            <button class="cv-btn settings-btn-danger" id="btn-change-password">修改密码</button>
                         </div>
                     </div>
                 </div>
@@ -1455,7 +1517,7 @@ class SettingsView {
                                 <svg class="input-icon" viewBox="0 0 24 24" style="fill:#fbbf24;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
                                 <input type="text" class="cv-input" id="cfg-imageSavePath" value="${storage.imageSavePath || 'D:\\VisionData\\Images'}">
                             </div>
-                            <button class="cv-btn settings-btn-light" style="padding:0 20px;">更改目录</button>
+                            <button class="cv-btn settings-btn-light" id="btn-change-image-save-path" style="padding:0 20px;" disabled title="目录选择能力暂未接入">暂未接入</button>
                         </div>
                     </div>
                 </div>
@@ -1517,7 +1579,8 @@ class SettingsView {
                             <span class="font-bold" id="disk-free-gb" style="color:#059669;">-- GB</span>
                         </div>
                         
-                        <button class="cv-btn settings-btn-light" style="width:100%; margin-top:32px;">立即清理过期文件</button>
+                        <button class="cv-btn settings-btn-light" id="btn-clean-expired-files" style="width:100%; margin-top:32px;" disabled title="过期文件清理能力暂未接入">暂未开放</button>
+                        <span class="settings-field-hint" style="display:block; margin-top:12px;">当前版本仅支持保存清理策略，目录选择与即时清理动作暂未接入执行链路。</span>
                     </div>
                 </div>
             </div>
@@ -1558,7 +1621,7 @@ class SettingsView {
                         <div class="settings-fieldset" style="flex:1;">
                             <label>缺料等待超时 (秒)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="30" style="padding-right:36px;">
+                                <input type="number" class="cv-input" id="cfg-missingMaterialTimeoutSeconds" value="${runtime.missingMaterialTimeoutSeconds || 30}" style="padding-right:36px;">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">s</span>
                             </div>
                             <span class="settings-field-hint">触发信号到来前超出该时间未收到下一次触发，抛出超时警告。</span>
@@ -1573,12 +1636,19 @@ class SettingsView {
                             </label>
                             <span class="settings-field-hint" style="margin-left: 24px;">注意：启用此项可能导致系统启动即抛出触发信号需求，请确保外部环境安全。</span>
                         </div>
+                        <div class="settings-fieldset" style="margin-top:12px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="cfg-applyProtectionRules" ${runtime.applyProtectionRules !== false ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--cinnabar);">
+                                保存后立即启用运行保护规则
+                            </label>
+                            <span class="settings-field-hint" style="margin-left: 24px;">该配置会随“保存所有更改”一起持久化，并作为运行保护的开关。</span>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-card-body" style="border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; padding:16px 24px;">
-                    <button class="cv-btn settings-btn-danger">
+                    <button class="cv-btn settings-btn-danger" id="btn-apply-protection-rules">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-                        应用保护规则
+                        保存运行保护配置
                     </button>
                 </div>
             </div>
@@ -1798,6 +1868,7 @@ class SettingsView {
     }
 
     renderUserManagementTab() {
+        const security = this.config?.security || this.getDefaultConfig().security;
         return `
             <div class="settings-section-title" style="display:flex; justify-content:space-between; align-items:flex-end;">
                 <div>
@@ -1840,19 +1911,22 @@ class SettingsView {
                 <div class="settings-card-body" style="display:flex; gap:24px;">
                     <div class="settings-fieldset" style="flex:1;">
                         <label>密码最小长度</label>
-                        <input type="number" class="cv-input" value="6">
+                        <input type="number" class="cv-input" id="cfg-passwordMinLength" value="${security.passwordMinLength || 6}">
                     </div>
                     <div class="settings-fieldset" style="flex:1;">
                         <label>会话自动超时 (分钟)</label>
-                        <input type="number" class="cv-input" value="30">
+                        <input type="number" class="cv-input" id="cfg-sessionTimeoutMinutes" value="${security.sessionTimeoutMinutes || 30}">
                     </div>
                     <div class="settings-fieldset" style="flex:1;">
                         <label>登录失败锁定次数</label>
-                        <input type="number" class="cv-input" value="5">
+                        <input type="number" class="cv-input" id="cfg-loginFailureLockoutCount" value="${security.loginFailureLockoutCount || 5}">
                     </div>
                 </div>
                 <div class="settings-card-body" style="border-top:1px solid #e2e8f0; padding-top:16px;">
-                    <button class="cv-btn settings-btn-danger">保存安全策略</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; width:100%;">
+                        <span class="settings-field-hint">密码最小长度会立即应用到修改密码、创建用户和重置密码；其他策略会随认证链路逐步接入。</span>
+                        <button class="cv-btn settings-btn-danger" id="btn-save-security-policy">保存安全策略</button>
+                    </div>
                 </div>
             </div>
             
@@ -2126,6 +2200,58 @@ class SettingsView {
         }
     }
 
+    async changePassword() {
+        const currentPassword = this.container?.querySelector('#cfg-current-password')?.value || '';
+        const newPassword = this.container?.querySelector('#cfg-new-password')?.value || '';
+        const confirmPassword = this.container?.querySelector('#cfg-confirm-password')?.value || '';
+        const minLength = this.config?.security?.passwordMinLength
+            ?? this.config?.security?.PasswordMinLength
+            ?? this.getDefaultConfig().security.passwordMinLength;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast('请完整填写当前密码、新密码和确认密码', 'warning');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast('两次输入的新密码不一致', 'warning');
+            return;
+        }
+
+        if (newPassword.trim().length < minLength) {
+            showToast(`新密码长度不能少于 ${minLength} 位`, 'warning');
+            return;
+        }
+
+        try {
+            await httpClient.post('/auth/change-password', {
+                oldPassword: currentPassword,
+                newPassword: newPassword
+            });
+
+            this.container.querySelector('#cfg-current-password').value = '';
+            this.container.querySelector('#cfg-new-password').value = '';
+            this.container.querySelector('#cfg-confirm-password').value = '';
+            showToast('密码修改成功，请使用新密码继续登录', 'success');
+        } catch (error) {
+            showToast(`密码修改失败: ${error.message}`, 'error');
+        }
+    }
+
+    async resetSettings() {
+        if (!confirm('确定要恢复默认设置吗？这会覆盖当前已保存的系统配置。')) {
+            return;
+        }
+
+        try {
+            await httpClient.post('/settings/reset');
+            showToast('系统配置已恢复默认值', 'success');
+            await this.refresh();
+        } catch (error) {
+            showToast(`恢复默认设置失败: ${error.message}`, 'error');
+        }
+    }
+
     /**
      * 收集输入并调用 API
      */
@@ -2151,6 +2277,22 @@ class SettingsView {
         const minFreeSpaceGb = Number.isFinite(parsedMinFreeSpaceGb) && parsedMinFreeSpaceGb >= 0
             ? parsedMinFreeSpaceGb
             : (this.config?.storage?.minFreeSpaceGb ?? defaultConfig.storage.minFreeSpaceGb);
+        const parsedMissingMaterialTimeoutSeconds = Number.parseInt(this.container?.querySelector('#cfg-missingMaterialTimeoutSeconds')?.value || '', 10);
+        const missingMaterialTimeoutSeconds = Number.isFinite(parsedMissingMaterialTimeoutSeconds) && parsedMissingMaterialTimeoutSeconds >= 0
+            ? parsedMissingMaterialTimeoutSeconds
+            : (this.config?.runtime?.missingMaterialTimeoutSeconds ?? defaultConfig.runtime.missingMaterialTimeoutSeconds);
+        const parsedPasswordMinLength = Number.parseInt(this.container?.querySelector('#cfg-passwordMinLength')?.value || '', 10);
+        const passwordMinLength = Number.isFinite(parsedPasswordMinLength) && parsedPasswordMinLength >= 6
+            ? parsedPasswordMinLength
+            : (this.config?.security?.passwordMinLength ?? defaultConfig.security.passwordMinLength);
+        const parsedSessionTimeoutMinutes = Number.parseInt(this.container?.querySelector('#cfg-sessionTimeoutMinutes')?.value || '', 10);
+        const sessionTimeoutMinutes = Number.isFinite(parsedSessionTimeoutMinutes) && parsedSessionTimeoutMinutes > 0
+            ? parsedSessionTimeoutMinutes
+            : (this.config?.security?.sessionTimeoutMinutes ?? defaultConfig.security.sessionTimeoutMinutes);
+        const parsedLoginFailureLockoutCount = Number.parseInt(this.container?.querySelector('#cfg-loginFailureLockoutCount')?.value || '', 10);
+        const loginFailureLockoutCount = Number.isFinite(parsedLoginFailureLockoutCount) && parsedLoginFailureLockoutCount > 0
+            ? parsedLoginFailureLockoutCount
+            : (this.config?.security?.loginFailureLockoutCount ?? defaultConfig.security.loginFailureLockoutCount);
         const activeCameraId = this.resolveActiveCameraId();
         const plcMappings = this.collectPlcMappingsFromTable();
 
@@ -2199,7 +2341,14 @@ class SettingsView {
             },
             runtime: {
                 autoRun: this.container?.querySelector('#cfg-autoRun')?.checked || false,
-                stopOnConsecutiveNg: parseInt(this.container?.querySelector('#cfg-stopOnConsecutiveNg')?.value || '0', 10)
+                stopOnConsecutiveNg: parseInt(this.container?.querySelector('#cfg-stopOnConsecutiveNg')?.value || '0', 10),
+                missingMaterialTimeoutSeconds,
+                applyProtectionRules: this.container?.querySelector('#cfg-applyProtectionRules')?.checked ?? true
+            },
+            security: {
+                passwordMinLength,
+                sessionTimeoutMinutes,
+                loginFailureLockoutCount
             },
             cameras: this.collectCameraBindings(),
             activeCameraId
@@ -2208,6 +2357,7 @@ class SettingsView {
         try {
             // 首先保存全局配置 (AppConfig)
             await httpClient.put('/settings', config);
+            this.config = config;
 
             // 保存相机绑定
             const bindingsSaved = await this.saveCameraBindings({ silent: true });

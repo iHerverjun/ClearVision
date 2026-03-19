@@ -1,10 +1,7 @@
 import httpClient from '../../core/messaging/httpClient.js';
+import inspectionController from '../inspection/inspectionController.js';
+import { getCurrentProject } from '../project/projectManager.js';
 
-/**
- * 单算子预览面板
- * - 手动刷新
- * - 参数变更后自动预览（防抖）
- */
 export class PreviewPanel {
     constructor(container, options = {}) {
         this.container = container;
@@ -42,7 +39,7 @@ export class PreviewPanel {
             <section class="operator-preview-panel ${this.collapsed ? 'collapsed' : ''}">
                 <header class="operator-preview-header">
                     <button type="button" class="operator-preview-toggle" id="btn-preview-toggle">
-                        ${this.collapsed ? '▶' : '▼'} 预览
+                        ${this.collapsed ? '▸' : '▾'} 预览
                     </button>
                     <div class="operator-preview-actions">
                         <label class="operator-preview-auto">
@@ -142,29 +139,39 @@ export class PreviewPanel {
         this._setImage('before', inputImageBase64);
 
         try {
+            const nodePreviewContext = this._getNodePreviewContext(operator);
+            if (nodePreviewContext) {
+                try {
+                    const response = await inspectionController.previewNode(nodePreviewContext.nodeId, {
+                        inputImageBase64,
+                        parameters
+                    });
+                    this._applyPreviewResponse(response, {
+                        successKeys: ['success', 'Success'],
+                        imageKeys: ['outputImageBase64', 'OutputImageBase64'],
+                        outputKeys: ['outputData', 'OutputData'],
+                        elapsedKeys: ['executionTimeMs', 'ExecutionTimeMs'],
+                        errorKeys: ['errorMessage', 'ErrorMessage']
+                    });
+                    return;
+                } catch (error) {
+                    console.warn('[PreviewPanel] Node preview failed, falling back to operator preview.', error);
+                    this._setStatus(`节点预览失败，正在回退算子预览: ${error.message}`);
+                }
+            }
+
             const response = await httpClient.post(`/operators/${encodeURIComponent(operator.type)}/preview`, {
                 imageBase64: inputImageBase64,
                 parameters
             });
 
-            const isSuccess = Boolean(response?.isSuccess ?? response?.IsSuccess);
-            if (!isSuccess) {
-                const errorMessage = response?.errorMessage || response?.ErrorMessage || '预览执行失败';
-                this._setStatus(`预览失败: ${errorMessage}`);
-                this._setImage('after', null);
-                this._renderOutputs(null);
-                return;
-            }
-
-            const resultImage = response?.imageBase64 || response?.resultImageBase64 || response?.ImageBase64;
-            const outputs = response?.outputs || response?.Outputs;
-            const elapsedMs = response?.executionTimeMs ?? response?.ExecutionTimeMs;
-
-            this._setImage('after', resultImage || null);
-            this._renderOutputs(outputs);
-            this._setStatus(typeof elapsedMs === 'number'
-                ? `预览完成 (${elapsedMs} ms)`
-                : '预览完成');
+            this._applyPreviewResponse(response, {
+                successKeys: ['isSuccess', 'IsSuccess'],
+                imageKeys: ['imageBase64', 'resultImageBase64', 'ImageBase64'],
+                outputKeys: ['outputs', 'Outputs'],
+                elapsedKeys: ['executionTimeMs', 'ExecutionTimeMs'],
+                errorKeys: ['errorMessage', 'ErrorMessage']
+            });
         } catch (error) {
             this._setStatus(`预览错误: ${error.message}`);
             this._setImage('after', null);
@@ -235,6 +242,50 @@ export class PreviewPanel {
         if (statusElement) {
             statusElement.textContent = text;
         }
+    }
+
+    _getNodePreviewContext(operator) {
+        const project = getCurrentProject();
+        const nodeId = operator?.id || operator?.Id || null;
+        if (!project?.id || !nodeId) {
+            return null;
+        }
+
+        return {
+            projectId: project.id,
+            nodeId
+        };
+    }
+
+    _readFirstDefined(source, keys) {
+        for (const key of keys) {
+            if (source?.[key] !== undefined && source?.[key] !== null) {
+                return source[key];
+            }
+        }
+
+        return undefined;
+    }
+
+    _applyPreviewResponse(response, config) {
+        const isSuccess = Boolean(this._readFirstDefined(response, config.successKeys));
+        if (!isSuccess) {
+            const errorMessage = this._readFirstDefined(response, config.errorKeys) || '预览执行失败';
+            this._setStatus(`预览失败: ${errorMessage}`);
+            this._setImage('after', null);
+            this._renderOutputs(null);
+            return;
+        }
+
+        const resultImage = this._readFirstDefined(response, config.imageKeys);
+        const outputs = this._readFirstDefined(response, config.outputKeys);
+        const elapsedMs = this._readFirstDefined(response, config.elapsedKeys);
+
+        this._setImage('after', resultImage || null);
+        this._renderOutputs(outputs);
+        this._setStatus(typeof elapsedMs === 'number'
+            ? `预览完成 (${elapsedMs} ms)`
+            : '预览完成');
     }
 
     _setImage(type, imageBase64OrDataUrl) {

@@ -228,7 +228,7 @@ export class AiPanel {
         const dot = indicator?.querySelector('.status-dot');
         if (!dot) return;
         
-        httpClient.get('/api/health')
+        httpClient.get('/health')
             .then(() => {
                 dot.className = 'status-dot connected';
             })
@@ -1062,6 +1062,7 @@ export class AiPanel {
             console.warn('[AiPanel] 历史会话仅包含 AI 原始结构，未包含画布快照，无法直接应用到画布。', {
                 sessionId
             });
+            this._addMessage('system', '该历史会话缺少可回放的画布快照，已恢复对话内容，但无法直接还原到当前画布。');
         }
 
         const reasoningEl = this.container.querySelector('#ai-result-reasoning');

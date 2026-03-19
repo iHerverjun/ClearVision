@@ -1,7 +1,6 @@
 // AuthService.cs
 // 映射到DTO
 // 作者：蘅芜君
-
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -16,18 +15,26 @@ public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
-    
+    private readonly IConfigurationService _configurationService;
+
     // 内存Token存储 - 应用重启后需重新登录
     private static readonly Dictionary<string, UserSession> _sessions = new();
+    private static readonly Dictionary<string, LoginFailureState> _loginFailures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object _lock = new();
 
-    // Token 有效期：8小时
-    private static readonly TimeSpan _tokenExpiration = TimeSpan.FromHours(8);
+    // 当前配置模型未提供单独的锁定时长，暂用固定窗口实现“临时锁定”。
+    private static readonly TimeSpan _lockoutDuration = TimeSpan.FromMinutes(15);
 
-    public AuthService(IUserRepository userRepository, IPasswordHasher passwordHasher)
+    public Func<DateTime> UtcNowProvider { get; set; } = static () => DateTime.UtcNow;
+
+    public AuthService(
+        IUserRepository userRepository,
+        IPasswordHasher passwordHasher,
+        IConfigurationService configurationService)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
+        _configurationService = configurationService;
     }
 
     /// <summary>
@@ -40,8 +47,11 @@ public class AuthService : IAuthService
             return AuthResult.Fail("用户名和密码不能为空");
         }
 
+        var normalizedUsername = username.Trim();
+        var utcNow = UtcNowProvider();
+
         // 查找用户
-        var user = await _userRepository.GetByUsernameAsync(username);
+        var user = await _userRepository.GetByUsernameAsync(normalizedUsername);
         if (user == null)
         {
             return AuthResult.Fail("用户名或密码错误");
@@ -53,11 +63,25 @@ public class AuthService : IAuthService
             return AuthResult.Fail("账户已被禁用");
         }
 
+        if (TryGetActiveLockout(normalizedUsername, utcNow, out var lockedUntilUtc))
+        {
+            return AuthResult.Fail(BuildLockoutMessage(lockedUntilUtc));
+        }
+
         // 验证密码
         if (!_passwordHasher.VerifyPassword(password, user.PasswordHash))
         {
+            var threshold = ResolveLoginFailureLockoutCount();
+            var failureState = RegisterFailedAttempt(normalizedUsername, utcNow, threshold);
+            if (failureState.IsLockedAt(utcNow))
+            {
+                return AuthResult.Fail(BuildLockoutMessage(failureState.LockedUntilUtc));
+            }
+
             return AuthResult.Fail("用户名或密码错误");
         }
+
+        ClearFailedAttempts(normalizedUsername);
 
         // 更新最后登录时间
         user.UpdateLastLogin();
@@ -70,7 +94,7 @@ public class AuthService : IAuthService
             UserId = user.Id.ToString(),
             Username = user.Username,
             Role = user.Role.ToString(),
-            ExpiresAt = DateTime.UtcNow.Add(_tokenExpiration)
+            ExpiresAt = utcNow.Add(ResolveSessionTimeout())
         };
 
         lock (_lock)
@@ -107,18 +131,21 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(token))
             return Task.FromResult(false);
 
+        var utcNow = UtcNowProvider();
+
         lock (_lock)
         {
             if (_sessions.TryGetValue(token, out var session))
             {
-                // 检查是否过期
-                if (session.IsExpired)
+                if (session.IsExpiredAt(utcNow))
                 {
                     _sessions.Remove(token);
                     return Task.FromResult(false);
                 }
+
                 return Task.FromResult(true);
             }
+
             return Task.FromResult(false);
         }
     }
@@ -131,17 +158,21 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(token))
             return Task.FromResult<UserSession?>(null);
 
+        var utcNow = UtcNowProvider();
+
         lock (_lock)
         {
             if (_sessions.TryGetValue(token, out var session))
             {
-                if (session.IsExpired)
+                if (session.IsExpiredAt(utcNow))
                 {
                     _sessions.Remove(token);
                     return Task.FromResult<UserSession?>(null);
                 }
+
                 return Task.FromResult<UserSession?>(session);
             }
+
             return Task.FromResult<UserSession?>(null);
         }
     }
@@ -186,12 +217,100 @@ public class AuthService : IAuthService
         return AuthResult.Ok(string.Empty, MapToDto(user));
     }
 
+    public static void ResetInMemoryStateForTests()
+    {
+        lock (_lock)
+        {
+            _sessions.Clear();
+            _loginFailures.Clear();
+        }
+    }
+
     /// <summary>
     /// 生成Token
     /// </summary>
     private static string GenerateToken()
     {
         return Guid.NewGuid().ToString("N");
+    }
+
+    private TimeSpan ResolveSessionTimeout()
+    {
+        var minutes = Math.Max(1, _configurationService.GetCurrent()?.Security?.SessionTimeoutMinutes ?? 30);
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    private int ResolveLoginFailureLockoutCount()
+    {
+        return Math.Max(1, _configurationService.GetCurrent()?.Security?.LoginFailureLockoutCount ?? 5);
+    }
+
+    private static LoginFailureState RegisterFailedAttempt(string username, DateTime utcNow, int threshold)
+    {
+        lock (_lock)
+        {
+            if (!_loginFailures.TryGetValue(username, out var state))
+            {
+                state = new LoginFailureState();
+            }
+
+            if (state.LockedUntilUtc > utcNow)
+            {
+                _loginFailures[username] = state;
+                return state;
+            }
+
+            if (state.LockedUntilUtc != DateTime.MinValue && state.LockedUntilUtc <= utcNow)
+            {
+                state = new LoginFailureState();
+            }
+
+            state.FailureCount += 1;
+            if (state.FailureCount >= threshold)
+            {
+                state.LockedUntilUtc = utcNow.Add(_lockoutDuration);
+                state.FailureCount = 0;
+            }
+
+            _loginFailures[username] = state;
+            return state;
+        }
+    }
+
+    private static void ClearFailedAttempts(string username)
+    {
+        lock (_lock)
+        {
+            _loginFailures.Remove(username);
+        }
+    }
+
+    private static bool TryGetActiveLockout(string username, DateTime utcNow, out DateTime lockedUntilUtc)
+    {
+        lock (_lock)
+        {
+            if (_loginFailures.TryGetValue(username, out var state))
+            {
+                if (state.IsLockedAt(utcNow))
+                {
+                    lockedUntilUtc = state.LockedUntilUtc;
+                    return true;
+                }
+
+                if (state.LockedUntilUtc != DateTime.MinValue && state.LockedUntilUtc <= utcNow)
+                {
+                    _loginFailures.Remove(username);
+                }
+            }
+        }
+
+        lockedUntilUtc = DateTime.MinValue;
+        return false;
+    }
+
+    private static string BuildLockoutMessage(DateTime lockedUntilUtc)
+    {
+        return $"账号已被临时锁定，请在 {lockedUntilUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} 后重试";
     }
 
     /// <summary>
@@ -208,5 +327,14 @@ public class AuthService : IAuthService
             IsActive = user.IsActive,
             LastLoginAt = user.LastLoginAt
         };
+    }
+
+    private sealed class LoginFailureState
+    {
+        public int FailureCount { get; set; }
+
+        public DateTime LockedUntilUtc { get; set; }
+
+        public bool IsLockedAt(DateTime utcNow) => LockedUntilUtc > utcNow;
     }
 }

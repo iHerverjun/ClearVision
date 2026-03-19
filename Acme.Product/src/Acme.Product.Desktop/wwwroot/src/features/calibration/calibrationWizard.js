@@ -315,7 +315,7 @@ export class CalibrationWizard {
             }
             
             try {
-                const result = await httpClient.post('/api/calibration/solve', this.points);
+                const result = await httpClient.post('/calibration/solve', this.points);
                 if (!result.success && result.error) {
                     throw new Error(result.error);
                 }
@@ -378,7 +378,7 @@ export class CalibrationWizard {
                 fileName: filename
             };
 
-            const response = await httpClient.post('/api/calibration/save', req);
+            const response = await httpClient.post('/calibration/save', req);
             
             // Success
             this.showError('');

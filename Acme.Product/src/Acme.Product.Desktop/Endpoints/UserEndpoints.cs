@@ -5,6 +5,7 @@
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.Interfaces;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -48,11 +49,17 @@ public static class UserEndpoints
         });
 
         // 创建用户 - Admin
-        app.MapPost("/api/users", async (CreateUserRequest request, UserManagementService userService, HttpContext context) =>
+        app.MapPost("/api/users", async (CreateUserRequest request, UserManagementService userService, HttpContext context, IConfigurationService configService) =>
         {
             if (!await IsAdminAsync(context))
             {
                 return Results.Forbid();
+            }
+
+            var minPasswordLength = Math.Max(6, configService.GetCurrent()?.Security?.PasswordMinLength ?? 6);
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Trim().Length < minPasswordLength)
+            {
+                return Results.BadRequest(new { Error = $"初始密码长度不能少于 {minPasswordLength} 位" });
             }
 
             var result = await userService.CreateUserAsync(request);
@@ -118,11 +125,18 @@ public static class UserEndpoints
             string id, 
             ResetPasswordRequest request, 
             UserManagementService userService, 
-            HttpContext context) =>
+            HttpContext context,
+            IConfigurationService configService) =>
         {
             if (!await IsAdminAsync(context))
             {
                 return Results.Forbid();
+            }
+
+            var minPasswordLength = Math.Max(6, configService.GetCurrent()?.Security?.PasswordMinLength ?? 6);
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Trim().Length < minPasswordLength)
+            {
+                return Results.BadRequest(new { Error = $"重置密码长度不能少于 {minPasswordLength} 位" });
             }
 
             var result = await userService.ResetPasswordAsync(id, request.NewPassword);
