@@ -105,11 +105,11 @@ static class Program
             System.Windows.Forms.Application.Run(mainForm);
 
             // 关闭 Web 服务器
-            StopWebServer().Wait();
+            StopWebServer().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Startup Error: {ex}");
+            MessageBox.Show($"Application Error: {ex}");
         }
     }
 

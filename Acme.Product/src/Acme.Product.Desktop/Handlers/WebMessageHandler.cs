@@ -10,6 +10,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Events;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
+using Acme.Product.Desktop.Inspection;
 using Acme.Product.Desktop.Extensions;
 using Acme.Product.Infrastructure.Data;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ using System.Text.Json.Serialization;
 using Acme.Product.Infrastructure.Services;
 using System.Net.Http;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace Acme.Product.Desktop.Handlers;
 
@@ -36,6 +38,7 @@ public class WebMessageHandler : IDisposable
     private readonly ILogger<WebMessageHandler> _logger;
     private WebView2? _webViewControl;
     private CoreWebView2? _webView;
+    private int _disposeState;
 
     // 事件订阅句柄
     private readonly List<IDisposable> _subscriptions = new();
@@ -131,47 +134,21 @@ public class WebMessageHandler : IDisposable
             // 订阅状态变更事件
             _subscriptions.Add(_eventBus.Subscribe<InspectionStateChangedEvent>(async (evt, ct) =>
             {
-                SendProgressMessage("inspectionStateChanged", new
-                {
-                    projectId = evt.ProjectId,
-                    sessionId = evt.SessionId,
-                    oldState = evt.OldState,
-                    newState = evt.NewState,
-                    error = evt.ErrorMessage,
-                    timestamp = evt.Timestamp
-                });
+                PublishRealtimeMessages(evt);
                 await Task.CompletedTask;
             }));
             
             // 订阅结果事件
             _subscriptions.Add(_eventBus.Subscribe<InspectionResultEvent>(async (evt, ct) =>
             {
-                SendProgressMessage("inspectionResult", new
-                {
-                    projectId = evt.ProjectId,
-                    sessionId = evt.SessionId,
-                    resultId = evt.ResultId,
-                    status = evt.Status,
-                    defectCount = evt.DefectCount,
-                    processingTimeMs = evt.ProcessingTimeMs,
-                    timestamp = evt.Timestamp
-                });
+                PublishRealtimeMessages(evt);
                 await Task.CompletedTask;
             }));
             
             // 订阅进度事件
             _subscriptions.Add(_eventBus.Subscribe<InspectionProgressEvent>(async (evt, ct) =>
             {
-                SendProgressMessage("inspectionProgress", new
-                {
-                    projectId = evt.ProjectId,
-                    sessionId = evt.SessionId,
-                    processedCount = evt.ProcessedCount,
-                    totalCount = evt.TotalCount,
-                    progressPercentage = evt.ProgressPercentage,
-                    currentOperator = evt.CurrentOperator,
-                    timestamp = evt.Timestamp
-                });
+                PublishRealtimeMessages(evt);
                 await Task.CompletedTask;
             }));
             
@@ -1023,6 +1000,14 @@ public class WebMessageHandler : IDisposable
         }
     }
 
+    private void PublishRealtimeMessages(IInspectionEvent evt)
+    {
+        foreach (var message in InspectionRealtimeEventMapper.Map(evt))
+        {
+            SendProgressMessage(message.EventType, message.Payload);
+        }
+    }
+
     public void NotifyInspectionResult(InspectionResult result, Guid projectId)
     {
         try
@@ -1133,6 +1118,10 @@ public class WebMessageHandler : IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
         _logger.LogInformation("[WebMessageHandler] 正在释放资源");
         
         foreach (var subscription in _subscriptions)
@@ -1149,11 +1138,45 @@ public class WebMessageHandler : IDisposable
         _subscriptions.Clear();
         _isSubscribed = false;
         
-        if (_webView != null)
-        {
-            _webView.WebMessageReceived -= OnWebMessageReceived;
-        }
+        DetachWebView();
         
         _logger.LogInformation("[WebMessageHandler] 资源已释放");
+    }
+
+    private void DetachWebView()
+    {
+        var webViewControl = _webViewControl;
+        var webView = _webView;
+
+        _webViewControl = null;
+        _webView = null;
+
+        if (webViewControl == null || webView == null || webViewControl.IsDisposed)
+        {
+            return;
+        }
+
+        if (webViewControl.InvokeRequired)
+        {
+            _logger.LogDebug("[WebMessageHandler] Skipping WebView2 detach because shutdown is not on the UI thread.");
+            return;
+        }
+
+        try
+        {
+            webView.WebMessageReceived -= OnWebMessageReceived;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogDebug(ex, "[WebMessageHandler] WebView2 is no longer available during shutdown.");
+        }
+        catch (InvalidCastException ex)
+        {
+            _logger.LogDebug(ex, "[WebMessageHandler] WebView2 COM interface is already unavailable during shutdown.");
+        }
+        catch (COMException ex)
+        {
+            _logger.LogDebug(ex, "[WebMessageHandler] WebView2 COM cleanup is already in progress.");
+        }
     }
 }

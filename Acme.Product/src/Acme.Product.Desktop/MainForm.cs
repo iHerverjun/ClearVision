@@ -15,6 +15,7 @@ public partial class MainForm : Form
 {
     private readonly WebView2 _webView;
     private readonly WebView2Host _webView2Host;
+    private readonly Handlers.WebMessageHandler? _messageHandler;
 
     public MainForm()
     {
@@ -28,8 +29,8 @@ public partial class MainForm : Form
         Controls.Add(_webView);
 
         // 创建 WebView2 宿主
-        var messageHandler = Program.ServiceProvider?.GetService<Handlers.WebMessageHandler>();
-        _webView2Host = new WebView2Host(_webView, messageHandler);
+        _messageHandler = Program.ServiceProvider?.GetService<Handlers.WebMessageHandler>();
+        _webView2Host = new WebView2Host(_webView, _messageHandler);
 
         // 窗体加载时初始化 WebView2
         Load += MainForm_Load;
@@ -48,8 +49,7 @@ public partial class MainForm : Form
             // S4-006: 初始化 WebMessage 处理器，挂载到 WebView2
             if (_webView.CoreWebView2 != null)
             {
-                var handler = Program.ServiceProvider?.GetService<Handlers.WebMessageHandler>();
-                handler?.Initialize(_webView);
+                _messageHandler?.Initialize(_webView);
             }
         }
         catch (Exception ex)
@@ -126,7 +126,15 @@ public partial class MainForm : Form
 
     private async void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        await _webView2Host.DisposeAsync();
+        try
+        {
+            _messageHandler?.Dispose();
+            await _webView2Host.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainForm] Shutdown cleanup failed: {ex}");
+        }
     }
 
     private void InitializeComponent()
