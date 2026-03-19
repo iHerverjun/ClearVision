@@ -93,9 +93,11 @@ class WebMessageBridge {
         let hasResult = false;
         let firstError = null;
 
+        const payload = message.payload ?? message.data ?? message;
+
         handlers.forEach((handler) => {
             try {
-                const result = handler(message);
+                const result = handler(payload);
                 if (!hasResult) {
                     firstResult = result;
                     hasResult = true;

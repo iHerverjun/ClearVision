@@ -7,6 +7,7 @@
 import httpClient from '../../core/messaging/httpClient.js';
 import webMessageBridge from '../../core/messaging/webMessageBridge.js';
 import { createSignal } from '../../core/state/store.js';
+import { getStoredToken } from '../auth/authStorage.js';
 
 // 检测状态
 const [getInspectionState, setInspectionState, subscribeInspectionState] = createSignal({
@@ -59,24 +60,29 @@ class InspectionController {
         });
 
         // 【架构修复 v2】监听状态变更事件
-        webMessageBridge.on('inspectionStateChanged', (data) => {
+        webMessageBridge.on('stateChanged', (data) => {
             console.log('[InspectionController] 状态变更:', data);
             this.handleStateChanged(data);
         });
 
         // 【架构修复 v2】监听检测结果事件
-        webMessageBridge.on('inspectionResult', (data) => {
+        webMessageBridge.on('resultProduced', (data) => {
             console.log('[InspectionController] 检测结果:', data);
             this.handleResultEvent(data);
         });
 
         // 【架构修复 v2】监听进度事件
-        webMessageBridge.on('inspectionProgress', (data) => {
+        webMessageBridge.on('progressChanged', (data) => {
             console.log('[InspectionController] 进度更新:', data);
             this.updateProgress(data);
         });
 
         // 监听检测完成事件（兼容旧版）
+        webMessageBridge.on('faulted', (data) => {
+            console.error('[InspectionController] faulted:', data);
+            this.handleInspectionError(new Error(data.errorMessage || 'Realtime inspection faulted'));
+        });
+
         webMessageBridge.on('inspectionCompleted', (data) => {
             console.log('[InspectionController] 检测完成:', data);
             this.handleInspectionCompleted(data);
@@ -103,9 +109,10 @@ class InspectionController {
         try {
             console.log('[InspectionController] 连接 SSE:', projectId);
             
-            this.eventSource = new EventSource(
-                `/api/inspection/realtime/${projectId}/events`
-            );
+            const token = getStoredToken();
+            const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+            const eventUrl = `${httpClient.baseUrl}/inspection/realtime/${projectId}/events${tokenQuery}`;
+            this.eventSource = new EventSource(eventUrl);
 
             // 初始状态
             this.eventSource.addEventListener('initialState', (e) => {
@@ -119,27 +126,33 @@ class InspectionController {
             });
 
             // 状态变更
-            this.eventSource.addEventListener('InspectionStateChangedEvent', (e) => {
+            this.eventSource.addEventListener('stateChanged', (e) => {
                 const data = JSON.parse(e.data);
                 console.log('[InspectionController] SSE 状态变更:', data);
                 this.handleStateChanged(data);
             });
 
             // 检测结果
-            this.eventSource.addEventListener('InspectionResultEvent', (e) => {
+            this.eventSource.addEventListener('resultProduced', (e) => {
                 const data = JSON.parse(e.data);
                 console.log('[InspectionController] SSE 检测结果:', data);
                 this.handleResultEvent(data);
             });
 
             // 进度更新
-            this.eventSource.addEventListener('InspectionProgressEvent', (e) => {
+            this.eventSource.addEventListener('progressChanged', (e) => {
                 const data = JSON.parse(e.data);
                 console.log('[InspectionController] SSE 进度:', data);
                 this.updateProgress(data);
             });
 
             // 心跳
+            this.eventSource.addEventListener('faulted', (e) => {
+                const data = JSON.parse(e.data);
+                console.error('[InspectionController] SSE faulted:', data);
+                this.handleInspectionError(new Error(data.errorMessage || 'Realtime inspection faulted'));
+            });
+
             this.eventSource.addEventListener('heartbeat', (e) => {
                 // 心跳只用于保活，不处理
                 console.debug('[InspectionController] SSE 心跳');
@@ -196,9 +209,8 @@ class InspectionController {
             status: statusMap[data.newState] || 'idle'
         });
 
-        if (data.newState === 'Faulted' && data.errorMessage) {
+        if (data.newState === 'Stopped' || data.newState === 'Faulted') {
             console.error('[InspectionController] 检测故障:', data.errorMessage);
-            this.handleInspectionError(new Error(data.errorMessage));
         }
     }
 
@@ -299,12 +311,6 @@ class InspectionController {
         // 【架构修复 v2】先订阅 SSE 事件
         this.subscribeToSseEvents(this.projectId);
 
-        setInspectionState({
-            ...getInspectionState(),
-            isRealtime: true,
-            status: 'running'
-        });
-
         try {
             this.abortController = new AbortController();
 
@@ -321,8 +327,6 @@ class InspectionController {
 
         } catch (error) {
             console.error('[InspectionController] 启动实时检测失败:', error);
-            this.unsubscribeFromSseEvents();
-            this.stopRealtime();
             throw error;
         }
     }
@@ -337,12 +341,6 @@ class InspectionController {
 
         // 【架构修复 v2】先订阅 SSE 事件
         this.subscribeToSseEvents(this.projectId);
-
-        setInspectionState({
-            ...getInspectionState(),
-            isRealtime: true,
-            status: 'running'
-        });
 
         try {
             this.abortController = new AbortController();
@@ -363,8 +361,6 @@ class InspectionController {
 
         } catch (error) {
             console.error('[InspectionController] 启动失败:', error);
-            this.unsubscribeFromSseEvents();
-            this.stopRealtime();
             throw error;
         }
     }
@@ -382,13 +378,7 @@ class InspectionController {
             }
 
             // 【架构修复 v2】取消 SSE 订阅
-            this.unsubscribeFromSseEvents();
 
-            setInspectionState({
-                ...getInspectionState(),
-                isRealtime: false,
-                status: 'idle'
-            });
 
             console.log('[InspectionController] 实时检测已停止');
 
