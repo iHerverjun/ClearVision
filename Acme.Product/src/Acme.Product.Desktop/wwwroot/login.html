@@ -113,6 +113,7 @@
             getStoredToken,
             storeAuthSession
         } from './src/features/auth/authStorage.js';
+        import { consumeLogoutNotice } from './src/features/auth/auth.js';
 
         const token = getStoredToken();
         if (token) {
@@ -132,6 +133,13 @@
             document.getElementById('rememberMe').checked = true;
         }
 
+        const logoutNotice = consumeLogoutNotice();
+        if (logoutNotice) {
+            const errorDiv = document.getElementById('loginError');
+            errorDiv.textContent = logoutNotice;
+            errorDiv.style.display = 'block';
+        }
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -147,6 +155,7 @@
             btnText.style.display = 'none';
             btnLoading.style.display = 'flex';
             errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
 
             try {
                 const response = await httpClient.post('/auth/login', {

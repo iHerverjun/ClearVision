@@ -23,7 +23,7 @@
 
 /* 通用面板样式 - 工业玻璃质感 */
 .inspection-control-panel,
-.inspection-results-panel {
+.inspection-side-panel {
     background-color: var(--bg-color, #ffffff);
     border: 1px solid rgba(226, 232, 240, 0.8);
     box-shadow: 
@@ -36,7 +36,7 @@
 }
 
 .inspection-control-panel { width: 260px; flex-shrink: 0; }
-.inspection-results-panel { width: 280px; flex-shrink: 0; }
+.inspection-side-panel { width: 280px; flex-shrink: 0; }
 
 /* 中间图像区域 */
 .inspection-image-area {
@@ -406,7 +406,7 @@
    最近结果 (Visual Grid)
    ========================================================================== */
 
-.recent-results-grid {
+.inspection-recent-results-grid {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -415,8 +415,8 @@
     padding-right: 4px;
 }
 
-.recent-results-grid::-webkit-scrollbar { width: 4px; }
-.recent-results-grid::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+.inspection-recent-results-grid::-webkit-scrollbar { width: 4px; }
+.inspection-recent-results-grid::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 
 .recent-result-item {
     display: grid;
@@ -494,13 +494,13 @@
 
 @media (max-width: 1280px) {
     .inspection-control-panel { width: 240px; }
-    .inspection-results-panel { width: 220px; }
+    .inspection-side-panel { width: 220px; }
     .counter-value { font-size: 20px; }
 }
 
 @media (max-width: 1024px) {
     .inspection-view-container { flex-direction: column; overflow-y: auto; }
-    .inspection-control-panel, .inspection-results-panel { width: 100%; max-height: none; }
+    .inspection-control-panel, .inspection-side-panel { width: 100%; max-height: none; }
     .inspection-image-area { min-height: 400px; }
 }
 
@@ -514,7 +514,7 @@
 
 /* Panels — Clean Card Style */
 [data-theme="light"] .inspection-control-panel,
-[data-theme="light"] .inspection-results-panel {
+[data-theme="light"] .inspection-side-panel {
     background: #ffffff;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -725,33 +725,12 @@
 }
 
 /* Right Panel — Result Summary */
-[data-theme="light"] .result-summary-large,
-[data-theme="light"] .recent-results-grid {
+[data-theme="light"] .inspection-recent-results-grid {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 16px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-}
-
-[data-theme="light"] .result-summary-item {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-}
-
-[data-theme="light"] .result-summary-item.ok {
-    border-left: 4px solid #10b981;
-    background: #ffffff;
-}
-
-[data-theme="light"] .result-summary-item.ng {
-    border-left: 4px solid #ef4444;
-    background: #ffffff;
-}
-
-[data-theme="light"] .result-summary-label {
-    color: #64748b;
 }
 
 [data-theme="light"] .result-detail-item {
@@ -790,12 +769,12 @@
 }
 
 /* Right Panel Title Fix for Light Mode */
-[data-theme="light"] .inspection-results-panel .panel-title {
+[data-theme="light"] .inspection-side-panel .panel-title {
     border-bottom-color: #f1f5f9 !important;
     color: #64748b !important;
 }
 
-[data-theme="light"] .inspection-results-panel .panel-title::before {
+[data-theme="light"] .inspection-side-panel .panel-title::before {
     background: #3b82f6;
     box-shadow: none;
 }

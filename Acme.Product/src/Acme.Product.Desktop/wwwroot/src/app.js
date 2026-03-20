@@ -650,6 +650,7 @@ function initializeInspectionController() {
                 processingTime: result.processingTimeMs,
                 timestamp: result.timestamp || result.inspectionTime || new Date().toISOString(),
                 confidenceScore: result.confidenceScore,
+                imageId: result.imageId || result.ImageId,
                 imageData: result.outputImage || result.outputImageBase64 || result.resultImageBase64 || result.imageData,
                 outputData: result.outputData || {},
                 analysisData: normalizeAnalysisData(result)
@@ -750,7 +751,9 @@ async function loadInspectionHistory({
     pageIndex = 0,
     pageSize = resultPanel?.pageSize ?? 12,
     startTime = resultPanel?.getAnalyticsQueryParams?.().startTime,
-    endTime = resultPanel?.getAnalyticsQueryParams?.().endTime
+    endTime = resultPanel?.getAnalyticsQueryParams?.().endTime,
+    status = resultPanel?.getAnalyticsQueryParams?.().status,
+    defectType = resultPanel?.getAnalyticsQueryParams?.().defectType
 } = {}) {
     const project = getCurrentProject();
     if (!project) {
@@ -764,7 +767,9 @@ async function loadInspectionHistory({
             pageIndex,
             pageSize,
             ...(startTime ? { startTime } : {}),
-            ...(endTime ? { endTime } : {})
+            ...(endTime ? { endTime } : {}),
+            ...(status ? { status } : {}),
+            ...(defectType ? { defectType } : {})
         });
 
         const results = Array.isArray(response)
