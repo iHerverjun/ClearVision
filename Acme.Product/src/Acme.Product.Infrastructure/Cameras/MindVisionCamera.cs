@@ -119,6 +119,7 @@ public class MindVisionCamera : ICameraProvider
                     Manufacturer = string.IsNullOrWhiteSpace(vendor) ? "Huaray" : vendor,
                     Model = string.IsNullOrWhiteSpace(model) ? "Huaray Camera" : model,
                     UserDefinedName = string.IsNullOrWhiteSpace(cameraName) ? sn : cameraName,
+                    IpAddress = TryReadIpAddress(devInfo),
                     InterfaceType = string.IsNullOrWhiteSpace(interfaceName) ? "Unknown" : interfaceName
                 });
             }
@@ -132,6 +133,57 @@ public class MindVisionCamera : ICameraProvider
         }
 
         return _cachedDevices;
+    }
+
+    private static string? TryReadIpAddress(IMVDefine.IMV_DeviceInfo devInfo)
+    {
+        foreach (var memberName in new[] { "ipAddress", "IpAddress", "cameraIp", "CameraIp", "deviceIp", "DeviceIp", "currentIp", "CurrentIp" })
+        {
+            var value = TryReadMemberValue(devInfo, memberName);
+            var normalized = NormalizeIpString(value);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private static object? TryReadMemberValue<T>(T target, string memberName)
+    {
+        var type = target?.GetType();
+        if (type == null)
+        {
+            return null;
+        }
+
+        var field = type.GetField(memberName);
+        if (field != null)
+        {
+            return field.GetValue(target);
+        }
+
+        var property = type.GetProperty(memberName);
+        return property?.GetValue(target);
+    }
+
+    private static string? NormalizeIpString(object? rawValue)
+    {
+        if (rawValue == null)
+        {
+            return null;
+        }
+
+        var text = rawValue.ToString()?.Trim();
+        if (string.IsNullOrWhiteSpace(text) ||
+            text == "0.0.0.0" ||
+            text == "255.255.255.255")
+        {
+            return null;
+        }
+
+        return text;
     }
 
     public bool Open(string serialNumber)

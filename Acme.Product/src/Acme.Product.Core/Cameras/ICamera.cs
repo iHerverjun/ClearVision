@@ -46,6 +46,7 @@ public class CameraInfo
 {
     public string CameraId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? IpAddress { get; set; }
     public string? Manufacturer { get; set; }
     public string? Model { get; set; }
     public string? ConnectionType { get; set; }

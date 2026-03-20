@@ -195,6 +195,7 @@ public class HikvisionCamera : ICameraProvider
                     Manufacturer = manufacturer,
                     Model = model,
                     UserDefinedName = userDefinedName,
+                    IpAddress = ExtractIpAddress(deviceInfo),
                     InterfaceType = interfaceType
                 });
             }
@@ -297,6 +298,34 @@ public class HikvisionCamera : ICameraProvider
         return $"{fallbackManufacturer} Camera {deviceIndex + 1}";
     }
 
+    private string? ExtractIpAddress(MV_CC_DEVICE_INFO deviceInfo)
+    {
+        try
+        {
+            if (deviceInfo.nTLayerType != MV_GIGE_DEVICE ||
+                deviceInfo.SpecialInfo == null ||
+                deviceInfo.SpecialInfo.Length < 4)
+            {
+                return null;
+            }
+
+            foreach (var offset in new[] { 0, 4, 8, 12 })
+            {
+                var ip = TryReadIpv4(deviceInfo.SpecialInfo, offset);
+                if (!string.IsNullOrWhiteSpace(ip))
+                {
+                    return ip;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[HikvisionCamera] ExtractIpAddress failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
     private static string ExtractAsciiField(byte[] source, int offset, int length)
     {
         if (source == null || source.Length == 0 || offset < 0 || length <= 0 || offset >= source.Length)
@@ -318,6 +347,28 @@ public class HikvisionCamera : ICameraProvider
         }
 
         return text.Trim();
+    }
+
+    private static string? TryReadIpv4(byte[] source, int offset)
+    {
+        if (offset < 0 || source.Length < offset + 4)
+        {
+            return null;
+        }
+
+        var octets = source.Skip(offset).Take(4).Select(value => (int)value).ToArray();
+        if (octets.Length < 4)
+        {
+            return null;
+        }
+
+        var ip = string.Join('.', octets);
+        if (ip == "0.0.0.0" || ip == "255.255.255.255")
+        {
+            return null;
+        }
+
+        return ip;
     }
 
     private void AllocateFrameBuffer(int bufferSize)

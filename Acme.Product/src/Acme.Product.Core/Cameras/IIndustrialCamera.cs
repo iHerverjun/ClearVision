@@ -154,6 +154,11 @@ public class CameraDeviceInfo
     public string UserDefinedName { get; set; } = string.Empty;
 
     /// <summary>
+    /// 设备 IP 地址（若 SDK 可提供）
+    /// </summary>
+    public string? IpAddress { get; set; }
+
+    /// <summary>
     /// 接口类型（USB3/GigE等）
     /// </summary>
     public string InterfaceType { get; set; } = string.Empty;
