@@ -60,6 +60,7 @@ class InspectionPanel {
         // 初始化 UI 和分析卡片面板
         this.initialize();
         this.analysisCardsPanel = new AnalysisCardsPanel('analysis-cards-container');
+        this.syncAnalysisFlowContext();
         
         // 设置订阅
         this.setupSubscriptions();
@@ -116,6 +117,28 @@ class InspectionPanel {
         }
 
         return `运行保护已开启：${parts.join('；')}。`;
+    }
+
+    getActiveFlowDefinition() {
+        try {
+            const canvasFlow = window.flowCanvas?.serialize?.();
+            const operators = canvasFlow?.operators || canvasFlow?.Operators;
+            if (Array.isArray(operators) && operators.length > 0) {
+                return canvasFlow;
+            }
+        } catch (error) {
+            console.warn('[InspectionPanel] Failed to serialize flow canvas for analysis context:', error);
+        }
+
+        return getCurrentProject()?.flow || null;
+    }
+
+    syncAnalysisFlowContext() {
+        if (!this.analysisCardsPanel) {
+            return;
+        }
+
+        this.analysisCardsPanel.setFlowContext(this.getActiveFlowDefinition());
     }
 
     updateProtectionNotice(message = '', tone = 'info') {
@@ -203,6 +226,7 @@ class InspectionPanel {
 
     async handleRunSingle() {
         try {
+            this.syncAnalysisFlowContext();
             this.updateStatus('running', '运行中...');
             this.setButtonsState(true);
             this.updateProtectionNotice('单次运行中。若长时间没有返回结果，界面会在这里解释触发了哪条保护规则。', 'info');
@@ -224,6 +248,7 @@ class InspectionPanel {
 
     async handleRunContinuous() {
         try {
+            this.syncAnalysisFlowContext();
             this.isContinuous = true;
             this.consecutiveNgCount = 0;
             this.updateStatus('running', this.getContinuousRunStatusText());
@@ -274,6 +299,7 @@ class InspectionPanel {
         this.clearProtectionWatchdog();
 
         if (this.analysisCardsPanel && result.outputData) {
+            this.syncAnalysisFlowContext();
             this.analysisCardsPanel.updateCards(result.outputData, result.status, result.processingTimeMs);
         }
 
@@ -800,7 +826,10 @@ class InspectionPanel {
         setRecentResults([]);
         this.updateCounters();
         this.renderRecentResults();
-        if (this.analysisCardsPanel) this.analysisCardsPanel.clear();
+        if (this.analysisCardsPanel) {
+            this.syncAnalysisFlowContext();
+            this.analysisCardsPanel.clear();
+        }
 
         this.updateStatus('idle', '就绪');
     }

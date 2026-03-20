@@ -18,6 +18,18 @@ const OCR_CODE_KEYS = new Set([
     'RecognizedText', 'recognizedText', 'OcrResult', 'ocrResult'
 ]);
 
+const MEASUREMENT_OPERATOR_TYPES = new Set([
+    'Measurement', 'WidthMeasurement', 'GapMeasurement', 'AngleMeasurement',
+    'CircleMeasurement', 'LineMeasurement', 'ContourMeasurement', 'GeoMeasurement',
+    'CaliperTool', 'PointLineDistance', 'LineLineDistance', 'ArcCaliper',
+    'GeometricTolerance', 'PixelToWorldTransform', 'CoordinateTransform',
+    'MinEnclosingGeometry', 'ColorMeasurement'
+]);
+
+const RECOGNITION_OPERATOR_TYPES = new Set([
+    'OcrRecognition', 'CodeRecognition'
+]);
+
 const DEFECT_KEYS = new Set([
     'Defects', 'defects', 'DefectCount', 'defectCount',
     'BlobCount', 'blobCount', 'DetectionResults', 'detectionResults'
@@ -34,6 +46,43 @@ const MATCH_KEYS = new Set([
 
 // 跳过的键（图像数据不在卡片中展示）
 const SKIP_KEYS = new Set(['Image', 'image', 'OutputImage', 'outputImage']);
+
+const TECHNICAL_KEYS = new Set([
+    'Format', 'format', 'SaveToFile', 'saveToFile',
+    'Output', 'output', 'FilePath', 'filePath',
+    'SaveError', 'saveError',
+    'ImageWidth', 'imageWidth', 'ImageHeight', 'imageHeight'
+]);
+
+const AMBIGUOUS_MEASUREMENT_KEYS = new Set([
+    'Width', 'width', 'Height', 'height',
+    'Area', 'area', 'Perimeter', 'perimeter'
+]);
+
+const EXPLICIT_MEASUREMENT_SIGNAL_KEYS = new Set([
+    'Distance', 'distance', 'Radius', 'radius', 'Angle', 'angle',
+    'Length', 'length', 'Diameter', 'diameter',
+    'MinWidth', 'minWidth', 'MaxWidth', 'maxWidth',
+    'MinDistance', 'minDistance', 'MaxDistance', 'maxDistance',
+    'ImageWidth', 'imageWidth', 'ImageHeight', 'imageHeight',
+    'Direction', 'direction',
+    'SampleCount', 'sampleCount', 'RefinedSampleCount', 'refinedSampleCount',
+    'ContourCount', 'contourCount', 'Contours', 'contours',
+    'CircleCount', 'circleCount', 'LineCount', 'lineCount'
+]);
+
+const EXPLICIT_RECOGNITION_SIGNAL_KEYS = new Set([
+    'CodeType', 'codeType', 'CodeCount', 'codeCount',
+    'RecognizedText', 'recognizedText', 'OcrResult', 'ocrResult',
+    'IsSuccess', 'isSuccess', 'CodeResults', 'codeResults',
+    'Codes', 'codes'
+]);
+
+const EXPORT_HINT_KEYS = new Set([
+    'Format', 'format', 'SaveToFile', 'saveToFile',
+    'Output', 'output', 'FilePath', 'filePath',
+    'SaveError', 'saveError'
+]);
 
 // 缺陷检测场景下的从属字段（检测框属性）
 // 当 outputData 中同时存在 DEFECT_KEYS 时，这些键不应独立归入测量/匹配卡片
@@ -95,6 +144,7 @@ class AnalysisCardsPanel {
         this.container = document.getElementById(containerId);
         this.cards = [];
         this.lastOutputData = null;
+        this.flowContext = this._buildFlowContext(null);
 
         if (!this.container) {
             console.warn('[AnalysisCardsPanel] 找不到容器:', containerId);
@@ -115,6 +165,10 @@ class AnalysisCardsPanel {
         this.lastOutputData = outputData;
         const cardGroups = this._classifyOutputData(outputData, status, processingTimeMs);
         this._renderCards(cardGroups);
+    }
+
+    setFlowContext(flowData) {
+        this.flowContext = this._buildFlowContext(flowData);
     }
 
     /**
@@ -150,10 +204,13 @@ class AnalysisCardsPanel {
         const keys = Object.keys(outputData);
         const hasDefectContext = keys.some(k => DEFECT_KEYS.has(k));
         const hasObjectContext = keys.some(k => OBJECT_DETECTION_KEYS.has(k));
+        const hasExplicitMeasurementSignals = keys.some(k => EXPLICIT_MEASUREMENT_SIGNAL_KEYS.has(k));
+        const hasExplicitRecognitionSignals = keys.some(k => EXPLICIT_RECOGNITION_SIGNAL_KEYS.has(k));
 
         for (const [key, value] of Object.entries(outputData)) {
             // 跳过图像和超长 base64 字符串
             if (SKIP_KEYS.has(key)) continue;
+            if (TECHNICAL_KEYS.has(key)) continue;
             if (typeof value === 'string' && value.length > 500) continue;
 
             // 上下文感知：在缺陷/目标检测场景中，检测框属性字段不应独立归入其他卡片
@@ -161,9 +218,19 @@ class AnalysisCardsPanel {
                 continue;
             }
 
-            if (MEASUREMENT_KEYS.has(key)) {
+            if (this._isImageDimensionMetadata(key, outputData, hasExplicitMeasurementSignals)) {
+                continue;
+            }
+
+            if ((key === 'Text' || key === 'text')
+                && this._isStructuredExportText(value, outputData)
+                && !hasExplicitRecognitionSignals) {
+                continue;
+            }
+
+            if (this._shouldClassifyAsMeasurement(key, outputData, hasExplicitMeasurementSignals)) {
                 groups.measurements.push({ key, value, status });
-            } else if (OCR_CODE_KEYS.has(key)) {
+            } else if (this._shouldClassifyAsRecognition(key, value, outputData, hasExplicitRecognitionSignals)) {
                 groups.ocrCodes.push({ key, value, status });
             } else if (DEFECT_KEYS.has(key)) {
                 groups.defects.push({ key, value, status });
@@ -273,7 +340,14 @@ class AnalysisCardsPanel {
      * OCR/条码卡片
      */
     _renderOcrCodeCard(items) {
-        const textItem = items.find(i => i.key === 'Text' || i.key === 'text' || i.key === 'RecognizedText');
+        const textItem = items.find(i =>
+            i.key === 'Text' ||
+            i.key === 'text' ||
+            i.key === 'RecognizedText' ||
+            i.key === 'recognizedText' ||
+            i.key === 'OcrResult' ||
+            i.key === 'ocrResult'
+        );
         const codeTypeItem = items.find(i => i.key === 'CodeType' || i.key === 'codeType');
         
         const text = textItem ? textItem.value : '--';
@@ -545,6 +619,126 @@ class AnalysisCardsPanel {
 
     /**
      * 卡片外壳包装
+     */
+    /**
+     * Flow semantic helpers
+     */
+    _buildFlowContext(flowData) {
+        const operators = Array.isArray(flowData?.operators)
+            ? flowData.operators
+            : (Array.isArray(flowData?.Operators) ? flowData.Operators : []);
+        const operatorTypes = new Set();
+
+        for (const operator of operators) {
+            const type = String(operator?.type ?? operator?.Type ?? '').trim();
+            if (type) {
+                operatorTypes.add(type);
+            }
+        }
+
+        let hasMeasurementOperators = false;
+        let hasRecognitionOperators = false;
+
+        for (const type of operatorTypes) {
+            if (!hasMeasurementOperators && MEASUREMENT_OPERATOR_TYPES.has(type)) {
+                hasMeasurementOperators = true;
+            }
+
+            if (!hasRecognitionOperators && RECOGNITION_OPERATOR_TYPES.has(type)) {
+                hasRecognitionOperators = true;
+            }
+
+            if (hasMeasurementOperators && hasRecognitionOperators) {
+                break;
+            }
+        }
+
+        return {
+            hasFlowDefinition: operatorTypes.size > 0,
+            hasMeasurementOperators,
+            hasRecognitionOperators
+        };
+    }
+
+    _shouldClassifyAsMeasurement(key, outputData, hasExplicitMeasurementSignals) {
+        if (!MEASUREMENT_KEYS.has(key)) {
+            return false;
+        }
+
+        if (this.flowContext?.hasFlowDefinition && !this.flowContext.hasMeasurementOperators) {
+            return false;
+        }
+
+        if (AMBIGUOUS_MEASUREMENT_KEYS.has(key)) {
+            return hasExplicitMeasurementSignals || !this._hasImagePayload(outputData);
+        }
+
+        return true;
+    }
+
+    _shouldClassifyAsRecognition(key, value, outputData, hasExplicitRecognitionSignals) {
+        if (!OCR_CODE_KEYS.has(key)) {
+            return false;
+        }
+
+        if (key === 'Text' || key === 'text') {
+            if (typeof value !== 'string' || value.trim().length === 0) {
+                return false;
+            }
+
+            if (this._isStructuredExportText(value, outputData) && !hasExplicitRecognitionSignals) {
+                return false;
+            }
+        }
+
+        if (this.flowContext?.hasFlowDefinition && !this.flowContext.hasRecognitionOperators) {
+            return hasExplicitRecognitionSignals;
+        }
+
+        return true;
+    }
+
+    _hasImagePayload(outputData) {
+        return Object.keys(outputData).some(key => SKIP_KEYS.has(key));
+    }
+
+    _isImageDimensionMetadata(key, outputData, hasExplicitMeasurementSignals) {
+        if (!AMBIGUOUS_MEASUREMENT_KEYS.has(key)) {
+            return false;
+        }
+
+        return this._hasImagePayload(outputData) && !hasExplicitMeasurementSignals;
+    }
+
+    _isStructuredExportText(value, outputData) {
+        if (typeof value !== 'string') {
+            return false;
+        }
+
+        const text = value.trim();
+        if (!text) {
+            return false;
+        }
+
+        const looksLikeStructuredPayload =
+            (text.startsWith('{') && text.endsWith('}')) ||
+            (text.startsWith('[') && text.endsWith(']'));
+        if (!looksLikeStructuredPayload) {
+            return false;
+        }
+
+        const hasExportHints = Object.keys(outputData).some(key => EXPORT_HINT_KEYS.has(key));
+        if (hasExportHints) {
+            return true;
+        }
+
+        return text.includes('\"Format\"')
+            || text.includes('\"SaveToFile\"')
+            || text.includes('\"ActualThreshold\"');
+    }
+
+    /**
+     * Card shell wrapper
      */
     _wrapCard(type, icon, title, content, statusClass = '') {
         return `
