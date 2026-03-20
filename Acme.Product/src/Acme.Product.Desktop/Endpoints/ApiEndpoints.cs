@@ -48,37 +48,7 @@ public static class ApiEndpoints
         // 图像相关端点
         MapImageEndpoints(app);
 
-        // 手眼标定端点
-        app.MapPost("/api/calibration/solve", async (List<Infrastructure.Services.CalibrationPoint> points, IHandEyeCalibrationService service) =>
-        {
-            var result = await service.SolveAsync(points);
-            return result.Success ? Results.Ok(result) : Results.BadRequest(new { Error = result.Message });
-        });
-
-        app.MapPost("/api/calibration/save", async (SaveCalibrationRequest request, IHandEyeCalibrationService service) =>
-        {
-            var resultObj = new Infrastructure.Services.HandEyeCalibrationResult
-            {
-                Success = true,
-                OriginX = request.OriginX,
-                OriginY = request.OriginY,
-                ScaleX = request.ScaleX,
-                ScaleY = request.ScaleY
-            };
-            var success = await service.SaveCalibrationAsync(resultObj, request.FileName);
-            return success ? Results.Ok(new { Message = "保存成功" }) : Results.BadRequest(new { Error = "保存失败" });
-        });
-
         return app;
-    }
-
-    public class SaveCalibrationRequest
-    {
-        public double OriginX { get; set; }
-        public double OriginY { get; set; }
-        public double ScaleX { get; set; }
-        public double ScaleY { get; set; }
-        public string FileName { get; set; } = string.Empty;
     }
 
     public class OperatorPreviewRequest
@@ -234,10 +204,12 @@ public static class ApiEndpoints
         Core.Services.IInspectionService service,
         DateTime? startTime,
         DateTime? endTime,
+        string? status,
+        string? defectType,
         int pageIndex = 0,
         int pageSize = 20) =>
         {
-            var results = await service.GetInspectionHistoryAsync(projectId, startTime, endTime, pageIndex, pageSize);
+            var results = await service.GetInspectionHistoryAsync(projectId, startTime, endTime, status, defectType, pageIndex, pageSize);
             return Results.Ok(results);
         });
 
@@ -246,9 +218,11 @@ public static class ApiEndpoints
         Guid projectId,
         Core.Services.IInspectionService service,
         DateTime? startTime,
-        DateTime? endTime) =>
+        DateTime? endTime,
+        string? status,
+        string? defectType) =>
         {
-            var statistics = await service.GetStatisticsAsync(projectId, startTime, endTime);
+            var statistics = await service.GetStatisticsAsync(projectId, startTime, endTime, status, defectType);
             return Results.Ok(statistics);
         });
 

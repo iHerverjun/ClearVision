@@ -253,26 +253,26 @@ static class Program
         });
 
         // 结果分析 API
-        app.MapGet("/api/analysis/statistics/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
+        app.MapGet("/api/analysis/statistics/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, string? status, string? defectType, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
         {
-            return Results.Ok(await analysisService.GetStatisticsAsync(projectId, startTime, endTime));
+            return Results.Ok(await analysisService.GetStatisticsAsync(projectId, startTime, endTime, status, defectType));
         });
 
-        app.MapGet("/api/analysis/defect-distribution/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
+        app.MapGet("/api/analysis/defect-distribution/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, string? status, string? defectType, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
         {
-            return Results.Ok(await analysisService.GetDefectDistributionAsync(projectId, startTime, endTime));
+            return Results.Ok(await analysisService.GetDefectDistributionAsync(projectId, startTime, endTime, status, defectType));
         });
 
-        app.MapGet("/api/analysis/trend/{projectId}", async (Guid projectId, string interval, DateTime startTime, DateTime endTime, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
+        app.MapGet("/api/analysis/trend/{projectId}", async (Guid projectId, string interval, DateTime startTime, DateTime endTime, string? status, string? defectType, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
         {
             if (!Enum.TryParse<Acme.Product.Application.Services.TrendInterval>(interval, true, out var trendInterval))
                 return Results.BadRequest($"无效间隔: {interval}");
-            return Results.Ok(await analysisService.GetTrendAnalysisAsync(projectId, trendInterval, startTime, endTime));
+            return Results.Ok(await analysisService.GetTrendAnalysisAsync(projectId, trendInterval, startTime, endTime, status, defectType));
         });
 
-        app.MapGet("/api/analysis/report/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
+        app.MapGet("/api/analysis/report/{projectId}", async (Guid projectId, DateTime? startTime, DateTime? endTime, string? status, string? defectType, Acme.Product.Application.Services.IResultAnalysisService analysisService) =>
         {
-            return Results.Ok(await analysisService.GenerateReportAsync(projectId, startTime, endTime));
+            return Results.Ok(await analysisService.GenerateReportAsync(projectId, startTime, endTime, status, defectType));
         });
     }
 

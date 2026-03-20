@@ -53,6 +53,7 @@ public static class InspectionRealtimeEventMapper
                         projectId = result.ProjectId,
                         sessionId = result.SessionId,
                         resultId = result.ResultId,
+                        imageId = result.ImageId,
                         status = result.Status,
                         defectCount = result.DefectCount,
                         processingTimeMs = result.ProcessingTimeMs,

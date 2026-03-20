@@ -378,6 +378,7 @@ public static class SettingsEndpoints
         {
             CameraId = d.SerialNumber,
             Name = string.IsNullOrEmpty(d.UserDefinedName) ? d.Model : d.UserDefinedName,
+            IpAddress = d.IpAddress,
             Manufacturer = d.Manufacturer,
             Model = d.Model,
             ConnectionType = d.InterfaceType,
