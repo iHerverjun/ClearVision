@@ -906,8 +906,7 @@ class ResultPanel {
             const statusClass = result.status?.toLowerCase() || 'unknown';
             const time = result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : '--:--:--';
             const processingTime = result.processingTime || result.executionTimeMs || '--';
-            const outputDataHtml = this.renderAnalysisDataPreview(result.analysisData)
-                || this.renderOutputDataPreview(result.outputData);
+            const outputDataHtml = this.renderAnalysisDataPreview(result.analysisData);
 
             return `
                 <div class="result-card result-${statusClass}" data-index="${index}" style="cursor:pointer;">
@@ -1199,37 +1198,6 @@ class ResultPanel {
         modal.querySelector('.result-detail-overlay').addEventListener('click', closeModal);
     }
     
-    /**
-     * 渲染输出数据预览（卡片内简略展示）
-     */
-    renderOutputDataPreview(outputData) {
-        if (!outputData || typeof outputData !== 'object' || Object.keys(outputData).length === 0) return '';
-        
-        const items = [];
-        const recognitionPreviewEntries = [
-            ['Text', outputData.Text],
-            ['RecognizedText', outputData.RecognizedText],
-            ['OcrResult', outputData.OcrResult],
-            ['text', outputData.text],
-            ['recognizedText', outputData.recognizedText],
-            ['ocrResult', outputData.ocrResult]
-        ];
-
-        for (const [key, value] of recognitionPreviewEntries) {
-            if (!this.isMeaningfulRecognitionText(value, outputData, key)) {
-                continue;
-            }
-
-            items.push(`<div class="output-data-item output-text">
-                <span class="output-label">${this.escapeHtml(key)}</span>
-                <span class="output-value" title="${this.escapeHtml(value)}">${this.escapeHtml(value.length > 30 ? value.substring(0, 30) + '...' : value)}</span>
-            </div>`);
-            break;
-        }
-        
-        return items.length > 0 ? `<div class="output-data-preview">${items.join('')}</div>` : '';
-    }
-
     renderAnalysisDataPreview(analysisData) {
         const cards = Array.isArray(analysisData?.cards) ? analysisData.cards : [];
         if (cards.length === 0) {
@@ -1290,7 +1258,7 @@ class ResultPanel {
             ? `<div class="detail-item type-null"><span class="detail-label">说明</span><span class="detail-value">已隐藏 ${hiddenCount} 个导出/技术字段</span></div>`
             : '';
 
-        return `<div class="detail-section"><div class="detail-section-title">算子输出数据</div>${rows.join('')}${hiddenNotice}</div>`;
+        return `<div class="detail-section"><div class="detail-section-title">原始输出数据（调试）</div>${rows.join('')}${hiddenNotice}</div>`;
     }
 
     renderAnalysisDataSection(analysisData) {

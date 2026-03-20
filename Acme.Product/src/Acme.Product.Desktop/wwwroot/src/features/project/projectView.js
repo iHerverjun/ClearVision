@@ -5,6 +5,12 @@
 
 import projectManager from './projectManager.js';
 import { showToast, createModal, closeModal, createButton } from '../../shared/components/uiComponents.js';
+import {
+    getFeatureBadge,
+    getFeatureDescription,
+    getFeatureMeta,
+    isFeatureEnabled
+} from '../../shared/featureRegistry.js';
 
 export class ProjectView {
     constructor(containerId) {
@@ -379,6 +385,9 @@ export class ProjectView {
      * 显示新建工程对话框
      */
     showNewProjectDialog() {
+        const demoFeature = getFeatureMeta('project.demoCreation');
+        const demoCreationEnabled = isFeatureEnabled('project.demoCreation');
+        const demoBadge = getFeatureBadge('project.demoCreation');
         const content = document.createElement('div');
         content.className = 'new-project-form';
         content.innerHTML = `
@@ -398,15 +407,15 @@ export class ProjectView {
                         标准工程
                     </label>
                     <label style="display:flex; align-items:center; gap:8px;">
-                        <input type="radio" name="new-project-mode" value="demo" />
-                        示例工程（完整引导）
+                        <input type="radio" name="new-project-mode" value="demo" ${demoCreationEnabled ? '' : 'disabled'} />
+                        示例工程（完整引导） <span class="type-badge">${demoBadge}</span>
                     </label>
                     <label style="display:flex; align-items:center; gap:8px;">
-                        <input type="radio" name="new-project-mode" value="simple-demo" />
-                        示例工程（简化版）
+                        <input type="radio" name="new-project-mode" value="simple-demo" ${demoCreationEnabled ? '' : 'disabled'} />
+                        示例工程（简化版） <span class="type-badge">${demoBadge}</span>
                     </label>
                 </div>
-                <div style="margin-top:8px; color:var(--text-muted); font-size:12px;">选择示例工程时，系统会直接调用后端 Demo 工程接口创建工程。</div>
+                <div style="margin-top:8px; color:var(--text-muted); font-size:12px;">${getFeatureDescription('project.demoCreation', demoFeature.description)}</div>
             </div>
         `;
         
@@ -428,6 +437,11 @@ export class ProjectView {
                 const name = nameInput?.value?.trim();
                 const desc = descInput?.value?.trim() || '';
                 
+                if ((mode === 'demo' || mode === 'simple-demo') && !demoCreationEnabled) {
+                    showToast(getFeatureDescription('project.demoCreation', '示例工程入口当前不可用'), 'warning');
+                    return;
+                }
+
                 if (mode === 'standard' && !name) {
                     showToast('请输入工程名称', 'warning');
                     nameInput?.focus();
@@ -454,6 +468,11 @@ export class ProjectView {
             text: '引导说明',
             type: 'secondary',
             onClick: async () => {
+                if (!demoCreationEnabled) {
+                    showToast(getFeatureDescription('project.demoCreation', '示例工程引导当前不可用'), 'warning');
+                    return;
+                }
+
                 try {
                     const guide = await projectManager.getDemoGuide();
                     const guideText = typeof guide === 'string'

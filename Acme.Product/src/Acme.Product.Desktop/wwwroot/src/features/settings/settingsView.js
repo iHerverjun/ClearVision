@@ -1,5 +1,11 @@
 ﻿import httpClient from '../../core/messaging/httpClient.js';
 import { showToast, createModal, closeModal } from '../../shared/components/uiComponents.js';
+import {
+    applyFeatureToButton,
+    getFeatureButtonLabel,
+    getFeatureMeta,
+    isFeatureEnabled
+} from '../../shared/featureRegistry.js';
 
 class SettingsView {
     constructor(containerId) {
@@ -249,6 +255,10 @@ class SettingsView {
         this.container.querySelector('#btn-reset-settings')?.addEventListener('click', () => this.resetSettings());
         this.container.querySelector('#btn-apply-protection-rules')?.addEventListener('click', () => this.save());
         this.container.querySelector('#btn-save-security-policy')?.addEventListener('click', () => this.save());
+
+        applyFeatureToButton(this.container.querySelector('#btn-change-image-save-path'), 'storage.pathPicker', { fallbackLabel: '更改目录' });
+        applyFeatureToButton(this.container.querySelector('#btn-clean-expired-files'), 'storage.immediateCleanup', { fallbackLabel: '立即清理过期文件' });
+        applyFeatureToButton(this.container.querySelector('#btn-reset-settings'), 'settings.reset', { fallbackLabel: '恢复默认设置' });
     }
     
     bindPlcSettingsEvents() {
@@ -1407,6 +1417,7 @@ class SettingsView {
         const general = this.config?.general || this.getDefaultConfig().general;
         const security = this.config?.security || this.getDefaultConfig().security;
         const runtimeTheme = localStorage.getItem('cv_theme') || general.theme || 'light';
+        const settingsResetFeature = getFeatureMeta('settings.reset');
         return `
             <div class="settings-section-title">
                 <h2>常规设置</h2>
@@ -1473,9 +1484,12 @@ class SettingsView {
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:20px; flex-wrap:wrap;">
                         <span class="settings-field-hint">当前密码策略：最少 ${security.passwordMinLength || 6} 位。</span>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                            <button class="cv-btn settings-btn-light" id="btn-reset-settings">恢复默认设置</button>
+                            <button class="cv-btn settings-btn-light" id="btn-reset-settings" title="${settingsResetFeature.title}">${getFeatureButtonLabel('settings.reset', '恢复默认设置')}</button>
                             <button class="cv-btn settings-btn-danger" id="btn-change-password">修改密码</button>
                         </div>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <span class="settings-field-hint">${settingsResetFeature.description}</span>
                     </div>
                 </div>
             </div>
@@ -1638,6 +1652,8 @@ class SettingsView {
 
     renderStorageTab() {
         const storage = this.config?.storage || this.getDefaultConfig().storage;
+        const pathPickerFeature = getFeatureMeta('storage.pathPicker');
+        const immediateCleanupFeature = getFeatureMeta('storage.immediateCleanup');
         return `
             <div class="settings-section-title">
                 <h2>文件与存储管理</h2>
@@ -1659,8 +1675,9 @@ class SettingsView {
                                 <svg class="input-icon" viewBox="0 0 24 24" style="fill:#fbbf24;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
                                 <input type="text" class="cv-input" id="cfg-imageSavePath" value="${storage.imageSavePath || 'D:\\VisionData\\Images'}">
                             </div>
-                            <button class="cv-btn settings-btn-light" id="btn-change-image-save-path" style="padding:0 20px;" disabled title="目录选择能力暂未接入">暂未接入</button>
+                            <button class="cv-btn settings-btn-light" id="btn-change-image-save-path" style="padding:0 20px;" ${isFeatureEnabled('storage.pathPicker') ? '' : 'disabled'} title="${pathPickerFeature.title}">${getFeatureButtonLabel('storage.pathPicker', '更改目录')}</button>
                         </div>
+                        <span class="settings-field-hint" style="display:block; margin-top:12px;">${pathPickerFeature.description}</span>
                     </div>
                 </div>
             </div>
@@ -1721,8 +1738,8 @@ class SettingsView {
                             <span class="font-bold" id="disk-free-gb" style="color:#059669;">-- GB</span>
                         </div>
                         
-                        <button class="cv-btn settings-btn-light" id="btn-clean-expired-files" style="width:100%; margin-top:32px;" disabled title="过期文件清理能力暂未接入">暂未开放</button>
-                        <span class="settings-field-hint" style="display:block; margin-top:12px;">当前版本仅支持保存清理策略，目录选择与即时清理动作暂未接入执行链路。</span>
+                        <button class="cv-btn settings-btn-light" id="btn-clean-expired-files" style="width:100%; margin-top:32px;" ${isFeatureEnabled('storage.immediateCleanup') ? '' : 'disabled'} title="${immediateCleanupFeature.title}">${getFeatureButtonLabel('storage.immediateCleanup', '立即清理过期文件')}</button>
+                        <span class="settings-field-hint" style="display:block; margin-top:12px;">${immediateCleanupFeature.description}</span>
                     </div>
                 </div>
             </div>
@@ -2379,13 +2396,17 @@ class SettingsView {
     }
 
     async resetSettings() {
-        if (!confirm('确定要恢复默认设置吗？这会覆盖当前已保存的系统配置。')) {
+        const resetFeature = getFeatureMeta('settings.reset');
+        if (!confirm(`确定要${getFeatureButtonLabel('settings.reset', '恢复默认设置')}吗？${resetFeature.description}`)) {
             return;
         }
 
         try {
-            await httpClient.post('/settings/reset');
-            showToast('系统配置已恢复默认值', 'success');
+            const result = await httpClient.post('/settings/reset');
+            const message = result?.message
+                || result?.Message
+                || `${getFeatureButtonLabel('settings.reset', '恢复默认设置')}已执行`;
+            showToast(message, 'success');
             await this.refresh();
         } catch (error) {
             showToast(`恢复默认设置失败: ${error.message}`, 'error');

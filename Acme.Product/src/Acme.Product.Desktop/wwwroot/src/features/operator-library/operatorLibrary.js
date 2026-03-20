@@ -12,6 +12,12 @@
 import TreeView from '../../shared/components/treeView.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import { showToast, createInput } from '../../shared/components/uiComponents.js';
+import {
+    applyFeatureToButton,
+    getFeatureBadge,
+    getFeatureDescription,
+    isFeatureEnabled
+} from '../../shared/featureRegistry.js';
 
 export class OperatorLibraryPanel {
     constructor(containerId) {
@@ -1002,14 +1008,23 @@ export class OperatorLibraryPanel {
                 </div>
                 <div class="detail-actions" style="margin-top:16px;">
                     <button class="cv-btn cv-btn-secondary" id="btn-show-autotune-strategies">查看自动调参策略</button>
+                    <div class="params-empty" style="margin-top:8px;">${getFeatureBadge('operator.autotuneStrategies')}：${getFeatureDescription('operator.autotuneStrategies')}</div>
                     <div id="autotune-strategies-panel" style="margin-top:12px;"></div>
                 </div>
             </div>
         `;
 
-        preview.querySelector('#btn-show-autotune-strategies')?.addEventListener('click', async () => {
+        const autotuneButton = preview.querySelector('#btn-show-autotune-strategies');
+        applyFeatureToButton(autotuneButton, 'operator.autotuneStrategies', { fallbackLabel: '查看自动调参策略' });
+
+        autotuneButton?.addEventListener('click', async () => {
             const panel = preview.querySelector('#autotune-strategies-panel');
             if (!panel) {
+                return;
+            }
+
+            if (!isFeatureEnabled('operator.autotuneStrategies')) {
+                panel.innerHTML = `<div class="params-empty">${getFeatureDescription('operator.autotuneStrategies', '该能力当前不可用')}</div>`;
                 return;
             }
 

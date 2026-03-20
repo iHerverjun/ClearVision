@@ -791,7 +791,7 @@ class InspectionPanel {
         
         grid.innerHTML = recent.map(result => {
             // 提取文本摘要（OCR/条码等输出的文本数据）
-            const textPreview = this.extractTextPreview(result.outputData, result.analysisData);
+            const textPreview = this.extractTextPreview(result.analysisData);
             
             return `
             <div class="recent-result-item ${result.status === 'OK' ? 'result-ok' : 'result-ng'}" data-id="${result.id}">
@@ -844,8 +844,7 @@ class InspectionPanel {
     /**
      * 从输出数据中提取文本摘要
      */
-    extractTextPreview(outputData) {
-        const analysisData = arguments[1];
+    extractTextPreview(analysisData) {
         if (analysisData && Array.isArray(analysisData.cards)) {
             for (const card of analysisData.cards) {
                 const fields = Array.isArray(card?.fields) ? card.fields : [];
@@ -857,78 +856,7 @@ class InspectionPanel {
             }
         }
 
-        if (!outputData) return null;
-
-        const recognitionEntries = [
-            ['Text', outputData.Text],
-            ['text', outputData.text],
-            ['RecognizedText', outputData.RecognizedText],
-            ['recognizedText', outputData.recognizedText],
-            ['OcrResult', outputData.OcrResult],
-            ['ocrResult', outputData.ocrResult]
-        ];
-
-        for (const [key, value] of recognitionEntries) {
-            if (typeof value === 'string' && this.isMeaningfulRecognitionText(value, outputData, key)) {
-                return value;
-            }
-        }
-
         return null;
-    }
-
-    isMeaningfulRecognitionText(value, outputData, sourceKey = '') {
-        if (typeof value !== 'string') {
-            return false;
-        }
-
-        const text = value.trim();
-        if (!text || text.length >= 200) {
-            return false;
-        }
-
-        return !this.isStructuredExportText(text, outputData, sourceKey);
-    }
-
-    isStructuredExportText(value, outputData, sourceKey = '') {
-        const text = String(value || '').trim();
-        if (!text) {
-            return false;
-        }
-
-        const normalizedSourceKey = String(sourceKey || '').toLowerCase();
-        if (this.isExportMetadataKey(normalizedSourceKey)) {
-            return true;
-        }
-
-        const looksLikeStructuredPayload =
-            (text.startsWith('{') && text.endsWith('}')) ||
-            (text.startsWith('[') && text.endsWith(']'));
-        if (!looksLikeStructuredPayload) {
-            return false;
-        }
-
-        const exportHintKeys = ['Format', 'format', 'SaveToFile', 'saveToFile', 'Output', 'output', 'FilePath', 'filePath', 'SaveError', 'saveError'];
-        const hasExportHints = Object.keys(outputData || {}).some(key => exportHintKeys.includes(key));
-        if (hasExportHints) {
-            return true;
-        }
-
-        return text.includes('"Format"')
-            || text.includes('"SaveToFile"')
-            || text.includes('"FilePath"')
-            || text.includes('"SaveError"');
-    }
-
-    isExportMetadataKey(key) {
-        return [
-            'format',
-            'savetofile',
-            'output',
-            'filepath',
-            'saveerror',
-            'success'
-        ].includes(String(key || '').toLowerCase());
     }
 
     getAnalysisPayload(result) {
