@@ -23,6 +23,11 @@ export class AiPanel {
         this.sessionId = this._loadSessionId();
         this.currentResult = null;
         this.lastUserPrompt = '';
+        this.nextHintDraft = '';
+        this.activeGenerateRequestId = null;
+        this.activeGenerateSessionId = null;
+        this.lastCancelledRequestId = null;
+        this.lastCancelledAt = 0;
         this.attachments = [];
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
@@ -34,6 +39,7 @@ export class AiPanel {
         this._handleAttachmentClick = this._handleAttachmentClick.bind(this);
         this._handleFilePickedEvent = this._handleFilePickedEvent.bind(this);
         this._handleAttachmentReport = this._handleAttachmentReport.bind(this);
+        this._handleCancelGenerate = this._handleCancelGenerate.bind(this);
         this._toggleHistoryPanel = this._toggleHistoryPanel.bind(this);
         
         // 初始化
@@ -62,9 +68,13 @@ export class AiPanel {
         this._saveSessionId(null);
         this.currentResult = null;
         this.lastUserPrompt = '';
+        this.nextHintDraft = '';
+        this.activeGenerateRequestId = null;
+        this.activeGenerateSessionId = null;
         this.attachments = [];
         this._clearResultPane();
         this._renderAttachments();
+        this._renderQueuedHintBanner();
         const container = this.container.querySelector('#ai-chat-container');
         if (container) container.innerHTML = '';
         const progress = this.container.querySelector('#ai-progress-container');
@@ -110,11 +120,13 @@ export class AiPanel {
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 015 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 005 0V5c0-1.38-1.12-2.5-2.5-2.5S8 3.62 8 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
                             </button>
                             <textarea class="ai-textarea" id="ai-input" placeholder="输入指令..."></textarea>
+                            <button class="ai-btn-cancel" id="ai-btn-cancel" type="button" title="取消生成">取消</button>
                             <button class="ai-btn-send" id="ai-btn-gen">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                             </button>
                         </div>
                         <div class="ai-attachments" id="ai-attachments"></div>
+                        <div class="ai-followup-hint-banner" id="ai-followup-hint-banner"></div>
                         <div class="ai-quick-examples">
                             <div class="examples-header" id="examples-toggle">
                                 快捷示例 
@@ -166,7 +178,14 @@ export class AiPanel {
                         <div class="card-title">生成的算子清单</div>
                         <div class="generated-ops-list" id="ai-result-ops"></div>
                     </div>
-                    
+
+                    <div class="result-card followup-card">
+                        <div class="card-title">待补信息</div>
+                        <div class="ai-followup-panel is-empty" id="ai-result-followups">
+                            <div class="ai-followup-empty">当前没有待确认参数或缺失资源。</div>
+                        </div>
+                    </div>
+                     
                     <div class="apply-container">
                         <button class="btn-apply-flow" id="ai-btn-apply">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:6px;">
@@ -181,9 +200,11 @@ export class AiPanel {
         
         // 事件绑定
         const attachBtn = this.container.querySelector('#ai-btn-attach');
+        const cancelBtn = this.container.querySelector('#ai-btn-cancel');
         this.container.querySelector('#ai-btn-gen').addEventListener('click', this._handleGenerate);
         this.container.querySelector('#ai-btn-apply').addEventListener('click', this._handleApplyFlow);
         if (attachBtn) attachBtn.addEventListener('click', this._handleAttachmentClick);
+        if (cancelBtn) cancelBtn.addEventListener('click', this._handleCancelGenerate);
         const newSessionBtn = this.container.querySelector('#ai-btn-new-session');
         if (newSessionBtn) newSessionBtn.addEventListener('click', this._handleNewConversation);
         const historyBtn = this.container.querySelector('#ai-btn-history');
@@ -221,6 +242,8 @@ export class AiPanel {
         });
 
         this._renderAttachments();
+        this._renderQueuedHintBanner();
+        this._renderFollowupChecklist(null);
     }
     
     _checkConnection() {
@@ -242,6 +265,7 @@ export class AiPanel {
         webMessageBridge.on('GenerateFlowStreamChunk', (data) => this._handleStreamChunk(data));
         webMessageBridge.on('AiFirewallBlocked', (data) => this._handleFirewallBlocked(data));
         webMessageBridge.on('GenerateFlowResult', (data) => this._handleResult(data));
+        webMessageBridge.on('CancelGenerateFlowResult', (data) => this._handleCancelResult(data));
         webMessageBridge.on('FilePickedEvent', this._handleFilePickedEvent);
         webMessageBridge.on('GenerateFlowAttachmentReport', this._handleAttachmentReport);
         webMessageBridge.on('ListAiSessionsResult', (data) => this._handleListAiSessionsResult(data));
@@ -263,6 +287,8 @@ export class AiPanel {
         const input = this.container.querySelector('#ai-input');
         const description = input.value.trim();
         const attachmentPaths = this.attachments.map(item => item.path);
+        const hint = this.nextHintDraft.trim();
+        const requestId = this._createGenerateRequestId();
         this.lastUserPrompt = description;
         
         if (!description) {
@@ -274,6 +300,9 @@ export class AiPanel {
         
         this._setGeneratingState(true);
         this._clearResultPane();
+        this.activeGenerateRequestId = requestId;
+        this.activeGenerateSessionId = this.sessionId;
+        this.lastCancelledRequestId = null;
         
         // Reset manual UI for streaming
         const reasoningEl = this.container.querySelector('#ai-result-reasoning');
@@ -306,16 +335,40 @@ export class AiPanel {
             webMessageBridge.sendMessage("GenerateFlow", { 
                 payload: { 
                     description,
+                    hint: hint || null,
+                    requestId,
                     sessionId: this.sessionId,
                     existingFlowJson,
                     attachments: attachmentPaths
                 } 
             });
+            this.nextHintDraft = '';
+            this._renderQueuedHintBanner();
             input.value = ''; // 清空输入框
             input.style.height = 'auto'; // 重置高度
         } catch (err) {
             this._handleError(err.message);
         }
+    }
+
+    _handleCancelGenerate() {
+        if (!this.isGenerating) return;
+
+        const requestId = this.activeGenerateRequestId;
+        const sessionId = this.activeGenerateSessionId || this.sessionId;
+
+        webMessageBridge.sendMessage('CancelGenerateFlow', {
+            payload: {
+                requestId,
+                sessionId
+            }
+        });
+
+        this._updateProgress({
+            message: '正在取消生成...',
+            phase: 'cancelling'
+        });
+        this._addMessage('system', '已发送取消请求，正在等待后端停止当前生成。');
     }
     
     _updateProgress(data) {
@@ -460,8 +513,13 @@ export class AiPanel {
             this._flushStreamBuffer();
         }
 
-        this._setGeneratingState(false);
         const payload = data.payload || data;
+        if (!this._shouldHandleGenerateTerminalPayload(payload)) {
+            return;
+        }
+
+        const isCancelled = this._isCancelledResult(payload);
+        this._setGeneratingState(false);
         this.sessionId = payload.sessionId || this.sessionId;
         this._saveSessionId(this.sessionId);
         
@@ -469,12 +527,14 @@ export class AiPanel {
         if (container) {
             const activeStep = container.querySelector('.stepper-item.active');
             if (activeStep) {
-                activeStep.classList.remove('active', 'completed', 'failed');
-                activeStep.classList.add(payload.success ? 'completed' : 'failed');
+                activeStep.classList.remove('active', 'completed', 'failed', 'cancelled');
+                activeStep.classList.add(payload.success ? 'completed' : (isCancelled ? 'cancelled' : 'failed'));
                 const icon = activeStep.querySelector('.check-icon');
                 if (icon) {
                     if (payload.success) {
                         icon.innerHTML = '<path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>';
+                    } else if (isCancelled) {
+                        icon.innerHTML = '<path d="M7 7h10v10H7z"/>';
                     } else {
                         icon.innerHTML = '<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>';
                     }
@@ -482,15 +542,25 @@ export class AiPanel {
                 }
                 const dot = activeStep.querySelector('.dot-icon');
                 if (dot) dot.style.display = 'none';
-                activeStep.querySelector('.stepper-title').innerHTML = (payload.success ? '生成成功' : '生成失败');
+                activeStep.querySelector('.stepper-title').innerHTML = payload.success ? '生成成功' : (isCancelled ? '已取消' : '生成失败');
                 const bar = activeStep.querySelector('.stepper-bar-container');
                 if(bar) bar.style.display = 'none';
             }
         }
-        if (!payload.success) {
-            this._addMessage('system', `❌ 生成失败: ${payload.errorMessage || '未知错误'}`);
+
+        if (isCancelled) {
+            this._markRequestCancelled(payload);
+            this._addMessage('system', '已取消本次生成。');
             return;
         }
+
+        if (!payload.success) {
+            this._clearActiveRequestState();
+            this._addMessage('system', `❌ 生成失败: ${payload.failureSummary || payload.errorMessage || '未知错误'}`);
+            return;
+        }
+
+        this._clearActiveRequestState();
         this.currentResult = payload;
         if (this.sessionId) {
             this._addToHistory({
@@ -502,9 +572,21 @@ export class AiPanel {
         }
         this._displayResult(payload);
     }
+
+    _handleCancelResult(data) {
+        const payload = data?.payload || data || {};
+        const normalizedPayload = {
+            ...payload,
+            success: false,
+            status: payload.status || 'cancelled',
+            errorMessage: payload.errorMessage || payload.message || '已取消生成'
+        };
+        this._handleResult({ payload: normalizedPayload });
+    }
     
     _handleFirewallBlocked(data) {
         this._setGeneratingState(false);
+        this._clearActiveRequestState();
         const chatContainer = this.container.querySelector('#ai-chat-container');
         const alert = document.createElement('div');
         alert.className = 'firewall-alert';
@@ -521,6 +603,7 @@ export class AiPanel {
     
     _handleError(msg) {
         this._setGeneratingState(false);
+        this._clearActiveRequestState();
         this._addMessage('system', `❌ 系统错误: ${msg}`);
     }
     
@@ -575,6 +658,7 @@ export class AiPanel {
         
         const matchedTemplateName = data?.recommendedTemplate?.templateName || '';
         const templateNotice = matchedTemplateName ? ` 已按模板优先命中「${matchedTemplateName}」。` : '';
+        this._renderFollowupChecklist(data, data.flow);
         this._addMessage('ai', `工程方案已生成！包含 ${ops.length} 个算子、${connections.length} 条连线。${templateNotice}可继续输入修改指令。`);
     }
 
@@ -612,6 +696,209 @@ export class AiPanel {
         }
 
         return parts.join('；');
+    }
+
+    _renderFollowupChecklist(data, flow = null) {
+        const container = this.container?.querySelector('#ai-result-followups');
+        if (!container) return;
+
+        const pending = this._normalizePendingParameters(data?.pendingParameters ?? data?.PendingParameters);
+        const missing = this._normalizeMissingResources(data?.missingResources ?? data?.MissingResources);
+        const recommended = this._normalizeRecommendedTemplate(data?.recommendedTemplate ?? data?.RecommendedTemplate);
+        const operators = this._extractOperators(flow || data?.flow || data?.Flow || null);
+
+        if (!recommended && pending.length === 0 && missing.length === 0) {
+            container.classList.add('is-empty');
+            container.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数或缺失资源。</div>';
+            return;
+        }
+
+        const followupText = this._buildFollowupHintText({ recommended, pending, missing, operators });
+        const recommendedHtml = recommended
+            ? `
+                <div class="ai-followup-template">
+                    <div class="ai-followup-section-label">模板建议</div>
+                    <div class="ai-followup-template-name">${this._escapeHtml(recommended.templateName)}</div>
+                    <div class="ai-followup-template-reason">${this._escapeHtml(recommended.matchReason || '建议延续当前模板骨架继续补齐缺失项。')}</div>
+                </div>
+            `
+            : '';
+
+        const pendingHtml = pending.length > 0
+            ? `
+                <div class="ai-followup-section">
+                    <div class="ai-followup-section-label">待确认参数</div>
+                    <div class="ai-followup-list">
+                        ${pending.map(item => `
+                            <div class="ai-followup-item">
+                                <div class="ai-followup-item-title">${this._escapeHtml(this._resolvePendingOperatorLabel(item.operatorId, operators))}</div>
+                                <div class="ai-followup-item-body">需要补充：${this._escapeHtml(item.parameterNames.join('、'))}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `
+            : '';
+
+        const missingHtml = missing.length > 0
+            ? `
+                <div class="ai-followup-section">
+                    <div class="ai-followup-section-label">缺失资源</div>
+                    <div class="ai-followup-list">
+                        ${missing.map(item => `
+                            <div class="ai-followup-item">
+                                <div class="ai-followup-item-title">${this._escapeHtml(item.resourceType || '资源')}</div>
+                                <div class="ai-followup-item-body">${this._escapeHtml(item.description || item.resourceKey || '缺少必要资源')}</div>
+                                ${item.resourceKey ? `<div class="ai-followup-item-meta">${this._escapeHtml(item.resourceKey)}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `
+            : '';
+
+        container.classList.remove('is-empty');
+        container.innerHTML = `
+            ${recommendedHtml}
+            ${pendingHtml}
+            ${missingHtml}
+            <div class="ai-followup-actions">
+                <div class="ai-followup-actions-hint">可复制成下一轮补充文本，也可直接挂到下一次生成的 hint。</div>
+                <div class="ai-followup-action-row">
+                    <button class="ai-followup-action" type="button" data-followup-action="copy">复制待补文本</button>
+                    <button class="ai-followup-action" type="button" data-followup-action="insert">插入输入框</button>
+                    <button class="ai-followup-action" type="button" data-followup-action="queue">用于下一轮提示</button>
+                </div>
+            </div>
+        `;
+
+        container.querySelectorAll('[data-followup-action]').forEach(button => {
+            button.disabled = this.isGenerating;
+            button.addEventListener('click', async () => {
+                const action = button.dataset.followupAction;
+                if (action === 'copy') {
+                    const copied = await this._copyTextToClipboard(followupText);
+                    this._addMessage('system', copied ? '待补信息已复制，可直接粘贴到下一轮说明。' : '复制失败，请手动复制待补信息。');
+                    return;
+                }
+
+                if (action === 'insert') {
+                    this._appendFollowupTextToInput(followupText);
+                    this._addMessage('system', '待补信息已插入输入框，可继续补充修改需求。');
+                    return;
+                }
+
+                if (action === 'queue') {
+                    this.nextHintDraft = followupText;
+                    this._renderQueuedHintBanner();
+                    this._addMessage('system', '待补信息已挂到下一轮 hint，下一次生成会自动附带。');
+                }
+            });
+        });
+    }
+
+    _normalizePendingParameters(items) {
+        if (!Array.isArray(items)) return [];
+
+        return items
+            .map(item => {
+                const rawNames = item?.parameterNames ?? item?.ParameterNames;
+                const parameterNames = Array.isArray(rawNames)
+                    ? [...new Set(rawNames.map(name => String(name || '').trim()).filter(Boolean))]
+                    : [];
+
+                return {
+                    operatorId: String(item?.operatorId ?? item?.OperatorId ?? '').trim(),
+                    parameterNames
+                };
+            })
+            .filter(item => item.operatorId || item.parameterNames.length > 0);
+    }
+
+    _normalizeMissingResources(items) {
+        if (!Array.isArray(items)) return [];
+
+        return items
+            .map(item => ({
+                resourceType: String(item?.resourceType ?? item?.ResourceType ?? '').trim(),
+                resourceKey: String(item?.resourceKey ?? item?.ResourceKey ?? '').trim(),
+                description: String(item?.description ?? item?.Description ?? '').trim()
+            }))
+            .filter(item => item.resourceType || item.resourceKey || item.description);
+    }
+
+    _normalizeRecommendedTemplate(item) {
+        if (!item || typeof item !== 'object') return null;
+
+        const templateName = String(item?.templateName ?? item?.TemplateName ?? '').trim();
+        if (!templateName) return null;
+
+        return {
+            templateName,
+            matchReason: String(item?.matchReason ?? item?.MatchReason ?? '').trim()
+        };
+    }
+
+    _resolvePendingOperatorLabel(operatorId, operators) {
+        const normalizedId = String(operatorId || '').trim();
+        const safeOperators = Array.isArray(operators) ? operators : [];
+        const directMatch = safeOperators.find(op => {
+            const candidates = [
+                op?.tempId,
+                op?.TempId,
+                op?.id,
+                op?.Id
+            ].map(value => String(value || '').trim()).filter(Boolean);
+            return candidates.includes(normalizedId);
+        });
+
+        const directName = directMatch
+            ? String(directMatch?.displayName ?? directMatch?.DisplayName ?? directMatch?.name ?? directMatch?.Name ?? '').trim()
+            : '';
+        if (directName) {
+            return normalizedId ? `${directName}（${normalizedId}）` : directName;
+        }
+
+        const indexMatch = normalizedId.match(/^op[_-](\d+)$/i);
+        if (indexMatch) {
+            const index = Number.parseInt(indexMatch[1], 10) - 1;
+            const guessedOperator = safeOperators[index];
+            const guessedName = guessedOperator
+                ? String(guessedOperator?.displayName ?? guessedOperator?.DisplayName ?? guessedOperator?.name ?? guessedOperator?.Name ?? '').trim()
+                : '';
+            if (guessedName) {
+                return `${guessedName}（${normalizedId}）`;
+            }
+        }
+
+        return normalizedId ? `算子 ${normalizedId}` : '未命名算子';
+    }
+
+    _buildFollowupHintText({ recommended, pending, missing, operators }) {
+        const lines = ['请基于上一轮流程继续完善，优先补齐待确认参数和缺失资源，不要重建无关结构。'];
+
+        if (recommended?.templateName) {
+            lines.push(`优先沿用模板：${recommended.templateName}${recommended.matchReason ? `（${recommended.matchReason}）` : ''}。`);
+        }
+
+        if (pending.length > 0) {
+            lines.push('待确认参数：');
+            pending.forEach(item => {
+                lines.push(`- ${this._resolvePendingOperatorLabel(item.operatorId, operators)}：请补充 ${item.parameterNames.join('、')}`);
+            });
+        }
+
+        if (missing.length > 0) {
+            lines.push('缺失资源：');
+            missing.forEach(item => {
+                const name = item.resourceType || '资源';
+                const detail = item.description || item.resourceKey || '缺少必要资源';
+                lines.push(`- ${name}${item.resourceKey ? `（${item.resourceKey}）` : ''}：${detail}`);
+            });
+        }
+
+        lines.push('如果仍缺文件、模型、地址或标定数据，请明确告诉我还需要补什么。');
+        return lines.join('\n');
     }
     
     /**
@@ -686,6 +973,7 @@ export class AiPanel {
     _setGeneratingState(busy) {
         this.isGenerating = busy;
         const btn = this.container.querySelector('#ai-btn-gen');
+        const cancelBtn = this.container.querySelector('#ai-btn-cancel');
         if(btn) {
             btn.disabled = busy;
             if(busy) {
@@ -694,11 +982,20 @@ export class AiPanel {
                 btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
             }
         }
+        if (cancelBtn) {
+            cancelBtn.disabled = !busy;
+            cancelBtn.classList.toggle('is-visible', busy);
+        }
         const attachBtn = this.container.querySelector('#ai-btn-attach');
         if (attachBtn) attachBtn.disabled = busy;
         this.container.querySelectorAll('.ai-attachment-remove').forEach(btnEl => {
             btnEl.disabled = busy;
         });
+        this.container.querySelectorAll('.ai-followup-action').forEach(btnEl => {
+            btnEl.disabled = busy;
+        });
+        const clearHintBtn = this.container.querySelector('#ai-btn-clear-followup-hint');
+        if (clearHintBtn) clearHintBtn.disabled = busy;
         const input = this.container.querySelector('#ai-input');
         if(input) input.disabled = busy;
     }
@@ -857,12 +1154,146 @@ export class AiPanel {
         div.textContent = value ?? '';
         return div.innerHTML;
     }
+
+    _renderQueuedHintBanner() {
+        const container = this.container?.querySelector('#ai-followup-hint-banner');
+        if (!container) return;
+
+        const draft = String(this.nextHintDraft || '').trim();
+        if (!draft) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const preview = draft.length > 120 ? `${draft.slice(0, 120)}...` : draft;
+        container.innerHTML = `
+            <div class="ai-followup-hint-card">
+                <div class="ai-followup-hint-copy">
+                    <div class="ai-followup-hint-title">下一轮已附加待补提示</div>
+                    <div class="ai-followup-hint-preview">${this._escapeHtml(preview)}</div>
+                </div>
+                <button class="ai-followup-hint-clear" type="button" id="ai-btn-clear-followup-hint">清除</button>
+            </div>
+        `;
+
+        const clearButton = container.querySelector('#ai-btn-clear-followup-hint');
+        if (clearButton) {
+            clearButton.disabled = this.isGenerating;
+            clearButton.addEventListener('click', () => {
+                this.nextHintDraft = '';
+                this._renderQueuedHintBanner();
+                this._addMessage('system', '已清除下一轮附加提示。');
+            });
+        }
+    }
+
+    async _copyTextToClipboard(text) {
+        const value = String(text || '').trim();
+        if (!value) return false;
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(value);
+                return true;
+            }
+        } catch (error) {
+            console.warn('[AiPanel] navigator.clipboard 写入失败，准备回退。', error);
+        }
+
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = value;
+            textArea.setAttribute('readonly', 'readonly');
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            const copied = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return copied;
+        } catch (error) {
+            console.warn('[AiPanel] execCommand 复制失败。', error);
+            return false;
+        }
+    }
+
+    _appendFollowupTextToInput(text) {
+        const input = this.container?.querySelector('#ai-input');
+        if (!input) return;
+
+        const value = String(text || '').trim();
+        if (!value) return;
+
+        const current = String(input.value || '').trim();
+        input.value = current ? `${current}\n\n${value}` : value;
+        input.focus();
+        input.style.height = 'auto';
+        input.style.height = `${input.scrollHeight}px`;
+    }
+
+    _createGenerateRequestId() {
+        const randomPart = Math.random().toString(36).slice(2, 8);
+        return `gen-${Date.now()}-${randomPart}`;
+    }
+
+    _shouldHandleGenerateTerminalPayload(payload) {
+        const requestId = String(payload?.requestId ?? payload?.RequestId ?? '').trim();
+        if (requestId && this.activeGenerateRequestId && requestId !== this.activeGenerateRequestId) {
+            return false;
+        }
+
+        if (!requestId && !this.isGenerating && this.lastCancelledRequestId && (Date.now() - this.lastCancelledAt) < 5000) {
+            return this._isCancelledResult(payload);
+        }
+
+        if (requestId && this.lastCancelledRequestId && requestId === this.lastCancelledRequestId && !this.isGenerating) {
+            return this._isCancelledResult(payload);
+        }
+
+        return true;
+    }
+
+    _isCancelledResult(payload) {
+        const status = String(payload?.status ?? payload?.Status ?? '').trim().toLowerCase();
+        const errorText = [
+            payload?.errorMessage,
+            payload?.ErrorMessage,
+            payload?.failureSummary,
+            payload?.FailureSummary
+        ].map(value => String(value || '').trim().toLowerCase()).join(' ');
+
+        if (['cancelled', 'canceled', 'user_cancelled', 'user_canceled'].includes(status)) {
+            return true;
+        }
+
+        return errorText.includes('取消')
+            || errorText.includes('cancelled')
+            || errorText.includes('canceled')
+            || errorText.includes('user cancelled')
+            || errorText.includes('user canceled');
+    }
+
+    _markRequestCancelled(payload) {
+        this.lastCancelledRequestId = String(payload?.requestId ?? payload?.RequestId ?? this.activeGenerateRequestId ?? '').trim() || null;
+        this.lastCancelledAt = Date.now();
+        this._clearActiveRequestState();
+    }
+
+    _clearActiveRequestState() {
+        this.activeGenerateRequestId = null;
+        this.activeGenerateSessionId = null;
+    }
     
     _clearResultPane() {
         const e1 = this.container.querySelector('#ai-result-reasoning'); if(e1) e1.textContent = '';
         const e2 = this.container.querySelector('#ai-result-thinking'); if(e2) e2.textContent = '';
         const e3 = this.container.querySelector('#ai-result-summary'); if(e3) e3.textContent = '';
         const e4 = this.container.querySelector('#ai-result-ops'); if(e4) e4.innerHTML = '';
+        const e5 = this.container.querySelector('#ai-result-followups');
+        if (e5) {
+            e5.classList.add('is-empty');
+            e5.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数或缺失资源。</div>';
+        }
         const progress = this.container.querySelector('#ai-progress-container');
         if(progress) progress.innerHTML = '';
         this._streamBuffer = { thinking: '', content: '' };
@@ -1027,7 +1458,10 @@ export class AiPanel {
         this.sessionId = sessionId;
         this._saveSessionId(this.sessionId);
         this.currentResult = null;
+        this.nextHintDraft = '';
+        this._clearActiveRequestState();
         this._clearResultPane();
+        this._renderQueuedHintBanner();
 
         const chatContainer = this.container.querySelector('#ai-chat-container');
         if (chatContainer) chatContainer.innerHTML = '';
@@ -1069,6 +1503,7 @@ export class AiPanel {
         const thinkingEl = this.container.querySelector('#ai-result-thinking');
         const summaryEl = this.container.querySelector('#ai-result-summary');
         const opsEl = this.container.querySelector('#ai-result-ops');
+        const followupSource = parsedAiFlow || parsedFlow;
 
         const explanation = parsedAiFlow?.explanation || parsedAiFlow?.Explanation ||
             parsedFlow?.explanation || parsedFlow?.Explanation || '--';
@@ -1102,9 +1537,18 @@ export class AiPanel {
             ? {
                 flow: canvasFlow,
                 aiExplanation: explanation,
+                recommendedTemplate: followupSource?.recommendedTemplate ?? followupSource?.RecommendedTemplate ?? null,
+                pendingParameters: followupSource?.pendingParameters ?? followupSource?.PendingParameters ?? [],
+                missingResources: followupSource?.missingResources ?? followupSource?.MissingResources ?? [],
                 sessionId
             }
             : null;
+
+        this._renderFollowupChecklist({
+            recommendedTemplate: followupSource?.recommendedTemplate ?? followupSource?.RecommendedTemplate ?? null,
+            pendingParameters: followupSource?.pendingParameters ?? followupSource?.PendingParameters ?? [],
+            missingResources: followupSource?.missingResources ?? followupSource?.MissingResources ?? []
+        }, followupSource);
 
         const updatedAtUtc = session.updatedAtUtc ?? session.UpdatedAtUtc ?? new Date().toISOString();
         const latestMessage = normalizedHistory.length > 0

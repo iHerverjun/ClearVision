@@ -1,6 +1,8 @@
 // Sprint5_AIWorkflowServiceTests.cs
-// AI 编排服务单元测试 - Sprint 5
+// Legacy AI 编排兼容测试 - Sprint 5
 // 作者：蘅芜君
+
+#pragma warning disable CS0618 // Legacy compatibility coverage intentionally exercises obsolete Sprint 5 types.
 
 using Xunit;
 using FluentAssertions;
@@ -12,8 +14,10 @@ using Acme.Product.Infrastructure.Services;
 namespace Acme.Product.Tests.AI;
 
 /// <summary>
-/// Sprint 5: AI 编排服务单元测试
+/// Sprint 5 Legacy AI 兼容测试。
+/// 这些测试覆盖旧链行为，避免被误认为当前主链（AiFlowGenerationService + PromptBuilder）的回归入口。
 /// </summary>
+[Trait("Category", "LegacyAICompatibility")]
 public class Sprint5_AIWorkflowServiceTests
 {
     private readonly FlowLinter _linter;
@@ -23,9 +27,9 @@ public class Sprint5_AIWorkflowServiceTests
         _linter = new FlowLinter();
     }
 
-    #region AIPromptBuilder Tests
+    #region Legacy AIPromptBuilder Compatibility Tests
 
-    [Fact(DisplayName = "AIPromptBuilder - 构建完整提示词包含系统提示")]
+    [Fact(DisplayName = "Legacy Compatibility - AIPromptBuilder 构建完整提示词包含系统提示")]
     public void AIPromptBuilder_WithSystemPrompt_ShouldContainHeader()
     {
         // Arrange
@@ -41,7 +45,7 @@ public class Sprint5_AIWorkflowServiceTests
         prompt.Should().Contain("工业视觉检测");
     }
 
-    [Fact(DisplayName = "AIPromptBuilder - 构建的提示词包含算子库")]
+    [Fact(DisplayName = "Legacy Compatibility - AIPromptBuilder 构建的提示词包含算子库")]
     public void AIPromptBuilder_WithOperatorLibrary_ShouldContainOperators()
     {
         // Arrange
@@ -60,7 +64,7 @@ public class Sprint5_AIWorkflowServiceTests
         prompt.Should().Contain("ForEach");
     }
 
-    [Fact(DisplayName = "AIPromptBuilder - 构建的提示词包含设计规则")]
+    [Fact(DisplayName = "Legacy Compatibility - AIPromptBuilder 构建的提示词包含设计规则")]
     public void AIPromptBuilder_WithDesignRules_ShouldContainRules()
     {
         // Arrange
@@ -78,7 +82,7 @@ public class Sprint5_AIWorkflowServiceTests
         prompt.Should().Contain("ForEach");
     }
 
-    [Fact(DisplayName = "AIPromptBuilder - CreateFullPrompt 方法应生成完整提示词")]
+    [Fact(DisplayName = "Legacy Compatibility - AIPromptBuilder CreateFullPrompt 方法应生成完整提示词")]
     public void AIPromptBuilder_CreateFullPrompt_ShouldGenerateCompletePrompt()
     {
         // Arrange & Act
@@ -92,9 +96,9 @@ public class Sprint5_AIWorkflowServiceTests
 
     #endregion
 
-    #region AIGeneratedFlowParser Tests
+    #region Legacy AIGeneratedFlowParser Compatibility Tests
 
-    [Fact(DisplayName = "FlowParser - 应能解析有效的 AI 生成 JSON")]
+    [Fact(DisplayName = "Legacy Compatibility - FlowParser 应能解析有效的 AI 生成 JSON")]
     public void AIGeneratedFlowParser_Parse_ValidJson_ShouldReturnSuccess()
     {
         // Arrange
@@ -116,7 +120,7 @@ public class Sprint5_AIWorkflowServiceTests
         result.Flow!.Name.Should().Be("测试流程");
     }
 
-    [Fact(DisplayName = "FlowParser - 解析无效 JSON 应返回失败")]
+    [Fact(DisplayName = "Legacy Compatibility - FlowParser 解析无效 JSON 应返回失败")]
     public void AIGeneratedFlowParser_Parse_InvalidJson_ShouldReturnFailure()
     {
         // Arrange
@@ -131,7 +135,7 @@ public class Sprint5_AIWorkflowServiceTests
         result.ErrorMessage.Should().Contain("JSON");
     }
 
-    [Fact(DisplayName = "FlowParser - 解析包含未知算子类型的 JSON 应返回失败")]
+    [Fact(DisplayName = "Legacy Compatibility - FlowParser 解析包含未知算子类型的 JSON 应返回失败")]
     public void AIGeneratedFlowParser_Parse_UnknownOperatorType_ShouldReturnFailure()
     {
         // Arrange
@@ -151,7 +155,7 @@ public class Sprint5_AIWorkflowServiceTests
         result.IsSuccessful.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "FlowParser - 解析完整流程应正确映射端口类型")]
+    [Fact(DisplayName = "Legacy Compatibility - FlowParser 解析完整流程应正确映射端口类型")]
     public void AIGeneratedFlowParser_Parse_FullFlow_ShouldMapPortTypes()
     {
         // Arrange
@@ -274,9 +278,9 @@ public class Sprint5_AIWorkflowServiceTests
 
     #endregion
 
-    #region AIWorkflowService Integration Tests
+    #region Legacy AIWorkflowService Compatibility Tests
 
-    [Fact(DisplayName = "AIWorkflowService - 验证简单流程应成功")]
+    [Fact(DisplayName = "Legacy Compatibility - AIWorkflowService 验证简单流程应成功")]
     public void AIWorkflowService_ValidateSimpleFlow_ShouldSucceed()
     {
         // Arrange
@@ -293,7 +297,7 @@ public class Sprint5_AIWorkflowServiceTests
         lintResult.HasErrors.Should().BeFalse();
     }
 
-    [Fact(DisplayName = "AIWorkflowService - 验证包含错误的流程应报告错误")]
+    [Fact(DisplayName = "Legacy Compatibility - AIWorkflowService 验证包含错误的流程应报告错误")]
     public void AIWorkflowService_ValidateFlowWithErrors_ShouldReportErrors()
     {
         // Arrange - 创建一个包含循环的流程
@@ -324,3 +328,5 @@ public class Sprint5_AIWorkflowServiceTests
 
     #endregion
 }
+
+#pragma warning restore CS0618

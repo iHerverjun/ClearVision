@@ -39,6 +39,7 @@ public class GenerateFlowMessageHandler
         string? sessionId = null,
         string? existingFlowJson = null,
         string? hint = null,
+        string? requestId = null,
         IReadOnlyList<string>? attachments = null,
         Action<string, string>? onMessage = null, // "GenerateFlowProgress", "GenerateFlowStreamChunk", "GenerateFlowAttachmentReport"
         CancellationToken cancellationToken = default)
@@ -64,12 +65,16 @@ public class GenerateFlowMessageHandler
             var response = new GenerateFlowResponse
             {
                 Success = result.Success,
+                Status = NormalizeStatus(result.CompletionStatus, result.Success),
                 Flow = result.Flow,
                 ErrorMessage = result.ErrorMessage,
+                FailureSummary = BuildFailureSummaryText(result.FailureSummary, result.ErrorMessage),
+                LastAttemptDiagnostics = result.LastAttemptDiagnostics,
                 AiExplanation = result.AiExplanation,
                 Reasoning = result.Reasoning,
                 ParametersNeedingReview = result.ParametersNeedingReview,
-                SessionId = result.SessionId,
+                SessionId = result.SessionId ?? sessionId,
+                RequestId = requestId,
                 DetectedIntent = result.DetectedIntent,
                 DryRunResult = result.DryRunResult,
                 RecommendedTemplate = MapRecommendedTemplate(result.RecommendedTemplate),
@@ -77,7 +82,41 @@ public class GenerateFlowMessageHandler
                 MissingResources = MapMissingResources(result.MissingResources)
             };
 
-            return JsonSerializer.Serialize(response, _jsonOptions);
+            return SerializeResponse(response, result.FailureType);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("AI 生成请求已被用户取消。SessionId={SessionId}", sessionId);
+
+            var cancelledResponse = new GenerateFlowResponse
+            {
+                Success = false,
+                Status = AiFlowGenerationResult.CompletionStatusCancelled,
+                ErrorMessage = "用户已取消本次生成。",
+                FailureSummary = "用户已取消本次生成。",
+                LastAttemptDiagnostics = Array.Empty<AiAttemptDiagnostic>(),
+                SessionId = sessionId,
+                RequestId = requestId
+            };
+
+            return SerializeResponse(cancelledResponse, AiFlowGenerationResult.FailureTypeUserCancelled);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "AI 生成请求超时。SessionId={SessionId}", sessionId);
+
+            var timeoutResponse = new GenerateFlowResponse
+            {
+                Success = false,
+                Status = AiFlowGenerationResult.CompletionStatusTimedOut,
+                ErrorMessage = "AI generation timed out. Please retry.",
+                FailureSummary = "AI generation timed out. Please retry.",
+                LastAttemptDiagnostics = Array.Empty<AiAttemptDiagnostic>(),
+                SessionId = sessionId,
+                RequestId = requestId
+            };
+
+            return SerializeResponse(timeoutResponse, AiFlowGenerationResult.FailureTypeTimeout);
         }
         catch (Exception ex)
         {
@@ -86,11 +125,61 @@ public class GenerateFlowMessageHandler
             var errorResponse = new GenerateFlowResponse
             {
                 Success = false,
-                ErrorMessage = $"服务内部错误：{ex.Message}"
+                Status = AiFlowGenerationResult.CompletionStatusFailed,
+                ErrorMessage = $"服务内部错误：{ex.Message}",
+                FailureSummary = $"服务内部错误：{ex.Message}",
+                LastAttemptDiagnostics = Array.Empty<AiAttemptDiagnostic>(),
+                SessionId = sessionId,
+                RequestId = requestId
             };
 
-            return JsonSerializer.Serialize(errorResponse, _jsonOptions);
+            return SerializeResponse(errorResponse, AiFlowGenerationResult.FailureTypeSystemError);
         }
+    }
+
+    private static string SerializeResponse(GenerateFlowResponse response, string? failureType)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            response.Type,
+            response.Success,
+            response.Status,
+            response.Flow,
+            response.ErrorMessage,
+            response.FailureSummary,
+            response.LastAttemptDiagnostics,
+            response.AiExplanation,
+            response.Reasoning,
+            response.ParametersNeedingReview,
+            response.SessionId,
+            response.RequestId,
+            response.DetectedIntent,
+            response.DryRunResult,
+            response.RecommendedTemplate,
+            response.PendingParameters,
+            response.MissingResources,
+            FailureType = failureType
+        }, _jsonOptions);
+    }
+
+    private static string NormalizeStatus(string? completionStatus, bool success)
+    {
+        if (!string.IsNullOrWhiteSpace(completionStatus))
+            return completionStatus;
+
+        return success
+            ? AiFlowGenerationResult.CompletionStatusCompleted
+            : AiFlowGenerationResult.CompletionStatusFailed;
+    }
+
+    private static string? BuildFailureSummaryText(AiFailureSummary? failureSummary, string? fallbackMessage)
+    {
+        if (!string.IsNullOrWhiteSpace(failureSummary?.Message))
+            return failureSummary.Message;
+
+        return string.IsNullOrWhiteSpace(fallbackMessage)
+            ? null
+            : fallbackMessage;
     }
 
     private static GenerateFlowTemplateRecommendation? MapRecommendedTemplate(AiRecommendedTemplateInfo? template)

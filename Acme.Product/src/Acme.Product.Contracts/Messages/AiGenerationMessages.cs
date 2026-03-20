@@ -31,6 +31,11 @@ public record GenerateFlowRequestPayload
     public string? SessionId { get; init; }
 
     /// <summary>
+    /// 可选：本次生成请求 ID，用于取消或忽略过期结果
+    /// </summary>
+    public string? RequestId { get; init; }
+
+    /// <summary>
     /// 可选：当前流程 JSON（用于增量修改/解释）
     /// </summary>
     public string? ExistingFlowJson { get; init; }
@@ -45,17 +50,50 @@ public record GenerateFlowResponse
 {
     public string Type => "GenerateFlowResult";
     public bool Success { get; init; }
+    public string? Status { get; init; }
     public object? Flow { get; init; }   // OperatorFlowDto 序列化后的对象
     public string? ErrorMessage { get; init; }
+    public string? FailureSummary { get; init; }
+    public object? LastAttemptDiagnostics { get; init; }
     public string? AiExplanation { get; init; }
     public string? Reasoning { get; init; }
     public Dictionary<string, List<string>>? ParametersNeedingReview { get; init; }
     public string? SessionId { get; init; }
+    public string? RequestId { get; init; }
     public string? DetectedIntent { get; init; }
     public object? DryRunResult { get; init; }
     public GenerateFlowTemplateRecommendation? RecommendedTemplate { get; init; }
     public List<GenerateFlowPendingParameter> PendingParameters { get; init; } = new();
     public List<GenerateFlowMissingResource> MissingResources { get; init; } = new();
+}
+
+/// <summary>
+/// 前端 → 后端：取消当前 AI 生成请求
+/// </summary>
+public record CancelGenerateFlowRequest
+{
+    public string Type => "CancelGenerateFlow";
+    public CancelGenerateFlowRequestPayload Payload { get; init; } = new();
+}
+
+public record CancelGenerateFlowRequestPayload
+{
+    public string? SessionId { get; init; }
+    public string? RequestId { get; init; }
+}
+
+/// <summary>
+/// 后端 → 前端：取消生成结果
+/// </summary>
+public record CancelGenerateFlowResponse
+{
+    public string Type => "CancelGenerateFlowResult";
+    public bool Success { get; init; }
+    public string Status { get; init; } = "cancelled";
+    public string? SessionId { get; init; }
+    public string? RequestId { get; init; }
+    public string? Message { get; init; }
+    public string? ErrorMessage { get; init; }
 }
 
 public record GenerateFlowTemplateRecommendation

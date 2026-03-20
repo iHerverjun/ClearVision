@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Services;
 using Acme.Product.Infrastructure.AI;
 using Acme.Product.Infrastructure.Services;
 using FluentAssertions;
@@ -91,6 +92,47 @@ public class Sprint7_AiEvolutionTests
         generated.Operators[0].Parameters["Method"].Should().Be("Laplacian");
         double.Parse(generated.Operators[0].Parameters["Threshold"], CultureInfo.InvariantCulture)
             .Should().BeGreaterOrEqualTo(0);
+        result.Diagnostics.Should().Contain(item =>
+            item.Code == "default_parameter_applied" &&
+            item.ParameterName == "Method" &&
+            item.Severity == AiValidationSeverity.Warning);
+        result.Diagnostics.Should().Contain(item =>
+            item.Code == "parameter_clamped" &&
+            item.ParameterName == "Threshold" &&
+            item.Severity == AiValidationSeverity.Warning);
+    }
+
+    [Fact(DisplayName = "AiFlowValidator - 非法算子类型应产出结构化错误诊断")]
+    public void AiFlowValidator_Validate_InvalidOperatorType_ShouldEmitStructuredDiagnostic()
+    {
+        // Arrange
+        var factory = new OperatorFactory();
+        var validator = new AiFlowValidator(factory);
+        var generated = new AiGeneratedFlowJson
+        {
+            Operators =
+            [
+                new AiGeneratedOperator
+                {
+                    TempId = "op_1",
+                    OperatorType = "UnknownOperator",
+                    DisplayName = "未知算子"
+                }
+            ],
+            Connections = []
+        };
+
+        // Act
+        var result = validator.Validate(generated);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.PrimaryError.Should().NotBeNull();
+        result.PrimaryError!.Code.Should().Be("unknown_operator_type");
+        result.PrimaryError.Category.Should().Be("operator");
+        result.PrimaryError.OperatorId.Should().Be("op_1");
+        result.PrimaryError.RelatedFields.Should().Contain("operators[0].operatorType");
+        result.PrimaryError.RepairHint.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact(DisplayName = "ConversationalFlowService - 有上下文且出现修改动词时应识别为 MODIFY")]

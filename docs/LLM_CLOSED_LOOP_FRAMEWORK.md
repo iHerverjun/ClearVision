@@ -1,166 +1,223 @@
-# Phase 4: LLM 闭环验证框架
+# LLM 闭环修复框架
 
-**日期**: 2026-03-18  
-**状态**: 设计完成，待实施  
-
----
-
-## 架构设计
-
-```
-用户上传图片
-    │
-    ▼
-┌─────────────────┐
-│  AutoTuneService │  ← 编排迭代循环
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-Preview   Metrics   ← 执行+分析
-    │         │
-    └────┬────┘
-         ▼
-   LLM Feedback    ← 生成下一轮参数
-         │
-    ┌────┴────┐
-    ▼         ▼
-Success   MaxIter? → Done
-```
+**日期**: 2026-03-20  
+**状态**: 第一阶段已落地
 
 ---
 
-## 核心组件
+## 现状结论
 
-### 1. AutoTuneService
+当前仓库里已经落地的闭环，不再是“失败后原样重试”，而是面向 AI 工作流生成主链的一套 **结构化诊断 + 定向修复提示 + 失败摘要回传** 机制。
 
-```csharp
-public interface IAutoTuneService
-{
-    Task<AutoTuneResult> AutoTuneOperatorAsync(
-        OperatorType type,
-        byte[] inputImage,
-        Dictionary<string, object> initialParams,
-        AutoTuneGoal goal,
-        int maxIterations = 5,
-        CancellationToken ct = default);
-}
-```
+本次落地范围聚焦：
 
-### 2. PreviewMetricsAnalyzer
+- `AiFlowGenerationService` 的生成重试回路
+- `AiFlowValidator` 的结构化校验诊断
+- `GenerateFlowMessageHandler` / `AiGenerationMessages` 的前后端消息透传
+- 前端 AI 面板对 `FailureSummary` / `LastAttemptDiagnostics` / `PendingParameters` / `MissingResources` 的消费
 
-```csharp
-public class PreviewMetricsAnalyzer
-{
-    public PreviewMetrics Analyze(Mat image, OperatorResult result)
-    {
-        return new PreviewMetrics
-        {
-            // 图像统计
-            ImageStats = new ImageStats { ... },
-            
-            // Blob 统计
-            BlobStats = result.Blobs?.Select(...).ToList(),
-            
-            // 诊断标签
-            Diagnostics = GenerateDiagnostics(image, result),
-            
-            // 可优化目标
-            OptimizationGoals = CalculateGoals(image, result)
-        };
-    }
-}
-```
+未落地范围：
 
-### 3. 反馈数据结构
+- 预览图像驱动的参数自动调优
+- 独立二审模型
+- 专门的 `AutoTuneService`
+- 面向实验统计的评估流水线
 
-```csharp
-public record PreviewFeedback
-{
-    public ImageStats ImageStats { get; init; } = null!;
-    public List<BlobStat> BlobStats { get; init; } = new();
-    public List<string> Diagnostics { get; init; } = new();
-    public List<OptimizationGoal> Goals { get; init; } = new();
-    public double OverallScore { get; init; }
-}
+也就是说，这份文档描述的是 **工作流生成主链的闭环修复**，不是旧版 “AutoTuneService + PreviewMetricsAnalyzer” 设想稿。
+
+---
+
+## 当前架构
+
+```text
+用户需求 / 历史上下文 / 当前流程 / 附件
+        │
+        ▼
+PromptBuilder + 会话上下文整理
+        │
+        ▼
+AiFlowGenerationService 调用模型
+        │
+        ▼
+解析 AI JSON
+        │
+        ▼
+AiFlowValidator 输出结构化诊断
+        │
+        ├─ 校验通过 → 转 DTO / 布局 / Dry-Run / 返回结果
+        │
+        └─ 校验失败 → 生成修复优先级 + 最近输出摘要 + 结构化问题清单
+                      │
+                      ▼
+                构造定向 retry prompt
+                      │
+                      ▼
+                  再次请求模型
+                      │
+                      ▼
+            达到重试上限后返回 FailureSummary + LastAttemptDiagnostics
 ```
 
 ---
 
-## API 设计
+## 已落地能力
 
-```
-POST /api/operators/{type}/auto-tune
-Request:
-{
-    "inputImageBase64": "...",
-    "initialParameters": { ... },
-    "goal": {
-        "targetBlobCount": 2,
-        "tolerance": 0.1
-    },
-    "maxIterations": 5
-}
+### 1. 结构化校验诊断
 
-Response:
-{
-    "success": true,
-    "finalParameters": { ... },
-    "iterations": [
-        {
-            "iteration": 1,
-            "parameters": { ... },
-            "metrics": { ... },
-            "score": 0.7
-        }
-    ],
-    "finalScore": 0.95
-}
-```
+`Acme.Product/src/Acme.Product.Core/Services/AiValidationResult.cs`
+
+当前 `AiValidationResult` 保留了原有的：
+
+- `Errors`
+- `Warnings`
+
+同时新增：
+
+- `Diagnostics`
+- `PrimaryError`
+
+每条诊断包含：
+
+- `Severity`
+- `Code`
+- `Category`
+- `Message`
+- `RelatedFields`
+- `OperatorId`
+- `ParameterName`
+- `SourceTempId`
+- `SourcePortName`
+- `TargetTempId`
+- `TargetPortName`
+- `RepairHint`
+
+这让 validator 不再只吐一串字符串，而是能明确告诉生成链：
+
+- 错在什么类别
+- 错在哪个字段
+- 优先修什么
+
+### 2. 定向修复 prompt
+
+`Acme.Product/src/Acme.Product.Infrastructure/AI/AiFlowGenerationService.cs`
+
+重试 prompt 现在会显式带入：
+
+- 原始用户请求
+- 修复优先级
+- 结构化问题清单
+- 最近一次输出摘要
+- 最近一次原始输出片段
+
+并明确要求模型：
+
+- 优先修复错误
+- 尽量保留已经正确的结构
+- 只返回完整 JSON
+
+### 3. 失败摘要与最近诊断
+
+`AiFlowGenerationResult` 现在会在失败时回传：
+
+- `CompletionStatus`
+- `FailureType`
+- `FailureSummary`
+- `LastAttemptDiagnostics`
+
+其中 `FailureSummary` 用于前端快速展示；
+`LastAttemptDiagnostics` 用于更细的闭环提示或后续调试。
+
+### 4. 取消 / 超时 / 系统失败分流
+
+生成终态已区分：
+
+- `completed`
+- `cancelled`
+- `timed_out`
+- `failed`
+
+失败类型当前至少区分：
+
+- `user_cancelled`
+- `timeout`
+- `system_error`
+
+这套状态会一路传到：
+
+- `GenerateFlowMessageHandler`
+- `AiGenerationMessages`
+- AI 面板前端
+
+前端因此可以把“已取消”与“系统失败”区分开来。
+
+### 5. 前端待补闭环
+
+AI 面板现在可以消费：
+
+- `PendingParameters`
+- `MissingResources`
+- `FailureSummary`
+- `LastAttemptDiagnostics`
+
+并提供：
+
+- 复制待补文本
+- 插入输入框
+- 作为下一轮 `hint`
+
+这让“修复回路”不只停留在后端重试，也能把待补信息直接回交给用户。
 
 ---
 
-## 科学实验设计
+## 代码落点
 
-### 数据集
-- 包装带检测场景 70 张
-- 开发集 30 张，验证集 **40 张**（满足统计检验力）
+### 主链核心
 
-### 基线对比
-1. 人工调参（工程师 5 年经验）
-2. 现有 ParameterRecommender
-3. LLM + 闭环反馈（待验证）
+- `Acme.Product/src/Acme.Product.Infrastructure/AI/AiFlowGenerationService.cs`
+- `Acme.Product/src/Acme.Product.Infrastructure/AI/AiFlowValidator.cs`
+- `Acme.Product/src/Acme.Product.Core/Services/AiValidationResult.cs`
+- `Acme.Product/src/Acme.Product.Core/DTOs/AiGenerationDto.cs`
 
-### 评估指标
-- 准确率：BlobCount 误差 < 10%
-- 调参耗时：从上传到可用工作流
-- 迭代次数：达到目标的预览调用次数
+### 前后端消息桥
 
-### 验收阈值
-1. 验证集准确率 ≥ 80%（vs 人工 ≥ 90%）
-2. 平均调参耗时 ≤ 3 分钟
-3. 相比无 LLM 基线，准确率提升 ≥ 15%
-4. McNemar 检验 p < 0.05
+- `Acme.Product/src/Acme.Product.Infrastructure/AI/GenerateFlowMessageHandler.cs`
+- `Acme.Product/src/Acme.Product.Contracts/Messages/AiGenerationMessages.cs`
+- `Acme.Product/src/Acme.Product.Desktop/Handlers/WebMessageHandler.cs`
+
+### 前端消费层
+
+- `Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai/aiPanel.js`
+- `Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/ai-panel.css`
 
 ---
 
-## 排期
+## 当前边界
 
-| 任务 | 时间 |
-|------|------|
-| PreviewMetricsAnalyzer | 3 天 |
-| AutoTuneService | 3 天 |
-| API 端点 | 2 天 |
-| 实验验证 | 5 天 |
+这套闭环已经能解决：
 
-**总计**: ~13 工作日
+- 工作流 JSON 结构错误
+- 算子类型错误
+- 连线端口错误
+- 参数缺失 / 越界 / 枚举非法
+- 用户取消与超时分流
+
+但还没有解决：
+
+- 基于运行预览指标的自动参数收敛
+- 生成结果的二模型复审
+- 面向数据集的效果评估与实验管理
+
+因此当前阶段的准确表述应为：
+
+> ClearVision 已落地“面向工作流生成主链的结构化闭环修复”，但尚未落地“面向视觉预览反馈的自动调参闭环”。
 
 ---
 
-## 风险
+## 后续建议
 
-| 风险 | 概率 | 缓解 |
-|------|------|------|
-| LLM 调参收敛失败 | 中 | 设置 maxIterations 上限，人工兜底 |
-| 反馈信息量过大 | 低 | 分级反馈：基础/详细/完整 |
-| 计算成本过高 | 低 | 迭代次数限制 + 提前终止 |
+下一阶段若继续演进，建议顺序如下：
+
+1. 将 `LastAttemptDiagnostics` 与前端结构化展示进一步细化，而不只是摘要透传。
+2. 为 `AiFlowGenerationService` 增补直接单元测试，避免只靠邻接测试覆盖。
+3. 在必要时引入“二审/复核模型”，只用于高风险失败场景，而不是默认串行增加成本。
+4. 如要重启 AutoTune 方向，应另起文档，不要再与当前工作流生成闭环混写。

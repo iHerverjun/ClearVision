@@ -226,4 +226,66 @@ public class GenerateFlowMessageHandlerTests
         root.GetProperty("missingResources")[0].GetProperty("resourceKey").GetString()
             .Should().Be("DeepLearning.ModelPath");
     }
+
+    [Fact(DisplayName = "GenerateFlowMessageHandler should serialize cancelled completion status")]
+    public async Task HandleAsync_ShouldSerializeCancelledCompletionStatus()
+    {
+        // Arrange
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = false,
+                ErrorMessage = "用户已取消本次生成。",
+                CompletionStatus = AiFlowGenerationResult.CompletionStatusCancelled,
+                FailureType = AiFlowGenerationResult.FailureTypeUserCancelled,
+                FailureSummary = new AiFailureSummary
+                {
+                    Category = "execution",
+                    Code = "user_cancelled",
+                    Message = "用户已取消本次生成。"
+                },
+                LastAttemptDiagnostics =
+                [
+                    new AiAttemptDiagnostic
+                    {
+                        AttemptNumber = 1,
+                        Stage = "execution",
+                        Summary = "用户主动取消",
+                        Issues =
+                        [
+                            new AiValidationDiagnostic
+                            {
+                                Severity = AiValidationSeverity.Error,
+                                Code = "user_cancelled",
+                                Category = "execution",
+                                Message = "用户主动取消"
+                            }
+                        ]
+                    }
+                ]
+            }));
+
+        // Act
+        var resultJson = await handler.HandleAsync("取消测试", requestId: "req-cancel-1");
+
+        // Assert
+        using var doc = JsonDocument.Parse(resultJson);
+        var root = doc.RootElement;
+        root.GetProperty("success").GetBoolean().Should().BeFalse();
+        root.GetProperty("status").GetString().Should().Be(AiFlowGenerationResult.CompletionStatusCancelled);
+        root.GetProperty("failureType").GetString().Should().Be(AiFlowGenerationResult.FailureTypeUserCancelled);
+        root.GetProperty("failureSummary").GetString().Should().Be("用户已取消本次生成。");
+        root.GetProperty("lastAttemptDiagnostics").GetArrayLength().Should().Be(1);
+        root.GetProperty("requestId").GetString().Should().Be("req-cancel-1");
+    }
+
 }

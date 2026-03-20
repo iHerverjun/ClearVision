@@ -25,6 +25,7 @@ using Acme.Product.Infrastructure.Services;
 using System.Net.Http;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 
 namespace Acme.Product.Desktop.Handlers;
 
@@ -40,6 +41,9 @@ public class WebMessageHandler : IDisposable
     private WebView2? _webViewControl;
     private CoreWebView2? _webView;
     private int _disposeState;
+    private readonly ConcurrentDictionary<string, ActiveGenerateFlowRequest> _activeGenerateFlowRequests = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _activeGenerateFlowRequestIdsBySessionId = new(StringComparer.OrdinalIgnoreCase);
+    private string? _latestGenerateFlowRequestId;
 
     // 事件订阅句柄
     private readonly List<IDisposable> _subscriptions = new();
@@ -243,6 +247,10 @@ public class WebMessageHandler : IDisposable
 
                 case "GenerateFlow":
                     await HandleGenerateFlowCommand(messageJson);
+                    break;
+
+                case "CancelGenerateFlow":
+                    HandleCancelGenerateFlowCommand(messageJson);
                     break;
 
                 case "handeye:solve":
@@ -845,6 +853,7 @@ public class WebMessageHandler : IDisposable
     /// </summary>
     private async Task HandleGenerateFlowCommand(string messageJson)
     {
+        ActiveGenerateFlowRequest? activeRequest = null;
         try
         {
             using var doc = JsonDocument.Parse(messageJson);
@@ -856,6 +865,9 @@ public class WebMessageHandler : IDisposable
             var sessionId = payload.TryGetProperty("sessionId", out var sessionElement)
                 ? sessionElement.GetString()
                 : null;
+            var requestId = TryGetMessageString(payload, "requestId")
+                ?? TryGetMessageString(doc.RootElement, "requestId")
+                ?? Guid.NewGuid().ToString("N");
             var existingFlowJson = payload.TryGetProperty("existingFlowJson", out var flowElement)
                 ? flowElement.ValueKind == JsonValueKind.String
                     ? flowElement.GetString()
@@ -873,6 +885,7 @@ public class WebMessageHandler : IDisposable
 
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<Acme.Product.Infrastructure.AI.GenerateFlowMessageHandler>();
+            activeRequest = RegisterGenerateFlowRequest(requestId, sessionId);
 
             // 在后台线程执行 AI 生成，避免 WebView2/UI 线程被流式解析和回调压满。
             var resultJson = await Task.Run(() => handler.HandleAsync(
@@ -880,13 +893,15 @@ public class WebMessageHandler : IDisposable
                 sessionId,
                 existingFlowJson,
                 hint,
+                requestId,
                 attachments,
                 onMessage: (type, payload) =>
                 {
                     // payload 已是 JSON 字符串，直接拼接外层 envelope，避免反序列化再序列化的额外开销。
                     var progressJson = $"{{\"messageType\":{JsonSerializer.Serialize(type)},\"payload\":{payload}}}";
                     PostWebMessageJson(progressJson);
-                }));
+                },
+                cancellationToken: activeRequest.CancellationTokenSource.Token));
 
             // 发回前端（原始 JSON）
             PostWebMessageJson(resultJson);
@@ -927,6 +942,13 @@ public class WebMessageHandler : IDisposable
             });
 
             PostWebMessageJson(json);
+        }
+        finally
+        {
+            if (activeRequest != null)
+            {
+                UnregisterGenerateFlowRequest(activeRequest);
+            }
         }
     }
 
@@ -999,6 +1021,151 @@ public class WebMessageHandler : IDisposable
             _logger.LogError(ex, "保存手眼标定文件失败");
             SendProgressMessage("handeye:save:result", new { success = false, message = ex.Message });
         }
+    }
+
+    private void HandleCancelGenerateFlowCommand(string messageJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            var payload = doc.RootElement.TryGetProperty("payload", out var payloadElement) &&
+                          payloadElement.ValueKind == JsonValueKind.Object
+                ? payloadElement
+                : doc.RootElement;
+
+            var requestId = TryGetMessageString(payload, "requestId") ??
+                            TryGetMessageString(doc.RootElement, "requestId");
+            var sessionId = TryGetMessageString(payload, "sessionId") ??
+                            TryGetMessageString(doc.RootElement, "sessionId");
+
+            if (!TryResolveGenerateFlowRequest(requestId, sessionId, out var activeRequest))
+            {
+                _logger.LogInformation(
+                    "收到取消 AI 生成请求，但未找到活动任务。RequestId={RequestId}, SessionId={SessionId}",
+                    requestId,
+                    sessionId);
+                PostWebMessageJson(JsonSerializer.Serialize(new CancelGenerateFlowResponse
+                {
+                    Success = false,
+                    Status = "not_found",
+                    SessionId = sessionId,
+                    RequestId = requestId,
+                    ErrorMessage = "未找到可取消的生成任务。"
+                }, _jsonOptions));
+                return;
+            }
+
+            if (!activeRequest.CancellationTokenSource.IsCancellationRequested)
+            {
+                activeRequest.CancellationTokenSource.Cancel();
+            }
+
+            _logger.LogInformation(
+                "已取消 AI 生成请求。RequestId={RequestId}, SessionId={SessionId}",
+                activeRequest.RequestId,
+                activeRequest.SessionId);
+
+            PostWebMessageJson(JsonSerializer.Serialize(new CancelGenerateFlowResponse
+            {
+                Success = true,
+                Status = "cancelled",
+                SessionId = activeRequest.SessionId,
+                RequestId = activeRequest.RequestId,
+                Message = "已发送取消请求。"
+            }, _jsonOptions));
+
+            SendProgressMessage("GenerateFlowProgress", new
+            {
+                message = "正在取消本次生成...",
+                phase = "cancelling",
+                requestId = activeRequest.RequestId,
+                sessionId = activeRequest.SessionId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理取消 AI 生成请求失败");
+            PostWebMessageJson(JsonSerializer.Serialize(new CancelGenerateFlowResponse
+            {
+                Success = false,
+                Status = "failed",
+                SessionId = null,
+                RequestId = null,
+                ErrorMessage = ex.Message
+            }, _jsonOptions));
+        }
+    }
+
+    private ActiveGenerateFlowRequest RegisterGenerateFlowRequest(string requestId, string? sessionId)
+    {
+        var activeRequest = new ActiveGenerateFlowRequest(requestId, sessionId, new CancellationTokenSource());
+        _activeGenerateFlowRequests[requestId] = activeRequest;
+        if (!string.IsNullOrWhiteSpace(sessionId))
+        {
+            _activeGenerateFlowRequestIdsBySessionId[sessionId] = requestId;
+        }
+
+        _latestGenerateFlowRequestId = requestId;
+        return activeRequest;
+    }
+
+    private void UnregisterGenerateFlowRequest(ActiveGenerateFlowRequest activeRequest)
+    {
+        _activeGenerateFlowRequests.TryRemove(activeRequest.RequestId, out _);
+        if (!string.IsNullOrWhiteSpace(activeRequest.SessionId))
+        {
+            _activeGenerateFlowRequestIdsBySessionId.TryRemove(activeRequest.SessionId, out _);
+        }
+
+        if (string.Equals(_latestGenerateFlowRequestId, activeRequest.RequestId, StringComparison.OrdinalIgnoreCase))
+        {
+            _latestGenerateFlowRequestId = _activeGenerateFlowRequests.Keys.LastOrDefault();
+        }
+
+        activeRequest.Dispose();
+    }
+
+    private bool TryResolveGenerateFlowRequest(
+        string? requestId,
+        string? sessionId,
+        out ActiveGenerateFlowRequest activeRequest)
+    {
+        if (!string.IsNullOrWhiteSpace(requestId) &&
+            _activeGenerateFlowRequests.TryGetValue(requestId, out activeRequest!))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sessionId) &&
+            _activeGenerateFlowRequestIdsBySessionId.TryGetValue(sessionId, out var mappedRequestId) &&
+            _activeGenerateFlowRequests.TryGetValue(mappedRequestId, out activeRequest!))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_latestGenerateFlowRequestId) &&
+            _activeGenerateFlowRequests.TryGetValue(_latestGenerateFlowRequestId, out activeRequest!))
+        {
+            return true;
+        }
+
+        activeRequest = null!;
+        return false;
+    }
+
+    private static string? TryGetMessageString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String)
+            return property.GetString();
+
+        var pascalCase = char.ToUpperInvariant(propertyName[0]) + propertyName[1..];
+        if (element.TryGetProperty(pascalCase, out property) && property.ValueKind == JsonValueKind.String)
+            return property.GetString();
+
+        return null;
     }
 
     private void PublishRealtimeMessages(IInspectionEvent evt)
@@ -1134,6 +1301,29 @@ public class WebMessageHandler : IDisposable
             return;
         }
         _logger.LogInformation("[WebMessageHandler] 正在释放资源");
+
+        foreach (var activeRequest in _activeGenerateFlowRequests.Values)
+        {
+            try
+            {
+                if (!activeRequest.CancellationTokenSource.IsCancellationRequested)
+                {
+                    activeRequest.CancellationTokenSource.Cancel();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "[WebMessageHandler] 取消活动 AI 生成请求失败");
+            }
+        }
+
+        foreach (var activeRequest in _activeGenerateFlowRequests.Values)
+        {
+            activeRequest.Dispose();
+        }
+
+        _activeGenerateFlowRequests.Clear();
+        _activeGenerateFlowRequestIdsBySessionId.Clear();
         
         foreach (var subscription in _subscriptions)
         {
@@ -1188,6 +1378,30 @@ public class WebMessageHandler : IDisposable
         catch (COMException ex)
         {
             _logger.LogDebug(ex, "[WebMessageHandler] WebView2 COM cleanup is already in progress.");
+        }
+    }
+
+    private sealed class ActiveGenerateFlowRequest : IDisposable
+    {
+        public ActiveGenerateFlowRequest(
+            string requestId,
+            string? sessionId,
+            CancellationTokenSource cancellationTokenSource)
+        {
+            RequestId = requestId;
+            SessionId = sessionId;
+            CancellationTokenSource = cancellationTokenSource;
+        }
+
+        public string RequestId { get; }
+
+        public string? SessionId { get; }
+
+        public CancellationTokenSource CancellationTokenSource { get; }
+
+        public void Dispose()
+        {
+            CancellationTokenSource.Dispose();
         }
     }
 }

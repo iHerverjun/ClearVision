@@ -90,3 +90,4 @@ notebooks/.ipynb_checkpoints/
 docs/temp.md
 
 *.binlog
+.dotnet-cli/

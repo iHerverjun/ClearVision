@@ -10,10 +10,11 @@ using Acme.Product.Core.Enums;
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
-/// AI 提示词构建器
-/// 生成包含完整算子库信息的提示词，帮助 LLM 生成正确的 ClearVision 流程
+/// Legacy AI 提示词构建器。
+/// 仅保留给 Sprint 5 兼容链与历史测试使用，不再代表当前主链提示词策略。
+/// 当前正式支持的提示词构建器为 <see cref="PromptBuilder"/>。
 /// </summary>
-[Obsolete("请改用新版的 PromptBuilder，旧版缺乏参数约束信息")]
+[Obsolete("Legacy compatibility prompt builder only. Use PromptBuilder for the supported AI generation path.")]
 public class AIPromptBuilder
 {
     private readonly StringBuilder _prompt = new();

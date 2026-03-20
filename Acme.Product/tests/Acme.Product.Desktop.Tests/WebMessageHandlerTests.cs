@@ -1,12 +1,15 @@
+using System.Reflection;
 using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Contracts.Messages;
+using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Handlers;
+using Acme.Product.Infrastructure.AI;
 using Acme.Product.Infrastructure.Events;
 using Acme.Product.Infrastructure.Services;
 using FluentAssertions;
@@ -147,6 +150,79 @@ public class WebMessageHandlerTests
 
         response.Success.Should().BeFalse();
         response.Error.Should().Contain("/api/inspection/realtime/stop");
+    }
+
+    [Fact]
+    public async Task CancelGenerateFlow_ShouldCancelActiveGenerateToken()
+    {
+        var operatorFactory = new OperatorFactory();
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var generationLogger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken capturedToken = default;
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(async callInfo =>
+            {
+                capturedToken = callInfo.ArgAt<CancellationToken>(3);
+                started.TrySetResult(true);
+
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, capturedToken);
+                }
+                catch (OperationCanceledException) when (capturedToken.IsCancellationRequested)
+                {
+                }
+
+                return new AiFlowGenerationResult
+                {
+                    Success = false,
+                    ErrorMessage = "用户已取消本次生成。",
+                    CompletionStatus = AiFlowGenerationResult.CompletionStatusCancelled,
+                    FailureType = AiFlowGenerationResult.FailureTypeUserCancelled
+                };
+            });
+
+        await using var serviceProvider = BuildServiceProvider(services =>
+        {
+            services.AddScoped(_ => generationService);
+            services.AddScoped(_ => generationLogger);
+            services.AddScoped<GenerateFlowMessageHandler>();
+        });
+
+        var handler = CreateHandler(serviceProvider, operatorFactory);
+        const string requestId = "req-active-1";
+        const string sessionId = "session-active-1";
+        var generateJson = $$"""
+        { "payload": { "description": "生成流程", "sessionId": "{{sessionId}}", "requestId": "{{requestId}}" } }
+        """;
+        var cancelJson = $$"""
+        { "payload": { "sessionId": "{{sessionId}}", "requestId": "{{requestId}}" } }
+        """;
+
+        var handleGenerateMethod = typeof(WebMessageHandler)
+            .GetMethod("HandleGenerateFlowCommand", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var handleCancelMethod = typeof(WebMessageHandler)
+            .GetMethod("HandleCancelGenerateFlowCommand", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var generationTask = (Task)handleGenerateMethod.Invoke(handler, [generateJson])!;
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        handleCancelMethod.Invoke(handler, [cancelJson]);
+        await generationTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        capturedToken.IsCancellationRequested.Should().BeTrue();
+
+        var activeRequestsField = typeof(WebMessageHandler)
+            .GetField("_activeGenerateFlowRequests", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var activeRequests = activeRequestsField.GetValue(handler)!;
+        var count = (int)activeRequests.GetType().GetProperty("Count")!.GetValue(activeRequests)!;
+        count.Should().Be(0);
     }
 
     private static WebMessageHandler CreateHandler(ServiceProvider serviceProvider, OperatorFactory operatorFactory)

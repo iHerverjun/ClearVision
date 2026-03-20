@@ -2,6 +2,8 @@
 // AI 生成 DTO 定义
 // 定义 AI 流程生成请求与结果传输结构
 // 作者：蘅芜君
+using Acme.Product.Core.Services;
+
 namespace Acme.Product.Core.DTOs;
 
 /// <summary>
@@ -20,6 +22,15 @@ public record AiFlowGenerationRequest(
 /// </summary>
 public class AiFlowGenerationResult
 {
+    public const string CompletionStatusCompleted = "completed";
+    public const string CompletionStatusCancelled = "cancelled";
+    public const string CompletionStatusTimedOut = "timed_out";
+    public const string CompletionStatusFailed = "failed";
+
+    public const string FailureTypeUserCancelled = "user_cancelled";
+    public const string FailureTypeTimeout = "timeout";
+    public const string FailureTypeSystemError = "system_error";
+
     /// <summary>
     /// 是否生成成功
     /// </summary>
@@ -35,6 +46,16 @@ public class AiFlowGenerationResult
     /// 错误消息（失败时不为 null）
     /// </summary>
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// 请求完成状态（completed / cancelled / timed_out / failed）
+    /// </summary>
+    public string CompletionStatus { get; set; } = CompletionStatusCompleted;
+
+    /// <summary>
+    /// 失败类型（如 user_cancelled / timeout / system_error）
+    /// </summary>
+    public string? FailureType { get; set; }
 
     /// <summary>
     /// AI 对本次生成的说明（解释为什么选择这些算子）
@@ -85,6 +106,35 @@ public class AiFlowGenerationResult
     /// 模板落地所缺资源（模型/地址/标定等）
     /// </summary>
     public List<AiMissingResourceInfo> MissingResources { get; set; } = new();
+
+    /// <summary>
+    /// 本次失败的结构化摘要（成功时为空）
+    /// </summary>
+    public AiFailureSummary? FailureSummary { get; set; }
+
+    /// <summary>
+    /// 最近一次尝试的结构化诊断（可用于前端闭环提示）
+    /// </summary>
+    public List<AiAttemptDiagnostic> LastAttemptDiagnostics { get; set; } = new();
+}
+
+public class AiFailureSummary
+{
+    public string Category { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string RepairTarget { get; set; } = string.Empty;
+    public int RetryCount { get; set; }
+    public string LastOutputSummary { get; set; } = string.Empty;
+}
+
+public class AiAttemptDiagnostic
+{
+    public int AttemptNumber { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string OutputSummary { get; set; } = string.Empty;
+    public List<AiValidationDiagnostic> Issues { get; set; } = new();
 }
 
 /// <summary>

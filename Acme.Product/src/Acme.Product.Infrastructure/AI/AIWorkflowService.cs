@@ -12,9 +12,11 @@ using Microsoft.Extensions.Logging;
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
-/// AI 编排服务工作流
-/// 提供从自然语言需求到可执行流程的完整转换管道
+/// Legacy AI 编排服务工作流。
+/// 该实现保留用于 Sprint 5 兼容链验证与历史回归，不再作为当前产品的主生成链路。
+/// 当前正式支持的主链为 <see cref="AiFlowGenerationService"/> + <see cref="PromptBuilder"/>。
 /// </summary>
+[Obsolete("Legacy compatibility pipeline only. Use AiFlowGenerationService + PromptBuilder for the supported AI generation path.")]
 public class AIWorkflowService
 {
     private readonly PromptBuilder _promptBuilder;
@@ -47,7 +49,8 @@ public class AIWorkflowService
     }
 
     /// <summary>
-    /// 执行完整的 AI 工作流
+    /// 执行 Legacy AI 工作流。
+    /// 仅用于兼容老测试/老回归场景，不建议为新功能继续扩展此链路。
     /// </summary>
     public async Task<AIWorkflowResult> GenerateFlowAsync(
         string userRequirement,
@@ -190,7 +193,7 @@ public class AIWorkflowService
     }
 
     /// <summary>
-    /// 快速验证流程（无需 LLM，用于测试）
+    /// 快速验证 Legacy 流程（无需 LLM，用于兼容测试）
     /// </summary>
     public AIWorkflowResult ValidateFlow(OperatorFlow flow, bool enableDryRun = true)
     {

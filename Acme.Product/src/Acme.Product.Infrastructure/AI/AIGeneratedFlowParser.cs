@@ -13,9 +13,11 @@ using Acme.Product.Infrastructure.Services;
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
-/// AI 生成流程解析器
-/// 将 LLM 生成的 JSON 解析为内部 Flow 定义，同时进行验证
+/// Legacy AI 生成流程解析器。
+/// 该解析器用于兼容 Sprint 5 时代的旧 JSON 格式与历史测试，不再作为当前主链的唯一解析入口。
+/// 当前正式支持的主链为 <see cref="AiFlowGenerationService"/> 驱动的生成与校验流程。
 /// </summary>
+[Obsolete("Legacy compatibility parser only. Use the AiFlowGenerationService-driven main chain for the supported AI generation path.")]
 public class AIGeneratedFlowParser
 {
     private readonly FlowLinter _linter;
@@ -26,7 +28,7 @@ public class AIGeneratedFlowParser
     }
 
     /// <summary>
-    /// 解析 AI 生成的流程 JSON
+    /// 解析 Legacy AI 生成流程 JSON。
     /// </summary>
     public ParseResult Parse(string aiGeneratedJson)
     {
