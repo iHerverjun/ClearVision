@@ -300,9 +300,6 @@ export class ProjectView {
             
             if (project) {
                 showToast(`工程 "${project.name}" 已打开`, 'success');
-                
-                // 触发自定义事件，通知 app.js 切换到流程视图
-                window.dispatchEvent(new CustomEvent('projectOpened', { detail: project }));
             }
         } catch (error) {
             console.error('[ProjectView] 打开工程失败:', error);
@@ -446,9 +443,6 @@ export class ProjectView {
                     const displayName = project?.name || name || '示例工程';
                     showToast(`工程 "${displayName}" 已创建`, 'success');
                     closeModal(modalOverlay);
-                    
-                    // 触发工程打开事件，切换到流程视图
-                    window.dispatchEvent(new CustomEvent('projectOpened', { detail: project }));
                 } catch (error) {
                     console.error('[ProjectView] 创建工程失败:', error);
                     showToast('创建失败: ' + error.message, 'error');

@@ -1,5 +1,5 @@
 ﻿import httpClient from '../../core/messaging/httpClient.js';
-import { showToast, createModal } from '../../shared/components/uiComponents.js';
+import { showToast, createModal, closeModal } from '../../shared/components/uiComponents.js';
 
 class SettingsView {
     constructor(containerId) {
@@ -834,11 +834,16 @@ class SettingsView {
         if (calibBtn) {
             calibBtn.addEventListener('click', async () => {
                 try {
-                    const activeCameraBindingId = this.selectedCameraBindingId || this.resolveActiveCameraId() || null;
+                    const binding = this.getSelectedCameraBinding();
+                    if (!binding) {
+                        showToast('请先在相机列表中明确选中一台相机，再启动手眼标定向导', 'warning');
+                        return;
+                    }
+
                     const module = await import('../../core/calibration/handEyeCalibWizard.js');
                     const wizard = new module.HandEyeCalibWizard(null, {
                         captureFrame: (cameraBindingId) => this.captureCameraPreview(cameraBindingId),
-                        getCameraBindingId: () => activeCameraBindingId || this.selectedCameraBindingId || this.resolveActiveCameraId() || null
+                        getCameraBindingId: () => binding.id
                     });
                     wizard.show();
                 } catch (e) {
@@ -1202,6 +1207,20 @@ class SettingsView {
         const previewBtn = this.container.querySelector('#btn-camera-preview');
         if (previewBtn) {
             previewBtn.disabled = !cam;
+            previewBtn.title = cam ? `预览 ${cam.displayName || cam.serialNumber || cam.id}` : '请先在列表中选择一台相机';
+        }
+
+        const calibBtn = this.container.querySelector('#btn-hand-eye-calib');
+        if (calibBtn) {
+            calibBtn.disabled = !cam;
+            calibBtn.title = cam ? `对 ${cam.displayName || cam.serialNumber || cam.id} 启动手眼标定` : '请先在列表中选择一台相机';
+        }
+
+        const selectionHint = this.container.querySelector('#camera-selection-hint');
+        if (selectionHint) {
+            selectionHint.textContent = cam
+                ? `当前已选中：${cam.displayName || cam.serialNumber || cam.id}。你现在可以直接预览该相机，并在此基础上启动手眼标定。`
+                : '请先在上方绑定列表中选择一台相机，再进行预览、手眼标定或参数保存。';
         }
     }
 
@@ -1785,7 +1804,7 @@ class SettingsView {
                     <h2>相机管理</h2>
                     <p>配置和管理视觉系统连接的工业相机参数。</p>
                 </div>
-                <div class="settings-actions">
+                <div class="settings-actions" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
                     <button class="cv-btn settings-btn-light" id="btn-discover-huaray-cameras">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                         华睿搜索
@@ -1793,6 +1812,12 @@ class SettingsView {
                     <button class="cv-btn settings-btn-light" id="btn-discover-hikvision-cameras">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                         海康搜索
+                    </button>
+                    <button class="cv-btn settings-btn-light" id="btn-camera-preview" disabled title="请先在列表中选择一台相机">
+                        相机预览
+                    </button>
+                    <button class="cv-btn settings-btn-light" id="btn-hand-eye-calib" disabled title="请先在列表中选择一台相机">
+                        手眼标定向导
                     </button>
                 </div>
             </div>
@@ -1826,6 +1851,9 @@ class SettingsView {
                     </div>
                 </div>
                 <div class="settings-card-body">
+                    <div id="camera-selection-hint" class="settings-field-hint" style="display:block; margin-bottom:16px;">
+                        请先在上方绑定列表中选择一台相机，再进行预览、手眼标定或参数保存。
+                    </div>
                     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:24px; margin-bottom: 24px;">
                         <div class="settings-fieldset">
                             <label>曝光时间 (Exposure Time)</label>
@@ -1857,29 +1885,30 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>采集帧率 (Frame Rate)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;" disabled readonly aria-disabled="true">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">fps</span>
                             </div>
+                            <span class="settings-field-hint">该字段暂未接入保存链路，当前仅展示占位。</span>
                         </div>
                         <div class="settings-fieldset">
                             <label>图像宽度 (Width)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;" disabled readonly aria-disabled="true">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">px</span>
                             </div>
+                            <span class="settings-field-hint">宽高参数暂未开放编辑，避免误以为已经保存生效。</span>
                         </div>
                         <div class="settings-fieldset">
                             <label>图像高度 (Height)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="" style="padding-right:36px;">
+                                <input type="number" class="cv-input" value="" style="padding-right:36px;" disabled readonly aria-disabled="true">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">px</span>
                             </div>
+                            <span class="settings-field-hint">宽高参数暂未开放编辑，避免误以为已经保存生效。</span>
                         </div>
                     </div>
                 </div>
                 <div class="settings-card-body" style="border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:12px; padding:16px 24px;">
-                    <button class="cv-btn settings-btn-light" id="btn-camera-preview" disabled>相机预览</button>
-                    <button class="cv-btn settings-btn-light" id="btn-hand-eye-calib">手眼标定向导</button>
                     <button class="cv-btn settings-btn-light" id="btn-reset-camera-params">重置当前值</button>
                     <button class="cv-btn settings-btn-danger" id="btn-save-camera-params">
                         <svg viewBox="0 0 24 24" style="width:16px; height:16px; margin-right:6px; fill:currentColor;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
@@ -2173,70 +2202,57 @@ class SettingsView {
     }
 
     showUserModal(mode, user) {
-        const container = this.container.querySelector('#user-modal-container');
-        if (!container) return;
-        
         const title = mode === 'create' ? '新增用户' : '编辑用户';
-        
         let roleVal = user ? user.role : 2; // Default to Operator (2)
         if (roleVal === 'Admin') roleVal = 0;
         else if (roleVal === 'Engineer') roleVal = 1;
         else if (roleVal === 'Operator') roleVal = 2;
 
-        container.innerHTML = `
-            <div class="cv-modal-overlay">
-                <div class="cv-modal">
-                    <div class="cv-modal-header">
-                        <div class="cv-modal-title">${title}</div>
-                        <button class="cv-modal-close" id="btn-close-usermodal">×</button>
-                    </div>
-                    <div class="cv-modal-body">
-                        <div class="settings-fieldset" style="margin-bottom:16px;">
-                            <label>用户名 (登录账号)</label>
-                            <input type="text" class="cv-input" id="modal-user-username" value="${user ? user.username : ''}" ${mode === 'edit' ? 'disabled' : ''}>
-                        </div>
-                        ${mode === 'create' ? `
-                        <div class="settings-fieldset" style="margin-bottom:16px;">
-                            <label>初始密码 (至少6位)</label>
-                            <input type="password" class="cv-input" id="modal-user-password">
-                        </div>
-                        ` : ''}
-                        <div class="settings-fieldset" style="margin-bottom:16px;">
-                            <label>显示名称 (可选)</label>
-                            <input type="text" class="cv-input" id="modal-user-displayname" value="${user?.displayName || ''}">
-                        </div>
-                        <div class="settings-fieldset" style="margin-bottom:16px;">
-                            <label>用户角色</label>
-                            <select class="cv-input" id="modal-user-role">
-                                <option value="0" ${roleVal === 0 ? 'selected' : ''}>系统管理员</option>
-                                <option value="1" ${roleVal === 1 ? 'selected' : ''}>工程师</option>
-                                <option value="2" ${roleVal === 2 ? 'selected' : ''}>操作员</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="cv-modal-footer">
-                        <button class="cv-btn cv-btn-secondary" id="btn-cancel-usermodal">取消</button>
-                        <button class="cv-btn cv-btn-primary" id="btn-save-usermodal">保存</button>
-                    </div>
-                </div>
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <div class="settings-fieldset" style="margin-bottom:16px;">
+                <label>用户名 (登录账号)</label>
+                <input type="text" class="cv-input" id="modal-user-username" value="${user ? user.username : ''}" ${mode === 'edit' ? 'disabled' : ''}>
+            </div>
+            ${mode === 'create' ? `
+            <div class="settings-fieldset" style="margin-bottom:16px;">
+                <label>初始密码 (至少6位)</label>
+                <input type="password" class="cv-input" id="modal-user-password">
+            </div>
+            ` : ''}
+            <div class="settings-fieldset" style="margin-bottom:16px;">
+                <label>显示名称 (可选)</label>
+                <input type="text" class="cv-input" id="modal-user-displayname" value="${user?.displayName || ''}">
+            </div>
+            <div class="settings-fieldset" style="margin-bottom:16px;">
+                <label>用户角色</label>
+                <select class="cv-input" id="modal-user-role">
+                    <option value="0" ${roleVal === 0 ? 'selected' : ''}>系统管理员</option>
+                    <option value="1" ${roleVal === 1 ? 'selected' : ''}>工程师</option>
+                    <option value="2" ${roleVal === 2 ? 'selected' : ''}>操作员</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+                <button class="cv-btn cv-btn-secondary" id="btn-cancel-usermodal">取消</button>
+                <button class="cv-btn cv-btn-primary" id="btn-save-usermodal">保存</button>
             </div>
         `;
 
-        const overlay = container.querySelector('.cv-modal-overlay');
-        const closeModal = () => container.innerHTML = '';
-        
-        container.querySelector('#btn-close-usermodal').addEventListener('click', closeModal);
-        container.querySelector('#btn-cancel-usermodal').addEventListener('click', closeModal);
-        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+        const modal = createModal({
+            title,
+            content,
+            width: '520px'
+        });
 
-        container.querySelector('#btn-save-usermodal').addEventListener('click', async () => {
-            const displayName = container.querySelector('#modal-user-displayname').value;
-            const role = parseInt(container.querySelector('#modal-user-role').value, 10);
+        content.querySelector('#btn-cancel-usermodal').addEventListener('click', () => closeModal(modal));
+        content.querySelector('#btn-save-usermodal').addEventListener('click', async () => {
+            const displayName = content.querySelector('#modal-user-displayname').value;
+            const role = parseInt(content.querySelector('#modal-user-role').value, 10);
             
             try {
                 if (mode === 'create') {
-                    const username = container.querySelector('#modal-user-username').value;
-                    const password = container.querySelector('#modal-user-password').value;
+                    const username = content.querySelector('#modal-user-username').value;
+                    const password = content.querySelector('#modal-user-password').value;
                     await httpClient.post('/users', { username, password, displayName, role });
                     showToast('用户创建成功', 'success');
                 } else {
@@ -2247,7 +2263,7 @@ class SettingsView {
                     });
                     showToast('用户信息已更新', 'success');
                 }
-                closeModal();
+                closeModal(modal);
                 this.refreshUserTable();
             } catch (err) {
                 showToast('保存失败: ' + err.message, 'error');

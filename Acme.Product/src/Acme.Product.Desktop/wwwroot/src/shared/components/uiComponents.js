@@ -361,14 +361,21 @@ export function createModal(options = {}) {
         content = '',
         footer = null,
         onClose = null,
-        width = null
+        width = null,
+        onBeforeClose = null,
+        onDispose = null,
+        closeOnOverlayClick = true,
+        closeOnEscape = true
     } = options;
 
     const overlay = document.createElement('div');
     overlay.className = 'cv-modal-overlay';
+    overlay.setAttribute('role', 'presentation');
 
     const modal = document.createElement('div');
     modal.className = 'cv-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
     if (width) modal.style.width = width;
 
     // Header
@@ -387,7 +394,6 @@ export function createModal(options = {}) {
     const closeBtn = header.querySelector('.cv-modal-close');
     const closeHandler = () => {
         closeModal(overlay);
-        if (onClose) onClose();
     };
     closeBtn.addEventListener('click', closeHandler);
 
@@ -420,12 +426,32 @@ export function createModal(options = {}) {
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    // Click outside to close (optional)
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
+    const keydownHandler = (e) => {
+        if (e.key === 'Escape') {
             closeHandler();
         }
-    });
+    };
+
+    overlay.__cvModalState = {
+        isClosing: false,
+        isDisposed: false,
+        onBeforeClose,
+        onClose,
+        onDispose,
+        keydownHandler
+    };
+
+    if (closeOnOverlayClick) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeHandler();
+            }
+        });
+    }
+
+    if (closeOnEscape) {
+        document.addEventListener('keydown', keydownHandler);
+    }
 
     // Show animation
     setTimeout(() => overlay.classList.add('show'), 10);
@@ -439,11 +465,53 @@ export function createModal(options = {}) {
  */
 export function closeModal(modalOverlay) {
     if (!modalOverlay) return;
+
+    const modalState = modalOverlay.__cvModalState || null;
+    if (modalState?.isClosing) {
+        return;
+    }
+
+    if (typeof modalState?.onBeforeClose === 'function') {
+        try {
+            const shouldContinue = modalState.onBeforeClose();
+            if (shouldContinue === false) {
+                return;
+            }
+        } catch (error) {
+            console.warn('[UI] Modal onBeforeClose failed:', error);
+        }
+    }
+
+    if (modalState) {
+        modalState.isClosing = true;
+        if (typeof modalState.keydownHandler === 'function') {
+            document.removeEventListener('keydown', modalState.keydownHandler);
+        }
+    }
+
     modalOverlay.classList.remove('show');
     setTimeout(() => {
         if (modalOverlay.parentNode) {
             modalOverlay.parentNode.removeChild(modalOverlay);
         }
+
+        if (modalState && !modalState.isDisposed) {
+            modalState.isDisposed = true;
+
+            try {
+                modalState.onClose?.();
+            } catch (error) {
+                console.warn('[UI] Modal onClose failed:', error);
+            }
+
+            try {
+                modalState.onDispose?.();
+            } catch (error) {
+                console.warn('[UI] Modal onDispose failed:', error);
+            }
+        }
+
+        delete modalOverlay.__cvModalState;
     }, 300);
 }
 

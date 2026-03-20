@@ -196,6 +196,31 @@ class ResultPanel {
         return this.serverPaged && !this.hasLocalPageFilters();
     }
 
+    isClientFilteringServerPage() {
+        return this.serverPaged && this.hasLocalPageFilters();
+    }
+
+    getVisiblePageResults() {
+        return this.serverPaged
+            ? this.filteredResults
+            : this.filteredResults.slice(
+                (this.currentPage - 1) * this.pageSize,
+                Math.min(this.currentPage * this.pageSize, this.filteredResults.length)
+            );
+    }
+
+    getResultsScopeSummary(pageResults = this.getVisiblePageResults()) {
+        if (this.isClientFilteringServerPage()) {
+            return `当前仅筛选已加载页：本页命中 ${this.filteredResults.length} 条，未覆盖其余 ${Math.max(this.totalResultCount - pageResults.length, 0)} 条历史记录`;
+        }
+
+        if (this.serverPaged) {
+            return `当前页 ${pageResults.length} 条 / 共 ${this.totalResultCount} 条记录`;
+        }
+
+        return `共 ${this.filteredResults.length} 条记录`;
+    }
+
     requestHistoryPage(pageIndex = 0) {
         if (!this.historyLoader || !this.projectId) {
             return Promise.resolve(false);
@@ -863,25 +888,17 @@ class ResultPanel {
         const countInfo = document.getElementById('results-count-info');
         if (!gridContainer) return;
 
-        const pageResults = this.serverPaged
-            ? this.filteredResults
-            : this.filteredResults.slice(
-                (this.currentPage - 1) * this.pageSize,
-                Math.min(this.currentPage * this.pageSize, this.filteredResults.length)
-            );
+        const pageResults = this.getVisiblePageResults();
 
         if (countInfo) {
-            if (this.serverPaged && !this.hasLocalPageFilters()) {
-                countInfo.textContent = `当前页 ${pageResults.length} 条 / 共 ${this.totalResultCount} 条记录`;
-            } else if (this.serverPaged && this.hasLocalPageFilters()) {
-                countInfo.textContent = `当前页筛选命中 ${this.filteredResults.length} 条`;
-            } else {
-                countInfo.textContent = `共 ${this.filteredResults.length} 条记录`;
-            }
+            countInfo.textContent = this.getResultsScopeSummary(pageResults);
         }
 
         if (pageResults.length === 0) {
-            gridContainer.innerHTML = '<p class="empty-text">暂无检测结果</p>';
+            const emptyText = this.isClientFilteringServerPage()
+                ? '当前页未命中筛选条件。当前筛选只作用于已加载页，可调整时间范围后重新翻页加载。'
+                : '暂无检测结果';
+            gridContainer.innerHTML = `<p class="empty-text">${emptyText}</p>`;
             return;
         }
 
@@ -924,8 +941,12 @@ class ResultPanel {
         const paginationContainer = document.getElementById('results-pagination');
         if (!paginationContainer) return;
 
-        if (this.serverPaged && this.hasLocalPageFilters()) {
-            paginationContainer.innerHTML = '';
+        if (this.isClientFilteringServerPage()) {
+            paginationContainer.innerHTML = `
+                <div class="empty-text" style="margin:0; text-align:center;">
+                    当前筛选仅作用于已加载页，分页已暂停以避免误认为正在筛选全量历史。
+                </div>
+            `;
             return;
         }
         
@@ -980,6 +1001,10 @@ class ResultPanel {
      * 导出结果
      */
     exportResults(format = 'json') {
+        if (this.isClientFilteringServerPage()) {
+            window.alert('当前导出仅包含已加载页中的筛选结果，并非全量历史记录。');
+        }
+
         const exportContext = this.getExportPayload(format);
         if (exportContext) {
             const blob = new Blob([exportContext.content], { type: exportContext.mimeType });
@@ -1000,17 +1025,20 @@ class ResultPanel {
         }
         
         let content, filename, mimeType;
+        const filenamePrefix = this.isClientFilteringServerPage()
+            ? 'inspection_results_current_page'
+            : 'inspection_results';
         
         switch (format) {
             case 'json':
                 content = JSON.stringify(this.filteredResults, null, 2);
-                filename = `inspection_results_${Date.now()}.json`;
+                filename = `${filenamePrefix}_${Date.now()}.json`;
                 mimeType = 'application/json';
                 break;
             case 'csv':
             case 'excel':
                 content = this.convertToCSV(this.filteredResults);
-                filename = `inspection_results_${Date.now()}.csv`;
+                filename = `${filenamePrefix}_${Date.now()}.csv`;
                 mimeType = 'text/csv';
                 break;
             default:

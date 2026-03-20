@@ -17,6 +17,29 @@ function buildAppUrl(relativePath) {
     return new URL(relativePath, window.location.href).toString();
 }
 
+function isLoginPage() {
+    return window.location.pathname.includes('/login.html');
+}
+
+function applyCurrentUser(user) {
+    window.currentUser = user || null;
+}
+
+function clearCurrentUser() {
+    applyCurrentUser(null);
+}
+
+function redirectToLogin() {
+    if (!isLoginPage()) {
+        window.location.href = buildAppUrl('./login.html');
+    }
+}
+
+function resetAuthState() {
+    clearAuthSession();
+    clearCurrentUser();
+}
+
 export function getToken() {
     return getStoredToken();
 }
@@ -88,15 +111,53 @@ export function initAuth() {
     const user = getCurrentUser();
 
     if (!token || !user) {
-        clearAuthSession();
-        if (!window.location.pathname.includes('/login.html')) {
-            window.location.href = buildAppUrl('./login.html');
-        }
+        resetAuthState();
+        redirectToLogin();
         return false;
     }
 
-    window.currentUser = user;
+    applyCurrentUser(user);
     return true;
+}
+
+export async function bootstrapAuthSession({ redirectOnFailure = true } = {}) {
+    const token = getToken();
+    const user = getCurrentUser();
+
+    if (!token || !user) {
+        resetAuthState();
+        if (redirectOnFailure) {
+            redirectToLogin();
+        }
+
+        return {
+            ok: false,
+            reason: 'missing-session',
+            user: null
+        };
+    }
+
+    applyCurrentUser(user);
+
+    const isValid = await validateTokenAsync();
+    if (!isValid) {
+        resetAuthState();
+        if (redirectOnFailure) {
+            redirectToLogin();
+        }
+
+        return {
+            ok: false,
+            reason: 'invalid-session',
+            user: null
+        };
+    }
+
+    return {
+        ok: true,
+        reason: 'authenticated',
+        user
+    };
 }
 
 export async function validateTokenAsync() {
@@ -155,4 +216,4 @@ export async function validateTokenAsync() {
     }
 }
 
-window.currentUser = getCurrentUser();
+applyCurrentUser(getCurrentUser());

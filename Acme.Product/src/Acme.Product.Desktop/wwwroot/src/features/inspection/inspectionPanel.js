@@ -55,6 +55,7 @@ class InspectionPanel {
         this._materialTimeoutHandle = null;
         this._materialTimeoutDeadline = null;
         this._lastProtectionReason = '';
+        this._lastProtectionMessage = '';
 
         // 初始化 UI 和分析卡片面板
         this.initialize();
@@ -93,6 +94,48 @@ class InspectionPanel {
         return `连续运行中（运行保护已开启，${timeoutSeconds} 秒未等到新结果将自动停止）`;
     }
 
+    getProtectionSummaryText() {
+        if (!this.isProtectionEnabled()) {
+            return '运行保护已关闭：连续运行不会因缺料超时或连续 NG 自动停止。';
+        }
+
+        const parts = [];
+        const timeoutSeconds = Number(this.runtimeConfig?.missingMaterialTimeoutSeconds ?? 0);
+        const stopThreshold = Number(this.runtimeConfig?.stopOnConsecutiveNg ?? 0);
+
+        if (Number.isFinite(timeoutSeconds) && timeoutSeconds > 0) {
+            parts.push(`${timeoutSeconds} 秒未等到新结果会自动停止连续运行`);
+        }
+
+        if (Number.isFinite(stopThreshold) && stopThreshold > 0) {
+            parts.push(`连续 NG 达到 ${stopThreshold} 次会自动停止`);
+        }
+
+        if (parts.length === 0) {
+            return '运行保护已开启，但当前未配置自动停机阈值。';
+        }
+
+        return `运行保护已开启：${parts.join('；')}。`;
+    }
+
+    updateProtectionNotice(message = '', tone = 'info') {
+        const summaryEl = this.container?.querySelector('#protection-summary');
+        const statusEl = this.container?.querySelector('#protection-status');
+
+        if (summaryEl) {
+            summaryEl.textContent = this.getProtectionSummaryText();
+        }
+
+        if (statusEl) {
+            const runtimeMessage = message || this._lastProtectionMessage || '待机中。启动连续运行后，这里会持续显示保护监控状态。';
+            statusEl.textContent = runtimeMessage;
+            statusEl.dataset.tone = tone;
+            statusEl.style.color = tone === 'warning'
+                ? '#b45309'
+                : (tone === 'error' ? '#b91c1c' : 'var(--text-secondary)');
+        }
+    }
+
     armProtectionWatchdog(reason = '等待检测结果') {
         this.clearProtectionWatchdog();
 
@@ -107,6 +150,9 @@ class InspectionPanel {
 
         this._lastProtectionReason = reason;
         this._materialTimeoutDeadline = Date.now() + timeoutMs;
+        const timeoutSeconds = Math.round(timeoutMs / 1000);
+        this._lastProtectionMessage = `${reason}，运行保护监控中；若 ${timeoutSeconds} 秒内没有新结果，将自动停止连续运行。`;
+        this.updateProtectionNotice(this._lastProtectionMessage, 'info');
         this._materialTimeoutHandle = window.setTimeout(() => {
             this.handleProtectionTimeout(reason);
         }, timeoutMs);
@@ -131,6 +177,7 @@ class InspectionPanel {
 
         const timeoutSeconds = Number(this.runtimeConfig?.missingMaterialTimeoutSeconds ?? 0);
         const message = `${reason}超时（${timeoutSeconds} 秒），已触发运行保护`;
+        const detailMessage = `${message}。系统将其解释为“在约定时间内没有等到新的检测结果”，请优先检查上料、触发链路、相机连接或 PLC 信号，而不是把它当成程序无响应。`;
         const shouldStopContinuous = this.isContinuous;
 
         console.warn('[InspectionPanel] 运行保护超时触发:', {
@@ -141,6 +188,8 @@ class InspectionPanel {
         });
 
         this.updateStatus('error', message);
+        this._lastProtectionMessage = detailMessage;
+        this.updateProtectionNotice(detailMessage, 'warning');
         showToast(`${message}${shouldStopContinuous ? '，连续运行已保护性停止' : ''}`, 'warning');
 
         if (shouldStopContinuous) {
@@ -156,6 +205,7 @@ class InspectionPanel {
         try {
             this.updateStatus('running', '运行中...');
             this.setButtonsState(true);
+            this.updateProtectionNotice('单次运行中。若长时间没有返回结果，界面会在这里解释触发了哪条保护规则。', 'info');
             this.armProtectionWatchdog('等待单次检测结果');
 
             const project = getCurrentProject();
@@ -178,6 +228,7 @@ class InspectionPanel {
             this.consecutiveNgCount = 0;
             this.updateStatus('running', this.getContinuousRunStatusText());
             this.setButtonsState(true);
+            this.updateProtectionNotice('连续运行已启动，正在等待首个结果。', 'info');
             this.armProtectionWatchdog('等待连续运行结果');
 
             const project = getCurrentProject();
@@ -212,6 +263,8 @@ class InspectionPanel {
             this.consecutiveNgCount = 0;
             this.updateStatus('idle', '已停止');
             this.setButtonsState(false);
+            this._lastProtectionMessage = '连续运行已停止。当前未在执行保护监控。';
+            this.updateProtectionNotice(this._lastProtectionMessage, 'info');
         } catch (error) {
             console.error('[InspectionPanel] 停止失败:', error);
         }
@@ -260,6 +313,9 @@ class InspectionPanel {
 
         const stopThreshold = Number(this.runtimeConfig?.stopOnConsecutiveNg ?? 0);
         if (this.isContinuous && stopThreshold > 0 && this.consecutiveNgCount >= stopThreshold) {
+            const thresholdMessage = `连续 NG 达到阈值 (${stopThreshold})，系统已按运行保护规则自动停止连续运行。请检查工件质量、阈值配置或上游触发条件。`;
+            this._lastProtectionMessage = thresholdMessage;
+            this.updateProtectionNotice(thresholdMessage, 'warning');
             showToast(`连续 NG 达到阈值 (${stopThreshold})，已自动停止`, 'warning');
             this.handleStop();
             return;
@@ -269,6 +325,9 @@ class InspectionPanel {
 
         if (this.isContinuous) {
             this.armProtectionWatchdog('等待下一次触发结果');
+        } else {
+            this._lastProtectionMessage = '最近一次检测已完成，当前未在连续运行。';
+            this.updateProtectionNotice(this._lastProtectionMessage, 'info');
         }
     }
 
@@ -292,6 +351,7 @@ class InspectionPanel {
             };
         }
 
+        this.updateProtectionNotice();
         this.tryAutoRunIfNeeded();
     }
 
@@ -336,6 +396,11 @@ class InspectionPanel {
                             </svg>
                             <span>停止</span>
                         </button>
+                    </div>
+                    <div style="margin-top:14px; padding:12px; border-radius:10px; background:#fff7ed; border:1px solid #fed7aa;">
+                        <div style="font-size:12px; font-weight:600; color:#9a3412; margin-bottom:6px;">运行保护说明</div>
+                        <div id="protection-summary" style="font-size:12px; line-height:1.5; color:#7c2d12;"></div>
+                        <div id="protection-status" style="margin-top:8px; font-size:12px; line-height:1.5; color:var(--text-secondary);"></div>
                     </div>
                 </div>
 

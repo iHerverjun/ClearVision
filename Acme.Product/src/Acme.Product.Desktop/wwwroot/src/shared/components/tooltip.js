@@ -6,6 +6,9 @@
 class TooltipSystem {
     constructor() {
         this.tooltip = null;
+        this._boundMouseOver = this.handleMouseOver.bind(this);
+        this._boundMouseOut = this.handleMouseOut.bind(this);
+        this._boundMouseMove = this.handleMouseMove.bind(this);
         this.init();
     }
 
@@ -31,9 +34,9 @@ class TooltipSystem {
         document.body.appendChild(this.tooltip);
 
         // 全局事件委托
-        document.addEventListener('mouseover', this.handleMouseOver.bind(this));
-        document.addEventListener('mouseout', this.handleMouseOut.bind(this));
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        document.addEventListener('mouseover', this._boundMouseOver);
+        document.addEventListener('mouseout', this._boundMouseOut);
+        document.addEventListener('mousemove', this._boundMouseMove);
     }
 
     handleMouseOver(e) {
@@ -84,6 +87,18 @@ class TooltipSystem {
 
         this.tooltip.style.left = `${left}px`;
         this.tooltip.style.top = `${top}px`;
+    }
+
+    destroy() {
+        document.removeEventListener('mouseover', this._boundMouseOver);
+        document.removeEventListener('mouseout', this._boundMouseOut);
+        document.removeEventListener('mousemove', this._boundMouseMove);
+
+        if (this.tooltip?.parentNode) {
+            this.tooltip.parentNode.removeChild(this.tooltip);
+        }
+
+        this.tooltip = null;
     }
 }
 
