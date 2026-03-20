@@ -168,88 +168,119 @@ async function mockSettingsApis(page: Page) {
 
 async function mockResultsApis(page: Page) {
     await page.route(`**/api/inspection/history/${PROJECT_ID}**`, async route => {
+        const url = new URL(route.request().url());
+        const status = url.searchParams.get('status');
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-                items: [
-                    {
-                        status: 'NG',
-                        defects: [{ type: 'Scratch', description: 'Scratch' }],
-                        processingTimeMs: 28,
-                        timestamp: '2026-03-20T10:10:00Z',
-                        confidenceScore: 0.88,
-                        outputData: { station: 'S1' },
-                    },
-                    {
-                        status: 'OK',
-                        defects: [],
-                        processingTimeMs: 22,
-                        timestamp: '2026-03-20T10:11:00Z',
-                        confidenceScore: 0.97,
-                        outputData: { station: 'S1' },
-                    },
-                ],
-                totalCount: 10,
+                items: status === 'ng'
+                    ? [
+                        {
+                            status: 'NG',
+                            defects: [{ type: 'Scratch', description: 'Scratch' }],
+                            processingTimeMs: 28,
+                            timestamp: '2026-03-20T10:10:00Z',
+                            confidenceScore: 0.88,
+                            outputData: { station: 'S1' },
+                        }
+                    ]
+                    : [
+                        {
+                            status: 'NG',
+                            defects: [{ type: 'Scratch', description: 'Scratch' }],
+                            processingTimeMs: 28,
+                            timestamp: '2026-03-20T10:10:00Z',
+                            confidenceScore: 0.88,
+                            outputData: { station: 'S1' },
+                        },
+                        {
+                            status: 'OK',
+                            defects: [],
+                            processingTimeMs: 22,
+                            timestamp: '2026-03-20T10:11:00Z',
+                            confidenceScore: 0.97,
+                            outputData: { station: 'S1' },
+                        },
+                    ],
+                totalCount: status === 'ng' ? 1 : 10,
                 pageIndex: 0,
-                pageSize: 12,
+                pageSize: status === 'ng' ? 1 : 12,
             }),
         });
     });
 
     await page.route(`**/api/analysis/report/${PROJECT_ID}**`, async route => {
+        const url = new URL(route.request().url());
+        const status = url.searchParams.get('status');
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
                 summary: {
-                    totalCount: 10,
-                    okCount: 7,
-                    ngCount: 3,
+                    totalCount: status === 'ng' ? 1 : 10,
+                    okCount: status === 'ng' ? 0 : 7,
+                    ngCount: status === 'ng' ? 1 : 3,
                     errorCount: 0,
-                    averageProcessingTimeMs: 25,
+                    averageProcessingTimeMs: status === 'ng' ? 28 : 25,
                 },
-                defectDistribution: [
-                    { defectType: 'Scratch', count: 3 },
-                ],
+                defectDistribution: status === 'ng'
+                    ? [{ defectType: 'Scratch', count: 1 }]
+                    : [{ defectType: 'Scratch', count: 3 }],
                 hourlyTrend: [
-                    { timestamp: '2026-03-20T10:00:00Z', totalCount: 10, ngCount: 3, errorCount: 0 },
+                    {
+                        timestamp: '2026-03-20T10:00:00Z',
+                        totalCount: status === 'ng' ? 1 : 10,
+                        ngCount: status === 'ng' ? 1 : 3,
+                        errorCount: 0
+                    },
                 ],
             }),
         });
     });
 
     await page.route(`**/api/analysis/statistics/${PROJECT_ID}**`, async route => {
+        const url = new URL(route.request().url());
+        const status = url.searchParams.get('status');
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-                totalCount: 10,
-                okCount: 7,
-                ngCount: 3,
+                totalCount: status === 'ng' ? 1 : 10,
+                okCount: status === 'ng' ? 0 : 7,
+                ngCount: status === 'ng' ? 1 : 3,
                 errorCount: 0,
-                averageProcessingTimeMs: 25,
+                averageProcessingTimeMs: status === 'ng' ? 28 : 25,
             }),
         });
     });
 
     await page.route(`**/api/analysis/defect-distribution/${PROJECT_ID}**`, async route => {
+        const url = new URL(route.request().url());
+        const status = url.searchParams.get('status');
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-                items: [{ defectType: 'Scratch', count: 3 }],
+                items: [{ defectType: 'Scratch', count: status === 'ng' ? 1 : 3 }],
             }),
         });
     });
 
     await page.route(`**/api/analysis/trend/${PROJECT_ID}**`, async route => {
+        const url = new URL(route.request().url());
+        const status = url.searchParams.get('status');
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
                 dataPoints: [
-                    { timestamp: '2026-03-20T10:00:00Z', ngCount: 3, errorCount: 0, defectCount: 3 },
+                    {
+                        timestamp: '2026-03-20T10:00:00Z',
+                        ngCount: status === 'ng' ? 1 : 3,
+                        errorCount: 0,
+                        defectCount: status === 'ng' ? 1 : 3
+                    },
                 ],
             }),
         });
@@ -280,6 +311,18 @@ async function mockInspectionApis(page: Page) {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({ success: true }),
+        });
+    });
+}
+
+async function mockHealthApi(page: Page, ok = true) {
+    await page.route('**/api/health', async route => {
+        await route.fulfill({
+            status: ok ? 200 : 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                status: ok ? 'Healthy' : 'Unavailable'
+            }),
         });
     });
 }
@@ -317,6 +360,17 @@ test.describe('High Frequency Regression', () => {
 
         await openProject(page);
         await expect(page.locator('#flow-editor')).toBeVisible();
+    });
+
+    test('ai health regression: ai panel health check uses unified /api/health contract', async ({ page }) => {
+        await mockProjectApis(page);
+        await mockHealthApi(page, true);
+        await bootRegressionApp(page);
+
+        await openProject(page);
+
+        await page.locator('.nav-btn[data-view="ai"]').click();
+        await expect(page.locator('#ai-conn-status .status-dot')).toHaveClass(/connected/);
     });
 
     test('settings camera regression: camera selection gates preview and hand-eye calibration', async ({ page }) => {
@@ -374,7 +428,7 @@ test.describe('High Frequency Regression', () => {
         await expect(page.locator('#btn-run-continuous')).toBeEnabled();
     });
 
-    test('result filter regression: server-paged filter copy clearly scopes to loaded page', async ({ page }) => {
+    test('result filter regression: server-paged filters refresh server-backed history and analytics', async ({ page }) => {
         await mockProjectApis(page);
         await mockResultsApis(page);
         await bootRegressionApp(page);
@@ -386,8 +440,7 @@ test.describe('High Frequency Regression', () => {
 
         await page.locator('#filter-status').selectOption('ng');
 
-        await expect(page.locator('#results-count-info')).toContainText('当前仅筛选已加载页');
-        await expect(page.locator('#results-pagination')).toContainText('分页已暂停');
+        await expect(page.locator('#results-count-info')).toContainText('当前页 1 条 / 共 1 条记录');
         await expect(page.locator('#results-grid')).toContainText('NG');
     });
 });
