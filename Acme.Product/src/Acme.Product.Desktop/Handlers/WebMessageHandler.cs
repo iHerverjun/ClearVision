@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using Acme.Product.Contracts.Messages;
+using Acme.Product.Application.Analysis;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
@@ -1013,16 +1014,24 @@ public class WebMessageHandler : IDisposable
         try
         {
             Dictionary<string, object>? outputData = null;
-            if (!string.IsNullOrEmpty(result.OutputDataJson))
+            Dictionary<string, object>? analysisData = null;
+
+            try
             {
-                try
-                {
-                    outputData = JsonSerializer.Deserialize<Dictionary<string, object>>(result.OutputDataJson, (JsonSerializerOptions?)null);
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogWarning(ex, "[WebMessageHandler] 解析 OutputDataJson 失败: ResultId={ResultId}", result.Id);
-                }
+                outputData = AnalysisPayloadSerialization.DeserializeJsonDictionary(result.OutputDataJson);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "[WebMessageHandler] 解析 OutputDataJson 失败: ResultId={ResultId}", result.Id);
+            }
+
+            try
+            {
+                analysisData = AnalysisPayloadSerialization.DeserializeJsonDictionary(result.AnalysisDataJson);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "[WebMessageHandler] 解析 AnalysisDataJson 失败: ResultId={ResultId}", result.Id);
             }
 
             var message = new
@@ -1045,7 +1054,9 @@ public class WebMessageHandler : IDisposable
                 processingTimeMs = result.ProcessingTimeMs,
                 outputImage = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
                 outputData,
-                outputDataJson = result.OutputDataJson
+                outputDataJson = result.OutputDataJson,
+                analysisData,
+                analysisDataJson = result.AnalysisDataJson
             };
 
             PostWebMessageJson(JsonSerializer.Serialize(message, _jsonOptions));

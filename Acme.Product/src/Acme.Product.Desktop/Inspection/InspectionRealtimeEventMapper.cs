@@ -58,6 +58,7 @@ public static class InspectionRealtimeEventMapper
                         processingTimeMs = result.ProcessingTimeMs,
                         outputImageBase64 = result.OutputImageBase64,
                         outputData = result.OutputData,
+                        analysisData = result.AnalysisData,
                         timestamp = result.Timestamp
                     })
             },

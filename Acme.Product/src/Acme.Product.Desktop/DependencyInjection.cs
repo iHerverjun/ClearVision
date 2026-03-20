@@ -3,6 +3,7 @@
 // 作者：蘅芜君
 
 using System;
+using Acme.Product.Application.Analysis;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Interfaces;
@@ -74,6 +75,7 @@ public static class DependencyInjection
 
         // 应用服务
         services.AddScoped<ProjectService>();
+        services.AddSingleton<IAnalysisDataBuilder, AnalysisDataBuilder>();
         services.AddScoped<IInspectionService, InspectionService>();
 
         // 领域服务

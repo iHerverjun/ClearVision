@@ -5,6 +5,7 @@
 // 作者：架构修复方案 v2
 
 using System.Collections.Concurrent;
+using Acme.Product.Application.Analysis;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Events;
@@ -34,6 +35,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
     private readonly ILogger<InspectionWorker> _logger;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly InspectionMetrics _metrics;
+    private readonly IAnalysisDataBuilder _analysisDataBuilder;
 
     // 并发控制：跟踪运行中的任务
     private readonly ConcurrentDictionary<Guid, RunningTaskEntry> _runningTasks = new();
@@ -72,7 +74,8 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         IInspectionEventBus eventBus,
         ILogger<InspectionWorker> logger,
         IHostApplicationLifetime lifetime,
-        InspectionMetrics metrics)
+        InspectionMetrics metrics,
+        IAnalysisDataBuilder analysisDataBuilder)
     {
         _scopeFactory = scopeFactory;
         _coordinator = coordinator;
@@ -80,9 +83,28 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         _logger = logger;
         _lifetime = lifetime;
         _metrics = metrics;
+        _analysisDataBuilder = analysisDataBuilder;
 
         // 订阅应用关闭事件
         _lifetime.ApplicationStopping.Register(OnApplicationStopping);
+    }
+
+    public InspectionWorker(
+        IServiceScopeFactory scopeFactory,
+        IInspectionRuntimeCoordinator coordinator,
+        IInspectionEventBus eventBus,
+        ILogger<InspectionWorker> logger,
+        IHostApplicationLifetime lifetime,
+        InspectionMetrics metrics)
+        : this(
+            scopeFactory,
+            coordinator,
+            eventBus,
+            logger,
+            lifetime,
+            metrics,
+            new AnalysisDataBuilder())
+    {
     }
 
     #region IHostedService Implementation
@@ -392,7 +414,9 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     Status = result.Status.ToString(),
                     DefectCount = result.Defects.Count,
                     ProcessingTimeMs = result.ProcessingTimeMs,
-                    OutputImageBase64 = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null
+                    OutputImageBase64 = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
+                    OutputData = AnalysisPayloadSerialization.DeserializeJsonDictionary(result.OutputDataJson),
+                    AnalysisData = AnalysisPayloadSerialization.DeserializeJsonDictionary(result.AnalysisDataJson)
                 }, ct);
                 _metrics.RecordDetectionLatency(result.ProcessingTimeMs, result.Status.ToString());
                 _metrics.RecordInspectionCompleted(result.Status.ToString(), result.Defects.Count);
@@ -537,6 +561,9 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                 }
             }
 
+            var analysisData = _analysisDataBuilder.Build(flow, flowResult, status);
+            AnalysisPayloadSerialization.TrySetOutputDataJson(result, flowResult.OutputData, _logger);
+            AnalysisPayloadSerialization.TrySetAnalysisDataJson(result, analysisData, _logger);
             return result;
         }
         catch (Exception ex)

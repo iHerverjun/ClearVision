@@ -24,6 +24,7 @@ using Acme.Product.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.AI;
+using System.Data;
 
 namespace Acme.Product.Desktop;
 
@@ -167,6 +168,8 @@ static class Program
                 {
                     dbContext.Database.EnsureCreated();
                 }
+
+                EnsureInspectionResultAnalysisDataColumnAsync(dbContext).GetAwaiter().GetResult();
 
                 // 初始化相机管理器绑定
                 var cameraManager = services.GetRequiredService<Acme.Product.Core.Cameras.ICameraManager>();
@@ -394,5 +397,51 @@ static class Program
             "初始管理员密码",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
+    }
+
+    private static async Task EnsureInspectionResultAnalysisDataColumnAsync(Acme.Product.Infrastructure.Data.VisionDbContext dbContext)
+    {
+        await EnsureTextColumnExistsAsync(dbContext, "InspectionResults", "AnalysisDataJson");
+    }
+
+    private static async Task EnsureTextColumnExistsAsync(
+        Acme.Product.Infrastructure.Data.VisionDbContext dbContext,
+        string tableName,
+        string columnName)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != ConnectionState.Open;
+
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync();
+        }
+
+        try
+        {
+            await using var pragmaCommand = connection.CreateCommand();
+            pragmaCommand.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+
+            await using var reader = await pragmaCommand.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var existingColumn = reader["name"]?.ToString();
+                if (string.Equals(existingColumn, columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            await reader.CloseAsync();
+            var alterSql = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" TEXT NULL;";
+            await dbContext.Database.ExecuteSqlRawAsync(alterSql);
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 }
