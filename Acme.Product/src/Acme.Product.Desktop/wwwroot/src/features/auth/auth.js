@@ -29,6 +29,21 @@ function clearCurrentUser() {
     applyCurrentUser(null);
 }
 
+const LOGOUT_NOTICE_KEY = 'cv_logout_notice';
+
+function writeLogoutNotice(message) {
+    try {
+        if (!message) {
+            window.sessionStorage?.removeItem(LOGOUT_NOTICE_KEY);
+            return;
+        }
+
+        window.sessionStorage?.setItem(LOGOUT_NOTICE_KEY, message);
+    } catch {
+        // Ignore storage failures and continue logout flow.
+    }
+}
+
 function redirectToLogin() {
     if (!isLoginPage()) {
         window.location.href = buildAppUrl('./login.html');
@@ -77,9 +92,20 @@ export async function logout() {
         }
     } catch (error) {
         console.warn('[Auth] 服务端登出失败，将继续清理本地会话。', error);
+        writeLogoutNotice('服务端登出失败，但本地会话已清理。若其他终端仍在线，请稍后确认会话状态。');
     } finally {
         clearAuthSession();
         window.location.href = buildAppUrl('./login.html');
+    }
+}
+
+export function consumeLogoutNotice() {
+    try {
+        const message = window.sessionStorage?.getItem(LOGOUT_NOTICE_KEY) || '';
+        window.sessionStorage?.removeItem(LOGOUT_NOTICE_KEY);
+        return message;
+    } catch {
+        return '';
     }
 }
 

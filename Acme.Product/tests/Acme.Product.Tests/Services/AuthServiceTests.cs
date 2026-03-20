@@ -105,13 +105,95 @@ public class AuthServiceTests
         await repository.Received(2).UpdateAsync(user);
     }
 
-    private static IConfigurationService CreateConfigurationService(int sessionTimeoutMinutes, int loginFailureLockoutCount)
+    [Fact]
+    public async Task LogoutAsync_ShouldInvalidateExistingSession()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2);
+        var user = CreateUser("logout-user", "hash");
+
+        repository.GetByUsernameAsync("logout-user", Arg.Any<CancellationToken>()).Returns(user);
+        passwordHasher.VerifyPassword("correct-password", user.PasswordHash).Returns(true);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+        var login = await service.LoginAsync("logout-user", "correct-password");
+
+        (await service.ValidateTokenAsync(login.Token!)).Should().BeTrue();
+
+        await service.LogoutAsync(login.Token!);
+
+        (await service.ValidateTokenAsync(login.Token!)).Should().BeFalse();
+        (await service.GetSessionAsync(login.Token!)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ShouldRejectWeakPasswordWithoutComplexity()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        var user = CreateUser("weak-password-user", "hash");
+
+        repository.GetByIdAsync(user.Id).Returns(user);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "lowercase1");
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("新密码必须同时包含大写字母、小写字母和数字");
+        await repository.DidNotReceive().UpdateAsync(Arg.Any<User>());
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ShouldRejectPasswordReuse()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        var user = CreateUser("reuse-user", "hash");
+
+        repository.GetByIdAsync(user.Id).Returns(user);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "CurrentPwd1");
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("新密码不能与当前密码相同");
+        await repository.DidNotReceive().UpdateAsync(Arg.Any<User>());
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ShouldUpdatePasswordWhenPolicySatisfied()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        var user = CreateUser("change-success-user", "old-hash");
+
+        repository.GetByIdAsync(user.Id).Returns(user);
+        passwordHasher.VerifyPassword("CurrentPwd1", user.PasswordHash).Returns(true);
+        passwordHasher.HashPassword("NewSecure1").Returns("new-hash");
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "NewSecure1");
+
+        result.Success.Should().BeTrue();
+        await repository.Received(1).UpdateAsync(user);
+        passwordHasher.Received(1).HashPassword("NewSecure1");
+    }
+
+    private static IConfigurationService CreateConfigurationService(int sessionTimeoutMinutes, int loginFailureLockoutCount, int passwordMinLength = 6)
     {
         var configurationService = Substitute.For<IConfigurationService>();
         configurationService.GetCurrent().Returns(new AppConfig
         {
             Security = new SecurityConfig
             {
+                PasswordMinLength = passwordMinLength,
                 SessionTimeoutMinutes = sessionTimeoutMinutes,
                 LoginFailureLockoutCount = loginFailureLockoutCount
             }
