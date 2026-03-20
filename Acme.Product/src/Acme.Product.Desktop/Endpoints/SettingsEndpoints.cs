@@ -244,10 +244,45 @@ public static class SettingsEndpoints
         });
 
         // 获取已配置的相机绑定列表
-        app.MapGet("/api/cameras/bindings", (Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
+        app.MapGet("/api/cameras/bindings", async (Acme.Product.Core.Cameras.ICameraManager cameraManager) =>
         {
             var bindings = cameraManager.GetBindings();
-            return Results.Ok(bindings);
+            var discoveredDevices = await cameraManager.EnumerateCamerasAsync();
+            var discoveredLookup = discoveredDevices.ToDictionary(
+                device => device.CameraId,
+                device => device,
+                StringComparer.OrdinalIgnoreCase);
+
+            var payload = bindings.Select(binding =>
+            {
+                var serialNumber = binding.SerialNumber?.Trim() ?? string.Empty;
+                var runtimeCamera = string.IsNullOrWhiteSpace(serialNumber)
+                    ? null
+                    : cameraManager.GetCamera(serialNumber);
+                var isDiscovered = !string.IsNullOrWhiteSpace(serialNumber)
+                    && discoveredLookup.TryGetValue(serialNumber, out _);
+
+                var connectionStatus = ResolveBindingConnectionStatus(binding, runtimeCamera, isDiscovered);
+
+                return new
+                {
+                    binding.Id,
+                    binding.DisplayName,
+                    DeviceId = serialNumber,
+                    binding.SerialNumber,
+                    binding.IpAddress,
+                    binding.Manufacturer,
+                    binding.ModelName,
+                    binding.InterfaceType,
+                    binding.IsEnabled,
+                    binding.ExposureTimeUs,
+                    binding.GainDb,
+                    binding.TriggerMode,
+                    ConnectionStatus = connectionStatus
+                };
+            });
+
+            return Results.Ok(payload);
         });
 
         // 更新相机绑定配置
@@ -341,6 +376,29 @@ public static class SettingsEndpoints
             ConnectionType = d.InterfaceType,
             IsConnected = cameraManager.GetCamera(d.SerialNumber) != null
         });
+    }
+
+    private static string ResolveBindingConnectionStatus(
+        CameraBindingConfig binding,
+        ICamera? runtimeCamera,
+        bool isDiscovered)
+    {
+        if (!binding.IsEnabled)
+        {
+            return "Disabled";
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.SerialNumber))
+        {
+            return "Unbound";
+        }
+
+        if (runtimeCamera?.IsConnected == true)
+        {
+            return "Connected";
+        }
+
+        return isDiscovered ? "Online" : "Offline";
     }
 
     private static object BuildHuarayDiagnostics(int deviceCount)

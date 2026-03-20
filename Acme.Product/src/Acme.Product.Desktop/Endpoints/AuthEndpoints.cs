@@ -30,7 +30,9 @@ public static class AuthEndpoints
             
             if (!result.Success)
             {
-                return Results.Unauthorized();
+                return Results.Json(
+                    new { Error = result.ErrorMessage ?? "用户名或密码错误" },
+                    statusCode: StatusCodes.Status401Unauthorized);
             }
 
             return Results.Ok(new 

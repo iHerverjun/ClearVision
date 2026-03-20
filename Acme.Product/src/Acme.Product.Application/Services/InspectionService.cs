@@ -302,17 +302,10 @@ public class InspectionService : IInspectionService
 
     #region 查询方法
 
-    public async Task<IEnumerable<InspectionResult>> GetInspectionHistoryAsync(
+    public async Task<InspectionHistoryPage> GetInspectionHistoryAsync(
         Guid projectId, DateTime? startTime, DateTime? endTime, int pageIndex, int pageSize)
     {
-        if (startTime.HasValue && endTime.HasValue)
-        {
-            return await _resultRepository.GetByTimeRangeAsync(projectId, startTime.Value, endTime.Value);
-        }
-        else
-        {
-            return await _resultRepository.GetByProjectIdAsync(projectId, pageIndex, pageSize);
-        }
+        return await _resultRepository.GetHistoryPageAsync(projectId, startTime, endTime, pageIndex, pageSize);
     }
 
     public async Task<InspectionStatistics> GetStatisticsAsync(Guid projectId, DateTime? startTime, DateTime? endTime)

@@ -28,6 +28,42 @@ public class InspectionResultRepository : RepositoryBase<InspectionResult>, IIns
             .ToListAsync();
     }
 
+    public async Task<InspectionHistoryPage> GetHistoryPageAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int pageIndex = 0,
+        int pageSize = 20)
+    {
+        pageIndex = Math.Max(0, pageIndex);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var query = _dbSet
+            .Where(r => r.ProjectId == projectId && !r.IsDeleted)
+            .AsQueryable();
+
+        if (startTime.HasValue)
+            query = query.Where(r => r.InspectionTime >= startTime.Value);
+
+        if (endTime.HasValue)
+            query = query.Where(r => r.InspectionTime <= endTime.Value);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(r => r.InspectionTime)
+            .Skip(pageIndex * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new InspectionHistoryPage
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageIndex = pageIndex,
+            PageSize = pageSize
+        };
+    }
+
     public async Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(Guid projectId, DateTime startTime, DateTime endTime)
     {
         return await _dbSet

@@ -17,6 +17,16 @@ public interface IInspectionResultRepository : IRepository<InspectionResult>
     Task<IEnumerable<InspectionResult>> GetByProjectIdAsync(Guid projectId, int pageIndex = 0, int pageSize = 20);
 
     /// <summary>
+    /// 获取统一分页语义的检测历史记录。
+    /// </summary>
+    Task<InspectionHistoryPage> GetHistoryPageAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int pageIndex = 0,
+        int pageSize = 20);
+
+    /// <summary>
     /// 根据时间范围获取结果
     /// </summary>
     Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(Guid projectId, DateTime startTime, DateTime endTime);
@@ -43,4 +53,12 @@ public class InspectionStatistics
     public int ErrorCount { get; set; }
     public double OKRate { get; set; }
     public double AverageProcessingTimeMs { get; set; }
+}
+
+public class InspectionHistoryPage
+{
+    public IReadOnlyList<InspectionResult> Items { get; set; } = Array.Empty<InspectionResult>();
+    public int TotalCount { get; set; }
+    public int PageIndex { get; set; }
+    public int PageSize { get; set; }
 }
