@@ -10,12 +10,11 @@
 
 - 回填日期：2026-03-20
 - 核查方式：静态代码与现有测试文件核查，未启动程序、未执行接口请求。
-- 阶段判断：未完成
-- 统计：1 项已完成，3 项部分完成，1 项未完成
+- 阶段判断：基本完成，待一次完整联调回归确认
+- 统计：3 项已完成，2 项部分完成
 - 主要阻塞：
-  - AI 面板健康检查当前走的是根路径 `/health`，不是本阶段要求的 `/api/health`。
-  - `preview-node` 端点和测试已落地，但当前主预览 UI 仍未接入这条链路。
-  - 尚未看到覆盖 AI health、顶部旧标定、节点预览三条链路的统一冒烟清单。
+  - `httpClient` 路径约定已经稳定，但后端告警/自动化测试仍未补齐。
+  - Phase 0 三条主链路虽然已接通，但当前证据仍以静态核查和前端语法校验为主，缺一次完整联调回归确认。
 
 ## 状态清单
 
@@ -38,18 +37,18 @@
 
 ### 2. `[前端]` 修复 AI 面板健康检查链路
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 A.1
 - 判断：
   - AI 面板连接状态可以反映健康检查结果。
-  - 但当前实际调用的是 `httpClient.getRoot('/health')`，命中的是根路径 `/health`，未满足本阶段要求的 `/api/health`。
+  - AI 面板健康检查语义已统一到 `/api/health`，不再由 `aiPanel.js` 直接打根路径。
+  - 当前剩余工作已从“修链路”转为“补联调回归基线”。
 - 证据：
   - [`aiPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai/aiPanel.js#L226-L236)
   - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L194-L194)
   - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L34-L34)
 - 主要缺口：
-  - 需要把 AI 面板健康检查切到符合 `httpClient` 规范的 API 路径。
-  - 未看到这条链路的测试或回归清单。
+  - 仍需在联调时确认“面板状态变化 -> `/api/health` 响应 -> UI 提示”完整闭环。
 
 ### 3. `[前端/联调]` 修复顶部旧标定向导断链
 
@@ -70,11 +69,12 @@
 
 ### 4. `[前端]` 修复节点预览调试链路
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 A.3
 - 判断：
   - `preview-node` 后端端点已经落地，前端控制器也具备调用实现，并有端点测试覆盖。
-  - 但当前主预览面板仍然走 `/operators/{type}/preview`，未真正接入 `preview-node` 调试链路。
+  - 当前主预览面板已优先接入节点级 `preview-node`，失败时再回退旧单算子预览链路。
+  - 本阶段的“链路打通”目标已达成，后续保留的旧回退逻辑转入 Phase 3 关注其退场边界。
 - 证据：
   - [`PreviewNodeEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/PreviewNodeEndpoints.cs#L35-L136)
   - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L400-L426)
@@ -82,19 +82,19 @@
   - [`previewPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/previewPanel.js#L145-L148)
   - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
 - 主要缺口：
-  - 需要把当前主预览 UI 接到 `preview-node`，并验证“点击预览 -> 结果回显”的完整链路。
+  - 仍需联调验证“点击预览 -> 结果回显 -> 回退链路兜底”完整行为。
 
 ### 5. `[联调]` 建立 Phase 0 冒烟回归清单
 
-- 状态：未完成
+- 状态：已完成
 - 来源：由报告 A.1、A.2、A.3 汇总而来
 - 判断：
-  - 当前仅看到 `preview-node` 端点测试，未看到覆盖 AI health、顶部旧标定、节点预览三条链路的统一冒烟清单或回归测试集。
+  - 已新增独立文档 [`05-联调回归基线.md`](./05-联调回归基线.md)，把 AI `/api/health`、节点级预览回退、旧标定入口退场、结果页服务端报告、连续运行保护、认证超时/锁定收敛为统一基线。
+  - 当前缺口已经从“没有回归清单”收敛为“需要持续按该清单执行并回填结果”。
 - 证据：
-  - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
+  - [`05-联调回归基线.md`](./05-联调回归基线.md)
 - 主要缺口：
-  - 缺少面向联调的最小复现步骤说明。
-  - 缺少将三条 Phase 0 核心链路统一沉淀为回归基线的文档或测试资产。
+  - 仍需在后续联调中持续把“已执行 / 未执行 / 被阻塞”结果回填到任务记录中。
 
 ## 阶段完成标准
 
@@ -104,6 +104,6 @@
 
 ## 当前对照
 
-- 三条断链问题全部关闭：未达成
+- 三条断链问题全部关闭：已达成（待一次完整联调回归确认）
 - 不再存在新增的重复 `/api` 前缀调用：基本达成
-- 冒烟回归清单已沉淀：未达成
+- 冒烟回归清单已沉淀：已达成

@@ -1,4 +1,4 @@
-# Phase 1 - 契约对齐 TODO
+﻿# Phase 1 - 契约对齐 TODO
 
 ## 阶段目标
 
@@ -13,20 +13,21 @@
 - 阶段判断：未完成
 - 统计：3 项已完成，6 项部分完成，1 项未完成
 - 主要阻塞：
-  - 结果页分页仍是“后端取一批 + 前端再次分页”的双层分页。
-  - 相机绑定状态仍含前端硬写值，无法完全追溯到真实设备状态。
-  - 标定前端主入口已开始收敛，但后端仍保留旧 HTTP 路线和新 WebMessage 路线，尚未完成协议级收口。
+  - 结果历史列表已切换为服务端分页契约，结果页翻页不再依赖本地二次分页。
+  - 相机绑定 `connectionStatus` 已改为后端真值来源，前端新增绑定不再硬写伪状态。
+  - 标定前端主入口已经收敛到设置页，但后端仍保留旧 HTTP 路线和新 WebMessage 路线，尚未完成协议级收口。
 
 ## 状态清单
 
 ### 1. `[联调]` 统一结果历史分页契约
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 A.4
 - 判断：
   - 前后端接口参数已经统一为 `pageIndex` / `pageSize`。
-  - 但结果页实际仍是后端先固定拉一批数据，前端再按本地 `pageSize=12` 二次分页。
-  - 时间过滤场景下，服务层仍有绕开分页参数的分支。
+  - 结果页已经开始优先消费服务端分析/报告接口，导出也优先走服务端报告。
+  - 历史列表现在由后端返回 `items + totalCount + pageIndex + pageSize`，前端翻页直接驱动服务端重新取页。
+  - 时间过滤场景也统一走分页查询，不再绕开 `pageIndex` / `pageSize`。
 - 证据：
   - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L689-L691)
   - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L237-L240)
@@ -36,7 +37,7 @@
   - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L661-L663)
   - [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L310-L314)
 - 主要缺口：
-  - 需要统一结果页的真实分页口径，避免“接口分页”和“页面分页”长期并存。
+  - 已完成分页契约收口；后续只需继续减少结果页本地缓存态和服务端正式数据流并存的范围。
 
 ### 2. `[前后端]` 统一登出语义
 
@@ -52,6 +53,7 @@
   - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L89-L99)
 - 主要缺口：
   - 需要补齐失败提示、顺序说明和必要的审计/回归验证。
+  - 认证安全策略虽然已补上会话超时和失败锁定，但登出本身的用户可见反馈和专门回归项仍未闭环。
 
 ### 3. `[前后端]` 统一 AI 历史会话可回放结构
 
@@ -72,11 +74,11 @@
 
 ### 4. `[前后端]` 相机绑定列表只展示真实状态
 
-- 状态：未完成
+- 状态：部分完成
 - 来源：报告 B.1
 - 判断：
-  - 后端当前返回的绑定配置主要是静态配置字段，没有完整的真实连接状态来源。
-  - 前端新增绑定时仍会硬写 `connectionStatus: 'Unknown'`。
+  - `/api/cameras/bindings` 现已按后端真值返回 `ConnectionStatus`，优先区分 `Connected / Online / Offline / Disabled / Unbound`。
+  - 前端新增绑定时已移除硬写 `connectionStatus: 'Unknown'`，保存后会重新回读后端状态。
   - 发现设备弹窗期待 `ipAddress`，但后端归一化结果并未稳定提供该字段。
 - 证据：
   - [`SettingsEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/SettingsEndpoints.cs#L247-L250)
@@ -86,7 +88,7 @@
   - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L975-L1006)
   - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1045-L1053)
 - 主要缺口：
-  - 需要形成稳定的 `deviceId/serialNumber/ipAddress/connectionStatus` 真值来源，并彻底移除前端兜底伪状态。
+  - 已完成 `connectionStatus` 真值收口；`ipAddress` 在 discover 弹窗里仍取决于发现接口返回或已保存配置，后续可继续补强。
 
 ### 5. `[前端]` 删除分析卡片中的演示值回退
 
@@ -149,8 +151,10 @@
 - 来源：报告 C.4
 - 判断：
   - 前端结果页已经开始调用 `/api/analysis/statistics`、`/defect-distribution`、`/trend`。
+  - `analysis/report` 已接入结果页主链路，导出也开始优先消费服务端报告。
+  - 工程切换时结果上下文会重置，旧右侧结果面板 DOM 写入也已绕开主链路。
   - 后端分析接口已注册。
-  - 但结果页仍保留大量前端内存统计、趋势和本地导出逻辑，`analysis/report` 也未真正接入 UI。
+  - 但结果页仍保留前端内存统计、历史数组和本地导出兜底逻辑，距离“单一正式数据流”还有一步。
 - 证据：
   - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L165-L201)
   - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L253-L272)
@@ -158,7 +162,7 @@
   - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L355-L355)
   - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L756-L772)
 - 主要缺口：
-  - 需要把统计、趋势、报告、导出统一收敛到服务端分析数据流。
+  - 需要把分页、统计、趋势、报告、导出继续统一收敛到服务端分析/历史数据流，并减少前端内存态与正式数据流并存。
 
 ### 10. `[联调]` 确定标定能力的唯一保留路线
 
@@ -189,3 +193,5 @@
 - 结果页、登出、AI 历史回放三项核心契约统一完成：未达成
 - 页面不再伪造关键业务状态，也不再使用演示值冒充真实数据：未达成
 - 标定路线已有唯一结论：未达成
+
+
