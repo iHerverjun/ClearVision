@@ -32,6 +32,7 @@ public class InspectionService : IInspectionService
     private readonly IConfigurationService _configurationService;
     private readonly IInspectionRuntimeCoordinator _coordinator;
     private readonly IInspectionWorker _worker;
+    private readonly IImageCacheRepository _imageCacheRepository;
     private readonly IAnalysisDataBuilder _analysisDataBuilder;
     private readonly ILogger<InspectionService> _logger;
 
@@ -43,6 +44,7 @@ public class InspectionService : IInspectionService
         IConfigurationService configurationService,
         IInspectionRuntimeCoordinator coordinator,
         IInspectionWorker worker,
+        IImageCacheRepository imageCacheRepository,
         IAnalysisDataBuilder analysisDataBuilder,
         ILogger<InspectionService> logger)
     {
@@ -53,8 +55,57 @@ public class InspectionService : IInspectionService
         _configurationService = configurationService;
         _coordinator = coordinator;
         _worker = worker;
+        _imageCacheRepository = imageCacheRepository;
         _analysisDataBuilder = analysisDataBuilder;
         _logger = logger;
+    }
+
+    public InspectionService(
+        IInspectionResultRepository resultRepository,
+        IProjectRepository projectRepository,
+        IFlowExecutionService flowExecutionService,
+        IImageAcquisitionService imageAcquisitionService,
+        IConfigurationService configurationService,
+        IInspectionRuntimeCoordinator coordinator,
+        IInspectionWorker worker,
+        IImageCacheRepository imageCacheRepository,
+        ILogger<InspectionService> logger)
+        : this(
+            resultRepository,
+            projectRepository,
+            flowExecutionService,
+            imageAcquisitionService,
+            configurationService,
+            coordinator,
+            worker,
+            imageCacheRepository,
+            new AnalysisDataBuilder(),
+            logger)
+    {
+    }
+
+    public InspectionService(
+        IInspectionResultRepository resultRepository,
+        IProjectRepository projectRepository,
+        IFlowExecutionService flowExecutionService,
+        IImageAcquisitionService imageAcquisitionService,
+        IConfigurationService configurationService,
+        IInspectionRuntimeCoordinator coordinator,
+        IInspectionWorker worker,
+        IAnalysisDataBuilder analysisDataBuilder,
+        ILogger<InspectionService> logger)
+        : this(
+            resultRepository,
+            projectRepository,
+            flowExecutionService,
+            imageAcquisitionService,
+            configurationService,
+            coordinator,
+            worker,
+            new NoOpImageCacheRepository(),
+            analysisDataBuilder,
+            logger)
+    {
     }
 
     public InspectionService(
@@ -74,6 +125,7 @@ public class InspectionService : IInspectionService
             configurationService,
             coordinator,
             worker,
+            new NoOpImageCacheRepository(),
             new AnalysisDataBuilder(),
             logger)
     {
@@ -157,6 +209,7 @@ public class InspectionService : IInspectionService
             AnalysisPayloadSerialization.TrySetOutputDataJson(result, flowResult.OutputData, _logger);
             AnalysisPayloadSerialization.TrySetAnalysisDataJson(result, analysisData, _logger);
             await PersistResultImageAsync(result, CancellationToken.None);
+            await CacheResultImageAsync(result);
             await _resultRepository.AddAsync(result);
 
             return result;
@@ -330,14 +383,25 @@ public class InspectionService : IInspectionService
     #region 查询方法
 
     public async Task<InspectionHistoryPage> GetInspectionHistoryAsync(
-        Guid projectId, DateTime? startTime, DateTime? endTime, int pageIndex, int pageSize)
+        Guid projectId,
+        DateTime? startTime,
+        DateTime? endTime,
+        string? status,
+        string? defectType,
+        int pageIndex,
+        int pageSize)
     {
-        return await _resultRepository.GetHistoryPageAsync(projectId, startTime, endTime, pageIndex, pageSize);
+        return await _resultRepository.GetHistoryPageAsync(projectId, startTime, endTime, status, defectType, pageIndex, pageSize);
     }
 
-    public async Task<InspectionStatistics> GetStatisticsAsync(Guid projectId, DateTime? startTime, DateTime? endTime)
+    public async Task<InspectionStatistics> GetStatisticsAsync(
+        Guid projectId,
+        DateTime? startTime,
+        DateTime? endTime,
+        string? status,
+        string? defectType)
     {
-        return await _resultRepository.GetStatisticsAsync(projectId, startTime, endTime);
+        return await _resultRepository.GetStatisticsAsync(projectId, startTime, endTime, status, defectType);
     }
 
     #endregion
@@ -421,6 +485,28 @@ public class InspectionService : IInspectionService
         }
     }
 
+    private async Task CacheResultImageAsync(InspectionResult result)
+    {
+        if (result.OutputImage == null || result.OutputImage.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var format = GuessImageFormat(result.OutputImage);
+            var imageId = await _imageCacheRepository.AddAsync(result.OutputImage, format);
+            if (imageId != Guid.Empty)
+            {
+                result.SetImageId(imageId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[InspectionService] 结果图像缓存失败");
+        }
+    }
+
     private static bool ShouldPersistImage(string? savePolicy, InspectionStatus status)
     {
         var policy = (savePolicy ?? "NgOnly").Trim();
@@ -472,6 +558,34 @@ public class InspectionService : IInspectionService
         }
 
         return ".bin";
+    }
+
+    private static string GuessImageFormat(byte[] bytes)
+    {
+        return GuessImageExtension(bytes).TrimStart('.');
+    }
+
+    private sealed class NoOpImageCacheRepository : IImageCacheRepository
+    {
+        public Task<Guid> AddAsync(byte[] imageData, string format)
+        {
+            return Task.FromResult(Guid.Empty);
+        }
+
+        public Task<byte[]?> GetAsync(Guid id)
+        {
+            return Task.FromResult<byte[]?>(null);
+        }
+
+        public Task DeleteAsync(Guid id)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task CleanExpiredAsync(TimeSpan expiration)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     #endregion

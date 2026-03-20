@@ -35,6 +35,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
     private readonly ILogger<InspectionWorker> _logger;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly InspectionMetrics _metrics;
+    private readonly IImageCacheRepository _imageCacheRepository;
     private readonly IAnalysisDataBuilder _analysisDataBuilder;
 
     // 并发控制：跟踪运行中的任务
@@ -75,6 +76,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         ILogger<InspectionWorker> logger,
         IHostApplicationLifetime lifetime,
         InspectionMetrics metrics,
+        IImageCacheRepository imageCacheRepository,
         IAnalysisDataBuilder analysisDataBuilder)
     {
         _scopeFactory = scopeFactory;
@@ -83,6 +85,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         _logger = logger;
         _lifetime = lifetime;
         _metrics = metrics;
+        _imageCacheRepository = imageCacheRepository;
         _analysisDataBuilder = analysisDataBuilder;
 
         // 订阅应用关闭事件
@@ -103,7 +106,28 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             logger,
             lifetime,
             metrics,
+            new Acme.Product.Infrastructure.Repositories.ImageCacheRepository(),
             new AnalysisDataBuilder())
+    {
+    }
+
+    public InspectionWorker(
+        IServiceScopeFactory scopeFactory,
+        IInspectionRuntimeCoordinator coordinator,
+        IInspectionEventBus eventBus,
+        ILogger<InspectionWorker> logger,
+        IHostApplicationLifetime lifetime,
+        InspectionMetrics metrics,
+        IAnalysisDataBuilder analysisDataBuilder)
+        : this(
+            scopeFactory,
+            coordinator,
+            eventBus,
+            logger,
+            lifetime,
+            metrics,
+            new Acme.Product.Infrastructure.Repositories.ImageCacheRepository(),
+            analysisDataBuilder)
     {
     }
 
@@ -411,6 +435,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     ProjectId = projectId,
                     SessionId = sessionId,
                     ResultId = result.Id,
+                    ImageId = result.ImageId,
                     Status = result.Status.ToString(),
                     DefectCount = result.Defects.Count,
                     ProcessingTimeMs = result.ProcessingTimeMs,
@@ -564,6 +589,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             var analysisData = _analysisDataBuilder.Build(flow, flowResult, status);
             AnalysisPayloadSerialization.TrySetOutputDataJson(result, flowResult.OutputData, _logger);
             AnalysisPayloadSerialization.TrySetAnalysisDataJson(result, analysisData, _logger);
+            await CacheResultImageAsync(result);
             return result;
         }
         catch (Exception ex)
@@ -598,6 +624,49 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         }
 
         return InspectionStatus.OK;
+    }
+
+    private async Task CacheResultImageAsync(InspectionResult result)
+    {
+        if (result.OutputImage == null || result.OutputImage.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var imageId = await _imageCacheRepository.AddAsync(result.OutputImage, GuessImageFormat(result.OutputImage));
+            if (imageId != Guid.Empty)
+            {
+                result.SetImageId(imageId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[InspectionWorker] 结果图像缓存失败");
+        }
+    }
+
+    private static string GuessImageFormat(byte[] bytes)
+    {
+        if (bytes.Length >= 8 &&
+            bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+        {
+            return "png";
+        }
+
+        if (bytes.Length >= 3 &&
+            bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+        {
+            return "jpg";
+        }
+
+        if (bytes.Length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D)
+        {
+            return "bmp";
+        }
+
+        return "bin";
     }
 
     #endregion

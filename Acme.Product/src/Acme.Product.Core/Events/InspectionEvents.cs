@@ -27,6 +27,7 @@ public record InspectionResultEvent : IInspectionEvent
     public required Guid ProjectId { get; init; }
     public required Guid SessionId { get; init; }
     public required Guid ResultId { get; init; }
+    public Guid? ImageId { get; init; }
     public required string Status { get; init; }  // OK, NG, Error
     public required int DefectCount { get; init; }
     public required long ProcessingTimeMs { get; init; }

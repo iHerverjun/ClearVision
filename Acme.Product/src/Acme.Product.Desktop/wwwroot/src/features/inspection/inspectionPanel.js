@@ -784,7 +784,7 @@ class InspectionPanel {
      */
     renderRecentResults() {
         // 最近结果移至右侧面板，使用 document.getElementById 全局查找
-        const grid = document.getElementById('recent-results-grid');
+        const grid = document.getElementById('inspection-recent-results-grid');
         if (!grid) return;
         
         const recent = getRecentResults();

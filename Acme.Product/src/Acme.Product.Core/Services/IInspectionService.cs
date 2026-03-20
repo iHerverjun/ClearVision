@@ -84,6 +84,8 @@ public interface IInspectionService
         Guid projectId,
         DateTime? startTime = null,
         DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null,
         int pageIndex = 0,
         int pageSize = 20);
 
@@ -96,5 +98,7 @@ public interface IInspectionService
     Task<InspectionStatistics> GetStatisticsAsync(
         Guid projectId,
         DateTime? startTime = null,
-        DateTime? endTime = null);
+        DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null);
 }

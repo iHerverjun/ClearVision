@@ -221,6 +221,7 @@ class InspectionController {
         const result = this.normalizeResultPayload({
             id: data.resultId,
             projectId: data.projectId,
+            imageId: data.imageId,
             status: data.status,
             defects: data.defects || [],
             defectCount: data.defectCount,
@@ -682,6 +683,7 @@ class InspectionController {
         normalized.outputImage = normalized.outputImage || normalized.OutputImage;
         normalized.outputImageBase64 = normalized.outputImageBase64 || normalized.OutputImageBase64;
         normalized.resultImageBase64 = normalized.resultImageBase64 || normalized.ResultImageBase64;
+        normalized.imageId = normalized.imageId || normalized.ImageId;
 
         return normalized;
     }
