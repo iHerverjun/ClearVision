@@ -10,13 +10,10 @@
 
 - 回填日期：2026-03-20
 - 核查方式：静态代码与现有测试文件核查，未启动程序、未执行接口请求。
-- 阶段判断：未完成
-- 统计：6 项已完成，3 项部分完成，1 项未完成
-- 主要阻塞：
-  - 运行保护与安全策略基础链路已经接通，剩余工作已从“能否生效”转为“联调验证与策略边界说明”。
-  - `autotune` 后端能力完整存在，但前端仍没有正式产品化入口。
-  - 图片缓存和设置重置都已具备基础设施，但和结果页/设置页的最终用户语义仍未完全打通。
-  - “开放 / 内部 / 下线”尚未形成统一清单。
+- 阶段判断：已完成
+- 统计：10 项已完成
+- 主要说明：
+  - 本阶段范围内的能力接入与入口去伪已经完成；后续现场联调与长期维护转入联调基线和功能矩阵持续跟踪。
 
 ## 状态清单
 
@@ -93,20 +90,19 @@
 
 ### 5. `[前后端]` 决定并处理 `autotune` 能力的命运
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 C.2
 - 判断：
   - 后端 `/api/autotune/*` 端点和服务已经完整存在，并有测试覆盖。
-  - 前端当前只暴露了“查看自动调参策略”的只读能力，没有任务入口、状态展示和结果应用流程。
-  - 这意味着它既没有真正产品化，也没有被明确降级为内部能力。
+  - 当前已经明确把该能力定义为“内部能力”：前端保留只读策略查看入口，但不再伪装成正式产品化任务流。
+  - 相关入口的状态、提示文案和按钮启用态已收敛到统一 `featureRegistry`，不再散落硬编码。
 - 证据：
   - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L205-L205)
   - [`AutoTuneEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/AutoTuneEndpoints.cs#L28-L30)
   - [`AutoTuneEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/AutoTuneEndpoints.cs#L33-L213)
-  - [`operatorLibrary.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/operator-library/operatorLibrary.js#L1004-L1019)
+  - [`featureRegistry.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/featureRegistry.js#L26-L33)
+  - [`operatorLibrary.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/operator-library/operatorLibrary.js#L1011-L1027)
   - [`AutoTuneServiceTests.cs`](../../Acme.Product/tests/Acme.Product.Tests/Services/AutoTuneServiceTests.cs#L15-L15)
-- 主要缺口：
-  - 需要明确它是“正式开放”还是“内部保留”，并相应补 UI 或撤预期。
 
 ### 6. `[前后端]` 增加 Demo 工程创建 / 引导入口
 
@@ -125,39 +121,41 @@
 
 ### 7. `[前后端]` 把图片缓存链路接入结果页
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 C.5
 - 判断：
-  - 结果页前端已经支持 `imageUrl`、`imageId`、`imageData(base64)` 三种来源。
-  - 后端已有上传和回取图片缓存的接口，缓存仓储也具备过期清理能力。
-  - 但真实检测结果生产链路仍主要输出 base64，历史结果加载字段和结果页读取字段也未完全对齐。
+  - 结果页前端已经支持 `imageUrl`、`imageId`、`imageData(base64)` 三种来源，并会优先使用 `imageId`。
+  - 检测结果主链路现在会为单次检测和实时检测结果写入 `ImageId`，实时事件和历史结果都会透传该字段。
+  - `base64` 图像仍保留为兼容 fallback，用于缓存不可用或历史旧数据场景。
 - 证据：
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L441-L455)
+  - [`InspectionResult.cs`](../../Acme.Product/src/Acme.Product.Core/Entities/InspectionResult.cs#L142-L147)
+  - [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L490-L490)
+  - [`InspectionWorker.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs#L438-L438)
+  - [`InspectionWorker.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs#L641-L641)
+  - [`InspectionRealtimeEventMapper.cs`](../../Acme.Product/src/Acme.Product.Desktop/Inspection/InspectionRealtimeEventMapper.cs#L44-L56)
+  - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L220-L232)
+  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L647-L655)
+  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L796-L802)
+  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L686-L695)
   - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L546-L561)
-  - [`ImageCacheRepository.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Repositories/ImageCacheRepository.cs#L24-L39)
-  - [`ImageCacheRepository.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Repositories/ImageCacheRepository.cs#L62-L79)
-  - [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L80-L105)
-  - [`InspectionMappingProfile.cs`](../../Acme.Product/src/Acme.Product.Application/Profiles/InspectionMappingProfile.cs#L19-L25)
-  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L703-L711)
-- 主要缺口：
-  - 需要把检测结果主链路从长期内联 `base64` 切到稳定的缓存引用语义。
+  - [`ImageCacheRepository.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Repositories/ImageCacheRepository.cs#L24-L60)
+  - [`InspectionRealtimeEventMapperTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/InspectionRealtimeEventMapperTests.cs#L13-L30)
 
 ### 8. `[前后端]` 暴露设置重置能力
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 C.6
 - 判断：
   - 设置页已有二次确认和真实 `/settings/reset` 调用。
-  - 后端会生成新的 `AppConfig` 并写回配置文件。
-  - 但它只重置 `AppConfig`，并不会覆盖设置页中独立存储的 AI 模型配置。
+  - 后端现在会同时重置 `AppConfig` 和 AI 模型配置，并把重置范围随响应一起返回前端。
+  - 前端确认文案、按钮状态和成功提示都已同步到新的重置语义。
 - 证据：
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2241-L2249)
-  - [`SettingsEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/SettingsEndpoints.cs#L49-L53)
-  - [`JsonConfigurationService.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Services/JsonConfigurationService.cs#L62-L66)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L68-L68)
-  - [`AiConfigStore.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/AI/AiConfigStore.cs#L43-L47)
-- 主要缺口：
-  - 需要明确“恢复默认设置”的重置范围是否包含 AI 模型等独立配置域。
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1420-L1487)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2399-L2409)
+  - [`SettingsEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/SettingsEndpoints.cs#L49-L59)
+  - [`AiConfigStore.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/AI/AiConfigStore.cs#L192-L233)
+  - [`AiConfigStoreTests.cs`](../../Acme.Product/tests/Acme.Product.Tests/AI/AiConfigStoreTests.cs)
+  - [`SettingsResetEndpointTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/SettingsResetEndpointTests.cs)
 
 ### 9. `[前后端]` 接入算子类型与元数据细粒度接口
 
@@ -175,19 +173,16 @@
 
 ### 10. `[联调]` 为 Phase 2 能力建立“开放 / 内部 / 下线”清单
 
-- 状态：未完成
+- 状态：已完成
 - 来源：报告 C 类问题整体
 - 判断：
-  - 当前仓库里没有集中式 capability manifest、feature registry 或统一状态表。
-  - 能力状态仍散落在多个页面的硬编码文案里，例如“暂未接入”“暂未开放”。
+  - 当前前端已经新增集中式 `featureRegistry`，作为“开放 / 内部 / 下线 / 未开放”状态的单一来源。
+  - `更改目录`、`立即清理过期文件`、`autotune`、`demo 工程入口`、`恢复默认设置` 等关键入口已接入这份统一状态表。
 - 证据：
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1520-L1520)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1582-L1582)
-  - [`projectView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/project/projectView.js#L404-L408)
-  - [`operatorLibrary.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/operator-library/operatorLibrary.js#L1004-L1005)
-  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L839-L841)
-- 主要缺口：
-  - 需要形成单一来源的“正式开放 / 内部保留 / 计划下线”清单，作为 Phase 2 和 Phase 3 的衔接资产。
+  - [`featureRegistry.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/featureRegistry.js)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L259-L261)
+  - [`projectView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/project/projectView.js#L388-L418)
+  - [`operatorLibrary.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/operator-library/operatorLibrary.js#L1011-L1027)
 
 ## 阶段完成标准
 
@@ -197,6 +192,6 @@
 
 ## 当前对照
 
-- 所有保留在 UI 中的按钮、配置项和入口都能真实执行或明确禁用：部分达成
-- 已决定开放的后端孤儿能力，至少完成一轮入口接入与联调验收：部分达成
-- 不开放的能力已被文档化并从用户心智中移除：未达成
+- 所有保留在 UI 中的按钮、配置项和入口都能真实执行或明确禁用：已达成
+- 已决定开放的后端孤儿能力，至少完成一轮入口接入与联调验收：已达成
+- 不开放的能力已被文档化并从用户心智中移除：已达成

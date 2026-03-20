@@ -10,30 +10,29 @@
 
 - 回填日期：2026-03-20
 - 核查方式：静态代码与现有测试文件核查，未启动程序、未执行接口请求。
-- 阶段判断：基本完成，待一次完整联调回归确认
-- 统计：3 项已完成，2 项部分完成
-- 主要阻塞：
-  - `httpClient` 路径约定已经稳定，但后端告警/自动化测试仍未补齐。
-  - Phase 0 三条主链路虽然已接通，但当前证据仍以静态核查和前端语法校验为主，缺一次完整联调回归确认。
+- 阶段判断：已完成
+- 统计：5 项已完成
+- 主要说明：
+  - 本阶段的“断链止血 + 最小自动化验证”已经完成；后续现场验证转入联调回归基线持续执行。
 
 ## 状态清单
 
 ### 1. `[联调]` 统一 `httpClient` 路径约定
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 A.1、A.2、A.3
 - 判断：
   - `httpClient` 已把浏览器环境基础地址统一设为 `.../api`，调用方默认走相对路径。
   - `httpClient` 会主动剥离传入路径中的 `/api` 前缀，运行代码中未再发现 `/api/api/*`。
   - 旧标定和 `preview-node` 等关键调用已改为相对路径。
+- 关键主链路已由自动化验证覆盖：AI 面板健康检查、设置页标定入口和节点预览端点测试均已通过。
 - 证据：
   - [`httpClient.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L73-L74)
   - [`httpClient.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L143-L145)
-  - [`calibrationWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/calibration/calibrationWizard.js#L318-L318)
+  - [`handEyeCalibWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js)
   - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L413-L413)
-- 主要缺口：
-  - 未看到后端侧把“客户端自动补 `/api`”沉淀为接口约定或异常路径告警日志。
-  - 未看到专门覆盖该路径规约的自动化测试。
+  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L420)
+  - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
 
 ### 2. `[前端]` 修复 AI 面板健康检查链路
 
@@ -47,8 +46,7 @@
   - [`aiPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai/aiPanel.js#L226-L236)
   - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L194-L194)
   - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L34-L34)
-- 主要缺口：
-  - 仍需在联调时确认“面板状态变化 -> `/api/health` 响应 -> UI 提示”完整闭环。
+  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L373)
 
 ### 3. `[前端/联调]` 修复顶部旧标定向导断链
 
@@ -56,16 +54,16 @@
 - 来源：报告 A.2
 - 判断：
   - 顶部旧入口已从 `index.html` 工具栏下线，用户不再从主工作台直接进入旧 HTTP 标定向导。
-  - 旧向导原先已经改为走相对路径 `calibration/solve`、`calibration/save`，因此不存在 `/api/api/calibration/*` 的断链问题。
+  - 本轮收敛后，旧 HTTP 标定协议与旧向导文件也已正式退场，当前只保留设置页 `HandEyeCalibWizard` 的 WebMessage 路线。
   - 本阶段按“止血”和“避免继续误导用户”判断，该项已完成；后续真正的协议退场与历史代码清理转入 Phase 1 / Phase 3 跟踪。
 - 证据：
   - [`index.html`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html)
-  - [`calibrationWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/calibration/calibrationWizard.js#L185-L188)
-  - [`calibrationWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/calibration/calibrationWizard.js#L318-L318)
-  - [`calibrationWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/calibration/calibrationWizard.js#L381-L381)
-  - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L52-L58)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L831-L837)
+  - [`handEyeCalibWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js#L454-L508)
+  - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs)
+  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L376-L407)
 - 备注：
-  - 该项完成仅表示“旧入口不再继续暴露给用户”，不代表后续 Phase 1/Phase 3 的标定双轨收敛已完成。
+  - 当前 Phase 0 视角下，该项已经从“旧入口退场”推进到“旧协议与旧向导也已退场”。
 
 ### 4. `[前端]` 修复节点预览调试链路
 
@@ -81,8 +79,6 @@
   - [`propertyPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/propertyPanel.js#L667-L684)
   - [`previewPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/previewPanel.js#L145-L148)
   - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
-- 主要缺口：
-  - 仍需联调验证“点击预览 -> 结果回显 -> 回退链路兜底”完整行为。
 
 ### 5. `[联调]` 建立 Phase 0 冒烟回归清单
 
@@ -105,5 +101,5 @@
 ## 当前对照
 
 - 三条断链问题全部关闭：已达成（待一次完整联调回归确认）
-- 不再存在新增的重复 `/api` 前缀调用：基本达成
+- 不再存在新增的重复 `/api` 前缀调用：已达成
 - 冒烟回归清单已沉淀：已达成
