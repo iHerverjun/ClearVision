@@ -11,9 +11,9 @@
 - 回填日期：2026-03-20
 - 核查方式：静态代码与现有测试文件核查，未启动程序、未执行接口请求。
 - 阶段判断：未完成
-- 统计：4 项已完成，5 项部分完成，1 项未完成
+- 统计：6 项已完成，3 项部分完成，1 项未完成
 - 主要阻塞：
-  - 运行保护与安全策略大多已做到“能保存”，但尚未全部进入运行时/认证链路。
+  - 运行保护与安全策略基础链路已经接通，剩余工作已从“能否生效”转为“联调验证与策略边界说明”。
   - `autotune` 后端能力完整存在，但前端仍没有正式产品化入口。
   - 图片缓存和设置重置都已具备基础设施，但和结果页/设置页的最终用户语义仍未完全打通。
   - “开放 / 内部 / 下线”尚未形成统一清单。
@@ -49,41 +49,47 @@
 
 ### 3. `[前后端]` 让运行保护配置进入正式保存模型
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 B.7
 - 判断：
   - 页面已经把 `stopOnConsecutiveNg`、`missingMaterialTimeoutSeconds`、`applyProtectionRules` 纳入表单和保存 payload。
   - 后端配置模型已扩展出对应字段。
-  - 但运行时目前仅实际消费了 `autoRun` 与 `stopOnConsecutiveNg`，其他字段未形成真正闭环。
+  - `inspectionPanel` 在加载设置后会真实消费这三个字段：`applyProtectionRules` 决定是否启用 watchdog，`missingMaterialTimeoutSeconds` 决定超时阈值，`stopOnConsecutiveNg` 决定连续 NG 自动停机阈值。
+  - 连续运行保护触发后会实际调用停止链路，不再只是停留在文案或提示层。
 - 证据：
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1613-L1644)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2342-L2347)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2420-L2486)
   - [`AppConfig.cs`](../../Acme.Product/src/Acme.Product.Core/Entities/AppConfig.cs#L123-L143)
-  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L340-L348)
-  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L539-L544)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1598-L1600)
-- 主要缺口：
-  - `missingMaterialTimeoutSeconds` 与 `applyProtectionRules` 仍未进入真实运行链路。
+  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L72-L83)
+  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L162-L224)
+  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L345-L352)
+  - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L378-L392)
+- 备注：
+  - 当前已完成“保存 -> 加载 -> 运行时消费 -> 停止动作”闭环；后续仍建议补一条现场联调记录，确认真实设备/触发节奏下的超时停机体验。
 
 ### 4. `[前后端]` 让安全策略页具备真实配置能力
 
-- 状态：部分完成
+- 状态：已完成
 - 来源：报告 B.8
 - 判断：
   - 页面已有真实字段和保存入口，`security` 模型也已落地。
   - `PasswordMinLength` 已被修改密码、创建用户、重置密码链路真实读取。
-  - 但 `SessionTimeoutMinutes` 与 `LoginFailureLockoutCount` 仍停留在模型层，认证服务仍硬编码 8 小时过期且未维护失败锁定状态。
+  - `SessionTimeoutMinutes` 已被 `AuthService` 用于生成会话过期时间，并在 `ValidateTokenAsync` / `GetSessionAsync` 中真实执行过期判断。
+  - `LoginFailureLockoutCount` 已被 `AuthService` 用于失败计数和临时锁定判定，鉴权链路通过 `GetSessionAsync` / `AuthMiddleware` 真实消费。
+  - 已存在单测覆盖会话超时、失败锁定与成功登录后清空失败计数。
 - 证据：
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1911-L1928)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2348-L2351)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2071-L2075)
+  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L2428-L2489)
   - [`AppConfig.cs`](../../Acme.Product/src/Acme.Product.Core/Entities/AppConfig.cs#L146-L161)
   - [`AuthEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/AuthEndpoints.cs#L102-L105)
   - [`UserEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/UserEndpoints.cs#L59-L59)
   - [`UserEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/UserEndpoints.cs#L136-L136)
-  - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L23-L25)
-  - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L54-L60)
-- 主要缺口：
-  - 需要把会话超时与失败锁定真正接入认证行为。
+  - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L66-L98)
+  - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L129-L177)
+  - [`AuthService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/AuthService.cs#L237-L245)
+  - [`AuthMiddleware.cs`](../../Acme.Product/src/Acme.Product.Desktop/Middleware/AuthMiddleware.cs#L47-L83)
+  - [`AuthServiceTests.cs`](../../Acme.Product/tests/Acme.Product.Tests/Services/AuthServiceTests.cs#L17-L105)
+- 备注：
+  - 当前页面展示的三项安全字段已具备“保存 / 回显 / 生效”闭环；现阶段剩余边界主要是锁定时长仍采用服务端固定 15 分钟窗口，而不是单独暴露为配置项。
 
 ### 5. `[前后端]` 决定并处理 `autotune` 能力的命运
 
