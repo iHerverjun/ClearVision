@@ -46,11 +46,18 @@ public static class SettingsEndpoints
         });
 
         // 重置配置为默认值
-        app.MapPost("/api/settings/reset", async (IConfigurationService configService) =>
+        app.MapPost("/api/settings/reset", async (IConfigurationService configService, AiConfigStore aiConfigStore) =>
         {
             var defaultConfig = new AppConfig();
             await configService.SaveAsync(defaultConfig);
-            return Results.Ok(defaultConfig);
+            var defaultModels = aiConfigStore.ResetToDefaults();
+            return Results.Ok(new
+            {
+                message = "系统配置和 AI 模型配置已恢复默认值",
+                config = defaultConfig,
+                aiModels = defaultModels,
+                resetScope = new[] { "appConfig", "aiModels" }
+            });
         });
 
         // 获取磁盘容量信息（用于设置页存储卡片）
