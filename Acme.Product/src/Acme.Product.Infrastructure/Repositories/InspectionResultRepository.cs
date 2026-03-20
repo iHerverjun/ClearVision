@@ -32,21 +32,15 @@ public class InspectionResultRepository : RepositoryBase<InspectionResult>, IIns
         Guid projectId,
         DateTime? startTime = null,
         DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null,
         int pageIndex = 0,
         int pageSize = 20)
     {
         pageIndex = Math.Max(0, pageIndex);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = _dbSet
-            .Where(r => r.ProjectId == projectId && !r.IsDeleted)
-            .AsQueryable();
-
-        if (startTime.HasValue)
-            query = query.Where(r => r.InspectionTime >= startTime.Value);
-
-        if (endTime.HasValue)
-            query = query.Where(r => r.InspectionTime <= endTime.Value);
+        var query = BuildFilteredQuery(projectId, startTime, endTime, status, defectType);
 
         var totalCount = await query.CountAsync();
         var items = await query
@@ -64,26 +58,26 @@ public class InspectionResultRepository : RepositoryBase<InspectionResult>, IIns
         };
     }
 
-    public async Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(Guid projectId, DateTime startTime, DateTime endTime)
+    public async Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(
+        Guid projectId,
+        DateTime startTime,
+        DateTime endTime,
+        string? status = null,
+        string? defectType = null)
     {
-        return await _dbSet
-            .Where(r => r.ProjectId == projectId &&
-                       r.InspectionTime >= startTime &&
-                       r.InspectionTime <= endTime &&
-                       !r.IsDeleted)
+        return await BuildFilteredQuery(projectId, startTime, endTime, status, defectType)
             .OrderByDescending(r => r.InspectionTime)
             .ToListAsync();
     }
 
-    public async Task<InspectionStatistics> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<InspectionStatistics> GetStatisticsAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null)
     {
-        var query = _dbSet.Where(r => r.ProjectId == projectId && !r.IsDeleted);
-
-        if (startTime.HasValue)
-            query = query.Where(r => r.InspectionTime >= startTime.Value);
-
-        if (endTime.HasValue)
-            query = query.Where(r => r.InspectionTime <= endTime.Value);
+        var query = BuildFilteredQuery(projectId, startTime, endTime, status, defectType);
 
         var results = await query.ToListAsync();
 
@@ -104,17 +98,14 @@ public class InspectionResultRepository : RepositoryBase<InspectionResult>, IIns
         };
     }
 
-    public async Task<Dictionary<DefectType, int>> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<Dictionary<DefectType, int>> GetDefectDistributionAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null)
     {
-        var query = _dbSet
-            .Where(r => r.ProjectId == projectId && !r.IsDeleted)
-            .AsQueryable();
-
-        if (startTime.HasValue)
-            query = query.Where(r => r.InspectionTime >= startTime.Value);
-
-        if (endTime.HasValue)
-            query = query.Where(r => r.InspectionTime <= endTime.Value);
+        var query = BuildFilteredQuery(projectId, startTime, endTime, status, defectType);
 
         // 使用 SelectMany 获取所有缺陷
         var defects = await query
@@ -124,5 +115,43 @@ public class InspectionResultRepository : RepositoryBase<InspectionResult>, IIns
         return defects
             .GroupBy(d => d.Type)
             .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private IQueryable<InspectionResult> BuildFilteredQuery(
+        Guid projectId,
+        DateTime? startTime,
+        DateTime? endTime,
+        string? status,
+        string? defectType)
+    {
+        var query = _dbSet
+            .Where(r => r.ProjectId == projectId && !r.IsDeleted)
+            .AsQueryable();
+
+        if (startTime.HasValue)
+        {
+            query = query.Where(r => r.InspectionTime >= startTime.Value);
+        }
+
+        if (endTime.HasValue)
+        {
+            query = query.Where(r => r.InspectionTime <= endTime.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) &&
+            Enum.TryParse<InspectionStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(r => r.Status == parsedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(defectType))
+        {
+            var normalizedDefectType = defectType.Trim();
+            query = query.Where(r => r.Defects.Any(d =>
+                d.Type.ToString() == normalizedDefectType ||
+                (d.Description != null && d.Description == normalizedDefectType)));
+        }
+
+        return query;
     }
 }

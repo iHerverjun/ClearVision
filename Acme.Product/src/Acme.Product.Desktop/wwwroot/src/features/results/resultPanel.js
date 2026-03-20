@@ -15,6 +15,7 @@ class ResultPanel {
         this.serverAnalysis = null;
         this.serverAnalysisSource = 'local';
         this._analyticsRefreshTimer = null;
+        this._historyRefreshTimer = null;
         this.statistics = {
             total: 0,
             ok: 0,
@@ -189,7 +190,7 @@ class ResultPanel {
     }
 
     hasLocalPageFilters() {
-        return this.filters.status !== 'all' || this.filters.defectType !== 'all';
+        return !this.serverPaged && (this.filters.status !== 'all' || this.filters.defectType !== 'all');
     }
 
     isServerPaginationActive() {
@@ -244,6 +245,14 @@ class ResultPanel {
             params.endTime = endTime.toISOString();
         }
 
+        if (this.filters.status && this.filters.status !== 'all') {
+            params.status = this.filters.status;
+        }
+
+        if (this.filters.defectType && this.filters.defectType !== 'all') {
+            params.defectType = this.filters.defectType;
+        }
+
         return params;
     }
 
@@ -260,6 +269,23 @@ class ResultPanel {
             this._analyticsRefreshTimer = null;
             this.loadServerAnalytics().catch(error => {
                 console.warn('[ResultPanel] Server analytics refresh failed:', error);
+            });
+        }, delayMs);
+    }
+
+    queueServerHistoryRefresh(delayMs = 400) {
+        if (!this.projectId || !this.historyLoader) {
+            return;
+        }
+
+        if (this._historyRefreshTimer) {
+            clearTimeout(this._historyRefreshTimer);
+        }
+
+        this._historyRefreshTimer = window.setTimeout(() => {
+            this._historyRefreshTimer = null;
+            this.requestHistoryPage(0).catch(error => {
+                console.warn('[ResultPanel] Server history refresh failed:', error);
             });
         }, delayMs);
     }
@@ -380,6 +406,24 @@ class ResultPanel {
             return;
         }
 
+        if (this.serverPaged) {
+            this.serverReport = null;
+            this.serverAnalysis = null;
+            this.serverAnalysisSource = 'server-unavailable';
+            this.statistics = {
+                total: 0,
+                ok: 0,
+                ng: 0,
+                error: 0,
+                avgTime: 0
+            };
+            this.defectTypes = {};
+            this.trendData = [];
+            this.updateDefectTypeFilter();
+            this.render();
+            return;
+        }
+
         this.serverAnalysisSource = 'local';
 
         if (statistics) {
@@ -430,22 +474,10 @@ class ResultPanel {
      */
     addResult(result) {
         if (this.serverPaged) {
-            this.totalResultCount += 1;
-
-            if (this.currentPage === 1) {
-                this.results.unshift(result);
-                if (this.results.length > this.pageSize) {
-                    this.results = this.results.slice(0, this.pageSize);
-                }
-            }
-
-            this.applyFilters();
-
             if (this.projectId) {
+                this.queueServerHistoryRefresh();
                 this.queueServerAnalyticsRefresh();
             }
-
-            this.render();
             return;
         }
 
@@ -506,10 +538,10 @@ class ResultPanel {
         this.currentPage = this.serverPaged ? this.serverPageIndex + 1 : 1;
         this.applyFilters();
 
-        if (!this.serverPaged || this.serverAnalysisSource !== 'server') {
+        if (!this.serverPaged) {
             this.calculateStatistics();
             this.updateTrendData();
-        } else {
+        } else if (this.serverAnalysisSource === 'server') {
             this.updateDefectTypeFilter();
         }
 
@@ -580,6 +612,13 @@ class ResultPanel {
     }
     
     applyFilters() {
+        if (this.serverPaged) {
+            this.filteredResults = [...this.results];
+            this.totalPages = Math.ceil(this.totalResultCount / this.pageSize) || 1;
+            this.currentPage = this.serverPageIndex + 1;
+            return;
+        }
+
         this.filteredResults = this.results.filter(r => {
             // 状态筛选
             if (this.filters.status !== 'all' && r.status?.toLowerCase() !== this.filters.status) {
@@ -612,18 +651,6 @@ class ResultPanel {
             return true;
         });
 
-        if (this.serverPaged) {
-            if (this.hasLocalPageFilters()) {
-                this.totalPages = 1;
-                this.currentPage = 1;
-                return;
-            }
-
-            this.totalPages = Math.ceil(this.totalResultCount / this.pageSize) || 1;
-            this.currentPage = this.serverPageIndex + 1;
-            return;
-        }
-
         this.totalPages = Math.ceil(this.filteredResults.length / this.pageSize) || 1;
         
         if (this.currentPage > this.totalPages) {
@@ -637,6 +664,16 @@ class ResultPanel {
     setFilter(type, value) {
         this.filters[type] = value;
         this.currentPage = 1;
+        if (this.serverPaged && this.projectId) {
+            this.requestHistoryPage(0).catch(error => {
+                console.warn('[ResultPanel] 刷新服务端历史失败:', error);
+            });
+            this.loadServerAnalytics().catch(error => {
+                console.warn('[ResultPanel] 刷新服务端分析失败:', error);
+            });
+            return;
+        }
+
         this.applyFilters();
         this.render();
     }
@@ -670,6 +707,14 @@ class ResultPanel {
         this.serverReport = null;
         this.serverAnalysis = null;
         this.serverAnalysisSource = 'local';
+        if (this._analyticsRefreshTimer) {
+            clearTimeout(this._analyticsRefreshTimer);
+            this._analyticsRefreshTimer = null;
+        }
+        if (this._historyRefreshTimer) {
+            clearTimeout(this._historyRefreshTimer);
+            this._historyRefreshTimer = null;
+        }
         this.totalResultCount = 0;
         this.serverPageIndex = 0;
         this.serverPaged = false;
@@ -1016,6 +1061,11 @@ class ResultPanel {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            return;
+        }
+
+        if (this.projectId && this.serverPaged) {
+            window.alert('服务端报告尚未就绪，当前结果页不再回退导出本地页数据。请稍后重试或先确认服务端分析链路正常。');
             return;
         }
 

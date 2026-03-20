@@ -137,6 +137,15 @@ public class InspectionResult : Entity
     }
 
     /// <summary>
+    /// 设置图像缓存引用
+    /// </summary>
+    public void SetImageId(Guid? imageId)
+    {
+        ImageId = imageId;
+        MarkAsModified();
+    }
+
+    /// <summary>
     /// 设置算子额外输出数据（JSON序列化后）
     /// </summary>
     public void SetOutputDataJson(string json)

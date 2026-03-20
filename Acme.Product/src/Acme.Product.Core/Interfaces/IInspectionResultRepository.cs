@@ -23,23 +23,40 @@ public interface IInspectionResultRepository : IRepository<InspectionResult>
         Guid projectId,
         DateTime? startTime = null,
         DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null,
         int pageIndex = 0,
         int pageSize = 20);
 
     /// <summary>
     /// 根据时间范围获取结果
     /// </summary>
-    Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(Guid projectId, DateTime startTime, DateTime endTime);
+    Task<IEnumerable<InspectionResult>> GetByTimeRangeAsync(
+        Guid projectId,
+        DateTime startTime,
+        DateTime endTime,
+        string? status = null,
+        string? defectType = null);
 
     /// <summary>
     /// 获取统计信息
     /// </summary>
-    Task<InspectionStatistics> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<InspectionStatistics> GetStatisticsAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null);
 
     /// <summary>
     /// 获取缺陷分布统计
     /// </summary>
-    Task<Dictionary<Enums.DefectType, int>> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<Dictionary<Enums.DefectType, int>> GetDefectDistributionAsync(
+        Guid projectId,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        string? status = null,
+        string? defectType = null);
 }
 
 /// <summary>

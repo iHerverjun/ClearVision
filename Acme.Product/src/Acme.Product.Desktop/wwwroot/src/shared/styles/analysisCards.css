@@ -171,60 +171,6 @@
     color: #e11d48;
 }
 
-/* 范围条 */
-.ac-range-bar-container {
-    padding: 0 4px;
-}
-
-.ac-range-bar {
-    height: 4px;
-    background-color: var(--border-color);
-    border-radius: 2px;
-    position: relative;
-    margin: 8px 0;
-}
-
-.ac-range-zone {
-    position: absolute;
-    height: 100%;
-    top: 0;
-    border-radius: 2px;
-}
-
-.ac-range-zone.ok-zone {
-    left: 10%; /* 示例范围 */
-    width: 80%;
-    background-color: rgba(16, 185, 129, 0.2);
-}
-
-.ac-range-pointer {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: var(--text-color);
-    border: 2px solid var(--bg-color);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    z-index: 2;
-}
-
-.ac-range-pointer.ok {
-    background-color: #10b981;
-}
-
-.ac-range-pointer.ng {
-    background-color: #e11d48;
-}
-
-.ac-range-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    color: var(--text-secondary);
-}
-
 /* ==================================
  * 2. OCR/条码卡片 (OCR/Code)
  * ================================== */

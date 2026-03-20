@@ -17,37 +17,37 @@ public interface IResultAnalysisService
     /// <summary>
     /// 获取检测统计概览
     /// </summary>
-    Task<InspectionStatisticsDto> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<InspectionStatisticsDto> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 获取缺陷类型分布
     /// </summary>
-    Task<DefectDistributionDto> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<DefectDistributionDto> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 获取置信度分布
     /// </summary>
-    Task<ConfidenceDistributionDto> GetConfidenceDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<ConfidenceDistributionDto> GetConfidenceDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 获取检测趋势（按小时/天/周）
     /// </summary>
-    Task<TrendAnalysisDto> GetTrendAnalysisAsync(Guid projectId, TrendInterval interval, DateTime startTime, DateTime endTime);
+    Task<TrendAnalysisDto> GetTrendAnalysisAsync(Guid projectId, TrendInterval interval, DateTime startTime, DateTime endTime, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 导出检测结果为CSV
     /// </summary>
-    Task<string> ExportToCsvAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<string> ExportToCsvAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 导出检测结果为JSON
     /// </summary>
-    Task<string> ExportToJsonAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<string> ExportToJsonAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 生成检测报告
     /// </summary>
-    Task<InspectionReportDto> GenerateReportAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<InspectionReportDto> GenerateReportAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 
     /// <summary>
     /// 对比两个时间段的数据
@@ -57,7 +57,7 @@ public interface IResultAnalysisService
     /// <summary>
     /// 获取缺陷热点图数据
     /// </summary>
-    Task<DefectHeatmapDto> GetDefectHeatmapAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<DefectHeatmapDto> GetDefectHeatmapAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null);
 }
 
 /// <summary>
@@ -73,10 +73,10 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<InspectionStatisticsDto> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<InspectionStatisticsDto> GetStatisticsAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var statistics = await _resultRepository.GetStatisticsAsync(projectId, startTime, endTime);
-        var distribution = await _resultRepository.GetDefectDistributionAsync(projectId, startTime, endTime);
+        var statistics = await _resultRepository.GetStatisticsAsync(projectId, startTime, endTime, status, defectType);
+        var distribution = await _resultRepository.GetDefectDistributionAsync(projectId, startTime, endTime, status, defectType);
 
         return new InspectionStatisticsDto
         {
@@ -96,9 +96,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<DefectDistributionDto> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<DefectDistributionDto> GetDefectDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var distribution = await _resultRepository.GetDefectDistributionAsync(projectId, startTime, endTime);
+        var distribution = await _resultRepository.GetDefectDistributionAsync(projectId, startTime, endTime, status, defectType);
         var total = distribution.Values.Sum();
 
         var items = distribution.Select(d => new DefectDistributionItemDto
@@ -119,9 +119,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<ConfidenceDistributionDto> GetConfidenceDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<ConfidenceDistributionDto> GetConfidenceDistributionAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var results = await _resultRepository.GetByProjectIdAsync(projectId, 0, 1000);
+        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue, status, defectType);
         
         // 按时间筛选
         var filtered = results.Where(r =>
@@ -174,9 +174,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<TrendAnalysisDto> GetTrendAnalysisAsync(Guid projectId, TrendInterval interval, DateTime startTime, DateTime endTime)
+    public async Task<TrendAnalysisDto> GetTrendAnalysisAsync(Guid projectId, TrendInterval interval, DateTime startTime, DateTime endTime, string? status = null, string? defectType = null)
     {
-        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime, endTime);
+        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime, endTime, status, defectType);
         var resultList = results.ToList();
 
         var dataPoints = new List<TrendDataPointDto>();
@@ -234,9 +234,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<string> ExportToCsvAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<string> ExportToCsvAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue);
+        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue, status, defectType);
         
         var csv = new System.Text.StringBuilder();
         csv.AppendLine("检测ID,工程ID,检测时间,状态,处理时间(ms),置信度,缺陷数量,错误信息");
@@ -255,9 +255,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<string> ExportToJsonAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<string> ExportToJsonAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue);
+        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue, status, defectType);
         
         var exportData = new InspectionExportDto
         {
@@ -293,16 +293,16 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<InspectionReportDto> GenerateReportAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<InspectionReportDto> GenerateReportAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var statistics = await GetStatisticsAsync(projectId, startTime, endTime);
-        var defectDistribution = await GetDefectDistributionAsync(projectId, startTime, endTime);
-        var confidenceDistribution = await GetConfidenceDistributionAsync(projectId, startTime, endTime);
+        var statistics = await GetStatisticsAsync(projectId, startTime, endTime, status, defectType);
+        var defectDistribution = await GetDefectDistributionAsync(projectId, startTime, endTime, status, defectType);
+        var confidenceDistribution = await GetConfidenceDistributionAsync(projectId, startTime, endTime, status, defectType);
 
         // 获取最近24小时的趋势（按小时）
         var now = DateTime.UtcNow;
         var yesterday = now.AddDays(-1);
-        var hourlyTrend = await GetTrendAnalysisAsync(projectId, TrendInterval.Hour, yesterday > (startTime ?? DateTime.MinValue) ? yesterday : startTime ?? DateTime.MinValue, now);
+        var hourlyTrend = await GetTrendAnalysisAsync(projectId, TrendInterval.Hour, yesterday > (startTime ?? DateTime.MinValue) ? yesterday : startTime ?? DateTime.MinValue, now, status, defectType);
 
         return new InspectionReportDto
         {
@@ -374,9 +374,9 @@ public class ResultAnalysisService : IResultAnalysisService
     }
 
     /// <inheritdoc />
-    public async Task<DefectHeatmapDto> GetDefectHeatmapAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null)
+    public async Task<DefectHeatmapDto> GetDefectHeatmapAsync(Guid projectId, DateTime? startTime = null, DateTime? endTime = null, string? status = null, string? defectType = null)
     {
-        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue);
+        var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue, status, defectType);
         var allDefects = results.SelectMany(r => r.Defects).ToList();
 
         if (!allDefects.Any())
