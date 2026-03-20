@@ -1,3 +1,4 @@
+using Acme.Product.Application.Analysis;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Events;
@@ -43,13 +44,15 @@ public class InspectionWorkerTests
         var store = new InMemoryEventStore(NullLogger<InMemoryEventStore>.Instance);
         var bus = new InMemoryInspectionEventBus(NullLogger<InMemoryInspectionEventBus>.Instance, store);
         var coordinator = new InspectionRuntimeCoordinator(NullLogger<InspectionRuntimeCoordinator>.Instance);
+        var analysisDataBuilder = new AnalysisDataBuilder();
         var worker = new InspectionWorker(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             coordinator,
             bus,
             NullLogger<InspectionWorker>.Instance,
             lifetime,
-            new InspectionMetrics());
+            new InspectionMetrics(),
+            analysisDataBuilder);
 
         var stateChanges = new ConcurrentQueue<InspectionStateChangedEvent>();
         using var subscription = bus.Subscribe<InspectionStateChangedEvent>((evt, _) =>

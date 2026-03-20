@@ -1,3 +1,4 @@
+using Acme.Product.Application.Analysis;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Events;
@@ -100,13 +101,15 @@ public class InspectionServiceRealtimeTests
         var eventStore = new InMemoryEventStore(NullLogger<InMemoryEventStore>.Instance);
         var eventBus = new InMemoryInspectionEventBus(NullLogger<InMemoryInspectionEventBus>.Instance, eventStore);
         var coordinator = new InspectionRuntimeCoordinator(NullLogger<InspectionRuntimeCoordinator>.Instance);
+        var analysisDataBuilder = new AnalysisDataBuilder();
         var worker = new InspectionWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),
             coordinator,
             eventBus,
             NullLogger<InspectionWorker>.Instance,
             lifetime,
-            new InspectionMetrics());
+            new InspectionMetrics(),
+            analysisDataBuilder);
 
         var service = new InspectionService(
             resultRepository,
@@ -116,6 +119,7 @@ public class InspectionServiceRealtimeTests
             configurationService,
             coordinator,
             worker,
+            analysisDataBuilder,
             NullLogger<InspectionService>.Instance);
 
         return new TestContext(provider, service, worker, coordinator, flowExecution);
