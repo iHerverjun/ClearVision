@@ -4,6 +4,7 @@
 // 生命周期：Scoped（无状态，不保存运行时状态）
 // 作者：蘅芜君 + 架构修复方案 v2
 
+using Acme.Product.Application.Analysis;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Exceptions;
@@ -11,7 +12,6 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 using System.Collections;
-using System.Text.Json;
 
 // 【架构修复 v2】IInspectionWorker 从 Infrastructure 移到 Core
 
@@ -32,6 +32,7 @@ public class InspectionService : IInspectionService
     private readonly IConfigurationService _configurationService;
     private readonly IInspectionRuntimeCoordinator _coordinator;
     private readonly IInspectionWorker _worker;
+    private readonly IAnalysisDataBuilder _analysisDataBuilder;
     private readonly ILogger<InspectionService> _logger;
 
     public InspectionService(
@@ -42,6 +43,7 @@ public class InspectionService : IInspectionService
         IConfigurationService configurationService,
         IInspectionRuntimeCoordinator coordinator,
         IInspectionWorker worker,
+        IAnalysisDataBuilder analysisDataBuilder,
         ILogger<InspectionService> logger)
     {
         _resultRepository = resultRepository;
@@ -51,7 +53,30 @@ public class InspectionService : IInspectionService
         _configurationService = configurationService;
         _coordinator = coordinator;
         _worker = worker;
+        _analysisDataBuilder = analysisDataBuilder;
         _logger = logger;
+    }
+
+    public InspectionService(
+        IInspectionResultRepository resultRepository,
+        IProjectRepository projectRepository,
+        IFlowExecutionService flowExecutionService,
+        IImageAcquisitionService imageAcquisitionService,
+        IConfigurationService configurationService,
+        IInspectionRuntimeCoordinator coordinator,
+        IInspectionWorker worker,
+        ILogger<InspectionService> logger)
+        : this(
+            resultRepository,
+            projectRepository,
+            flowExecutionService,
+            imageAcquisitionService,
+            configurationService,
+            coordinator,
+            worker,
+            new AnalysisDataBuilder(),
+            logger)
+    {
     }
 
     #region 单次检测
@@ -128,7 +153,9 @@ public class InspectionService : IInspectionService
                 }
             }
 
-            TrySetOutputDataJson(result, flowResult.OutputData);
+            var analysisData = _analysisDataBuilder.Build(actualFlow, flowResult, status);
+            AnalysisPayloadSerialization.TrySetOutputDataJson(result, flowResult.OutputData, _logger);
+            AnalysisPayloadSerialization.TrySetAnalysisDataJson(result, analysisData, _logger);
             await PersistResultImageAsync(result, CancellationToken.None);
             await _resultRepository.AddAsync(result);
 
@@ -445,181 +472,6 @@ public class InspectionService : IInspectionService
         }
 
         return ".bin";
-    }
-
-    private void TrySetOutputDataJson(InspectionResult result, Dictionary<string, object>? outputData)
-    {
-        if (outputData == null || outputData.Count == 0)
-            return;
-
-        var serializableData = BuildSerializableOutputData(outputData);
-        if (serializableData.Count == 0)
-            return;
-
-        try
-        {
-            var json = JsonSerializer.Serialize(serializableData);
-            result.SetOutputDataJson(json);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[InspectionService] 序列化输出数据失败");
-        }
-    }
-
-    private static Dictionary<string, object?> BuildSerializableOutputData(Dictionary<string, object> outputData)
-    {
-        var serializable = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var kvp in outputData)
-        {
-            if (IsExcludedOutput(kvp.Key, kvp.Value))
-                continue;
-
-            if (TryConvertOutputValue(kvp.Value, out var converted))
-            {
-                serializable[kvp.Key] = converted;
-            }
-        }
-
-        return serializable;
-    }
-
-    private static bool IsExcludedOutput(string key, object? value)
-    {
-        if (key.Equals("Image", StringComparison.OrdinalIgnoreCase) ||
-            key.Equals("Defects", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (value is byte[])
-            return true;
-
-        if (value == null)
-            return false;
-
-        return IsKnownImageCarrierType(value.GetType());
-    }
-
-    private static bool TryConvertOutputValue(object? value, out object? converted, int depth = 0)
-    {
-        const int maxDepth = 8;
-        if (depth > maxDepth)
-        {
-            converted = value?.ToString();
-            return converted != null;
-        }
-
-        if (value == null)
-        {
-            converted = null;
-            return true;
-        }
-
-        if (IsKnownImageCarrierType(value.GetType()) || value is byte[])
-        {
-            converted = null;
-            return false;
-        }
-
-        if (value is JsonElement jsonElement)
-        {
-            converted = jsonElement;
-            return true;
-        }
-
-        if (IsSimpleValue(value))
-        {
-            converted = value;
-            return true;
-        }
-
-        if (value is IDictionary<string, object> typedDict)
-        {
-            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (k, v) in typedDict)
-            {
-                if (TryConvertOutputValue(v, out var nested, depth + 1))
-                {
-                    dict[k] = nested;
-                }
-            }
-
-            converted = dict;
-            return true;
-        }
-
-        if (value is IDictionary dictionary)
-        {
-            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            foreach (DictionaryEntry entry in dictionary)
-            {
-                var key = entry.Key?.ToString();
-                if (string.IsNullOrWhiteSpace(key))
-                    continue;
-
-                if (TryConvertOutputValue(entry.Value, out var nested, depth + 1))
-                {
-                    dict[key] = nested;
-                }
-            }
-
-            converted = dict;
-            return true;
-        }
-
-        if (value is IEnumerable enumerable && value is not string)
-        {
-            var list = new List<object?>();
-            foreach (var item in enumerable)
-            {
-                if (TryConvertOutputValue(item, out var nested, depth + 1))
-                {
-                    list.Add(nested);
-                }
-            }
-
-            converted = list;
-            return true;
-        }
-
-        try
-        {
-            JsonSerializer.Serialize(value);
-            converted = value;
-            return true;
-        }
-        catch
-        {
-            var text = value.ToString();
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                converted = null;
-                return false;
-            }
-
-            converted = text;
-            return true;
-        }
-    }
-
-    private static bool IsSimpleValue(object value)
-    {
-        var type = value.GetType();
-        return type.IsPrimitive ||
-               type.IsEnum ||
-               value is string ||
-               value is decimal ||
-               value is DateTime ||
-               value is DateTimeOffset ||
-               value is Guid ||
-               value is TimeSpan;
-    }
-
-    private static bool IsKnownImageCarrierType(Type type)
-    {
-        var fullName = type.FullName;
-        return string.Equals(fullName, "OpenCvSharp.Mat", StringComparison.Ordinal) ||
-               string.Equals(fullName, "Acme.Product.Infrastructure.Operators.ImageWrapper", StringComparison.Ordinal);
     }
 
     #endregion

@@ -2,6 +2,7 @@
 // AutoMapper 映射配置
 // 作者：蘅芜君
 
+using Acme.Product.Application.Analysis;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using AutoMapper;
@@ -20,9 +21,9 @@ public class InspectionMappingProfile : Profile
             .ForMember(dest => dest.OutputImage, opt => opt.MapFrom(src =>
                 src.OutputImage != null ? Convert.ToBase64String(src.OutputImage) : null))
             .ForMember(dest => dest.OutputData, opt => opt.MapFrom(src =>
-                string.IsNullOrEmpty(src.OutputDataJson)
-                    ? null
-                    : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(src.OutputDataJson, (System.Text.Json.JsonSerializerOptions?)null)));
+                AnalysisPayloadSerialization.DeserializeJsonDictionary(src.OutputDataJson)))
+            .ForMember(dest => dest.AnalysisData, opt => opt.MapFrom(src =>
+                AnalysisPayloadSerialization.DeserializeAnalysisData(src.AnalysisDataJson)));
 
         // Defect -> DefectDto
         CreateMap<Defect, DefectDto>();

@@ -65,6 +65,75 @@ public class InspectionResultDto
     /// 算子输出的其他数据（文本、数值等）
     /// </summary>
     public Dictionary<string, object>? OutputData { get; set; }
+
+    /// <summary>
+    /// 显式分析语义数据
+    /// </summary>
+    public AnalysisDataDto? AnalysisData { get; set; }
+}
+
+/// <summary>
+/// 显式分析数据契约
+/// </summary>
+public class AnalysisDataDto
+{
+    public int Version { get; set; } = 1;
+
+    public List<AnalysisCardDto> Cards { get; set; } = new();
+
+    public AnalysisSummaryDto? Summary { get; set; }
+}
+
+/// <summary>
+/// 分析卡片契约
+/// </summary>
+public class AnalysisCardDto
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Category { get; set; } = "generic";
+
+    public Guid SourceOperatorId { get; set; }
+
+    public string SourceOperatorType { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "OK";
+
+    public int Priority { get; set; }
+
+    public List<AnalysisFieldDto> Fields { get; set; } = new();
+
+    public Dictionary<string, object?>? Meta { get; set; }
+}
+
+/// <summary>
+/// 分析字段契约
+/// </summary>
+public class AnalysisFieldDto
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+
+    public object? Value { get; set; }
+
+    public string? Unit { get; set; }
+
+    public string? DisplayHint { get; set; }
+
+    public string? Status { get; set; }
+}
+
+/// <summary>
+/// 分析数据汇总
+/// </summary>
+public class AnalysisSummaryDto
+{
+    public int CardCount { get; set; }
+
+    public List<string> Categories { get; set; } = new();
 }
 
 /// <summary>
