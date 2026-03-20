@@ -211,6 +211,75 @@ public class InspectionCompletedEvent : EventBase
     /// 输出的额外数据字典（文本、数值等）
     /// </summary>
     public Dictionary<string, object>? OutputData { get; set; }
+
+    /// <summary>
+    /// 显式分析语义数据
+    /// </summary>
+    public AnalysisData? AnalysisData { get; set; }
+}
+
+/// <summary>
+/// 显式分析语义数据
+/// </summary>
+public class AnalysisData
+{
+    public int Version { get; set; } = 1;
+
+    public List<AnalysisCard> Cards { get; set; } = new();
+
+    public AnalysisSummary? Summary { get; set; }
+}
+
+/// <summary>
+/// 分析卡片
+/// </summary>
+public class AnalysisCard
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Category { get; set; } = "generic";
+
+    public Guid SourceOperatorId { get; set; }
+
+    public string SourceOperatorType { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "OK";
+
+    public int Priority { get; set; }
+
+    public List<AnalysisField> Fields { get; set; } = new();
+
+    public Dictionary<string, object?>? Meta { get; set; }
+}
+
+/// <summary>
+/// 分析字段
+/// </summary>
+public class AnalysisField
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+
+    public object? Value { get; set; }
+
+    public string? Unit { get; set; }
+
+    public string? DisplayHint { get; set; }
+
+    public string? Status { get; set; }
+}
+
+/// <summary>
+/// 分析汇总
+/// </summary>
+public class AnalysisSummary
+{
+    public int CardCount { get; set; }
+
+    public List<string> Categories { get; set; } = new();
 }
 
 /// <summary>
