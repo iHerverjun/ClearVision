@@ -33,7 +33,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters =
+        {
+            new FlexibleStringDictionaryJsonConverter()
+        }
     };
     private const int DefaultMaxMultimodalAttachmentCount = 4;
     private static readonly string[] _templateFirstKeywords =
@@ -124,6 +128,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
         AiGeneratedFlowJson? generatedFlow = null;
         AiValidationResult? lastValidation = null;
+        string? lastRawResponse = null;
         int retryCount = 0;
 
         for (int attempt = 0; attempt <= options.MaxRetries; attempt++)
@@ -134,7 +139,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
                 // 推送：正在调用 AI（带重试次数）
                 if (attempt > 0)
-                    onProgress?.Invoke($"AI 响应未通过校验或出错，正在重试（第 {attempt + 1}/{options.MaxRetries} 次）...");
+                    onProgress?.Invoke($"AI 响应未通过校验或出错，正在重试（第 {attempt}/{options.MaxRetries} 次重试）...");
                 else
                     onProgress?.Invoke("正在请求 AI 模型生成方案...");
 
@@ -142,7 +147,12 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 var messages = new List<ChatMessage> { currentUserMessage };
                 if (attempt > 0)
                 {
-                    messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!)));
+                    if (!string.IsNullOrWhiteSpace(lastRawResponse))
+                    {
+                        messages.Add(new ChatMessage("assistant", TrimRetryOutput(lastRawResponse)));
+                    }
+
+                    messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!, lastRawResponse)));
                 }
 
                 // 调用 API（使用流式接口）
@@ -153,6 +163,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     activeModel,
                     cancellationToken);
                 var rawResponse = completionResult.Content;
+                lastRawResponse = rawResponse;
                 _logger.LogDebug("AI 原始响应长度：{Length}", rawResponse.Length);
                 if (!string.IsNullOrEmpty(completionResult.Reasoning))
                 {
@@ -246,6 +257,10 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             catch (OperationCanceledException)
             {
                 _logger.LogWarning("AI API 调用超时");
+                RecordFailureResponse(
+                    conversationContext.SessionId,
+                    "AI generation timed out. Please retry.",
+                    lastRawResponse);
                 return new AiFlowGenerationResult
                 {
                     Success = false,
@@ -273,6 +288,10 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 }
 
                 _logger.LogError(ex, "AI API 调用失败");
+                RecordFailureResponse(
+                    conversationContext.SessionId,
+                    $"AI service call failed: {ex.Message}",
+                    lastRawResponse);
                 return new AiFlowGenerationResult
                 {
                     Success = false,
@@ -282,11 +301,13 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
 
         // 所有重试均失败
+        var finalErrorMessage = $"AI generated workflow did not pass validation (retried {retryCount} times): " +
+                                string.Join("; ", lastValidation?.Errors ?? new List<string>());
+        RecordFailureResponse(conversationContext.SessionId, finalErrorMessage, lastRawResponse);
         return new AiFlowGenerationResult
         {
             Success = false,
-            ErrorMessage = $"AI generated workflow did not pass validation (retried {retryCount} times): " +
-                          string.Join("; ", lastValidation?.Errors ?? new List<string>()),
+            ErrorMessage = finalErrorMessage,
             RetryCount = retryCount
         };
     }
@@ -319,6 +340,14 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 sb.AppendLine($"Preferred template id: {templatePriority.Template.Id}");
                 sb.AppendLine($"Preferred template name: {templatePriority.Template.Name}");
                 sb.AppendLine($"Preferred template industry: {templatePriority.Template.Industry}");
+                if (!string.IsNullOrWhiteSpace(templatePriority.Template.FlowJson))
+                {
+                    sb.AppendLine("Preferred template skeleton JSON:");
+                    sb.AppendLine("```json");
+                    sb.AppendLine(TrimTemplateFlowJson(templatePriority.Template.FlowJson));
+                    sb.AppendLine("```");
+                    sb.AppendLine("Reuse this skeleton as the starting point unless the user explicitly asks to replace it.");
+                }
             }
             else
             {
@@ -901,18 +930,81 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             new(false, null, string.Empty, string.Empty, 0, Array.Empty<string>());
     }
 
-    private string BuildRetryMessage(string originalMessage, AiValidationResult failedValidation)
+    private string BuildRetryMessage(string originalMessage, AiValidationResult failedValidation, string? lastRawResponse)
     {
         var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Regenerate the workflow JSON using the same user request, but fix the previous attempt instead of starting blindly.");
+        sb.AppendLine();
+        sb.AppendLine("Original request:");
         sb.AppendLine(originalMessage);
         sb.AppendLine();
-        sb.AppendLine("Your previous output has validation errors. Please regenerate with fixes.");
+        sb.AppendLine("Problems found in the previous attempt:");
         foreach (var error in failedValidation.Errors)
             sb.AppendLine($"- {error}");
+
+        if (failedValidation.Warnings.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("Warnings to improve if possible:");
+            foreach (var warning in failedValidation.Warnings)
+                sb.AppendLine($"- {warning}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(lastRawResponse))
+        {
+            sb.AppendLine();
+            sb.AppendLine("Previous assistant output to fix:");
+            sb.AppendLine("```json");
+            sb.AppendLine(TrimRetryOutput(lastRawResponse));
+            sb.AppendLine("```");
+        }
+
         sb.AppendLine();
-        sb.AppendLine("Regenerate the complete JSON instead of partial modifications.");
+        sb.AppendLine("Return a complete corrected JSON object only. Do not add explanations or markdown outside the JSON.");
 
         return sb.ToString();
+    }
+
+    private static string TrimRetryOutput(string rawResponse)
+    {
+        const int maxLength = 6000;
+        if (string.IsNullOrWhiteSpace(rawResponse))
+            return string.Empty;
+
+        var trimmed = rawResponse.Trim();
+        return trimmed.Length <= maxLength
+            ? trimmed
+            : trimmed[..maxLength] + "\n...<truncated>";
+    }
+
+    private static string TrimTemplateFlowJson(string flowJson)
+    {
+        const int maxLength = 8000;
+        if (string.IsNullOrWhiteSpace(flowJson))
+            return string.Empty;
+
+        var trimmed = flowJson.Trim();
+        return trimmed.Length <= maxLength
+            ? trimmed
+            : trimmed[..maxLength] + "\n...<truncated>";
+    }
+
+    private void RecordFailureResponse(string sessionId, string errorMessage, string? lastRawResponse)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(errorMessage))
+            return;
+
+        var summary = new System.Text.StringBuilder();
+        summary.AppendLine($"上次生成失败：{errorMessage}");
+
+        if (!string.IsNullOrWhiteSpace(lastRawResponse))
+        {
+            summary.AppendLine();
+            summary.AppendLine("最近一次模型输出片段：");
+            summary.AppendLine(TrimRetryOutput(lastRawResponse));
+        }
+
+        _conversationalFlowService.RecordAssistantResponse(sessionId, summary.ToString().Trim(), null);
     }
 
     private AiGeneratedFlowJson? ParseAiResponse(string rawResponse)
