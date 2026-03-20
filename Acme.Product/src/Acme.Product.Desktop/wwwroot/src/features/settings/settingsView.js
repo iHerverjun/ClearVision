@@ -829,12 +829,17 @@ class SettingsView {
         discoverBtn?.addEventListener('click', () => this.discoverCameras('all', discoverBtn));
 
         const calibBtn = section.querySelector('#btn-hand-eye-calib');
+        const previewBtn = section.querySelector('#btn-camera-preview');
+        previewBtn?.addEventListener('click', () => this.showSelectedCameraPreview());
         if (calibBtn) {
             calibBtn.addEventListener('click', async () => {
                 try {
-                    // 动态导入向导并显示
+                    const activeCameraBindingId = this.selectedCameraBindingId || this.resolveActiveCameraId() || null;
                     const module = await import('../../core/calibration/handEyeCalibWizard.js');
-                    const wizard = new module.HandEyeCalibWizard(window.cameraManager);
+                    const wizard = new module.HandEyeCalibWizard(null, {
+                        captureFrame: (cameraBindingId) => this.captureCameraPreview(cameraBindingId),
+                        getCameraBindingId: () => activeCameraBindingId || this.selectedCameraBindingId || this.resolveActiveCameraId() || null
+                    });
                     wizard.show();
                 } catch (e) {
                     showToast('无法加载手眼标定向导: ' + e.message, 'error');
@@ -908,9 +913,13 @@ class SettingsView {
                 const gainRaw = binding.gainDb ?? binding.GainDb;
                 const triggerRaw = binding.triggerMode ?? binding.TriggerMode;
                 const connectionStatus = binding.connectionStatus ?? binding.ConnectionStatus ?? binding.status ?? binding.Status ?? null;
+                const serialNumber = binding.serialNumber ?? binding.SerialNumber ?? binding.deviceId ?? binding.DeviceId ?? '';
+                const ipAddress = binding.ipAddress ?? binding.IpAddress ?? '';
 
                 return {
                     ...binding,
+                    serialNumber: typeof serialNumber === 'string' ? serialNumber.trim() : '',
+                    ipAddress: typeof ipAddress === 'string' ? ipAddress.trim() : '',
                     exposureTimeUs: Number.isFinite(Number(exposureRaw)) ? Number(exposureRaw) : 5000,
                     gainDb: Number.isFinite(Number(gainRaw)) ? Number(gainRaw) : 1.0,
                     triggerMode: typeof triggerRaw === 'string' && triggerRaw.trim() ? triggerRaw.trim() : 'Software',
@@ -975,7 +984,8 @@ class SettingsView {
             cameraId: device.cameraId ?? device.CameraId ?? '',
             manufacturer: device.manufacturer ?? device.Manufacturer ?? '',
             model: device.model ?? device.Model ?? '',
-            connectionType: device.connectionType ?? device.ConnectionType ?? ''
+            connectionType: device.connectionType ?? device.ConnectionType ?? '',
+            ipAddress: device.ipAddress ?? device.IpAddress ?? ''
         }));
 
         const contentDiv = document.createElement('div');
@@ -1034,7 +1044,7 @@ class SettingsView {
                 const model = btn.dataset.model;
 
                 // 检查是否已存在
-                if (this.cameraBindings.find(b => String(b.serialNumber || '').toLowerCase() === String(sn || '').toLowerCase())) {
+                if (this.cameraBindings.find(b => String(b.serialNumber || b.deviceId || '').toLowerCase() === String(sn || '').toLowerCase())) {
                     showToast('该相机已在绑定列表中，无需重复添加', 'warning');
                     return;
                 }
@@ -1050,7 +1060,6 @@ class SettingsView {
                     modelName: model,
                     ipAddress: btn.dataset.ip || '',
                     isEnabled: true,
-                    connectionStatus: 'Unknown',
                     exposureTimeUs: 5000,
                     gainDb: 1.0,
                     triggerMode: 'Software'
@@ -1064,7 +1073,8 @@ class SettingsView {
                     return;
                 }
 
-                this.refreshCameraTable();
+                this.selectedCameraBindingId = newBinding.id;
+                await this.loadCameraBindings();
                 showToast(`已成功绑定逻辑相机: ${displayName}`, 'success');
                 
                 // 置灰当前按钮，防止重复点击
@@ -1102,7 +1112,7 @@ class SettingsView {
             ).trim();
             const normalizedStatus = rawConnectionStatus.toLowerCase();
             const isConnected = ['connected', 'online', 'ready', 'active', '已连接'].includes(normalizedStatus);
-            const isDisconnected = ['disconnected', 'offline', 'error', '已断开'].includes(normalizedStatus);
+            const isDisconnected = ['disconnected', 'offline', 'error', 'disabled', 'unbound', '已断开'].includes(normalizedStatus);
             const statusClass = isConnected
                 ? 'status-connected'
                 : (isDisconnected ? 'status-error' : 'status-disconnected');
@@ -1188,6 +1198,119 @@ class SettingsView {
         if (saveBtn) {
             saveBtn.disabled = !cam;
         }
+
+        const previewBtn = this.container.querySelector('#btn-camera-preview');
+        if (previewBtn) {
+            previewBtn.disabled = !cam;
+        }
+    }
+
+    getSelectedCameraBinding() {
+        if (!this.selectedCameraBindingId) {
+            return null;
+        }
+
+        return this.cameraBindings.find(binding => binding.id === this.selectedCameraBindingId) || null;
+    }
+
+    async captureCameraPreview(cameraBindingId = this.selectedCameraBindingId) {
+        if (!cameraBindingId) {
+            throw new Error('请先在相机管理中选择一台相机');
+        }
+
+        const { blob, headers } = await httpClient.postForBlob('/cameras/soft-trigger-capture', {
+            cameraBindingId
+        });
+
+        if (!blob || blob.size === 0) {
+            throw new Error('预览接口未返回图像数据');
+        }
+
+        const imageUrl = URL.createObjectURL(blob);
+        const widthHeader = headers.get('X-Image-Width');
+        const heightHeader = headers.get('X-Image-Height');
+        const parsedWidth = widthHeader ? Number(widthHeader) : null;
+        const parsedHeight = heightHeader ? Number(heightHeader) : null;
+
+        return {
+            imageUrl,
+            cameraBindingId: headers.get('X-Camera-Id') || cameraBindingId,
+            triggerMode: headers.get('X-Trigger-Mode') || 'Software',
+            width: Number.isFinite(parsedWidth) ? parsedWidth : null,
+            height: Number.isFinite(parsedHeight) ? parsedHeight : null
+        };
+    }
+
+    async showSelectedCameraPreview() {
+        const binding = this.getSelectedCameraBinding();
+        if (!binding) {
+            showToast('请先在相机管理中选择一台相机，再打开相机预览', 'warning');
+            return;
+        }
+
+        let currentPreviewUrl = null;
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <div style="font-size:13px; color:var(--text-muted);">
+                        当前相机: <strong style="color:var(--text-primary);">${binding.displayName || binding.serialNumber || binding.id}</strong>
+                    </div>
+                    <button class="cv-btn cv-btn-secondary" id="btn-refresh-camera-preview" type="button">刷新预览</button>
+                </div>
+                <div style="background:#020617; border:1px solid var(--border-color); border-radius:12px; min-height:420px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    <img id="camera-preview-image" alt="相机预览" style="max-width:100%; max-height:420px; display:none; object-fit:contain;">
+                    <div id="camera-preview-placeholder" style="color:#94a3b8; font-size:14px; text-align:center; padding:24px;">正在加载相机预览...</div>
+                </div>
+                <div id="camera-preview-meta" style="font-size:13px; color:var(--text-muted); min-height:20px;"></div>
+            </div>
+        `;
+
+        const cleanupPreviewUrl = () => {
+            if (currentPreviewUrl) {
+                URL.revokeObjectURL(currentPreviewUrl);
+                currentPreviewUrl = null;
+            }
+        };
+
+        const modal = createModal({
+            title: `相机预览 - ${binding.displayName || binding.serialNumber || binding.id}`,
+            content,
+            width: '960px',
+            onClose: cleanupPreviewUrl
+        });
+        modal.querySelector('.cv-modal')?.style.setProperty('max-width', '95vw');
+
+        const refreshBtn = content.querySelector('#btn-refresh-camera-preview');
+        const imageEl = content.querySelector('#camera-preview-image');
+        const placeholderEl = content.querySelector('#camera-preview-placeholder');
+        const metaEl = content.querySelector('#camera-preview-meta');
+
+        const loadPreview = async () => {
+            refreshBtn.disabled = true;
+            placeholderEl.style.display = 'block';
+            placeholderEl.textContent = '正在加载相机预览...';
+            imageEl.style.display = 'none';
+
+            try {
+                const preview = await this.captureCameraPreview(binding.id);
+                cleanupPreviewUrl();
+                currentPreviewUrl = preview.imageUrl;
+                imageEl.src = preview.imageUrl;
+                imageEl.style.display = 'block';
+                placeholderEl.style.display = 'none';
+                metaEl.textContent = `触发模式: ${preview.triggerMode} · 分辨率: ${preview.width ?? '--'} x ${preview.height ?? '--'}`;
+            } catch (error) {
+                placeholderEl.style.display = 'block';
+                placeholderEl.textContent = `相机预览加载失败: ${error.message}`;
+                metaEl.textContent = '';
+            } finally {
+                refreshBtn.disabled = false;
+            }
+        };
+
+        refreshBtn.addEventListener('click', loadPreview);
+        await loadPreview();
     }
 
     async saveSelectedCameraParameters() {
@@ -1755,6 +1878,7 @@ class SettingsView {
                     </div>
                 </div>
                 <div class="settings-card-body" style="border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:12px; padding:16px 24px;">
+                    <button class="cv-btn settings-btn-light" id="btn-camera-preview" disabled>相机预览</button>
                     <button class="cv-btn settings-btn-light" id="btn-hand-eye-calib">手眼标定向导</button>
                     <button class="cv-btn settings-btn-light" id="btn-reset-camera-params">重置当前值</button>
                     <button class="cv-btn settings-btn-danger" id="btn-save-camera-params">

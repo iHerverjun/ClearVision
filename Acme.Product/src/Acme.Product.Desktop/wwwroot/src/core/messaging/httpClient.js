@@ -391,8 +391,8 @@ class HttpClient {
      */
     async handleBlobResponse(response) {
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || `HTTP ${response.status}`);
+            const error = await this.extractErrorMessage(response);
+            throw new Error(error);
         }
 
         return {
@@ -406,8 +406,8 @@ class HttpClient {
      */
     async handleResponse(response) {
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || `HTTP ${response.status}`);
+            const error = await this.extractErrorMessage(response);
+            throw new Error(error);
         }
 
         const contentType = response.headers.get('content-type');
@@ -416,6 +416,37 @@ class HttpClient {
         }
 
         return await response.text();
+    }
+
+    async extractErrorMessage(response) {
+        const rawBody = (await response.text()).trim();
+        if (!rawBody) {
+            return `HTTP ${response.status}`;
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            try {
+                const payload = JSON.parse(rawBody);
+                if (typeof payload === 'string' && payload.trim()) {
+                    return payload.trim();
+                }
+
+                if (payload && typeof payload === 'object') {
+                    const candidate = payload.error
+                        || payload.Error
+                        || payload.message
+                        || payload.Message;
+                    if (typeof candidate === 'string' && candidate.trim()) {
+                        return candidate.trim();
+                    }
+                }
+            } catch (error) {
+                console.warn('[HttpClient] Failed to parse JSON error payload:', error);
+            }
+        }
+
+        return rawBody;
     }
 }
 

@@ -9,14 +9,11 @@ import { AiPanel } from './features/ai/aiPanel.js';
 // ============================================
 // 全局错误捕获 - 用于调试
 // ============================================
-// 存储错误日志（限制最大条目数防止内存泄漏）
 window._errorLogs = [];
 
-const MAX_ERROR_LOGS = 100;  // 【修复】限制错误日志最大数量
-
+const MAX_ERROR_LOGS = 100;
 function addErrorLog(logEntry) {
     window._errorLogs.push(logEntry);
-    // 【修复】当超过最大限制时，移除最旧的日志
     if (window._errorLogs.length > MAX_ERROR_LOGS) {
         window._errorLogs.shift();
     }
@@ -27,23 +24,12 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error(errorInfo);
     addErrorLog({
         type: 'Error',
-        message: message,
-        source: source,
+        message,
+        source,
         line: lineno,
+        column: colno,
         time: new Date().toLocaleTimeString()
     });
-    const debugDiv = document.getElementById('debug-errors');
-    if (debugDiv) {
-        // 【修复】限制调试面板的DOM元素数量
-        const errorDiv = document.createElement('div');
-        errorDiv.style.cssText = 'color:red;margin:2px 0';
-        errorDiv.textContent = `❌ ${message} (Line ${lineno})`;
-        debugDiv.appendChild(errorDiv);
-        // 保持最多50条DOM记录
-        while (debugDiv.children.length > 50) {
-            debugDiv.removeChild(debugDiv.firstChild);
-        }
-    }
     return false;
 };
 
@@ -55,17 +41,6 @@ window.addEventListener('unhandledrejection', function(event) {
         message: errorMsg,
         time: new Date().toLocaleTimeString()
     });
-    const debugDiv = document.getElementById('debug-errors');
-    if (debugDiv) {
-        const errorDiv = document.createElement('div');
-        errorDiv.style.cssText = 'color:orange;margin:2px 0';
-        errorDiv.textContent = `⚠️ Promise: ${errorMsg}`;
-        debugDiv.appendChild(errorDiv);
-        // 【修复】限制调试面板的DOM元素数量
-        while (debugDiv.children.length > 50) {
-            debugDiv.removeChild(debugDiv.firstChild);
-        }
-    }
 });
 
 console.log('[App] Starting module imports...');
@@ -75,7 +50,6 @@ console.log('[App] Starting module imports...');
 // ============================================
 import { initAuth, logout, validateTokenAsync } from './features/auth/auth.js';
 if (!initAuth()) {
-    // initAuth 会处理跳转，这里直接返回
     throw new Error('未登录，正在跳转...');
 }
 
@@ -91,10 +65,10 @@ import { InspectionPanel } from './features/inspection/inspectionPanel.js';
 import { showToast, createModal, closeModal, createInput, createLabeledInput, createButton } from './shared/components/uiComponents.js';
 import { PropertyPanel } from './features/flow-editor/propertyPanel.js';
 import { ProjectView } from './features/project/projectView.js';
-import projectManager, { 
-    getCurrentProject, 
+import projectManager, {
+    getCurrentProject,
     setCurrentProject,
-    subscribeProject 
+    subscribeProject
 } from './features/project/projectManager.js';
 import { ResultPanel } from './features/results/resultPanel.js';
 
@@ -103,10 +77,8 @@ const [getCurrentView, setCurrentView, subscribeView] = createSignal('flow');
 const [getSelectedOperator, setSelectedOperator, subscribeSelectedOperator] = createSignal(null);
 const [getOperatorLibrary, setOperatorLibrary, subscribeOperatorLibrary] = createSignal([]);
 
-// 【修复】订阅管理器，防止内存泄漏
+// 订阅管理器，防止内存泄漏
 const subscriptions = [];
-
-// 【修复】包装订阅函数，自动跟踪取消函数
 function trackedSubscribe(subscribeFn, callback) {
     const unsubscribe = subscribeFn(callback);
     subscriptions.push(unsubscribe);
@@ -126,80 +98,43 @@ let aiPanel = null;
 
 // 自动保存定时器
 let autoSaveInterval = null;
-const AUTO_SAVE_DELAY = 5 * 60 * 1000; // 5分钟
+const AUTO_SAVE_DELAY = 5 * 60 * 1000;
 
 /**
  * 初始化应用
  */
 function initializeApp() {
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-    console.error('[App] 初始化应用正在执行...');
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     console.log('[App] 初始化应用...');
-    
-    // 后台验证 Token 有效性
+
     validateTokenAsync().then(isValid => {
         if (isValid) {
-            // Update user info in status bar
             const userNameEl = document.getElementById('user-display-name');
             if (userNameEl && window.currentUser) {
                 userNameEl.textContent = window.currentUser.displayName || window.currentUser.username || '--';
             }
-        } else {
-            console.warn('[App] Token 无效或已过期，正在跳转到登录页...');
-            showToast('登录已过期，请重新登录', 'warning');
-            // 延迟跳转，让用户看清提示
-            setTimeout(() => logout(), 1500);
+            return;
         }
+
+        console.warn('[App] Token 无效或已过期，正在跳转到登录页...');
+        showToast('登录已过期，请重新登录', 'warning');
+        setTimeout(() => logout(), 1500);
     });
-    
-    // 显示加载骨架屏
+
     showLoadingScreen();
-    
-    console.log('[App] Debug indicators removed for production');
-    
-    // 初始化导航
     initializeNavigation();
-    
-    // 初始化算子库面板
     initializeOperatorLibraryPanel();
-    
-    // 初始化流程编辑器
     initializeFlowEditor();
-    
-    // 初始化图像查看器
     initializeImageViewer();
-    
-    // 初始化 WebMessage 通信
     initializeWebMessage();
-    
-    // 初始化检测控制器
     initializeInspectionController();
-    
-    // 初始化属性面板
     initializePropertyPanel();
-
-    // 初始化工程视图
     initializeProjectView();
-
-    // 初始化结果面板（数显功能）
     initializeResultPanel();
-
-    // 初始化 AI 生成对话框
-
-    // 初始化主题
     initializeTheme();
+    initializeToolbar();
+    startStatusBarUpdates();
 
     console.log('[App] 应用初始化完成');
-
-    // 初始化工具栏按钮
-    initializeToolbar();
-    
-    // 【修复】启动状态栏更新（内存、FPS）
-    startStatusBarUpdates();
-    console.log('[App] 状态栏更新已启动');
-    
-    // 显示欢迎消息
     showToast('ClearVision 已就绪', 'success');
 }
 
@@ -208,14 +143,12 @@ function initializeApp() {
  */
 function initializeNavigation() {
     const navButtons = document.querySelectorAll('.nav-btn');
-    
+
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            // 更新活动状态
             navButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
-            // 切换视图
+
             const view = btn.dataset.view;
             setCurrentView(view);
             switchView(view);
@@ -656,6 +589,7 @@ function initializeResultPanel() {
     // 初始化结果面板（不传入容器ID，面板会管理整个视图）
     resultPanel = new ResultPanel('results-list-container');
     window.resultPanel = resultPanel;
+    resultPanel.setHistoryLoader(loadInspectionHistory);
 
     // 设置结果点击回调
     resultPanel.onResultClick = (result) => {
@@ -683,29 +617,45 @@ function initializeResultPanel() {
 /**
  * 加载检测历史数据
  */
-async function loadInspectionHistory() {
+async function loadInspectionHistory({
+    pageIndex = 0,
+    pageSize = resultPanel?.pageSize ?? 12,
+    startTime = resultPanel?.getAnalyticsQueryParams?.().startTime,
+    endTime = resultPanel?.getAnalyticsQueryParams?.().endTime
+} = {}) {
     const project = getCurrentProject();
     if (!project) {
         console.log('[App] 没有打开的工程，跳过加载历史数据');
-        return;
+        return false;
     }
 
     try {
         console.log('[App] 正在加载检测历史数据...');
         const response = await httpClient.get(`/inspection/history/${project.id}`, {
-            pageIndex: 0,
-            pageSize: 50
+            pageIndex,
+            pageSize,
+            ...(startTime ? { startTime } : {}),
+            ...(endTime ? { endTime } : {})
         });
 
         const results = Array.isArray(response)
             ? response
             : (response?.items || response?.Items || []);
+        const totalCount = Array.isArray(response)
+            ? results.length
+            : (response?.totalCount ?? response?.TotalCount ?? results.length);
+        const resolvedPageIndex = Array.isArray(response)
+            ? pageIndex
+            : (response?.pageIndex ?? response?.PageIndex ?? pageIndex);
+        const resolvedPageSize = Array.isArray(response)
+            ? pageSize
+            : (response?.pageSize ?? response?.PageSize ?? pageSize);
 
         if (resultPanel) {
             resultPanel.setProjectContext(project.id);
         }
 
-        if (Array.isArray(results)) {
+        if (Array.isArray(results) && resultPanel) {
             const normalizedResults = results.map(result => ({
                 status: result.status,
                 defects: result.defects || result.Defects || [],
@@ -717,21 +667,27 @@ async function loadInspectionHistory() {
                 outputData: result.outputData || result.OutputData || {}
             }));
 
-            resultPanel.loadResults(normalizedResults);
+            resultPanel.loadResults(normalizedResults, {
+                totalCount,
+                pageIndex: resolvedPageIndex,
+                pageSize: resolvedPageSize,
+                serverPaged: true
+            });
+
             if (typeof resultPanel.loadServerAnalytics === 'function') {
                 await resultPanel.loadServerAnalytics();
             }
+
             console.log(`[App] 已加载 ${normalizedResults.length} 条历史检测记录`);
         }
+
+        return true;
     } catch (error) {
         console.error('[App] 加载检测历史数据失败:', error);
-        // 不显示错误提示，因为这是后台加载
+        return false;
     }
 }
 
-/**
- * 更新右侧结果面板（简化显示）
- */
 function updateResultsPanel(data) {
     // 更新结果面板 - 显示检测结果
     const resultsPanel = document.getElementById('inspection-results-panel') || document.getElementById('results-panel');
@@ -1858,3 +1814,4 @@ export {
     showImportDialog,
     triggerAutoSave
 };
+

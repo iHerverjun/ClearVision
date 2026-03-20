@@ -967,7 +967,6 @@ class InspectionPanel {
         this.tryAutoRunIfNeeded();
     }
 
-    */
     /**
      * 销毁组件，清理资源
      */

@@ -27,6 +27,10 @@ class ResultPanel {
         this.currentPage = 1;
         this.pageSize = 12;
         this.totalPages = 1;
+        this.totalResultCount = 0;
+        this.serverPageIndex = 0;
+        this.serverPaged = false;
+        this.historyLoader = null;
         
         // 筛选
         this.filters = {
@@ -114,9 +118,16 @@ class ResultPanel {
         const { startTime, endTime } = this.getTimeRangeBounds(range);
         this.filters.startTime = startTime;
         this.filters.endTime = endTime;
+        this.currentPage = 1;
         
         this.applyFilters();
         this.render();
+
+        if (this.projectId && this.historyLoader) {
+            this.requestHistoryPage(0).catch(error => {
+                console.warn('[ResultPanel] 刷新服务端历史失败:', error);
+            });
+        }
 
         if (this.projectId) {
             this.loadServerAnalytics().catch(error => {
@@ -124,7 +135,6 @@ class ResultPanel {
             });
         }
     }
-
     getTimeRangeBounds(range = this.timeRange) {
         const now = new Date();
 
@@ -168,9 +178,35 @@ class ResultPanel {
             this.serverReport = null;
             this.serverAnalysis = null;
             this.serverAnalysisSource = 'local';
+            this.totalResultCount = 0;
+            this.serverPageIndex = 0;
+            this.serverPaged = false;
         }
     }
 
+    setHistoryLoader(loader) {
+        this.historyLoader = typeof loader === 'function' ? loader : null;
+    }
+
+    hasLocalPageFilters() {
+        return this.filters.status !== 'all' || this.filters.defectType !== 'all';
+    }
+
+    isServerPaginationActive() {
+        return this.serverPaged && !this.hasLocalPageFilters();
+    }
+
+    requestHistoryPage(pageIndex = 0) {
+        if (!this.historyLoader || !this.projectId) {
+            return Promise.resolve(false);
+        }
+
+        return this.historyLoader({
+            pageIndex,
+            pageSize: this.pageSize,
+            ...this.getAnalyticsQueryParams()
+        });
+    }
     getAnalyticsQueryParams() {
         const { startTime, endTime } = this.getTimeRangeBounds(this.timeRange);
         const params = {};
@@ -368,6 +404,26 @@ class ResultPanel {
      * 添加结果
      */
     addResult(result) {
+        if (this.serverPaged) {
+            this.totalResultCount += 1;
+
+            if (this.currentPage === 1) {
+                this.results.unshift(result);
+                if (this.results.length > this.pageSize) {
+                    this.results = this.results.slice(0, this.pageSize);
+                }
+            }
+
+            this.applyFilters();
+
+            if (this.projectId) {
+                this.queueServerAnalyticsRefresh();
+            }
+
+            this.render();
+            return;
+        }
+
         this.results.unshift(result);
         this.applyFilters();
         
@@ -416,14 +472,24 @@ class ResultPanel {
     /**
      * 加载历史结果
      */
-    loadResults(results, total = null) {
-        this.results = results;
+    loadResults(results, { totalCount = null, pageIndex = 0, pageSize = this.pageSize, serverPaged = false } = {}) {
+        this.results = Array.isArray(results) ? results : [];
+        this.serverPaged = !!serverPaged;
+        this.serverPageIndex = Math.max(0, pageIndex);
+        this.pageSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : this.pageSize;
+        this.totalResultCount = Number.isFinite(totalCount) ? totalCount : this.results.length;
+        this.currentPage = this.serverPaged ? this.serverPageIndex + 1 : 1;
         this.applyFilters();
-        this.calculateStatistics();
-        this.updateTrendData();
+
+        if (!this.serverPaged || this.serverAnalysisSource !== 'server') {
+            this.calculateStatistics();
+            this.updateTrendData();
+        } else {
+            this.updateDefectTypeFilter();
+        }
+
         this.render();
     }
-    
     /**
      * 计算统计
      */
@@ -520,11 +586,21 @@ class ResultPanel {
             
             return true;
         });
-        
-        // 重新计算总页数
+
+        if (this.serverPaged) {
+            if (this.hasLocalPageFilters()) {
+                this.totalPages = 1;
+                this.currentPage = 1;
+                return;
+            }
+
+            this.totalPages = Math.ceil(this.totalResultCount / this.pageSize) || 1;
+            this.currentPage = this.serverPageIndex + 1;
+            return;
+        }
+
         this.totalPages = Math.ceil(this.filteredResults.length / this.pageSize) || 1;
         
-        // 确保当前页有效
         if (this.currentPage > this.totalPages) {
             this.currentPage = this.totalPages;
         }
@@ -545,6 +621,14 @@ class ResultPanel {
      */
     goToPage(page) {
         if (page < 1 || page > this.totalPages) return;
+
+        if (this.isServerPaginationActive()) {
+            this.requestHistoryPage(page - 1).catch(error => {
+                console.warn('[ResultPanel] 翻页加载服务端历史失败:', error);
+            });
+            return;
+        }
+
         this.currentPage = page;
         this.render();
     }
@@ -561,6 +645,9 @@ class ResultPanel {
         this.serverReport = null;
         this.serverAnalysis = null;
         this.serverAnalysisSource = 'local';
+        this.totalResultCount = 0;
+        this.serverPageIndex = 0;
+        this.serverPaged = false;
         this.currentPage = 1;
         this.applyFilters();
         this.render();
@@ -775,30 +862,37 @@ class ResultPanel {
         const gridContainer = document.getElementById('results-grid');
         const countInfo = document.getElementById('results-count-info');
         if (!gridContainer) return;
-        
+
+        const pageResults = this.serverPaged
+            ? this.filteredResults
+            : this.filteredResults.slice(
+                (this.currentPage - 1) * this.pageSize,
+                Math.min(this.currentPage * this.pageSize, this.filteredResults.length)
+            );
+
         if (countInfo) {
-            countInfo.textContent = `共 ${this.filteredResults.length} 条记录`;
+            if (this.serverPaged && !this.hasLocalPageFilters()) {
+                countInfo.textContent = `当前页 ${pageResults.length} 条 / 共 ${this.totalResultCount} 条记录`;
+            } else if (this.serverPaged && this.hasLocalPageFilters()) {
+                countInfo.textContent = `当前页筛选命中 ${this.filteredResults.length} 条`;
+            } else {
+                countInfo.textContent = `共 ${this.filteredResults.length} 条记录`;
+            }
         }
-        
-        if (this.filteredResults.length === 0) {
+
+        if (pageResults.length === 0) {
             gridContainer.innerHTML = '<p class="empty-text">暂无检测结果</p>';
             return;
         }
-        
-        // 计算当前页的数据
-        const startIndex = (this.currentPage - 1) * this.pageSize;
-        const endIndex = Math.min(startIndex + this.pageSize, this.filteredResults.length);
-        const pageResults = this.filteredResults.slice(startIndex, endIndex);
-        
+
         gridContainer.innerHTML = pageResults.map((result, index) => {
             const statusClass = result.status?.toLowerCase() || 'unknown';
             const time = result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : '--:--:--';
             const processingTime = result.processingTime || result.executionTimeMs || '--';
-            const globalIndex = startIndex + index;
             const outputDataHtml = this.renderOutputDataPreview(result.outputData);
-            
+
             return `
-                <div class="result-card result-${statusClass}" data-index="${globalIndex}" style="cursor:pointer;">
+                <div class="result-card result-${statusClass}" data-index="${index}" style="cursor:pointer;">
                     <div class="result-card-header">
                         <span class="result-status-badge ${statusClass}">${result.status || 'Unknown'}</span>
                         <span class="result-time">${time}</span>
@@ -811,12 +905,11 @@ class ResultPanel {
                 </div>
             `;
         }).join('');
-        
-        // 绑定点击事件
+
         gridContainer.querySelectorAll('.result-card').forEach(card => {
             card.addEventListener('click', (e) => {
-                const index = parseInt(e.currentTarget.dataset.index);
-                const result = this.filteredResults[index];
+                const index = parseInt(e.currentTarget.dataset.index, 10);
+                const result = pageResults[index];
                 if (result) {
                     this.showResultDetail(result);
                 }
@@ -830,6 +923,11 @@ class ResultPanel {
     renderPagination() {
         const paginationContainer = document.getElementById('results-pagination');
         if (!paginationContainer) return;
+
+        if (this.serverPaged && this.hasLocalPageFilters()) {
+            paginationContainer.innerHTML = '';
+            return;
+        }
         
         if (this.totalPages <= 1) {
             paginationContainer.innerHTML = '';
@@ -1174,3 +1272,4 @@ let resultPanel = null;
 
 export default ResultPanel;
 export { ResultPanel };
+
