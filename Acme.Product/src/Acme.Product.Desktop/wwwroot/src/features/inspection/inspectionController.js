@@ -218,21 +218,26 @@ class InspectionController {
      * 【架构修复 v2】处理结果事件
      */
     handleResultEvent(data) {
-        // 构造与旧版兼容的结果格式
-        const result = {
+        const result = this.normalizeResultPayload({
             id: data.resultId,
             projectId: data.projectId,
             status: data.status,
-            defects: [],  // 详细数据在完整结果中
+            defects: data.defects || [],
+            defectCount: data.defectCount,
             processingTimeMs: data.processingTimeMs,
-            timestamp: data.timestamp
-        };
+            timestamp: data.timestamp,
+            outputData: data.outputData,
+            outputDataJson: data.outputDataJson,
+            analysisData: data.analysisData,
+            analysisDataJson: data.analysisDataJson,
+            outputImageBase64: data.outputImageBase64
+        });
 
         setLastResult(result);
 
         // 如果有输出图像，显示它
-        if (data.outputImageBase64) {
-            const imageData = `data:image/png;base64,${data.outputImageBase64}`;
+        if (result.outputImageBase64) {
+            const imageData = `data:image/png;base64,${result.outputImageBase64}`;
             if (window.inspectionImageViewer) {
                 window.inspectionImageViewer.loadImage(imageData);
             }
@@ -240,6 +245,8 @@ class InspectionController {
                 window.imageViewer.loadImage(imageData);
             }
         }
+
+        this.notifyInspectionCompleted(result);
     }
 
     /**
@@ -456,24 +463,20 @@ class InspectionController {
      * 处理检测完成
      */
     handleInspectionCompleted(result) {
-        if (result.outputDataJson && (!result.outputData || Object.keys(result.outputData).length === 0)) {
-            try {
-                result.outputData = JSON.parse(result.outputDataJson);
-            } catch (e) {
-                console.warn('[InspectionController] 解析 outputDataJson 失败:', e);
-            }
-        }
+        const normalizedResult = this.normalizeResultPayload(result);
 
-        setLastResult(result);
+        setLastResult(normalizedResult);
 
         setInspectionState({
             ...getInspectionState(),
             isRunning: false,
             progress: 100,
-            status: result.status === 'Error' ? 'error' : 'completed'
+            status: normalizedResult.status === 'Error' ? 'error' : 'completed'
         });
 
-        const outputImage = result.outputImage || result.resultImageBase64;
+        const outputImage = normalizedResult.outputImage
+            || normalizedResult.resultImageBase64
+            || normalizedResult.outputImageBase64;
         if (outputImage) {
             const imageData = `data:image/png;base64,${outputImage}`;
 
@@ -486,15 +489,7 @@ class InspectionController {
             }
         }
 
-        if (this._onCompletedCallbacks) {
-            this._onCompletedCallbacks.forEach(cb => {
-                try {
-                    cb(result);
-                } catch (callbackError) {
-                    console.error('[InspectionController] 完成回调执行失败:', callbackError);
-                }
-            });
-        }
+        this.notifyInspectionCompleted(normalizedResult);
     }
 
     /**
@@ -642,6 +637,100 @@ class InspectionController {
      */
     isRealtime() {
         return getInspectionState().isRealtime;
+    }
+
+    normalizeResultPayload(result) {
+        const normalized = { ...(result || {}) };
+
+        const outputData = this.parseJsonField(
+            this.readFirstDefined(normalized.outputData, normalized.OutputData),
+            normalized.outputDataJson || normalized.OutputDataJson,
+            'outputDataJson'
+        );
+        if (outputData) {
+            normalized.outputData = outputData;
+        }
+
+        const analysisData = this.parseJsonField(
+            this.readFirstDefined(normalized.analysisData, normalized.AnalysisData),
+            normalized.analysisDataJson || normalized.AnalysisDataJson,
+            'analysisDataJson'
+        );
+        if (analysisData) {
+            normalized.analysisData = analysisData;
+        }
+
+        normalized.defects = Array.isArray(normalized.defects)
+            ? normalized.defects
+            : (Array.isArray(normalized.Defects) ? normalized.Defects : []);
+        normalized.defectCount = this.readFirstDefined(
+            normalized.defectCount,
+            normalized.DefectCount,
+            normalized.defects?.length,
+            normalized.Defects?.length
+        ) ?? 0;
+        normalized.processingTimeMs = normalized.processingTimeMs
+            ?? normalized.ProcessingTimeMs
+            ?? normalized.processingTime
+            ?? normalized.executionTimeMs
+            ?? normalized.ExecutionTimeMs;
+        normalized.timestamp = normalized.timestamp
+            ?? normalized.Timestamp
+            ?? normalized.inspectionTime
+            ?? normalized.InspectionTime;
+
+        normalized.outputImage = normalized.outputImage || normalized.OutputImage;
+        normalized.outputImageBase64 = normalized.outputImageBase64 || normalized.OutputImageBase64;
+        normalized.resultImageBase64 = normalized.resultImageBase64 || normalized.ResultImageBase64;
+
+        return normalized;
+    }
+
+    parseJsonField(directValue, serializedValue, fieldName) {
+        if (this.hasMeaningfulStructuredValue(directValue)) {
+            return directValue;
+        }
+
+        if (typeof serializedValue !== 'string' || serializedValue.trim().length === 0) {
+            return directValue || null;
+        }
+
+        try {
+            return JSON.parse(serializedValue);
+        } catch (error) {
+            console.warn(`[InspectionController] 解析 ${fieldName} 失败:`, error);
+            return directValue || null;
+        }
+    }
+
+    hasMeaningfulStructuredValue(value) {
+        if (!value || typeof value !== 'object') {
+            return false;
+        }
+
+        if (Array.isArray(value)) {
+            return value.length > 0;
+        }
+
+        return Object.keys(value).length > 0;
+    }
+
+    readFirstDefined(...values) {
+        return values.find(value => value !== undefined && value !== null);
+    }
+
+    notifyInspectionCompleted(result) {
+        if (!this._onCompletedCallbacks) {
+            return;
+        }
+
+        this._onCompletedCallbacks.forEach(cb => {
+            try {
+                cb(result);
+            } catch (callbackError) {
+                console.error('[InspectionController] 完成回调执行失败:', callbackError);
+            }
+        });
     }
 }
 

@@ -298,9 +298,14 @@ class InspectionPanel {
     handleInspectionResult(result) {
         this.clearProtectionWatchdog();
 
-        if (this.analysisCardsPanel && result.outputData) {
+        const analysisPayload = this.getAnalysisPayload(result);
+        if (this.analysisCardsPanel) {
             this.syncAnalysisFlowContext();
-            this.analysisCardsPanel.updateCards(result.outputData, result.status, result.processingTimeMs);
+            if (analysisPayload) {
+                this.analysisCardsPanel.updateCards(analysisPayload, result.status, result.processingTimeMs);
+            } else {
+                this.analysisCardsPanel.clear();
+            }
         }
 
         const status = result.status === 'OK' ? 'ok' : result.status === 'Error' ? 'error' : 'ng';
@@ -329,7 +334,7 @@ class InspectionPanel {
         }
 
         this.updateCounters();
-        this.setButtonsState(false);
+        this.setButtonsState(this.isContinuous);
 
         if (result.status === 'NG') {
             this.consecutiveNgCount += 1;
@@ -633,8 +638,9 @@ class InspectionPanel {
      */
     _legacyHandleInspectionResultDuplicate2(result) {
         // 更新卡片分析
-        if (this.analysisCardsPanel && result.outputData) {
-            this.analysisCardsPanel.updateCards(result.outputData, result.status, result.processingTimeMs);
+        const analysisPayload = this.getAnalysisPayload(result);
+        if (this.analysisCardsPanel && analysisPayload) {
+            this.analysisCardsPanel.updateCards(analysisPayload, result.status, result.processingTimeMs);
         }
 
         // 更新状态
@@ -762,8 +768,9 @@ class InspectionPanel {
             id: Date.now(),
             status: result.status,
             timestamp: new Date().toLocaleTimeString(),
-            imageData: result.outputImage || result.imageData,
-            outputData: result.outputData || {}
+            imageData: result.outputImage || result.outputImageBase64 || result.imageData,
+            outputData: result.outputData || {},
+            analysisData: result.analysisData || null
         };
         
         const updated = [newResult, ...recent].slice(0, 5);
@@ -784,7 +791,7 @@ class InspectionPanel {
         
         grid.innerHTML = recent.map(result => {
             // 提取文本摘要（OCR/条码等输出的文本数据）
-            const textPreview = this.extractTextPreview(result.outputData);
+            const textPreview = this.extractTextPreview(result.outputData, result.analysisData);
             
             return `
             <div class="recent-result-item ${result.status === 'OK' ? 'result-ok' : 'result-ng'}" data-id="${result.id}">
@@ -838,20 +845,100 @@ class InspectionPanel {
      * 从输出数据中提取文本摘要
      */
     extractTextPreview(outputData) {
+        const analysisData = arguments[1];
+        if (analysisData && Array.isArray(analysisData.cards)) {
+            for (const card of analysisData.cards) {
+                const fields = Array.isArray(card?.fields) ? card.fields : [];
+                for (const field of fields) {
+                    if ((typeof field?.value === 'string' || typeof field?.value === 'number') && field.value !== '') {
+                        return field.label ? `${field.label}: ${field.value}` : String(field.value);
+                    }
+                }
+            }
+        }
+
         if (!outputData) return null;
-        // 优先展示 Text 字段（OCR/条码识别结果）
-        if (outputData.Text && typeof outputData.Text === 'string') return outputData.Text;
-        if (outputData.text && typeof outputData.text === 'string') return outputData.text;
-        // 其他字符串类型字段
-        for (const [key, value] of Object.entries(outputData)) {
-            if (key === 'Image' || key === 'image') continue;
-            if (typeof value === 'string' && value.length > 0 && value.length < 200) return `${key}: ${value}`;
+
+        const recognitionEntries = [
+            ['Text', outputData.Text],
+            ['text', outputData.text],
+            ['RecognizedText', outputData.RecognizedText],
+            ['recognizedText', outputData.recognizedText],
+            ['OcrResult', outputData.OcrResult],
+            ['ocrResult', outputData.ocrResult]
+        ];
+
+        for (const [key, value] of recognitionEntries) {
+            if (typeof value === 'string' && this.isMeaningfulRecognitionText(value, outputData, key)) {
+                return value;
+            }
         }
-        // 数值类型字段
-        for (const [key, value] of Object.entries(outputData)) {
-            if (typeof value === 'number') return `${key}: ${Number.isInteger(value) ? value : value.toFixed(3)}`;
-        }
+
         return null;
+    }
+
+    isMeaningfulRecognitionText(value, outputData, sourceKey = '') {
+        if (typeof value !== 'string') {
+            return false;
+        }
+
+        const text = value.trim();
+        if (!text || text.length >= 200) {
+            return false;
+        }
+
+        return !this.isStructuredExportText(text, outputData, sourceKey);
+    }
+
+    isStructuredExportText(value, outputData, sourceKey = '') {
+        const text = String(value || '').trim();
+        if (!text) {
+            return false;
+        }
+
+        const normalizedSourceKey = String(sourceKey || '').toLowerCase();
+        if (this.isExportMetadataKey(normalizedSourceKey)) {
+            return true;
+        }
+
+        const looksLikeStructuredPayload =
+            (text.startsWith('{') && text.endsWith('}')) ||
+            (text.startsWith('[') && text.endsWith(']'));
+        if (!looksLikeStructuredPayload) {
+            return false;
+        }
+
+        const exportHintKeys = ['Format', 'format', 'SaveToFile', 'saveToFile', 'Output', 'output', 'FilePath', 'filePath', 'SaveError', 'saveError'];
+        const hasExportHints = Object.keys(outputData || {}).some(key => exportHintKeys.includes(key));
+        if (hasExportHints) {
+            return true;
+        }
+
+        return text.includes('"Format"')
+            || text.includes('"SaveToFile"')
+            || text.includes('"FilePath"')
+            || text.includes('"SaveError"');
+    }
+
+    isExportMetadataKey(key) {
+        return [
+            'format',
+            'savetofile',
+            'output',
+            'filepath',
+            'saveerror',
+            'success'
+        ].includes(String(key || '').toLowerCase());
+    }
+
+    getAnalysisPayload(result) {
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        return result.analysisData
+            || result.AnalysisData
+            || null;
     }
     
     /**
@@ -986,8 +1073,9 @@ class InspectionPanel {
     _legacyHandleInspectionResultDuplicate(result) {
         this.clearProtectionWatchdog();
 
-        if (this.analysisCardsPanel && result.outputData) {
-            this.analysisCardsPanel.updateCards(result.outputData, result.status, result.processingTimeMs);
+        const analysisPayload = this.getAnalysisPayload(result);
+        if (this.analysisCardsPanel && analysisPayload) {
+            this.analysisCardsPanel.updateCards(analysisPayload, result.status, result.processingTimeMs);
         }
 
         const status = result.status === 'OK' ? 'ok' : result.status === 'Error' ? 'error' : 'ng';

@@ -500,6 +500,52 @@ function updateInspectionResultsPanel(result) {
     // 保留空函数以兼容 initializeInspectionController 中的调用
 }
 
+function tryParseJsonPayload(payload) {
+    if (typeof payload !== 'string' || payload.trim().length === 0) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(payload);
+    } catch (error) {
+        console.warn('[App] JSON payload 解析失败:', error);
+        return null;
+    }
+}
+
+function normalizeAnalysisData(result) {
+    if (!result || typeof result !== 'object') {
+        return null;
+    }
+
+    return result.analysisData
+        || result.AnalysisData
+        || tryParseJsonPayload(result.analysisDataJson)
+        || tryParseJsonPayload(result.AnalysisDataJson)
+        || null;
+}
+
+function buildResultDefects(result) {
+    const actualDefects = result?.defects || result?.Defects;
+    if (Array.isArray(actualDefects) && actualDefects.length > 0) {
+        return actualDefects;
+    }
+
+    const defectCount = Number(
+        result?.defectCount
+        ?? result?.DefectCount
+        ?? 0
+    );
+    if (!Number.isFinite(defectCount) || defectCount <= 0) {
+        return [];
+    }
+
+    return Array.from({ length: defectCount }, (_, index) => ({
+        type: `目标 ${index + 1}`,
+        description: '实时结果未携带缺陷详情'
+    }));
+}
+
 /**
  * 初始化算子库面板
  */
@@ -575,8 +621,9 @@ function initializeInspectionController() {
         // 如果在检测视图，立即更新检测面板和图像查看器
         if (getCurrentView() === 'inspection') {
             // 显示处理后的图像
-            if (result.outputImage && window.inspectionImageViewer) {
-                const imageData = `data:image/png;base64,${result.outputImage}`;
+            const outputImage = result.outputImage || result.outputImageBase64 || result.resultImageBase64;
+            if (outputImage && window.inspectionImageViewer) {
+                const imageData = `data:image/png;base64,${outputImage}`;
                 window.inspectionImageViewer.loadImage(imageData);
             }
 
@@ -595,15 +642,17 @@ function initializeInspectionController() {
                 return;
             }
 
+            const normalizedDefects = buildResultDefects(result);
             panel.setProjectContext(currentProject?.id || null);
             panel.addResult({
                 status: result.status,
-                defects: result.defects || [],
+                defects: normalizedDefects,
                 processingTime: result.processingTimeMs,
-                timestamp: new Date().toISOString(),
+                timestamp: result.timestamp || result.inspectionTime || new Date().toISOString(),
                 confidenceScore: result.confidenceScore,
-                imageData: result.outputImage,
-                outputData: result.outputData || {}
+                imageData: result.outputImage || result.outputImageBase64 || result.resultImageBase64 || result.imageData,
+                outputData: result.outputData || {},
+                analysisData: normalizeAnalysisData(result)
             });
 
             if (currentProject?.id && typeof panel.loadServerAnalytics === 'function') {
@@ -634,8 +683,9 @@ function initializeInspectionController() {
             status = 'error';
             message = `检测错误: ${result.errorMessage || '未知错误'}`;
         } else {
+            const defectCount = result.defectCount ?? result.DefectCount ?? buildResultDefects(result).length;
             status = 'warning';
-            message = `检测到 ${result.defects?.length || 0} 个目标`;
+            message = `检测到 ${defectCount} 个目标`;
         }
         showToast(message, status);
     });
@@ -736,14 +786,17 @@ async function loadInspectionHistory({
 
         if (Array.isArray(results) && resultPanel) {
             const normalizedResults = results.map(result => ({
+                id: result.id || result.Id,
                 status: result.status,
-                defects: result.defects || result.Defects || [],
-                processingTime: result.processingTimeMs ?? result.processingTime ?? result.executionTimeMs,
-                timestamp: result.timestamp || result.Timestamp,
+                defects: buildResultDefects(result),
+                defectCount: result.defectCount ?? result.DefectCount ?? result.defects?.length ?? result.Defects?.length ?? 0,
+                processingTime: result.processingTimeMs ?? result.ProcessingTimeMs ?? result.processingTime ?? result.executionTimeMs,
+                timestamp: result.timestamp || result.Timestamp || result.inspectionTime || result.InspectionTime,
                 confidenceScore: result.confidenceScore ?? result.ConfidenceScore,
-                imageData: result.imageData || result.ImageData,
+                imageData: result.outputImage || result.OutputImage || result.imageData || result.ImageData,
                 imageId: result.imageId || result.ImageId,
-                outputData: result.outputData || result.OutputData || {}
+                outputData: result.outputData || result.OutputData || {},
+                analysisData: normalizeAnalysisData(result)
             }));
 
             resultPanel.loadResults(normalizedResults, {

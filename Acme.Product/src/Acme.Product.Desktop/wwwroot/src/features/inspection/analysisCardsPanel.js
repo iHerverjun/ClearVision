@@ -159,12 +159,17 @@ class AnalysisCardsPanel {
      * @param {string} status - 检测状态 OK/NG/Error
      * @param {number} [processingTimeMs] - 处理耗时
      */
-    updateCards(outputData, status, processingTimeMs) {
-        if (!this.container || !outputData) return;
+    updateCards(data, status, processingTimeMs) {
+        if (!this.container || !data) return;
 
-        this.lastOutputData = outputData;
-        const cardGroups = this._classifyOutputData(outputData, status, processingTimeMs);
-        this._renderCards(cardGroups);
+        this.lastOutputData = data;
+
+        if (this._isAnalysisData(data)) {
+            this._renderAnalysisData(this._normalizeAnalysisData(data), status);
+            return;
+        }
+
+        this.container.innerHTML = '<p class="empty-text">无显式分析数据</p>';
     }
 
     setFlowContext(flowData) {
@@ -179,6 +184,208 @@ class AnalysisCardsPanel {
         this.lastOutputData = null;
         this.cards = [];
         this.container.innerHTML = '<p class="empty-text">等待检测结果...</p>';
+    }
+
+    _isAnalysisData(data) {
+        return !!data
+            && typeof data === 'object'
+            && (Array.isArray(data.cards) || Array.isArray(data.Cards));
+    }
+
+    _normalizeAnalysisData(data) {
+        if (!data || typeof data !== 'object') {
+            return { version: 1, cards: [] };
+        }
+
+        return {
+            version: data.version ?? data.Version ?? 1,
+            cards: Array.isArray(data.cards) ? data.cards : (Array.isArray(data.Cards) ? data.Cards : []),
+            summary: data.summary ?? data.Summary ?? null
+        };
+    }
+
+    _renderAnalysisData(analysisData, fallbackStatus) {
+        const cards = Array.isArray(analysisData?.cards) ? [...analysisData.cards] : [];
+        if (cards.length === 0) {
+            this.container.innerHTML = '<p class="empty-text">无分析数据</p>';
+            return;
+        }
+
+        cards.sort((left, right) => {
+            const leftPriority = Number(left?.priority ?? 0);
+            const rightPriority = Number(right?.priority ?? 0);
+            return rightPriority - leftPriority;
+        });
+
+        this.container.innerHTML = cards
+            .map(card => this._renderAnalysisCard(card, fallbackStatus))
+            .join('');
+
+        this._bindToggleEvents();
+    }
+
+    _renderAnalysisCard(card, fallbackStatus) {
+        const category = String(card?.category || 'generic').toLowerCase();
+        switch (category) {
+            case 'measurement':
+                return this._renderStructuredMeasurementCard(card, fallbackStatus);
+            case 'recognition':
+                return this._renderStructuredRecognitionCard(card, fallbackStatus);
+            default:
+                return this._renderStructuredGenericCard(card, fallbackStatus);
+        }
+    }
+
+    _renderStructuredMeasurementCard(card, fallbackStatus) {
+        const fields = Array.isArray(card?.fields) ? card.fields : [];
+        const cardStatus = card?.status || fallbackStatus || 'OK';
+        const rows = fields.map(field => {
+            const numericValue = typeof field?.value === 'number'
+                ? field.value
+                : Number.parseFloat(field?.value);
+            const displayValue = Number.isFinite(numericValue)
+                ? (Number.isInteger(numericValue) ? numericValue : numericValue.toFixed(2))
+                : (field?.value ?? '--');
+            const unit = field?.unit || '';
+            const icon = MEASUREMENT_ICON_MAP[this._normalizeFieldLookupKey(field?.key)]
+                || MEASUREMENT_ICON_MAP[this._normalizeFieldLookupKey(field?.label)]
+                || ICONS.ruler;
+            const fieldStatus = field?.status || cardStatus;
+            const isNG = fieldStatus === 'NG' || fieldStatus === 'Error';
+            const statusBadge = isNG
+                ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
+                : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
+
+            return `
+                <div class="ac-measurement-row">
+                    <div class="ac-measurement-header">
+                        <span class="ac-measurement-icon">${icon}</span>
+                        <span class="ac-measurement-label">${this._escapeHtml(field?.label || this._toDisplayName(field?.key || ''))}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="ac-measurement-value ${isNG ? 'ng' : 'ok'}">
+                        <span class="ac-big-number">${this._escapeHtml(String(displayValue))}</span>
+                        <span class="ac-unit">${this._escapeHtml(unit)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return this._wrapCard(
+            'measurement',
+            ICONS.ruler,
+            card?.title || '测量结果',
+            rows || '<p class="empty-text">无测量字段</p>',
+            this._toCardStatusClass(cardStatus)
+        );
+    }
+
+    _renderStructuredRecognitionCard(card, fallbackStatus) {
+        const fields = Array.isArray(card?.fields) ? card.fields : [];
+        const cardStatus = card?.status || fallbackStatus || 'OK';
+        const normalizedFields = fields.map(field => ({
+            ...field,
+            normalizedKey: String(field?.key || '').toLowerCase()
+        }));
+        const textField = normalizedFields.find(field => field.normalizedKey === 'text' || field.normalizedKey === 'recognizedtext');
+        const codeTypeField = normalizedFields.find(field => field.normalizedKey === 'codetype');
+        const confidence = Number(card?.meta?.confidence ?? card?.meta?.Confidence ?? NaN);
+        const confidencePct = Number.isFinite(confidence)
+            ? (confidence > 1 ? confidence : confidence * 100)
+            : null;
+        const displayText = textField?.value ?? '--';
+        const isNG = cardStatus === 'NG' || cardStatus === 'Error';
+        const statusBadge = isNG
+            ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
+            : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
+        const confidenceHtml = confidencePct === null ? '' : `
+            <div class="ac-ocr-confidence">
+                <div class="ac-ocr-conf-header">
+                    <span class="ac-ocr-conf-label">置信度</span>
+                    <span class="ac-ocr-conf-value ${confidencePct > 90 ? 'high' : confidencePct > 70 ? 'medium' : 'low'}">${confidencePct.toFixed(1)}%</span>
+                </div>
+                <div class="ac-progress-bar">
+                    <div class="ac-progress-fill ${confidencePct > 90 ? 'high' : confidencePct > 70 ? 'medium' : 'low'}" style="width: ${Math.min(confidencePct, 100)}%"></div>
+                </div>
+            </div>
+        `;
+
+        return this._wrapCard(
+            'ocr',
+            codeTypeField?.value ? ICONS.barcode : ICONS.ocr,
+            card?.title || '识别结果',
+            `
+                <div class="ac-ocr-section">
+                    <div class="ac-ocr-header">
+                        <span class="ac-ocr-type-label">${this._escapeHtml(codeTypeField?.value ? `识别结果 (${codeTypeField.value})` : '识别结果')}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="ac-ocr-text-box ${isNG ? 'ng' : 'ok'}">
+                        <span class="ac-ocr-text">${this._escapeHtml(String(displayText))}</span>
+                        ${!isNG ? `<span class="ac-ocr-check">${ICONS.check}</span>` : `<span class="ac-ocr-cross">${ICONS.cross}</span>`}
+                    </div>
+                    ${confidenceHtml}
+                </div>
+            `,
+            this._toCardStatusClass(cardStatus)
+        );
+    }
+
+    _renderStructuredGenericCard(card, fallbackStatus) {
+        const fields = Array.isArray(card?.fields) ? card.fields : [];
+        const rows = fields.map(field => {
+            const rawValue = field?.value;
+            const displayValue = typeof rawValue === 'object' && rawValue !== null
+                ? this._escapeHtml(JSON.stringify(rawValue))
+                : this._escapeHtml(String(rawValue ?? '--'));
+
+            return `
+                <div class="ac-generic-row">
+                    <span class="ac-generic-key">${this._escapeHtml(field?.label || this._toDisplayName(field?.key || ''))}</span>
+                    <span class="ac-generic-value">${displayValue}</span>
+                </div>
+            `;
+        }).join('');
+
+        return this._wrapCard(
+            'generic',
+            this._iconForCategory(card?.category),
+            card?.title || '分析结果',
+            rows || '<p class="empty-text">无分析字段</p>',
+            this._toCardStatusClass(card?.status || fallbackStatus || 'OK')
+        );
+    }
+
+    _iconForCategory(category) {
+        switch (String(category || '').toLowerCase()) {
+            case 'measurement':
+                return ICONS.ruler;
+            case 'recognition':
+                return ICONS.ocr;
+            case 'defect':
+                return ICONS.defect;
+            case 'match':
+                return ICONS.match;
+            default:
+                return ICONS.generic;
+        }
+    }
+
+    _toCardStatusClass(status) {
+        if (status === 'NG' || status === 'Error') {
+            return 'ng';
+        }
+
+        return 'ok';
+    }
+
+    _normalizeFieldLookupKey(value) {
+        const text = String(value || '').trim();
+        if (!text) {
+            return '';
+        }
+
+        return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     // ================================

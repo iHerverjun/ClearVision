@@ -906,7 +906,8 @@ class ResultPanel {
             const statusClass = result.status?.toLowerCase() || 'unknown';
             const time = result.timestamp ? new Date(result.timestamp).toLocaleTimeString() : '--:--:--';
             const processingTime = result.processingTime || result.executionTimeMs || '--';
-            const outputDataHtml = this.renderOutputDataPreview(result.outputData);
+            const outputDataHtml = this.renderAnalysisDataPreview(result.analysisData)
+                || this.renderOutputDataPreview(result.outputData);
 
             return `
                 <div class="result-card result-${statusClass}" data-index="${index}" style="cursor:pointer;">
@@ -1168,6 +1169,7 @@ class ResultPanel {
                             <div class="detail-item"><span class="detail-label">时间</span><span class="detail-value">${time}</span></div>
                             <div class="detail-item"><span class="detail-label">处理耗时</span><span class="detail-value">${processingTime}ms</span></div>
                         </div>
+                        ${this.renderAnalysisDataSection(result.analysisData)}
                         ${this.renderOutputDataTable(result.outputData)}
                         ${result.defects?.length > 0 ? `
                             <div class="detail-section">
@@ -1204,32 +1206,44 @@ class ResultPanel {
         if (!outputData || typeof outputData !== 'object' || Object.keys(outputData).length === 0) return '';
         
         const items = [];
-        for (const [key, value] of Object.entries(outputData)) {
-            // 跳过 Image 类型的数据（已在缩略图中展示）
-            if (key === 'Image' || key === 'image') continue;
-            // 跳过超长字符串（可能是 base64 图像数据）
-            if (typeof value === 'string' && value.length > 500) continue;
-            
-            if (typeof value === 'string') {
-                items.push(`<div class="output-data-item output-text">
-                    <span class="output-label">${this.escapeHtml(key)}</span>
-                    <span class="output-value" title="${this.escapeHtml(value)}">${this.escapeHtml(value.length > 30 ? value.substring(0, 30) + '...' : value)}</span>
-                </div>`);
-            } else if (typeof value === 'number') {
-                items.push(`<div class="output-data-item output-number">
-                    <span class="output-label">${this.escapeHtml(key)}</span>
-                    <span class="output-value">${Number.isInteger(value) ? value : value.toFixed(3)}</span>
-                </div>`);
-            } else if (typeof value === 'boolean') {
-                items.push(`<div class="output-data-item output-boolean">
-                    <span class="output-label">${this.escapeHtml(key)}</span>
-                    <span class="output-value ${value ? 'bool-true' : 'bool-false'}">${value ? '✓' : '✗'}</span>
-                </div>`);
+        const recognitionPreviewEntries = [
+            ['Text', outputData.Text],
+            ['RecognizedText', outputData.RecognizedText],
+            ['OcrResult', outputData.OcrResult],
+            ['text', outputData.text],
+            ['recognizedText', outputData.recognizedText],
+            ['ocrResult', outputData.ocrResult]
+        ];
+
+        for (const [key, value] of recognitionPreviewEntries) {
+            if (!this.isMeaningfulRecognitionText(value, outputData, key)) {
+                continue;
             }
-            
-            if (items.length >= 3) break;  // 卡片内最多展示3条
+
+            items.push(`<div class="output-data-item output-text">
+                <span class="output-label">${this.escapeHtml(key)}</span>
+                <span class="output-value" title="${this.escapeHtml(value)}">${this.escapeHtml(value.length > 30 ? value.substring(0, 30) + '...' : value)}</span>
+            </div>`);
+            break;
         }
         
+        return items.length > 0 ? `<div class="output-data-preview">${items.join('')}</div>` : '';
+    }
+
+    renderAnalysisDataPreview(analysisData) {
+        const cards = Array.isArray(analysisData?.cards) ? analysisData.cards : [];
+        if (cards.length === 0) {
+            return '';
+        }
+
+        const items = cards.slice(0, 3).map(card => {
+            const summary = this.getAnalysisCardSummary(card);
+            return `<div class="output-data-item output-text">
+                <span class="output-label">${this.escapeHtml(card.title || card.category || '分析卡片')}</span>
+                <span class="output-value" title="${this.escapeHtml(summary)}">${this.escapeHtml(summary.length > 30 ? summary.substring(0, 30) + '...' : summary)}</span>
+            </div>`;
+        });
+
         return items.length > 0 ? `<div class="output-data-preview">${items.join('')}</div>` : '';
     }
     
@@ -1240,9 +1254,12 @@ class ResultPanel {
         if (!outputData || typeof outputData !== 'object' || Object.keys(outputData).length === 0) return '';
         
         const rows = [];
+        let hiddenCount = 0;
         for (const [key, value] of Object.entries(outputData)) {
-            if (key === 'Image' || key === 'image') continue;
-            if (typeof value === 'string' && value.length > 500) continue;
+            if (this.shouldHideOutputDetailEntry(key, value, outputData)) {
+                hiddenCount += 1;
+                continue;
+            }
             
             let displayValue = '';
             let typeClass = '';
@@ -1267,8 +1284,145 @@ class ResultPanel {
             rows.push(`<div class="detail-item ${typeClass}"><span class="detail-label">${this.escapeHtml(key)}</span><span class="detail-value">${displayValue}</span></div>`);
         }
         
-        if (rows.length === 0) return '';
-        return `<div class="detail-section"><div class="detail-section-title">算子输出数据</div>${rows.join('')}</div>`;
+        if (rows.length === 0 && hiddenCount === 0) return '';
+
+        const hiddenNotice = hiddenCount > 0
+            ? `<div class="detail-item type-null"><span class="detail-label">说明</span><span class="detail-value">已隐藏 ${hiddenCount} 个导出/技术字段</span></div>`
+            : '';
+
+        return `<div class="detail-section"><div class="detail-section-title">算子输出数据</div>${rows.join('')}${hiddenNotice}</div>`;
+    }
+
+    renderAnalysisDataSection(analysisData) {
+        const cards = Array.isArray(analysisData?.cards) ? analysisData.cards : [];
+        if (cards.length === 0) {
+            return '';
+        }
+
+        const sections = cards.map(card => {
+            const fields = Array.isArray(card?.fields) ? card.fields : [];
+            const rows = fields.map(field => `<div class="detail-item">
+                <span class="detail-label">${this.escapeHtml(field.label || field.key || '--')}</span>
+                <span class="detail-value">${this.escapeHtml(this.formatAnalysisFieldValue(field.value))}${field.unit ? ` ${this.escapeHtml(field.unit)}` : ''}</span>
+            </div>`).join('');
+
+            return `
+                <div class="detail-section">
+                    <div class="detail-section-title">${this.escapeHtml(card.title || card.category || '分析卡片')}</div>
+                    ${rows || '<div class="detail-item"><span class="detail-label">内容</span><span class="detail-value">--</span></div>'}
+                </div>
+            `;
+        }).join('');
+
+        return sections;
+    }
+
+    getAnalysisCardSummary(card) {
+        const fields = Array.isArray(card?.fields) ? card.fields : [];
+        const firstField = fields.find(field => field && field.value !== undefined && field.value !== null);
+        if (!firstField) {
+            return card?.status || '--';
+        }
+
+        const label = firstField.label || firstField.key || '值';
+        const value = this.formatAnalysisFieldValue(firstField.value);
+        return `${label}: ${value}`;
+    }
+
+    formatAnalysisFieldValue(value) {
+        if (typeof value === 'number') {
+            return Number.isInteger(value) ? String(value) : value.toFixed(3);
+        }
+
+        if (typeof value === 'boolean') {
+            return value ? 'True' : 'False';
+        }
+
+        if (value === null || value === undefined) {
+            return '--';
+        }
+
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+
+        return String(value);
+    }
+
+    isMeaningfulRecognitionText(value, outputData, sourceKey = '') {
+        if (typeof value !== 'string') {
+            return false;
+        }
+
+        const text = value.trim();
+        if (!text || text.length >= 200) {
+            return false;
+        }
+
+        return !this.isStructuredExportText(text, outputData, sourceKey);
+    }
+
+    isStructuredExportText(value, outputData, sourceKey = '') {
+        const text = String(value || '').trim();
+        if (!text) {
+            return false;
+        }
+
+        if (this.isExportMetadataKey(sourceKey)) {
+            return true;
+        }
+
+        const looksLikeStructuredPayload =
+            (text.startsWith('{') && text.endsWith('}')) ||
+            (text.startsWith('[') && text.endsWith(']'));
+        if (!looksLikeStructuredPayload) {
+            return false;
+        }
+
+        const exportHintKeys = ['Format', 'format', 'SaveToFile', 'saveToFile', 'Output', 'output', 'FilePath', 'filePath', 'SaveError', 'saveError'];
+        const hasExportHints = Object.keys(outputData || {}).some(key => exportHintKeys.includes(key));
+        if (hasExportHints) {
+            return true;
+        }
+
+        return text.includes('"Format"')
+            || text.includes('"SaveToFile"')
+            || text.includes('"FilePath"')
+            || text.includes('"SaveError"');
+    }
+
+    isExportMetadataKey(key) {
+        return [
+            'format',
+            'savetofile',
+            'output',
+            'filepath',
+            'saveerror',
+            'success'
+        ].includes(String(key || '').toLowerCase());
+    }
+
+    shouldHideOutputDetailEntry(key, value, outputData) {
+        const normalizedKey = String(key || '').toLowerCase();
+        if (normalizedKey === 'image') {
+            return true;
+        }
+
+        if (this.isExportMetadataKey(normalizedKey)) {
+            return true;
+        }
+
+        if (typeof value === 'string') {
+            if (value.length > 500) {
+                return true;
+            }
+
+            if (this.isStructuredExportText(value, outputData, key)) {
+                return true;
+            }
+        }
+
+        return false;
     }
     
     /**
