@@ -17,6 +17,7 @@ public class AiConfigStore
     private readonly Microsoft.Extensions.Logging.ILogger<AiConfigStore> _logger;
     private readonly object _lock = new();
     private List<AiModelConfig> _models;
+    private readonly AiGenerationOptions _initialOptions;
     private readonly string _modelsFilePath;
     private readonly string _legacyConfigFilePath;
 
@@ -38,13 +39,14 @@ public class AiConfigStore
         string storageDirectory)
     {
         _logger = logger;
+        _initialOptions = CloneOptions(initialOptions.Value);
         if (string.IsNullOrWhiteSpace(storageDirectory))
             throw new ArgumentException("Storage directory must not be empty.", nameof(storageDirectory));
 
         Directory.CreateDirectory(storageDirectory);
         _modelsFilePath = Path.Combine(storageDirectory, "ai_models.json");
         _legacyConfigFilePath = Path.Combine(storageDirectory, "ai_config.json");
-        _models = LoadOrMigrate(initialOptions.Value);
+        _models = LoadOrMigrate(_initialOptions);
     }
 
     public List<AiModelConfig> GetAll()
@@ -187,6 +189,33 @@ public class AiConfigStore
         return true;
     }
 
+    public List<AiModelConfig> ResetToDefaults()
+    {
+        List<AiModelConfig> resetModels;
+        lock (_lock)
+        {
+            _models = CreateDefaultModels(_initialOptions);
+            resetModels = _models.Select(CloneModel).ToList();
+        }
+
+        Save();
+
+        try
+        {
+            if (File.Exists(_legacyConfigFilePath))
+            {
+                File.Delete(_legacyConfigFilePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[AiConfigStore] 删除旧版 ai_config.json 失败: {Message}", ex.Message);
+        }
+
+        _logger.LogInformation("[AiConfigStore] AI 模型配置已重置为默认值");
+        return resetModels;
+    }
+
     private List<AiModelConfig> LoadOrMigrate(AiGenerationOptions fallback)
     {
         if (File.Exists(_modelsFilePath))
@@ -250,25 +279,7 @@ public class AiConfigStore
         }
 
         _logger.LogInformation("[AiConfigStore] 使用 appsettings.json 默认值初始化");
-        var defaultModel = new AiModelConfig
-        {
-            Id = "model_default",
-            Name = "系统默认模型",
-            Provider = fallback.Provider,
-            Protocol = AiModelConfig.NormalizeProtocol(null, fallback.Provider),
-            AuthMode = AiModelConfig.NormalizeAuthMode(null, AiModelConfig.NormalizeProtocol(null, fallback.Provider)),
-            ApiKey = fallback.ApiKey,
-            Model = fallback.Model,
-            BaseUrl = fallback.BaseUrl,
-            TimeoutMs = fallback.TimeoutSeconds * 1000,
-            RoleBindings = new List<string> { "generation" },
-            Priority = 100,
-            Capabilities = AiModelCapabilities.Infer(fallback.Provider, fallback.Model),
-            IsActive = true
-        };
-        defaultModel.NormalizeAdvancedFields();
-
-        var result = new List<AiModelConfig> { defaultModel };
+        var result = CreateDefaultModels(fallback);
         _models = result;
         Save();
         return result;
@@ -307,6 +318,29 @@ public class AiConfigStore
         {
             _logger.LogError(ex, "[AiConfigStore] 持久化失败: {Message}", ex.Message);
         }
+    }
+
+    private static List<AiModelConfig> CreateDefaultModels(AiGenerationOptions fallback)
+    {
+        var defaultModel = new AiModelConfig
+        {
+            Id = "model_default",
+            Name = "系统默认模型",
+            Provider = fallback.Provider,
+            Protocol = AiModelConfig.NormalizeProtocol(null, fallback.Provider),
+            AuthMode = AiModelConfig.NormalizeAuthMode(null, AiModelConfig.NormalizeProtocol(null, fallback.Provider)),
+            ApiKey = fallback.ApiKey,
+            Model = fallback.Model,
+            BaseUrl = fallback.BaseUrl,
+            TimeoutMs = Math.Max(1, fallback.TimeoutSeconds) * 1000,
+            RoleBindings = new List<string> { "generation" },
+            Priority = 100,
+            Capabilities = AiModelCapabilities.Infer(fallback.Provider, fallback.Model),
+            IsActive = true
+        };
+        defaultModel.NormalizeAdvancedFields();
+
+        return new List<AiModelConfig> { defaultModel };
     }
 
     private static AiModelConfig CloneModel(AiModelConfig model) => new()
@@ -351,4 +385,16 @@ public class AiConfigStore
 
         return cloned;
     }
+
+    private static AiGenerationOptions CloneOptions(AiGenerationOptions options) => new()
+    {
+        Provider = options.Provider,
+        ApiKey = options.ApiKey,
+        Model = options.Model,
+        MaxRetries = options.MaxRetries,
+        TimeoutSeconds = options.TimeoutSeconds,
+        MaxTokens = options.MaxTokens,
+        Temperature = options.Temperature,
+        BaseUrl = options.BaseUrl
+    };
 }

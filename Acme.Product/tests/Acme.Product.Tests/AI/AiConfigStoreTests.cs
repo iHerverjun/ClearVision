@@ -223,4 +223,34 @@ public class AiConfigStoreTests : IDisposable
         Assert.Equal(120000, migrated.TimeoutMs);
         Assert.True(migrated.IsActive);
     }
+
+    [Fact]
+    public void ResetToDefaults_ShouldReplaceModelsAndDeleteLegacyFile()
+    {
+        File.WriteAllText(_testLegacyFile, "{\"Provider\":\"LegacyProvider\",\"ApiKey\":\"LegacyKey\",\"Model\":\"LegacyModel\",\"TimeoutSeconds\":30}");
+
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "custom-model",
+            Name = "Custom Model",
+            Provider = "custom-provider",
+            ApiKey = "custom-key",
+            Model = "custom-model-name"
+        });
+        store.SetActive("custom-model");
+
+        var resetModels = store.ResetToDefaults();
+
+        Assert.Single(resetModels);
+        Assert.Single(store.GetAll());
+        var defaultModel = store.GetAll().Single();
+        Assert.Equal("model_default", defaultModel.Id);
+        Assert.Equal("系统默认模型", defaultModel.Name);
+        Assert.Equal("TestProvider", defaultModel.Provider);
+        Assert.Equal("TestKey", defaultModel.ApiKey);
+        Assert.Equal("TestModel", defaultModel.Model);
+        Assert.True(defaultModel.IsActive);
+        Assert.False(File.Exists(_testLegacyFile));
+    }
 }
