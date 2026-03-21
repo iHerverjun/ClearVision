@@ -127,6 +127,7 @@ public record GenerateFlowProgress
     public string Type => "GenerateFlowProgress";
     public string Stage { get; init; } = string.Empty;  // "calling_ai" | "validating" | "layouting"
     public string Message { get; init; } = string.Empty;
+    public string? RequestId { get; init; }
 }
 
 /// <summary>
@@ -145,6 +146,7 @@ public record GenerateFlowStreamChunk
     /// 数据块文本内容
     /// </summary>
     public string Content { get; init; } = string.Empty;
+    public string? RequestId { get; init; }
 }
 
 /// <summary>
@@ -153,6 +155,7 @@ public record GenerateFlowStreamChunk
 public record GenerateFlowAttachmentReport
 {
     public string Type => "GenerateFlowAttachmentReport";
+    public string? RequestId { get; init; }
     public List<GenerateFlowAttachmentSentItem> Sent { get; init; } = new();
     public List<GenerateFlowAttachmentSkippedItem> Skipped { get; init; } = new();
 }

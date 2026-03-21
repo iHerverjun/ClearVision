@@ -860,7 +860,7 @@ def write_jsonl(entries: list[dict[str, Any]], output: Path) -> None:
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="根据 catalog 生成 SFT 训练数据")
-    parser.add_argument("--catalog", type=Path, default=root / "docs" / "operators" / "catalog.json")
+    parser.add_argument("--catalog", type=Path, default=root / "算子资料" / "算子目录.json")
     parser.add_argument("--output", type=Path, default=Path(__file__).resolve().with_name("clearvision_sft_data.jsonl"))
     parser.add_argument("--count", type=int, default=1200)
     parser.add_argument("--seed", type=int, default=20260303)

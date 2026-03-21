@@ -1,10 +1,6 @@
-// GenerateFlowMessageHandler.cs
-// 流程生成消息处理器
-// 处理生成流程消息并协调 AI 服务输出结果
-// 作者：蘅芜君
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Linq;
 using Acme.Product.Contracts.Messages;
 using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Services;
@@ -13,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
-/// 处理前端发来的 GenerateFlow 消息
+/// Handles GenerateFlow requests from the desktop bridge.
 /// </summary>
 public class GenerateFlowMessageHandler
 {
@@ -41,26 +37,43 @@ public class GenerateFlowMessageHandler
         string? hint = null,
         string? requestId = null,
         IReadOnlyList<string>? attachments = null,
-        Action<string, string>? onMessage = null, // "GenerateFlowProgress", "GenerateFlowStreamChunk", "GenerateFlowAttachmentReport"
+        Action<string, string>? onMessage = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("收到 AI 生成请求：{Description}", description);
+        _logger.LogInformation("Received AI generate-flow request. Description={Description}", description);
 
         try
         {
-            // 推送开始消息
-            onMessage?.Invoke("GenerateFlowProgress",
-                JsonSerializer.Serialize(new { message = "正在连接 AI 服务...", phase = "connecting" }, _jsonOptions));
+            onMessage?.Invoke(
+                "GenerateFlowProgress",
+                JsonSerializer.Serialize(new
+                {
+                    message = "正在连接 AI 服务...",
+                    phase = "connecting",
+                    requestId
+                }, _jsonOptions));
 
             var result = await _generationService.GenerateFlowAsync(
                 new AiFlowGenerationRequest(description, hint, sessionId, existingFlowJson, attachments),
-                progressMsg => onMessage?.Invoke("GenerateFlowProgress",
-                    JsonSerializer.Serialize(new { message = progressMsg }, _jsonOptions)),
-                chunk => onMessage?.Invoke("GenerateFlowStreamChunk",
-                    JsonSerializer.Serialize(new GenerateFlowStreamChunk { ChunkType = chunk.ChunkType, Content = chunk.Content }, _jsonOptions)),
+                progressMsg => onMessage?.Invoke(
+                    "GenerateFlowProgress",
+                    JsonSerializer.Serialize(new
+                    {
+                        message = progressMsg,
+                        requestId
+                    }, _jsonOptions)),
+                chunk => onMessage?.Invoke(
+                    "GenerateFlowStreamChunk",
+                    JsonSerializer.Serialize(new GenerateFlowStreamChunk
+                    {
+                        ChunkType = chunk.ChunkType,
+                        Content = chunk.Content,
+                        RequestId = requestId
+                    }, _jsonOptions)),
                 cancellationToken,
-                attachmentReport => onMessage?.Invoke("GenerateFlowAttachmentReport",
-                    JsonSerializer.Serialize(attachmentReport, _jsonOptions)));
+                attachmentReport => onMessage?.Invoke(
+                    "GenerateFlowAttachmentReport",
+                    JsonSerializer.Serialize(attachmentReport with { RequestId = requestId }, _jsonOptions)));
 
             var response = new GenerateFlowResponse
             {
@@ -86,7 +99,7 @@ public class GenerateFlowMessageHandler
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation("AI 生成请求已被用户取消。SessionId={SessionId}", sessionId);
+            _logger.LogInformation("AI generation request was cancelled by the user. SessionId={SessionId}", sessionId);
 
             var cancelledResponse = new GenerateFlowResponse
             {
@@ -103,7 +116,10 @@ public class GenerateFlowMessageHandler
         }
         catch (TaskCanceledException ex)
         {
-            _logger.LogWarning(ex, "AI 生成请求超时。SessionId={SessionId}", sessionId);
+            _logger.LogWarning(
+                "AI generation request timed out. SessionId={SessionId}. Error={Error}",
+                sessionId ?? string.Empty,
+                ex.Message);
 
             var timeoutResponse = new GenerateFlowResponse
             {
@@ -120,7 +136,7 @@ public class GenerateFlowMessageHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "处理 AI 生成请求时发生未预期错误");
+            _logger.LogError(ex, "Unexpected error while handling AI generate-flow request");
 
             var errorResponse = new GenerateFlowResponse
             {
@@ -165,7 +181,9 @@ public class GenerateFlowMessageHandler
     private static string NormalizeStatus(string? completionStatus, bool success)
     {
         if (!string.IsNullOrWhiteSpace(completionStatus))
+        {
             return completionStatus;
+        }
 
         return success
             ? AiFlowGenerationResult.CompletionStatusCompleted
@@ -175,7 +193,9 @@ public class GenerateFlowMessageHandler
     private static string? BuildFailureSummaryText(AiFailureSummary? failureSummary, string? fallbackMessage)
     {
         if (!string.IsNullOrWhiteSpace(failureSummary?.Message))
+        {
             return failureSummary.Message;
+        }
 
         return string.IsNullOrWhiteSpace(fallbackMessage)
             ? null
@@ -185,7 +205,9 @@ public class GenerateFlowMessageHandler
     private static GenerateFlowTemplateRecommendation? MapRecommendedTemplate(AiRecommendedTemplateInfo? template)
     {
         if (template == null)
+        {
             return null;
+        }
 
         return new GenerateFlowTemplateRecommendation
         {
@@ -200,7 +222,9 @@ public class GenerateFlowMessageHandler
     private static List<GenerateFlowPendingParameter> MapPendingParameters(IReadOnlyCollection<AiPendingParameterInfo>? parameters)
     {
         if (parameters == null || parameters.Count == 0)
+        {
             return new List<GenerateFlowPendingParameter>();
+        }
 
         return parameters.Select(item => new GenerateFlowPendingParameter
         {
@@ -212,7 +236,9 @@ public class GenerateFlowMessageHandler
     private static List<GenerateFlowMissingResource> MapMissingResources(IReadOnlyCollection<AiMissingResourceInfo>? resources)
     {
         if (resources == null || resources.Count == 0)
+        {
             return new List<GenerateFlowMissingResource>();
+        }
 
         return resources.Select(item => new GenerateFlowMissingResource
         {

@@ -109,16 +109,68 @@ public class GenerateFlowMessageHandlerTests
         _ = await handler.HandleAsync(
             description: "demo",
             attachments: [@"C:\temp\template.png", @"C:\temp\bad.txt"],
+            requestId: "req-attachment-1",
             onMessage: (type, payload) => receivedMessages.Add((type, payload)));
 
         // Assert
         receivedMessages.Should().Contain(message => message.Type == "GenerateFlowAttachmentReport");
         var payloadJson = receivedMessages.First(message => message.Type == "GenerateFlowAttachmentReport").Payload;
         using var payloadDoc = JsonDocument.Parse(payloadJson);
+        payloadDoc.RootElement.GetProperty("requestId").GetString().Should().Be("req-attachment-1");
         payloadDoc.RootElement.GetProperty("sent").GetArrayLength().Should().Be(1);
         payloadDoc.RootElement.GetProperty("skipped").GetArrayLength().Should().Be(1);
         payloadDoc.RootElement.GetProperty("skipped")[0].GetProperty("reason").GetString()
             .Should().Be("unsupported_format");
+    }
+
+    [Fact(DisplayName = "GenerateFlowMessageHandler should include requestId in progress and stream callbacks")]
+    public async Task HandleAsync_ShouldIncludeRequestIdInRealtimeMessages()
+    {
+        // Arrange
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+        var receivedMessages = new List<(string Type, string Payload)>();
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(callInfo =>
+            {
+                var progressCallback = callInfo.ArgAt<Action<string>>(1);
+                var chunkCallback = callInfo.ArgAt<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(2);
+
+                progressCallback("正在分析需求...");
+                chunkCallback(new Acme.Product.Contracts.Messages.AiStreamChunk("thinking", "step-1"));
+
+                return Task.FromResult(new AiFlowGenerationResult
+                {
+                    Success = true,
+                    Flow = new { operators = Array.Empty<object>(), connections = Array.Empty<object>() }
+                });
+            });
+
+        // Act
+        _ = await handler.HandleAsync(
+            description: "demo",
+            requestId: "req-stream-1",
+            onMessage: (type, payload) => receivedMessages.Add((type, payload)));
+
+        // Assert
+        receivedMessages.Should().Contain(message => message.Type == "GenerateFlowProgress");
+        receivedMessages.Should().Contain(message => message.Type == "GenerateFlowStreamChunk");
+
+        var progressPayload = receivedMessages.Last(message => message.Type == "GenerateFlowProgress").Payload;
+        using var progressDoc = JsonDocument.Parse(progressPayload);
+        progressDoc.RootElement.GetProperty("requestId").GetString().Should().Be("req-stream-1");
+
+        var streamPayload = receivedMessages.Single(message => message.Type == "GenerateFlowStreamChunk").Payload;
+        using var streamDoc = JsonDocument.Parse(streamPayload);
+        streamDoc.RootElement.GetProperty("requestId").GetString().Should().Be("req-stream-1");
+        streamDoc.RootElement.GetProperty("chunkType").GetString().Should().Be("thinking");
     }
 
     [Fact(DisplayName = "GenerateFlowMessageHandler should serialize OperatorType as string")]

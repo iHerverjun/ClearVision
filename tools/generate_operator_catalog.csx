@@ -7,16 +7,14 @@
 //   scripts/OperatorDocGenerator/OperatorDocGenerator.csproj
 //
 // That generator rebuilds and syncs:
-//   - docs/operators/catalog.json
-//   - docs/operators/CATALOG.md
-//   - docs/operators/CHANGELOG.md
-//   - docs/operators/version-history.json
-//   - docs/catalog.json
-//   - docs/operator_catalog.json
-//   - docs/CATALOG.md
-//   - docs/OPERATOR_CATALOG.md
-//   - docs/CHANGELOG.md
-//   - docs/version-history.json
+//   - 算子资料/算子名片/catalog.json
+//   - 算子资料/算子名片/CATALOG.md
+//   - 算子资料/算子名片/CHANGELOG.md
+//   - 算子资料/算子名片/version-history.json
+//   - 算子资料/算子目录.json
+//   - 算子资料/算子目录.md
+//   - 算子资料/算子变更记录.md
+//   - 算子资料/算子版本记录.json
 
 using System.Diagnostics;
 

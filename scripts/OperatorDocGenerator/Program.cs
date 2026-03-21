@@ -13,11 +13,12 @@ using Acme.Product.Infrastructure.Operators;
 var repoRoot = ResolveRepoRoot(args);
 var overwrite = args.Any(arg => string.Equals(arg, "--overwrite", StringComparison.OrdinalIgnoreCase));
 var enforceVersionBump = args.Any(arg => string.Equals(arg, "--enforce-version-bump", StringComparison.OrdinalIgnoreCase));
-var docsRoot = Path.Combine(repoRoot, "docs", "operators");
-var docsParentRoot = Path.Combine(repoRoot, "docs");
+var operatorDocsRoot = Path.Combine(repoRoot, "算子资料");
+var docsRoot = Path.Combine(operatorDocsRoot, "算子名片");
 var generatedAt = DateTimeOffset.Now;
 var qualityContext = BuildQualityContext(repoRoot, docsRoot);
 
+Directory.CreateDirectory(operatorDocsRoot);
 Directory.CreateDirectory(docsRoot);
 
 var candidates = typeof(OperatorBase).Assembly
@@ -55,11 +56,11 @@ var operators = candidates
 GenerateCatalogJson(operators, docsRoot, generatedAt);
 GenerateCatalogMarkdown(operators, docsRoot, "./", generatedAt);
 var versionTracking = GenerateVersionTrackingArtifacts(candidates, operators, qualityContext, docsRoot, generatedAt);
-SyncRootCatalogArtifacts(operators, docsRoot, docsParentRoot, generatedAt);
+SyncRootCatalogArtifacts(operators, docsRoot, operatorDocsRoot, generatedAt);
 
-Console.WriteLine($"repoRoot={repoRoot} docsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
-Console.WriteLine($"catalogJson={Path.Combine(docsRoot, "catalog.json")} catalogMarkdown={Path.Combine(docsRoot, "CATALOG.md")}");
-Console.WriteLine($"changelog={Path.Combine(docsRoot, "CHANGELOG.md")} versionHistory={Path.Combine(docsRoot, "version-history.json")}");
+Console.WriteLine($"repoRoot={repoRoot} operatorDocsRoot={operatorDocsRoot} cardsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
+Console.WriteLine($"catalogJson={Path.Combine(operatorDocsRoot, "算子目录.json")} catalogMarkdown={Path.Combine(operatorDocsRoot, "算子目录.md")}");
+Console.WriteLine($"changelog={Path.Combine(operatorDocsRoot, "算子变更记录.md")} versionHistory={Path.Combine(operatorDocsRoot, "算子版本记录.json")}");
 
 if (versionTracking.Violations.Count > 0)
 {
@@ -219,13 +220,11 @@ static void SyncRootCatalogArtifacts(IReadOnlyList<CatalogOperator> operators, s
     if (File.Exists(catalogJsonPath))
     {
         var json = File.ReadAllText(catalogJsonPath);
-        File.WriteAllText(Path.Combine(docsParentRoot, "catalog.json"), json, new UTF8Encoding(false));
-        File.WriteAllText(Path.Combine(docsParentRoot, "operator_catalog.json"), json, new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(docsParentRoot, "算子目录.json"), json, new UTF8Encoding(false));
     }
 
-    var rootMarkdown = BuildCatalogMarkdown(operators, generatedAt, "./operators/");
-    File.WriteAllText(Path.Combine(docsParentRoot, "CATALOG.md"), rootMarkdown, new UTF8Encoding(false));
-    File.WriteAllText(Path.Combine(docsParentRoot, "OPERATOR_CATALOG.md"), rootMarkdown, new UTF8Encoding(false));
+    var rootMarkdown = BuildCatalogMarkdown(operators, generatedAt, "./算子名片/");
+    File.WriteAllText(Path.Combine(docsParentRoot, "算子目录.md"), rootMarkdown, new UTF8Encoding(false));
 
     foreach (var artifact in new[] { "CHANGELOG.md", "version-history.json" })
     {
@@ -233,7 +232,10 @@ static void SyncRootCatalogArtifacts(IReadOnlyList<CatalogOperator> operators, s
         if (File.Exists(sourcePath))
         {
             var content = File.ReadAllText(sourcePath);
-            File.WriteAllText(Path.Combine(docsParentRoot, artifact), content, new UTF8Encoding(false));
+            var destinationFileName = artifact == "CHANGELOG.md"
+                ? "算子变更记录.md"
+                : "算子版本记录.json";
+            File.WriteAllText(Path.Combine(docsParentRoot, destinationFileName), content, new UTF8Encoding(false));
         }
     }
 }
@@ -444,7 +446,7 @@ static CatalogOperator ToCatalogOperator(OperatorDocModel item, QualityContext q
         OutputPorts = outputPorts,
         Parameters = parameters,
         Quality = ComputeQuality(item, qualityContext),
-        DocPath = $"docs/operators/{id}.md"
+        DocPath = $"算子资料/算子名片/{id}.md"
     };
 }
 

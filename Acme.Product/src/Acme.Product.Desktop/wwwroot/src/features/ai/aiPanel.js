@@ -26,8 +26,7 @@ export class AiPanel {
         this.nextHintDraft = '';
         this.activeGenerateRequestId = null;
         this.activeGenerateSessionId = null;
-        this.lastCancelledRequestId = null;
-        this.lastCancelledAt = 0;
+        this.isCancellingGenerate = false;
         this.attachments = [];
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
@@ -71,6 +70,7 @@ export class AiPanel {
         this.nextHintDraft = '';
         this.activeGenerateRequestId = null;
         this.activeGenerateSessionId = null;
+        this.isCancellingGenerate = false;
         this.attachments = [];
         this._clearResultPane();
         this._renderAttachments();
@@ -302,7 +302,7 @@ export class AiPanel {
         this._clearResultPane();
         this.activeGenerateRequestId = requestId;
         this.activeGenerateSessionId = this.sessionId;
-        this.lastCancelledRequestId = null;
+        this.isCancellingGenerate = false;
         
         // Reset manual UI for streaming
         const reasoningEl = this.container.querySelector('#ai-result-reasoning');
@@ -352,10 +352,13 @@ export class AiPanel {
     }
 
     _handleCancelGenerate() {
-        if (!this.isGenerating) return;
+        if (!this.isGenerating || this.isCancellingGenerate) return;
 
         const requestId = this.activeGenerateRequestId;
         const sessionId = this.activeGenerateSessionId || this.sessionId;
+        if (!requestId) return;
+
+        this.isCancellingGenerate = true;
 
         webMessageBridge.sendMessage('CancelGenerateFlow', {
             payload: {
@@ -375,6 +378,13 @@ export class AiPanel {
         // Clear streaming placeholder when real text is streaming
         if (data === "收到 AI 响应，正在解析 JSON 数据...") {
              return;
+        }
+
+        if (typeof data !== 'string') {
+            const payload = data?.payload || data || {};
+            if (!this._shouldHandleGenerateRealtimePayload(payload)) {
+                return;
+            }
         }
 
         const msg = typeof data === 'string' ? data : (data.payload?.message || data.message);
@@ -434,6 +444,10 @@ export class AiPanel {
     
     _handleStreamChunk(data) {
         const payload = data.payload || data;
+        if (!this._shouldHandleGenerateRealtimePayload(payload)) {
+            return;
+        }
+
         const chunkType = payload.chunkType; // 'thinking' or 'content'
         const content = payload.content || '';
         
@@ -519,6 +533,7 @@ export class AiPanel {
         }
 
         const isCancelled = this._isCancelledResult(payload);
+        this.isCancellingGenerate = false;
         this._setGeneratingState(false);
         this.sessionId = payload.sessionId || this.sessionId;
         this._saveSessionId(this.sessionId);
@@ -549,7 +564,7 @@ export class AiPanel {
         }
 
         if (isCancelled) {
-            this._markRequestCancelled(payload);
+            this._clearActiveRequestState();
             this._addMessage('system', '已取消本次生成。');
             return;
         }
@@ -575,13 +590,18 @@ export class AiPanel {
 
     _handleCancelResult(data) {
         const payload = data?.payload || data || {};
-        const normalizedPayload = {
-            ...payload,
-            success: false,
-            status: payload.status || 'cancelled',
-            errorMessage: payload.errorMessage || payload.message || '已取消生成'
-        };
-        this._handleResult({ payload: normalizedPayload });
+        if (!this._shouldHandleGenerateRealtimePayload(payload)) {
+            return;
+        }
+
+        const status = this._normalizeGenerateStatus(payload);
+        if (status === 'cancelled' || status === 'canceled') {
+            this._addMessage('system', payload.message || '已发送取消请求，正在等待后端停止当前生成。');
+            return;
+        }
+
+        this.isCancellingGenerate = false;
+        this._addMessage('system', `取消生成未生效: ${payload.errorMessage || payload.message || '未知错误'}`);
     }
     
     _handleFirewallBlocked(data) {
@@ -972,6 +992,9 @@ export class AiPanel {
     
     _setGeneratingState(busy) {
         this.isGenerating = busy;
+        if (!busy) {
+            this.isCancellingGenerate = false;
+        }
         const btn = this.container.querySelector('#ai-btn-gen');
         const cancelBtn = this.container.querySelector('#ai-btn-cancel');
         if(btn) {
@@ -983,7 +1006,7 @@ export class AiPanel {
             }
         }
         if (cancelBtn) {
-            cancelBtn.disabled = !busy;
+            cancelBtn.disabled = !busy || this.isCancellingGenerate;
             cancelBtn.classList.toggle('is-visible', busy);
         }
         const attachBtn = this.container.querySelector('#ai-btn-attach');
@@ -1036,6 +1059,8 @@ export class AiPanel {
 
     _handleAttachmentReport(data) {
         const payload = data?.payload || data || {};
+        if (!this._shouldHandleGenerateRealtimePayload(payload)) return;
+
         const sent = Array.isArray(payload.sent) ? payload.sent : [];
         const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
 
@@ -1236,47 +1261,38 @@ export class AiPanel {
         return `gen-${Date.now()}-${randomPart}`;
     }
 
+    _getGenerateRequestId(payload) {
+        return String(payload?.requestId ?? payload?.RequestId ?? '').trim();
+    }
+
+    _shouldHandleGenerateRealtimePayload(payload) {
+        const requestId = this._getGenerateRequestId(payload);
+        if (!requestId) {
+            return this.isGenerating;
+        }
+
+        return Boolean(this.activeGenerateRequestId) && requestId === this.activeGenerateRequestId;
+    }
+
     _shouldHandleGenerateTerminalPayload(payload) {
-        const requestId = String(payload?.requestId ?? payload?.RequestId ?? '').trim();
-        if (requestId && this.activeGenerateRequestId && requestId !== this.activeGenerateRequestId) {
-            return false;
+        const requestId = this._getGenerateRequestId(payload);
+        if (!requestId) {
+            return this.isGenerating;
         }
 
-        if (!requestId && !this.isGenerating && this.lastCancelledRequestId && (Date.now() - this.lastCancelledAt) < 5000) {
-            return this._isCancelledResult(payload);
-        }
+        return Boolean(this.activeGenerateRequestId) && requestId === this.activeGenerateRequestId;
+    }
 
-        if (requestId && this.lastCancelledRequestId && requestId === this.lastCancelledRequestId && !this.isGenerating) {
-            return this._isCancelledResult(payload);
-        }
-
-        return true;
+    _normalizeGenerateStatus(payload) {
+        return String(payload?.status ?? payload?.Status ?? '').trim().toLowerCase();
     }
 
     _isCancelledResult(payload) {
-        const status = String(payload?.status ?? payload?.Status ?? '').trim().toLowerCase();
-        const errorText = [
-            payload?.errorMessage,
-            payload?.ErrorMessage,
-            payload?.failureSummary,
-            payload?.FailureSummary
-        ].map(value => String(value || '').trim().toLowerCase()).join(' ');
+        const status = this._normalizeGenerateStatus(payload);
+        const failureType = String(payload?.failureType ?? payload?.FailureType ?? '').trim().toLowerCase();
 
-        if (['cancelled', 'canceled', 'user_cancelled', 'user_canceled'].includes(status)) {
-            return true;
-        }
-
-        return errorText.includes('取消')
-            || errorText.includes('cancelled')
-            || errorText.includes('canceled')
-            || errorText.includes('user cancelled')
-            || errorText.includes('user canceled');
-    }
-
-    _markRequestCancelled(payload) {
-        this.lastCancelledRequestId = String(payload?.requestId ?? payload?.RequestId ?? this.activeGenerateRequestId ?? '').trim() || null;
-        this.lastCancelledAt = Date.now();
-        this._clearActiveRequestState();
+        return ['cancelled', 'canceled', 'user_cancelled', 'user_canceled'].includes(status)
+            || ['user_cancelled', 'user_canceled'].includes(failureType);
     }
 
     _clearActiveRequestState() {
