@@ -411,7 +411,7 @@ class InspectionController {
         }
 
         try {
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.normalizePreviewFlowData(window.flowCanvas?.serialize?.() || null);
             if (!flowData) {
                 throw new Error('无法获取流程数据');
             }
@@ -458,6 +458,40 @@ class InspectionController {
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
+    }
+
+    normalizePreviewFlowData(flowData) {
+        if (!flowData || typeof flowData !== 'object') {
+            return null;
+        }
+
+        const operators = Array.isArray(flowData.operators)
+            ? flowData.operators.map(operator => ({
+                ...operator,
+                parameters: this.normalizePreviewOperatorParameters(operator?.parameters)
+            }))
+            : [];
+
+        return {
+            ...flowData,
+            operators
+        };
+    }
+
+    normalizePreviewOperatorParameters(parameters) {
+        if (!Array.isArray(parameters)) {
+            return parameters && typeof parameters === 'object' ? parameters : {};
+        }
+
+        return parameters.reduce((accumulator, parameter) => {
+            const name = String(parameter?.name || parameter?.Name || '').trim();
+            if (!name) {
+                return accumulator;
+            }
+
+            accumulator[name] = parameter?.value ?? parameter?.Value ?? parameter?.defaultValue ?? parameter?.DefaultValue ?? null;
+            return accumulator;
+        }, {});
     }
 
     /**

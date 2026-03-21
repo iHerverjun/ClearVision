@@ -46,6 +46,9 @@ class FlowCanvas {
         this.dragOffset = { x: 0, y: 0 };
         this.scale = 1;
         this.offset = { x: 0, y: 0 };
+        this.flowRevision = 0;
+        this.viewStateListeners = new Set();
+        this.structureStateListeners = new Set();
 
         // 网格设置
         this.gridSize = 20;
@@ -193,6 +196,8 @@ class FlowCanvas {
         this.selectedNode = null;
         this.draggedNode = null;
         this.selectedConnection = null;
+        this.viewStateListeners.clear();
+        this.structureStateListeners.clear();
         
         // 清理小地图
         if (this.minimap) {
@@ -212,6 +217,7 @@ class FlowCanvas {
         this.canvas.width = container.clientWidth;
         this.canvas.height = container.clientHeight;
         this.render();
+        this.notifyViewStateChanged();
     }
 
     /**
@@ -255,6 +261,7 @@ class FlowCanvas {
         
         this.nodes.set(node.id, node);
         this.render();
+        this.markFlowStructureChanged('addNode');
         return node;
     }
 
@@ -279,6 +286,7 @@ class FlowCanvas {
             this.selectedNode = null;
         }
         this.render();
+        this.markFlowStructureChanged('removeNode');
     }
 
     /**
@@ -295,7 +303,91 @@ class FlowCanvas {
         
         this.connections.push(connection);
         this.render();
+        this.markFlowStructureChanged('addConnection');
         return connection;
+    }
+
+    getFlowRevision() {
+        return this.flowRevision;
+    }
+
+    getViewportState() {
+        return {
+            scale: this.scale,
+            offset: {
+                x: this.offset.x,
+                y: this.offset.y
+            },
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            flowRevision: this.flowRevision
+        };
+    }
+
+    getNodeScreenRect(nodeId) {
+        const node = this.nodes.get(nodeId);
+        if (!node) {
+            return null;
+        }
+
+        return {
+            x: (node.x - this.offset.x) * this.scale,
+            y: (node.y - this.offset.y) * this.scale,
+            width: node.width * this.scale,
+            height: node.height * this.scale
+        };
+    }
+
+    subscribeViewState(listener) {
+        if (typeof listener !== 'function') {
+            return () => {};
+        }
+
+        this.viewStateListeners.add(listener);
+        listener(this.getViewportState());
+        return () => this.viewStateListeners.delete(listener);
+    }
+
+    subscribeStructureState(listener) {
+        if (typeof listener !== 'function') {
+            return () => {};
+        }
+
+        this.structureStateListeners.add(listener);
+        listener({
+            flowRevision: this.flowRevision,
+            reason: 'initial'
+        });
+        return () => this.structureStateListeners.delete(listener);
+    }
+
+    notifyViewStateChanged() {
+        const state = this.getViewportState();
+        this.viewStateListeners.forEach(listener => {
+            try {
+                listener(state);
+            } catch (error) {
+                console.error('[FlowCanvas] View state listener failed:', error);
+            }
+        });
+    }
+
+    markFlowStructureChanged(reason = 'unknown') {
+        this.flowRevision += 1;
+        const payload = {
+            flowRevision: this.flowRevision,
+            reason
+        };
+
+        this.structureStateListeners.forEach(listener => {
+            try {
+                listener(payload);
+            } catch (error) {
+                console.error('[FlowCanvas] Structure state listener failed:', error);
+            }
+        });
+
+        this.notifyViewStateChanged();
     }
 
     /**
@@ -914,6 +1006,7 @@ class FlowCanvas {
     removeConnection(connectionId) {
         this.connections = this.connections.filter(conn => conn.id !== connectionId);
         this.render();
+        this.markFlowStructureChanged('removeConnection');
     }
 
     /**
@@ -1279,7 +1372,7 @@ class FlowCanvas {
      */
     deserialize(data) {
         if (!data) return;
-        this.clear();
+        this.clear(true);
 
         // 支持多种嵌套结构 (后端 DTO 可能包装在 project.flow 中)
         const flowData = data.project?.flow || data.flow || data;
@@ -1384,6 +1477,7 @@ class FlowCanvas {
         }
 
         this.render();
+        this.markFlowStructureChanged('deserialize');
     }
 
     /**
@@ -1640,6 +1734,7 @@ class FlowCanvas {
             this.offset.x += mouseX / this.scale - mouseX / newScale;
             this.offset.y += mouseY / this.scale - mouseY / newScale;
             this.scale = newScale;
+            this.notifyViewStateChanged();
         }
     }
 
@@ -1912,7 +2007,7 @@ class FlowCanvas {
     /**
      * 清空画布
      */
-    clear() {
+    clear(silent = false) {
         this.nodes.clear();
         this.connections = [];
         this.selectedNode = null;
@@ -1920,6 +2015,9 @@ class FlowCanvas {
         this.selectedConnection = null;
         this.render();
         console.log('[FlowCanvas] 画布已清空');
+        if (!silent) {
+            this.markFlowStructureChanged('clear');
+        }
     }
 
     /**
@@ -1952,6 +2050,7 @@ class FlowCanvas {
         this.nodes.set(newNode.id, newNode);
         this.selectedNode = newNode.id;
         this.render();
+        this.markFlowStructureChanged('duplicateNode');
     }
 
     /**
@@ -1968,6 +2067,7 @@ class FlowCanvas {
             this.selectedNode = null;
         }
         this.render();
+        this.markFlowStructureChanged('deleteNode');
     }
 
     /**
@@ -2036,6 +2136,7 @@ class FlowCanvas {
                 this.offset.x = targetX - this.canvas.width / 2 / this.scale;
                 this.offset.y = targetY - this.canvas.height / 2 / this.scale;
                 this.render();
+                this.notifyViewStateChanged();
             }
         });
     }

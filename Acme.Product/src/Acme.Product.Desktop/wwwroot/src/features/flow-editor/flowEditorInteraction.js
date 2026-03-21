@@ -321,6 +321,7 @@ export class FlowEditorInteraction {
         this.canvas.offset.y = this.panStartOffset.y - deltaY;
         this.canvas.canvas.style.cursor = 'move';
         this.canvas.render();
+        this.canvas.notifyViewStateChanged?.();
     }
 
     /**
@@ -333,6 +334,7 @@ export class FlowEditorInteraction {
         this.panStartOffset = null;
         this.syncCursorToPointer(e);
         this.canvas.render();
+        this.canvas.notifyViewStateChanged?.();
     }
 
     /**
@@ -388,6 +390,7 @@ export class FlowEditorInteraction {
 
         this.canvas.canvas.style.cursor = 'grabbing';
         this.canvas.render();
+        this.canvas.notifyViewStateChanged?.();
     }
 
     /**
@@ -405,6 +408,7 @@ export class FlowEditorInteraction {
         this.canvas.draggedNode = null;
         this.syncCursorToPointer(e);
         this.canvas.render();
+        this.canvas.notifyViewStateChanged?.();
 
         if (shouldSave) {
             this.saveState();
@@ -635,6 +639,16 @@ export class FlowEditorInteraction {
         };
         this.connectionAnchor = { ...this.connectionEnd };
         this.connectionDidDrag = false;
+
+        this.canvas.isConnecting = true;
+        this.canvas.connectingFrom = {
+            nodeId: port.nodeId,
+            portIndex: port.portIndex,
+            isOutput: port.type === 'output'
+        };
+        this.canvas.mousePosition = { ...this.connectionEnd };
+        this.canvas.hoveredPort = null;
+        this.canvas.render();
     }
 
     /**     * 更新连线预览
@@ -656,31 +670,8 @@ export class FlowEditorInteraction {
         }
 
         this.canvas.canvas.style.cursor = 'crosshair';
+        this.canvas.mousePosition = { ...this.connectionEnd };
         this.canvas.render();
-
-        const startPos = this.canvas.getPortPosition?.(
-            this.connectionStart.nodeId,
-            this.connectionStart.portIndex,
-            this.connectionStart.type === 'output'
-        );
-        if (!startPos) {
-            return;
-        }
-
-        this.canvas.ctx.beginPath();
-        this.canvas.ctx.strokeStyle = '#1890ff';
-        this.canvas.ctx.lineWidth = 2;
-        this.canvas.ctx.setLineDash([8, 6]);
-        this.canvas.ctx.lineDashOffset = -(Date.now() / 40) % 14;
-        this.drawBezierCurve(
-            startPos.x,
-            startPos.y,
-            (this.connectionEnd.x - this.canvas.offset.x) * this.canvas.scale,
-            (this.connectionEnd.y - this.canvas.offset.y) * this.canvas.scale
-        );
-        this.canvas.ctx.stroke();
-        this.canvas.ctx.setLineDash([]);
-        this.canvas.ctx.lineDashOffset = 0;
     }
 
     /**     * 结束连线
@@ -766,6 +757,9 @@ export class FlowEditorInteraction {
         this.connectionEnd = null;
         this.connectionAnchor = null;
         this.connectionDidDrag = false;
+        this.canvas.isConnecting = false;
+        this.canvas.connectingFrom = null;
+        this.canvas.hoveredPort = null;
         this.canvas.canvas.style.cursor = 'default';
         this.canvas.render();
     }

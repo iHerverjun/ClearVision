@@ -2,13 +2,16 @@ import webMessageBridge from '../../core/messaging/webMessageBridge.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import inspectionController from '../inspection/inspectionController.js';
 import PreviewPanel from './previewPanel.js';
+import { resolvePreviewInputImageBase64 } from './previewCoordinator.js';
 
 class PropertyPanel {
-    constructor(containerId) {
+    constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
         this.currentOperator = null;
         this.onChangeCallback = null;
         this.previewPanel = null;
+        this.previewCoordinator = options.previewCoordinator ?? null;
+        this.onOpenPreviewImage = options.onOpenPreviewImage ?? (() => {});
         this.pendingRecommendation = null;
         this.recommendedFieldNames = new Set();
         this.cameraBindingsCache = [];
@@ -680,8 +683,8 @@ class PropertyPanel {
 
         this.previewPanel = new PreviewPanel(container, {
             getOperator: () => this.currentOperator,
-            getParameters: () => this.getValues(),
-            getInputImageBase64: () => this.resolveInputImageBase64(),
+            previewCoordinator: this.previewCoordinator,
+            onOpenImage: this.onOpenPreviewImage,
             debounceMs: 500
         });
 
@@ -931,120 +934,7 @@ class PropertyPanel {
 
     async resolveInputImageBase64() {
         const inspectionResult = window._lastInspectionResult || inspectionController.getLastResult?.();
-        const fromResult = this.extractImageBase64(inspectionResult);
-        if (fromResult) {
-            return fromResult;
-        }
-
-        return null;
-    }
-
-    extractImageBase64(result) {
-        if (!result || typeof result !== 'object') {
-            return null;
-        }
-
-        const candidateKeys = [
-            'outputImage',
-            'OutputImage',
-            'imageBase64',
-            'ImageBase64',
-            'resultImageBase64',
-            'ResultImageBase64',
-            'inputImage',
-            'InputImage'
-        ];
-
-        for (const key of candidateKeys) {
-            const value = result[key];
-            if (typeof value === 'string' && this.isImageLikePayload(value)) {
-                return this.normalizeBase64Image(value);
-            }
-        }
-
-        const outputData = result.outputData || result.OutputData;
-        if (outputData && typeof outputData === 'object') {
-            for (const value of Object.values(outputData)) {
-                if (typeof value === 'string' && this.isImageLikePayload(value)) {
-                    return this.normalizeBase64Image(value);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    normalizeBase64Image(imageValue) {
-        if (!imageValue || typeof imageValue !== 'string') {
-            return null;
-        }
-
-        const trimmed = imageValue.trim();
-        const commaIndex = trimmed.indexOf(',');
-        if (trimmed.startsWith('data:image/') && commaIndex > 0) {
-            return trimmed.substring(commaIndex + 1);
-        }
-
-        return trimmed;
-    }
-
-    isImageLikePayload(value) {
-        if (typeof value !== 'string') {
-            return false;
-        }
-
-        const trimmed = value.trim();
-        if (!trimmed) {
-            return false;
-        }
-
-        if (trimmed.startsWith('data:image/')) {
-            return true;
-        }
-
-        if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"Format"')) {
-            return false;
-        }
-
-        return this.hasKnownImageSignature(trimmed);
-    }
-
-    hasKnownImageSignature(base64Text) {
-        const sanitized = String(base64Text || '').replace(/\s+/g, '');
-        if (sanitized.length < 32 || /[^A-Za-z0-9+/=]/.test(sanitized)) {
-            return false;
-        }
-
-        if (typeof atob !== 'function') {
-            return false;
-        }
-
-        const prefixLength = Math.min(64, sanitized.length);
-        let sample = sanitized.slice(0, prefixLength);
-        const paddingLength = sample.length % 4;
-        if (paddingLength !== 0) {
-            sample = sample.padEnd(sample.length + (4 - paddingLength), '=');
-        }
-
-        try {
-            const decoded = atob(sample);
-            if (!decoded || decoded.length < 4) {
-                return false;
-            }
-
-            const bytes = Array.from(decoded.slice(0, 12)).map(char => char.charCodeAt(0));
-            const ascii = decoded.slice(0, 12);
-
-            return (
-                (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) || // PNG
-                (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) || // JPEG
-                (bytes[0] === 0x42 && bytes[1] === 0x4d) || // BMP
-                ascii.startsWith('GIF8') ||
-                ascii.startsWith('RIFF')
-            );
-        } catch {
-            return false;
-        }
+        return resolvePreviewInputImageBase64(inspectionResult);
     }
 
     /**

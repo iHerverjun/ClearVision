@@ -60,6 +60,8 @@ import { OperatorLibraryPanel } from './features/operator-library/operatorLibrar
 import inspectionController from './features/inspection/inspectionController.js';
 import { showToast, createModal, closeModal, createInput, createLabeledInput, createButton } from './shared/components/uiComponents.js';
 import { PropertyPanel } from './features/flow-editor/propertyPanel.js';
+import { NodePreviewCoordinator, resolvePreviewInputImageBase64 } from './features/flow-editor/previewCoordinator.js';
+import NodePreviewOverlay from './features/flow-editor/nodePreviewOverlay.js';
 import projectManager, {
     getCurrentProject,
     subscribeProject
@@ -84,6 +86,8 @@ let operatorLibraryPanel = null;
 let flowCanvas = null;
 let flowEditorInteraction = null;
 let propertyPanel = null;
+let nodePreviewCoordinator = null;
+let nodePreviewOverlay = null;
 let projectView = null;
 let resultPanel = null;
 let inspectionPanel = null;
@@ -397,6 +401,14 @@ async function switchView(view) {
                 }
             });
             break;
+        case 'image':
+            imageViewerContainer?.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                if (window.imageViewer?.imageCanvas) {
+                    window.imageViewer.imageCanvas.resize();
+                }
+            });
+            break;
         case 'inspection': {
             inspectionViewContainer?.classList.remove('hidden');
             const panel = await ensureInspectionPanelReady();
@@ -608,6 +620,56 @@ function initializeImageViewer() {
     console.log('[App] 图像查看器初始化完成');
 }
 
+function openImageViewerFromPreview(imageSource) {
+    if (!imageSource || !window.imageViewer) {
+        return;
+    }
+
+    void window.imageViewer.loadImage(imageSource)
+        .then(() => {
+            setCurrentView('image');
+            syncActiveNavButton('image');
+            return switchView('image');
+        })
+        .catch(error => {
+            console.error('[App] 打开预览大图失败:', error);
+            showToast(`打开预览大图失败: ${error.message}`, 'error');
+        });
+}
+
+function initializeNodePreviewExperience() {
+    if (!flowCanvas) {
+        return;
+    }
+
+    if (!nodePreviewCoordinator) {
+        nodePreviewCoordinator = new NodePreviewCoordinator({
+            getProjectId: () => getCurrentProject()?.id || null,
+            getFlowRevision: () => flowCanvas.getFlowRevision?.() || 0,
+            getNodeById: nodeId => flowCanvas.nodes.get(nodeId) || null,
+            getOperatorMetadata: type => findOperatorDefinition(type),
+            getInputImageBase64: () => {
+                const inspectionResult = window._lastInspectionResult || inspectionController.getLastResult?.();
+                return resolvePreviewInputImageBase64(inspectionResult);
+            },
+            previewExecutor: (nodeId, options) => inspectionController.previewNode(nodeId, options),
+            subscribeStructureState: listener => flowCanvas.subscribeStructureState(listener),
+            debounceMs: 500
+        });
+        window.nodePreviewCoordinator = nodePreviewCoordinator;
+    }
+
+    if (!nodePreviewOverlay) {
+        const container = document.querySelector('.flow-editor-container');
+        if (container) {
+            nodePreviewOverlay = new NodePreviewOverlay(container, flowCanvas, nodePreviewCoordinator, {
+                onOpenImage: openImageViewerFromPreview
+            });
+            window.nodePreviewOverlay = nodePreviewOverlay;
+        }
+    }
+}
+
 /**
  * 初始化检测控制器
  */
@@ -717,7 +779,10 @@ function initializePropertyPanel() {
         return;
     }
 
-    propertyPanel = new PropertyPanel('property-panel');
+    propertyPanel = new PropertyPanel('property-panel', {
+        previewCoordinator: nodePreviewCoordinator,
+        onOpenPreviewImage: openImageViewerFromPreview
+    });
 
     // 【修复】订阅选中算子变化，使用trackedSubscribe防止内存泄漏
     trackedSubscribe(subscribeSelectedOperator, (operator) => {
@@ -918,6 +983,7 @@ function initializeFlowEditor() {
     
     // 使用 FlowCanvas 类初始化
     flowCanvas = new FlowCanvas('flow-canvas');
+    initializeNodePreviewExperience();
     
     // 设置节点选中回调
     flowCanvas.onNodeSelected = (node) => {
@@ -930,10 +996,16 @@ function initializeFlowEditor() {
                 type: node.type,
                 title: node.title || operatorDef?.displayName || node.type,
                 displayName: operatorDef?.displayName || node.title || node.type,
+                iconPath: node.iconPath || operatorDef?.iconPath || null,
+                color: node.color || null,
+                inputPorts: node.inputs || operatorDef?.inputPorts || [],
+                outputPorts: node.outputs || operatorDef?.outputPorts || [],
                 parameters: mergeParameters(operatorDef?.parameters, node.parameters)
             });
+            nodePreviewCoordinator?.setActiveNode(node);
         } else {
             setSelectedOperator(null);
+            nodePreviewCoordinator?.setActiveNode(null);
         }
     };
     

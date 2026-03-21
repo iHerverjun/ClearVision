@@ -414,3 +414,134 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Canvas Preview Overlay -------------------------------------------------- */
+.node-preview-overlay-root {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 40;
+}
+
+.node-preview-overlay-root.hidden {
+    display: none;
+}
+
+.node-preview-card {
+    position: absolute;
+    width: 280px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.node-preview-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.node-preview-title-group {
+    min-width: 0;
+}
+
+.node-preview-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.3;
+}
+
+.node-preview-status {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.node-preview-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.node-preview-action-btn {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(248, 250, 252, 0.92);
+    color: #334155;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.node-preview-action-btn:hover {
+    background: #ffffff;
+    border-color: rgba(59, 130, 246, 0.35);
+}
+
+.node-preview-media {
+    min-height: 150px;
+    max-height: 190px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f172a;
+}
+
+.node-preview-media.has-image {
+    cursor: zoom-in;
+}
+
+.node-preview-media img {
+    width: 100%;
+    height: 100%;
+    max-height: 190px;
+    object-fit: contain;
+    display: block;
+}
+
+.node-preview-media-placeholder {
+    color: rgba(241, 245, 249, 0.82);
+    font-size: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.node-preview-summary {
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.node-preview-summary-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.node-preview-summary-item .key {
+    color: #334155;
+}
+
+.node-preview-summary-item .value {
+    max-width: 150px;
+    text-align: right;
+    color: #0f172a;
+    font-family: var(--font-mono);
+}
+
+.node-preview-summary-empty {
+    font-size: 12px;
+    color: #94a3b8;
+}
