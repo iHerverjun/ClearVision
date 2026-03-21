@@ -1,3 +1,11 @@
+﻿---
+title: "ClearVision 对标 Halcon 算子深化路线图（Vibe Coding版）"
+doc_type: "plan"
+status: "closed"
+topic: "对标Halcon"
+created: "2026-03-16"
+updated: "2026-03-20"
+---
 # ClearVision 对标 Halcon 算子深化路线图（Vibe Coding版）
 
 > **文档编号**: roadmap-halcon-deep-dive
@@ -906,3 +914,5 @@ public static class TestDataGenerator
 ---
 
 *本文档持续更新，每个任务完成后补充实际Prompt和踩坑记录*
+
+

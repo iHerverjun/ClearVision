@@ -1,3 +1,11 @@
+﻿---
+title: "性能要求与预算规范"
+doc_type: "note"
+status: "closed"
+topic: "对标Halcon"
+created: "2026-03-16"
+updated: "2026-03-20"
+---
 # 性能要求与预算规范
 
 > **文档编号**: performance-requirements
@@ -389,3 +397,5 @@ public class PerformanceBenchmark
 ---
 
 *本文档随项目进展持续更新*
+
+

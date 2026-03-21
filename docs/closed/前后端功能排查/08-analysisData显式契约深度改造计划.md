@@ -1,3 +1,11 @@
+﻿---
+title: "analysisData 显式契约深度改造计划"
+doc_type: "note"
+status: "closed"
+topic: "前后端功能排查"
+created: "2026-03-20"
+updated: "2026-03-20"
+---
 # analysisData 显式契约深度改造计划
 
 ## 文档信息
@@ -7,16 +15,16 @@
 - 触发来源：检测页右侧分析卡片曾把二值化算子的 `Width` / `Height` / `Text` 等通用输出误判成“距离测量”和“OCR 文本识别”
 - 核查方式：静态代码排查与现有测试文件核查，未启动完整桌面程序，未执行端到端 UI 回归
 - 相关文件：
-  - [`AnalysisDataBuilder.cs`](../../Acme.Product/src/Acme.Product.Application/Analysis/AnalysisDataBuilder.cs)
-  - [`AnalysisCardRegistry.cs`](../../Acme.Product/src/Acme.Product.Application/Analysis/AnalysisCardRegistry.cs)
-  - [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs)
-  - [`InspectionWorker.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs)
-  - [`WebMessages.cs`](../../Acme.Product/src/Acme.Product.Contracts/Messages/WebMessages.cs)
-  - [`analysisCardsPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js)
-  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js)
-  - [`AnalysisDataBuilderTests.cs`](../../Acme.Product/tests/Acme.Product.Tests/Services/AnalysisDataBuilderTests.cs)
-  - [`InspectionRealtimeEventMapperTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/InspectionRealtimeEventMapperTests.cs)
+  - [`AnalysisDataBuilder.cs`](../../../Acme.Product/src/Acme.Product.Application/Analysis/AnalysisDataBuilder.cs)
+  - [`AnalysisCardRegistry.cs`](../../../Acme.Product/src/Acme.Product.Application/Analysis/AnalysisCardRegistry.cs)
+  - [`InspectionService.cs`](../../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs)
+  - [`InspectionWorker.cs`](../../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs)
+  - [`WebMessages.cs`](../../../Acme.Product/src/Acme.Product.Contracts/Messages/WebMessages.cs)
+  - [`analysisCardsPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js)
+  - [`inspectionPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js)
+  - [`AnalysisDataBuilderTests.cs`](../../../Acme.Product/tests/Acme.Product.Tests/Services/AnalysisDataBuilderTests.cs)
+  - [`InspectionRealtimeEventMapperTests.cs`](../../../Acme.Product/tests/Acme.Product.Desktop.Tests/InspectionRealtimeEventMapperTests.cs)
 
 ## 1. 当前结论
 
@@ -40,10 +48,10 @@
 
 证据：
 
-- [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L35-L35)
-- [`InspectionService.cs`](../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L156-L160)
-- [`InspectionWorker.cs`](../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs#L564-L566)
-- [`WebMessages.cs`](../../Acme.Product/src/Acme.Product.Contracts/Messages/WebMessages.cs#L178-L230)
+- [`InspectionService.cs`](../../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L35-L35)
+- [`InspectionService.cs`](../../../Acme.Product/src/Acme.Product.Application/Services/InspectionService.cs#L156-L160)
+- [`InspectionWorker.cs`](../../../Acme.Product/src/Acme.Product.Infrastructure/Services/InspectionWorker.cs#L564-L566)
+- [`WebMessages.cs`](../../../Acme.Product/src/Acme.Product.Contracts/Messages/WebMessages.cs#L178-L230)
 
 ### 2.2 检测页主卡片链路已切到显式契约
 
@@ -52,10 +60,10 @@
 
 证据：
 
-- [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L301-L308)
-- [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L934-L941)
-- [`analysisCardsPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js#L162-L173)
-- [`analysisCardsPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js#L189-L225)
+- [`inspectionPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L301-L308)
+- [`inspectionPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L934-L941)
+- [`analysisCardsPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js#L162-L173)
+- [`analysisCardsPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/analysisCardsPanel.js#L189-L225)
 
 ### 2.3 结果页已经开始复用 `analysisData`
 
@@ -66,9 +74,9 @@
 
 证据：
 
-- [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L909-L909)
-- [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1172-L1172)
-- [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1233-L1319)
+- [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L909-L909)
+- [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1172-L1172)
+- [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1233-L1319)
 
 ### 2.4 自动化测试已覆盖第一轮改造
 
@@ -77,8 +85,8 @@
 
 证据：
 
-- [`AnalysisDataBuilderTests.cs`](../../Acme.Product/tests/Acme.Product.Tests/Services/AnalysisDataBuilderTests.cs#L13-L187)
-- [`InspectionRealtimeEventMapperTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/InspectionRealtimeEventMapperTests.cs#L12-L30)
+- [`AnalysisDataBuilderTests.cs`](../../../Acme.Product/tests/Acme.Product.Tests/Services/AnalysisDataBuilderTests.cs#L13-L187)
+- [`InspectionRealtimeEventMapperTests.cs`](../../../Acme.Product/tests/Acme.Product.Desktop.Tests/InspectionRealtimeEventMapperTests.cs#L12-L30)
 
 ## 3. 原始问题与当前剩余问题
 
@@ -183,3 +191,5 @@
 1. 先做 Phase D 的旧逻辑删除，避免旧猜测逻辑继续成为隐性维护面。
 2. 再扩展 mapper 覆盖范围，逐步把更多算子纳入显式契约。
 3. 最后补一轮端到端联调与结果页 / 导出复核，把“代码已接通”补成“回归已落账”。
+
+

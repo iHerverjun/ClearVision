@@ -1,3 +1,11 @@
+﻿---
+title: "Phase 0 - 可用性止血 TODO"
+doc_type: "task-list"
+status: "closed"
+topic: "前后端功能排查"
+created: "2026-03-20"
+updated: "2026-03-20"
+---
 # Phase 0 - 可用性止血 TODO
 
 ## 阶段目标
@@ -27,12 +35,12 @@
   - 旧标定和 `preview-node` 等关键调用已改为相对路径。
 - 关键主链路已由自动化验证覆盖：AI 面板健康检查、设置页标定入口和节点预览端点测试均已通过。
 - 证据：
-  - [`httpClient.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L73-L74)
-  - [`httpClient.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L143-L145)
-  - [`handEyeCalibWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js)
-  - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L413-L413)
-  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L420)
-  - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
+  - [`httpClient.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L73-L74)
+  - [`httpClient.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/messaging/httpClient.js#L143-L145)
+  - [`handEyeCalibWizard.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js)
+  - [`inspectionController.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L413-L413)
+  - [`high-frequency-regression.spec.ts`](../../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L420)
+  - [`PreviewNodeEndpointsTests.cs`](../../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
 
 ### 2. `[前端]` 修复 AI 面板健康检查链路
 
@@ -43,10 +51,10 @@
   - AI 面板健康检查语义已统一到 `/api/health`，不再由 `aiPanel.js` 直接打根路径。
   - 当前剩余工作已从“修链路”转为“补联调回归基线”。
 - 证据：
-  - [`aiPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai/aiPanel.js#L226-L236)
-  - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L194-L194)
-  - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L34-L34)
-  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L373)
+  - [`aiPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai/aiPanel.js#L226-L236)
+  - [`Program.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L194-L194)
+  - [`ApiEndpoints.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs#L34-L34)
+  - [`high-frequency-regression.spec.ts`](../../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L365-L373)
 
 ### 3. `[前端/联调]` 修复顶部旧标定向导断链
 
@@ -57,11 +65,11 @@
   - 本轮收敛后，旧 HTTP 标定协议与旧向导文件也已正式退场，当前只保留设置页 `HandEyeCalibWizard` 的 WebMessage 路线。
   - 本阶段按“止血”和“避免继续误导用户”判断，该项已完成；后续真正的协议退场与历史代码清理转入 Phase 1 / Phase 3 跟踪。
 - 证据：
-  - [`index.html`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L831-L837)
-  - [`handEyeCalibWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js#L454-L508)
-  - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs)
-  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L376-L407)
+  - [`index.html`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html)
+  - [`settingsView.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L831-L837)
+  - [`handEyeCalibWizard.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js#L454-L508)
+  - [`ApiEndpoints.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs)
+  - [`high-frequency-regression.spec.ts`](../../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L376-L407)
 - 备注：
   - 当前 Phase 0 视角下，该项已经从“旧入口退场”推进到“旧协议与旧向导也已退场”。
 
@@ -74,11 +82,11 @@
   - 当前主预览面板已优先接入节点级 `preview-node`，失败时再回退旧单算子预览链路。
   - 本阶段的“链路打通”目标已达成，后续保留的旧回退逻辑转入 Phase 3 关注其退场边界。
 - 证据：
-  - [`PreviewNodeEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/PreviewNodeEndpoints.cs#L35-L136)
-  - [`inspectionController.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L400-L426)
-  - [`propertyPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/propertyPanel.js#L667-L684)
-  - [`previewPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/previewPanel.js#L145-L148)
-  - [`PreviewNodeEndpointsTests.cs`](../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
+  - [`PreviewNodeEndpoints.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Endpoints/PreviewNodeEndpoints.cs#L35-L136)
+  - [`inspectionController.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionController.js#L400-L426)
+  - [`propertyPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/propertyPanel.js#L667-L684)
+  - [`previewPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/previewPanel.js#L145-L148)
+  - [`PreviewNodeEndpointsTests.cs`](../../../Acme.Product/tests/Acme.Product.Desktop.Tests/PreviewNodeEndpointsTests.cs#L20-L40)
 
 ### 5. `[联调]` 建立 Phase 0 冒烟回归清单
 
@@ -103,3 +111,5 @@
 - 三条断链问题全部关闭：已达成（待一次完整联调回归确认）
 - 不再存在新增的重复 `/api` 前缀调用：已达成
 - 冒烟回归清单已沉淀：已达成
+
+

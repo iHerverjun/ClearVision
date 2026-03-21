@@ -1,3 +1,11 @@
+﻿---
+title: "ClearVision vs Halcon 缺失能力全面分析"
+doc_type: "note"
+status: "closed"
+topic: "对标Halcon"
+created: "2026-03-16"
+updated: "2026-03-20"
+---
 # ClearVision vs Halcon 缺失能力全面分析
 
 > **文档编号**: missing-capabilities-analysis
@@ -594,3 +602,5 @@
 ---
 
 *本文档随项目进展持续更新*
+
+

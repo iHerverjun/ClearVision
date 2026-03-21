@@ -1,3 +1,11 @@
+﻿---
+title: "技术风险缓解计划"
+doc_type: "note"
+status: "closed"
+topic: "对标Halcon"
+created: "2026-03-16"
+updated: "2026-03-20"
+---
 # 技术风险缓解计划
 
 > **文档编号**: risk-mitigation-plan
@@ -589,3 +597,5 @@ ONNX模型训练时的预处理与部署时不一致，导致推理精度下降
 ---
 
 *本文档随项目进展持续更新，每两周评审一次*
+
+

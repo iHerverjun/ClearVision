@@ -1,4 +1,12 @@
-﻿# Phase 3 - 架构收敛 TODO
+﻿---
+title: "Phase 3 - 架构收敛 TODO"
+doc_type: "task-list"
+status: "closed"
+topic: "前后端功能排查"
+created: "2026-03-20"
+updated: "2026-03-20"
+---
+# Phase 3 - 架构收敛 TODO
 
 ## 阶段目标
 
@@ -27,11 +35,11 @@
   - 旧 `calibrationWizard.js` / `calibrationWizard.css` 已从仓库删除，不再保留公开前端兼容壳。
   - HTTP `/api/calibration/solve|save` 兼容协议已从后端移除，当前只保留 WebMessage `handeye:*` 路线。
 - 证据：
-  - [`index.html`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html)
-  - [`settingsView.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1758-L1758)
-  - [`handEyeCalibWizard.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js#L410-L470)
-  - [`ApiEndpoints.cs`](../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs)
-  - [`WebMessageHandler.cs`](../../Acme.Product/src/Acme.Product.Desktop/Handlers/WebMessageHandler.cs#L247-L251)
+  - [`index.html`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html)
+  - [`settingsView.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/settings/settingsView.js#L1758-L1758)
+  - [`handEyeCalibWizard.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/core/calibration/handEyeCalibWizard.js#L410-L470)
+  - [`ApiEndpoints.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Endpoints/ApiEndpoints.cs)
+  - [`WebMessageHandler.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Handlers/WebMessageHandler.cs#L247-L251)
 
 ### 2. `[前端]` 清理旧结果面板残留代码
 
@@ -43,13 +51,13 @@
   - inspection 视图右侧容器与最近结果网格已改成更准确的 `inspection-side-panel` / `inspection-recent-results-grid` 命名。
   - `main.css` 中旧的 `.results-panel` / `.result-summary*` 样式残留也已删除，不再继续暗示旧结果面板语义。
 - 证据：
-  - [`index.html`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html#L239-L258)
-  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L510-L520)
-  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L524-L524)
-  - [`inspectionPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L787-L824)
-  - [`inspection.css`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/inspection.css#L23-L35)
-  - [`inspection.css`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/inspection.css#L409-L419)
-  - [`main.css`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/main.css)
+  - [`index.html`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/index.html#L239-L258)
+  - [`app.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L510-L520)
+  - [`app.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L524-L524)
+  - [`inspectionPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/inspection/inspectionPanel.js#L787-L824)
+  - [`inspection.css`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/inspection.css#L23-L35)
+  - [`inspection.css`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/inspection.css#L409-L419)
+  - [`main.css`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/shared/styles/main.css)
 
 ### 3. `[前端]` 归档或删除已废弃的 AI 生成对话框模块
 
@@ -60,7 +68,7 @@
   - `aiGenerationDialog.js` 已改成明确废弃占位，任何继续实例化旧对话框的代码都会立即暴露错误，而不是悄悄保留伪入口。
   - `app.js` 中已不再保留旧对话框 import/实例化链路，AI 面板成为唯一前端生成入口。
 - 证据：
-  - [`aiGenerationDialog.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai-generation/aiGenerationDialog.js#L1-L8)
+  - [`aiGenerationDialog.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/ai-generation/aiGenerationDialog.js#L1-L8)
 - 主要缺口：
   - 后续可在确认没有历史引用后彻底删除文件；当前阶段已完成“公开入口退场”和“废弃显式化”。
 
@@ -76,17 +84,17 @@
   - `serverPaged` 场景下，服务端报告未就绪时也不再回退导出当前页本地数据。
   - 当前保留的 `results / filteredResults` 主要承担“当前页渲染态”职责，不再作为与服务端分析并行竞争的第二套正式业务数据流。
 - 证据：
-  - [`app.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L689-L716)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L165-L201)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L148-L177)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L294-L305)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L432-L445)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1017-L1057)
-  - [`high-frequency-regression.spec.ts`](../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L408-L421)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L430-L438)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L756-L772)
-  - [`resultPanel.js`](../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L888-L1008)
-  - [`Program.cs`](../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L253-L272)
+  - [`app.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/app.js#L689-L716)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L165-L201)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L148-L177)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L294-L305)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L432-L445)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L1017-L1057)
+  - [`high-frequency-regression.spec.ts`](../../../Acme.Product/tests/Acme.Product.UI.Tests/tests/e2e/high-frequency-regression.spec.ts#L408-L421)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L430-L438)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L756-L772)
+  - [`resultPanel.js`](../../../Acme.Product/src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js#L888-L1008)
+  - [`Program.cs`](../../../Acme.Product/src/Acme.Product.Desktop/Program.cs#L253-L272)
 
 ### 5. `[联调/文档]` 固化前后端功能矩阵
 
@@ -123,4 +131,6 @@
 - 标定、结果页、AI 相关历史残留实现完成收敛：已达成
 - 废弃模块、旧容器、双轨路径被真正移除或进入明确退场流程：已达成
 - TODO 文档升级为长期维护基线：已达成
+
+
 
