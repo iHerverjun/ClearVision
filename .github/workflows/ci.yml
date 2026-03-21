@@ -49,8 +49,8 @@ jobs:
       with:
         name: operator-catalog
         path: |
-          docs/operators/catalog.json
-          docs/operators/CATALOG.md
+          算子资料/算子目录.json
+          算子资料/算子目录.md
 
     # Debug 构建和测试
     - name: Build (Debug)

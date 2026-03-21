@@ -13,5 +13,5 @@ fi
 
 echo "[pre-commit] Operator-related changes detected. Regenerating operator catalog..."
 dotnet run --project scripts/OperatorDocGenerator/OperatorDocGenerator.csproj -- .
-git add docs/operators/catalog.json docs/operators/CATALOG.md
-echo "[pre-commit] Staged updated docs/operators/catalog.json and docs/operators/CATALOG.md"
+git add -- '算子资料'
+echo "[pre-commit] Staged updated 算子资料 outputs"
