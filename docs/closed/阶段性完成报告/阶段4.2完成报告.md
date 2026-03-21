@@ -1,0 +1,163 @@
+# 阶段4.2 完成报告：区域处理与测量专题
+
+**阶段编号**: Phase-4.2-Region-Measurement-V1.1  
+**时间周期**: W25-W32 (8周)  
+**报告日期**: 2026-03-18  
+**版本**: V1.1
+
+---
+
+## 一、阶段概述
+
+本阶段围绕 Halcon 对标中的区域处理、区域布尔运算、1D 测量、轮廓分析与频域分析展开，目标是补齐产品级 Region-based 处理链路，并将阶段4.1中实验级局部可变形匹配收束到可交付的多目标版本。
+
+### 1.1 阶段目标达成情况
+
+| 能力域 | 周次 | 目标 | 实际交付 | 状态 |
+|--------|------|------|----------|------|
+| 前置修复 | W25 | 修复 `OperatorEnums` 重复枚举问题 | Phase 4.1/4.2 枚举清理，新增 `PhaseClosure=254` | ✅ 完成 |
+| 区域数据结构 | W25 | 建立真正的 Region 表示 | `Region` + `RunLength` + `MorphologyKernel` | ✅ 完成 |
+| 区域形态学 | W25-W26 | 区域级腐蚀/膨胀/开/闭/骨架 | 5 个 Region-based 算子全部落地 | ✅ 完成 |
+| 区域布尔运算 | W27 | 并/交/差/补集 | 4 个独立算子全部落地 | ✅ 完成 |
+| 任意路径卡尺 | W28 | 圆弧路径卡尺 | `ArcCaliperOperator` | ✅ 完成 |
+| 轮廓极值分析 | W29 | 轮廓极值点输出 | `ContourExtremaOperator` | ✅ 完成 |
+| 1D 频域分析 | W30 | FFT / 频域滤波 / 逆 FFT | 3 个频域算子全部落地 | ✅ 完成 |
+| 多目标可变形匹配 | W31 | 从实验级升级为多目标 | 多候选、并行评估、NMS、多结果输出 | ✅ 完成 |
+| 阶段收口 | W32 | 回归、报告、遗留项说明 | 本报告 + 回归测试 + 编译验证 | ✅ 完成 |
+
+### 1.2 与原 TODO 的差异说明
+
+- TODO 中提到的灰度 `TopHat` / `BlackHat` 支持未新增独立算子类，而是复用现有 `MorphologicalOperationOperator` 的灰度形态学实现，并补充回归验证。
+- `PhaseClosureOperator` 不是原始 Phase 4.2 TODO 的必选项，但当前仓库已实现且已纳入枚举、元数据和回归验证，作为本阶段的扩展交付保留。
+
+---
+
+## 二、交付物清单
+
+### 2.1 Region / Measurement / Frequency 交付
+
+| 算子 | 文件 | 对标/定位 | 状态 |
+|------|------|-----------|------|
+| RegionErosionOperator | `RegionErosionOperator.cs` | `erosion_region` | ✅ |
+| RegionDilationOperator | `RegionDilationOperator.cs` | `dilation_region` | ✅ |
+| RegionOpeningOperator | `RegionOpeningOperator.cs` | `opening_region` | ✅ |
+| RegionClosingOperator | `RegionClosingOperator.cs` | `closing_region` | ✅ |
+| RegionSkeletonOperator | `RegionSkeletonOperator.cs` | `skeleton` | ✅ |
+| RegionUnionOperator | `RegionUnionOperator.cs` | `union2` | ✅ |
+| RegionIntersectionOperator | `RegionIntersectionOperator.cs` | `intersection` | ✅ |
+| RegionDifferenceOperator | `RegionDifferenceOperator.cs` | `difference` | ✅ |
+| RegionComplementOperator | `RegionComplementOperator.cs` | `complement` | ✅ |
+| ArcCaliperOperator | `ArcCaliperOperator.cs` | `measure_pos` (arc path) | ✅ |
+| ContourExtremaOperator | `ContourExtremaOperator.cs` | contour extremity / extrema | ✅ |
+| FFT1DOperator | `FFT1DOperator.cs` | 1D FFT | ✅ |
+| FrequencyFilterOperator | `FrequencyFilterOperator.cs` | low/high/band/notch filter | ✅ |
+| InverseFFT1DOperator | `InverseFFT1DOperator.cs` | 1D inverse FFT | ✅ |
+
+### 2.2 基础设施与升级项
+
+- `Acme.Product/src/Acme.Product.Core/ValueObjects/Region.cs`
+  - 基于 RLE 的 Region 表示。
+  - 为避免与 OpenCvSharp 冲突，引入 `RegionRect` / `RegionPoint2f`。
+- `Acme.Product/src/Acme.Product.Core/Enums/OperatorEnums.cs`
+  - Phase 4.2 枚举 240-253 全量接入。
+  - 扩展新增 `PhaseClosure = 254`。
+- `Acme.Product/src/Acme.Product.Infrastructure/Services/OperatorMetadataLocalization.cs`
+  - 补齐 Phase 4.1 / 4.2 新算子的中文显示名和分类。
+- `Acme.Product/src/Acme.Product.Infrastructure/Operators/LocalDeformableMatchingOperator.cs`
+  - 从单目标实验版升级为多候选、多结果、NMS 输出版本。
+
+### 2.3 复用能力（补齐 TODO 缺口）
+
+- `MorphologicalOperationOperator`
+  - 复用灰度 `TopHat` / `BlackHat` 能力，不额外新增算子类。
+  - 已补充 Phase 4.2 回归测试。
+
+---
+
+## 三、W31 多目标可变形匹配收口
+
+### 3.1 升级内容
+
+- 新增多候选搜索：基于模板相关性生成候选窗口。
+- 新增并行候选评估：可按候选窗口批量执行 TPS/刚性回退评估。
+- 新增多结果输出：`Matches`、`MatchCount`、`MatchResult`。
+- 新增 NMS 去重：按包围框 IoU 抑制重复检测。
+- 新增种子回退：当局部形变阶段失败时，可用高置信候选作为刚性回退结果。
+
+### 3.2 兼容性
+
+- 保留原有 `MatchResult`、`DeformationField`、`OcclusionMask` 输出。
+- 单目标场景依然兼容原有使用方式。
+
+---
+
+## 四、验证结果
+
+### 4.1 编译验证
+
+已通过：
+
+```powershell
+dotnet build "Acme.Product.sln" -v minimal
+```
+
+### 4.2 Phase 4.2 回归验证
+
+已通过：
+
+```powershell
+dotnet test "tests\Acme.Product.Tests\Acme.Product.Tests.csproj" --filter "FullyQualifiedName~Phase42RegionProcessingOperatorTests|FullyQualifiedName~Phase42MeasurementAndSignalOperatorTests|FullyQualifiedName~LocalDeformableMatchingPhase42Tests|FullyQualifiedName~PixelToWorldTransformOperatorTests|FullyQualifiedName~PlanarMatchingOperatorTests|FullyQualifiedName~ImageOutputLifecycleGuardTests" -v minimal
+```
+
+结果：
+
+- 通过 28
+- 失败 0
+- 跳过 0
+
+### 4.3 元数据 / 契约验证
+
+已通过：
+
+```powershell
+dotnet test "tests\Acme.Product.Tests\Acme.Product.Tests.csproj" --filter "FullyQualifiedName~OperatorMetadataMigrationTests|FullyQualifiedName~OperatorContractReconciliationTests" -v minimal
+```
+
+结果：
+
+- 通过 18
+- 失败 0
+- 跳过 0
+
+---
+
+## 五、风险与残留说明
+
+### 5.1 本阶段已关闭的问题
+
+- Region 自定义几何类型与 OpenCvSharp `Rect` / `Point2f` 的冲突已消除。
+- Phase 4.1 / 4.2 新增算子的编译链已恢复。
+- `InverseFFT1DOperator` 图像输出生命周期问题已修复。
+- `PlanarMatchingOperator` 增加相关性回退，恢复同图模板匹配稳定性。
+- `PixelToWorldTransformOperator` 使用稳定的安全映射路径，恢复基本正反向变换能力。
+
+### 5.2 非本阶段阻断项
+
+- 全量测试项目仍存在少量与 Phase 4.2 无关的历史残留失败，主要集中在：
+  - 旧性能门槛用例
+  - 旧集成性能验收用例
+  - 与本次 Region / Measurement / W31 收口无关的旧并行/点云性能基线
+- 这些问题未阻断 Phase 4.2 交付链路，但应单独建项处理。
+
+---
+
+## 六、结论
+
+Phase 4.2 已完成以下收口要求：
+
+1. Region-based 形态学与布尔运算链路已完整落地。
+2. 1D 测量、轮廓极值和频域分析能力已完成并纳入回归验证。
+3. `LocalDeformableMatchingOperator` 已从单目标实验版升级到多候选、多结果、NMS 的可交付版本。
+4. 工程接入、枚举、元数据、中文展示名、编译链和阶段回归已同步闭环。
+
+**阶段4.2状态**: ✅ **完成** (Go)
