@@ -1,9 +1,17 @@
-# AI 功能提高可执行任务表
+﻿---
+title: "AI功能提高任务表"
+doc_type: "task-list"
+status: "active"
+topic: "AI功能"
+created: "2026-03-20"
+updated: "2026-03-20"
+---
+# AI功能提高任务表
 
 更新时间：2026-03-20  
 适用范围：`Acme.Product` 当前 AI 工作流生成主链路
 
-> **收敛说明**：结合[项目总纲](../总纲/guide-clearvision-status-and-direction-2026-03-19.md)方向，本任务表已做战略性收缩。当前阶段的主要矛盾是**"模板闭环 + 预览反馈 + 参数调优 + 人机协同"**，而非 API 安全加密、多模型角色分配、可观测性基础设施等横向扩张。以下非主要矛盾任务已移除：
+> **收敛说明**：结合[项目现状与未来方向纲领](../reference/总纲/项目现状与未来方向纲领-2026-03-19.md)方向，本任务表已做战略性收缩。当前阶段的主要矛盾是**"模板闭环 + 预览反馈 + 参数调优 + 人机协同"**，而非 API 安全加密、多模型角色分配、可观测性基础设施等横向扩张。以下非主要矛盾任务已移除：
 >
 > - ~~P0-01/P0-02：API 密钥安全与加密存储~~（安全卫生任务，非产品主线）
 > - ~~P0-03：多协议路由与高级配置打通~~（多模型基础设施，非当前瓶颈）
@@ -55,7 +63,7 @@
 |  |  |  | `Acme.Product/src/Acme.Product.Infrastructure/AI/AIPromptBuilder.cs` | 旧版已标记过时，决定下线或仅保留迁移测试 | 不再让旧 prompt builder 成为主要测试对象 |
 |  |  |  | `Acme.Product/src/Acme.Product.Infrastructure/AI/AIGeneratedFlowParser.cs` | 判断是否仍需保留；如保留，明确仅服务旧格式导入 | 新旧职责边界清晰 |
 |  |  |  | `Acme.Product/tests/Acme.Product.Tests/AI/Sprint5_AIWorkflowServiceTests.cs` | 将旧链测试降级为兼容测试，新增主链端到端测试 | AI 测试不再主要覆盖旧链 |
-| `P2-02` | 实施真正的闭环修复框架 | 从"重试"升级到"修复回路" | `docs/LLM_CLOSED_LOOP_FRAMEWORK.md` | 将文档从"设计完成，待实施"变为已落地方案与现状说明 | 文档与代码一致 |
+| `P2-02` | 实施真正的闭环修复框架 | 从"重试"升级到"修复回路" | `docs/needs-review/AI闭环待复核总览.md` | 将文档从"设计完成，待实施"变为已落地方案与现状说明 | 文档与代码一致 |
 |  |  |  | `Acme.Product/src/Acme.Product.Infrastructure/AI/AiFlowGenerationService.cs` | 引入失败分类、修复目标、上一轮输出摘要、必要时二次审查模型 | 重试从机械再生变成定向修复 |
 |  |  |  | `Acme.Product/src/Acme.Product.Infrastructure/AI/AiFlowValidator.cs` | 增加结构化错误码、错误类别、涉及字段信息 | 失败反馈不再只有字符串 |
 
@@ -115,3 +123,4 @@
 - 里程碑 A：`P1` 全部完成，把用户反馈闭环和日常可用性拉起来。
 - 里程碑 B：`P2-01` 完成，把架构维护成本降下来。
 - 里程碑 C：`P2-02` 完成，让 AI 修复从重试升级为定向闭环。
+
