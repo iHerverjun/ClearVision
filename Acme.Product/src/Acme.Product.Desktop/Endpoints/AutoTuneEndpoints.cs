@@ -608,7 +608,7 @@ public class FlowDataDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = "AutoTuneFlow";
-    public List<OperatorData> Operators { get; set; } = new();
+    public List<CanvasOperatorDataDto> Operators { get; set; } = new();
 
     /// <summary>
     /// 节点列表

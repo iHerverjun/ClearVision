@@ -493,10 +493,12 @@ public class WebMessageHandler : IDisposable
 
     private OperatorDto BuildOperatorDto(OperatorData operatorData)
     {
-        if (!Enum.TryParse<OperatorType>(operatorData.Type, true, out var operatorType))
+        if (!Enum.TryParse<OperatorType>(operatorData.Type, true, out var parsedType))
         {
             throw new InvalidOperationException($"不支持的算子类型: {operatorData.Type}");
         }
+
+        var operatorType = OperatorTypeAliasResolver.Resolve(parsedType);
 
         var @operator = _operatorFactory.CreateOperator(
             operatorType,

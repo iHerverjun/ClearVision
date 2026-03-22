@@ -2,6 +2,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Services;
+using Acme.Product.Application.DTOs;
 
 namespace Acme.Product.Desktop.Endpoints;
 
@@ -9,7 +10,7 @@ internal static class FlowEntityMapper
 {
     private static readonly OperatorFactory OperatorFactory = new();
 
-    public static OperatorFlow ToEntity(FlowData flowData)
+    public static OperatorFlow ToEntity(CanvasFlowDataDto flowData)
     {
         ArgumentNullException.ThrowIfNull(flowData);
         return BuildFlow(
@@ -43,10 +44,31 @@ internal static class FlowEntityMapper
         return BuildLegacyFlow(flowData);
     }
 
+    public static OperatorFlow ToEntity(UpdateFlowRequest flowData, string flowName = "PreviewFlow", Guid? flowId = null)
+    {
+        ArgumentNullException.ThrowIfNull(flowData);
+
+        var dto = new OperatorFlowDto
+        {
+            Id = flowId ?? Guid.Empty,
+            Name = string.IsNullOrWhiteSpace(flowName) ? "PreviewFlow" : flowName,
+            Operators = flowData.Operators,
+            Connections = flowData.Connections
+        };
+
+        var flow = dto.ToEntity();
+        if (flowId.HasValue && flowId.Value != Guid.Empty)
+        {
+            SetId(flow, flowId.Value);
+        }
+
+        return flow;
+    }
+
     private static OperatorFlow BuildFlow(
         Guid flowId,
         string flowName,
-        IEnumerable<OperatorData> operators,
+        IEnumerable<CanvasOperatorDataDto> operators,
         IEnumerable<ConnectionShape> connections)
     {
         var flow = new OperatorFlow(flowName);
@@ -57,7 +79,7 @@ internal static class FlowEntityMapper
 
         foreach (var operatorData in operators)
         {
-            var type = Enum.Parse<OperatorType>(operatorData.Type, ignoreCase: true);
+            var type = OperatorTypeAliasResolver.Resolve(Enum.Parse<OperatorType>(operatorData.Type, ignoreCase: true));
             var @operator = OperatorFactory.CreateOperator(
                 type,
                 string.IsNullOrWhiteSpace(operatorData.Name) ? type.ToString() : operatorData.Name,
