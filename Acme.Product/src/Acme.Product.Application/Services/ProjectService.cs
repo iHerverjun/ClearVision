@@ -5,6 +5,7 @@
 using System.Text.Json;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.Exceptions;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
@@ -86,7 +87,14 @@ public class ProjectService
         // 【统一修复】无论数据来自 DB 还是 JSON，都尝试回填缺失的 Options
         if (dto.Flow != null)
         {
+            var migrated = MigrateFlowDto(dto.Flow);
             EnrichFlowDtoWithMetadata(dto.Flow);
+
+            if (migrated)
+            {
+                var json = JsonSerializer.Serialize(dto.Flow, _jsonOptions);
+                await _flowStorage.SaveFlowJsonAsync(id, json);
+            }
         }
 
         return dto;
@@ -142,6 +150,8 @@ public class ProjectService
         // 如果有流程数据，更新到文件
         if (request.Flow != null)
         {
+            MigrateFlowDto(request.Flow);
+            EnrichFlowDtoWithMetadata(request.Flow);
             var json = JsonSerializer.Serialize(request.Flow, _jsonOptions);
             await _flowStorage.SaveFlowJsonAsync(id, json);
         }
@@ -167,6 +177,9 @@ public class ProjectService
             Operators = request.Operators,
             Connections = request.Connections
         };
+
+        MigrateFlowDto(flowDto);
+        EnrichFlowDtoWithMetadata(flowDto);
 
         // 3. 序列化并保存到文件
         var json = JsonSerializer.Serialize(flowDto, _jsonOptions);
@@ -197,9 +210,10 @@ public class ProjectService
         // 添加算子
         foreach (var opDto in dto.Operators)
         {
+            var canonicalType = OperatorTypeAliasResolver.Resolve(opDto.Type);
             var op = new Operator(
                 opDto.Name,
-                opDto.Type,
+                canonicalType,
                 opDto.X,
                 opDto.Y
             );
@@ -344,7 +358,7 @@ public class ProjectService
         {
             Id = op.Id,
             Name = op.Name,
-            Type = op.Type,
+            Type = OperatorTypeAliasResolver.Resolve(op.Type),
             X = op.Position.X,
             Y = op.Position.Y,
             InputPorts = op.InputPorts.Select(MapPortToDto).ToList(),
@@ -406,5 +420,208 @@ public class ProjectService
             TargetOperatorId = conn.TargetOperatorId,
             TargetPortId = conn.TargetPortId
         };
+    }
+
+    private static readonly HashSet<string> LegacyPortNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "input",
+        "output",
+        "in",
+        "out"
+    };
+
+    private bool MigrateFlowDto(OperatorFlowDto flowDto)
+    {
+        var changed = false;
+        foreach (var opDto in flowDto.Operators)
+        {
+            var canonicalType = OperatorTypeAliasResolver.Resolve(opDto.Type);
+            if (canonicalType != opDto.Type)
+            {
+                opDto.Type = canonicalType;
+                changed = true;
+            }
+
+            var metadata = _operatorFactory.GetMetadata(opDto.Type);
+            if (metadata == null)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(opDto.Name))
+            {
+                opDto.Name = metadata.DisplayName;
+                changed = true;
+            }
+
+            changed |= NormalizePorts(opDto.InputPorts, metadata.InputPorts, PortDirection.Input);
+            changed |= NormalizePorts(opDto.OutputPorts, metadata.OutputPorts, PortDirection.Output);
+            changed |= NormalizeParameters(opDto.Parameters, metadata.Parameters);
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizePorts(List<PortDto> ports, List<PortDefinition> metadataPorts, PortDirection direction)
+    {
+        if (metadataPorts.Count == 0)
+        {
+            return false;
+        }
+
+        var changed = false;
+        var shouldRebuild = ports.Count == 0 ||
+            (ports.Count == metadataPorts.Count &&
+             ports.All(port => LegacyPortNames.Contains(port.Name) || port.Id == Guid.Empty));
+
+        if (shouldRebuild)
+        {
+            ports.Clear();
+            foreach (var definition in metadataPorts)
+            {
+                ports.Add(new PortDto
+                {
+                    Id = Guid.NewGuid(),
+                    Name = definition.Name,
+                    Direction = direction,
+                    DataType = definition.DataType,
+                    IsRequired = direction == PortDirection.Input && definition.IsRequired
+                });
+            }
+
+            return true;
+        }
+
+        var count = Math.Min(ports.Count, metadataPorts.Count);
+        for (var index = 0; index < count; index += 1)
+        {
+            var port = ports[index];
+            var definition = metadataPorts[index];
+
+            if (port.Id == Guid.Empty)
+            {
+                port.Id = Guid.NewGuid();
+                changed = true;
+            }
+
+            if (LegacyPortNames.Contains(port.Name))
+            {
+                port.Name = definition.Name;
+                changed = true;
+            }
+
+            if (port.DataType != definition.DataType)
+            {
+                port.DataType = definition.DataType;
+                changed = true;
+            }
+
+            if (port.Direction != direction)
+            {
+                port.Direction = direction;
+                changed = true;
+            }
+
+            if (direction == PortDirection.Input && port.IsRequired != definition.IsRequired)
+            {
+                port.IsRequired = definition.IsRequired;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizeParameters(List<ParameterDto> parameters, List<ParameterDefinition> metadataParameters)
+    {
+        var changed = false;
+
+        foreach (var definition in metadataParameters)
+        {
+            var parameter = parameters.FirstOrDefault(item =>
+                string.Equals(item.Name, definition.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (parameter == null)
+            {
+                parameters.Add(new ParameterDto
+                {
+                    Id = Guid.NewGuid(),
+                    Name = definition.Name,
+                    DisplayName = definition.DisplayName,
+                    Description = definition.Description,
+                    DataType = definition.DataType,
+                    Value = definition.DefaultValue,
+                    DefaultValue = definition.DefaultValue,
+                    MinValue = definition.MinValue,
+                    MaxValue = definition.MaxValue,
+                    IsRequired = definition.IsRequired,
+                    Options = definition.Options
+                });
+                changed = true;
+                continue;
+            }
+
+            if (parameter.Id == Guid.Empty)
+            {
+                parameter.Id = Guid.NewGuid();
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.Name, definition.Name, StringComparison.Ordinal))
+            {
+                parameter.Name = definition.Name;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.DisplayName, definition.DisplayName, StringComparison.Ordinal))
+            {
+                parameter.DisplayName = definition.DisplayName;
+                changed = true;
+            }
+
+            if (parameter.Description != definition.Description)
+            {
+                parameter.Description = definition.Description;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.DataType, definition.DataType, StringComparison.OrdinalIgnoreCase))
+            {
+                parameter.DataType = definition.DataType;
+                changed = true;
+            }
+
+            if (!Equals(parameter.DefaultValue, definition.DefaultValue))
+            {
+                parameter.DefaultValue = definition.DefaultValue;
+                changed = true;
+            }
+
+            if (!Equals(parameter.MinValue, definition.MinValue))
+            {
+                parameter.MinValue = definition.MinValue;
+                changed = true;
+            }
+
+            if (!Equals(parameter.MaxValue, definition.MaxValue))
+            {
+                parameter.MaxValue = definition.MaxValue;
+                changed = true;
+            }
+
+            if (parameter.IsRequired != definition.IsRequired)
+            {
+                parameter.IsRequired = definition.IsRequired;
+                changed = true;
+            }
+
+            if ((parameter.Options == null || parameter.Options.Count == 0) && definition.Options != null)
+            {
+                parameter.Options = definition.Options;
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 }

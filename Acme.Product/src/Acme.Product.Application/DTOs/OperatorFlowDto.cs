@@ -5,6 +5,7 @@
 namespace Acme.Product.Application.DTOs;
 
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 
 /// <summary>
@@ -43,8 +44,9 @@ public class OperatorFlowDto
         // 添加算子
         foreach (var op in Operators)
         {
+            var canonicalType = OperatorTypeAliasResolver.Resolve(op.Type);
             // 使用 5 参数构造函数创建算子 (保留原始ID)
-            var operatorEntity = new Operator(op.Id, op.Name, op.Type, op.X, op.Y);
+            var operatorEntity = new Operator(op.Id, op.Name, canonicalType, op.X, op.Y);
 
             // 加载输入端口
             foreach (var port in op.InputPorts)
