@@ -11,16 +11,12 @@ namespace Acme.Product.Infrastructure.Services;
 
 internal static class OperatorFactoryMetadataMerge
 {
-    private static readonly IReadOnlyDictionary<OperatorType, OperatorType> LegacyAliasMap =
-        new Dictionary<OperatorType, OperatorType>
-        {
-            [OperatorType.Preprocessing] = OperatorType.Filtering,
-            [OperatorType.GaussianBlur] = OperatorType.Filtering,
-            [OperatorType.OnnxInference] = OperatorType.DeepLearning,
-            [OperatorType.ModbusRtuCommunication] = OperatorType.ModbusCommunication
-        };
+    public static bool IsLegacyAlias(OperatorType type) => OperatorTypeAliasResolver.IsLegacyAlias(type);
 
-    public static bool IsLegacyAlias(OperatorType type) => LegacyAliasMap.ContainsKey(type);
+    public static OperatorType ResolveExecutionType(OperatorType type)
+    {
+        return OperatorTypeAliasResolver.Resolve(type);
+    }
 
     public static void Apply(Dictionary<OperatorType, OperatorMetadata> metadata)
     {
@@ -53,8 +49,9 @@ internal static class OperatorFactoryMetadataMerge
 
     private static void ApplyLegacyAliases(Dictionary<OperatorType, OperatorMetadata> metadata)
     {
-        foreach (var (legacyType, mappedType) in LegacyAliasMap)
+        foreach (var legacyType in Enum.GetValues<OperatorType>().Where(OperatorTypeAliasResolver.IsLegacyAlias))
         {
+            var mappedType = OperatorTypeAliasResolver.Resolve(legacyType);
             if (metadata.ContainsKey(legacyType))
             {
                 continue;

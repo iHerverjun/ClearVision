@@ -190,7 +190,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 break;
             }
 
-            if (!_executors.TryGetValue(op.Type, out var executor))
+            if (!TryResolveExecutor(op.Type, out var executor))
             {
                 result.OperatorResults.Add(new OperatorExecutionResult
                 {
@@ -273,7 +273,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                     };
                 }
 
-                if (!_executors.TryGetValue(op.Type, out var executor))
+                if (!TryResolveExecutor(op.Type, out var executor))
                 {
                     return new OperatorExecutionResult
                     {
@@ -471,7 +471,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
     public async Task<OperatorExecutionResult> ExecuteOperatorAsync(Operator @operator, Dictionary<string, object>? inputs = null)
     {
-        if (!_executors.TryGetValue(@operator.Type, out var executor))
+        if (!TryResolveExecutor(@operator.Type, out var executor))
         {
             return new OperatorExecutionResult
             {
@@ -545,7 +545,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         // 验证每个算子的参数
         foreach (var op in flow.Operators)
         {
-            if (_executors.TryGetValue(op.Type, out var executor))
+            if (TryResolveExecutor(op.Type, out var executor))
             {
                 var validation = executor.ValidateParameters(op);
                 if (!validation.IsValid)
@@ -565,6 +565,23 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
     public FlowExecutionStatus? GetExecutionStatus(Guid flowId)
     {
         return _executionStatuses.TryGetValue(flowId, out var status) ? status : null;
+    }
+
+    private bool TryResolveExecutor(OperatorType operatorType, out IOperatorExecutor executor)
+    {
+        if (_executors.TryGetValue(operatorType, out executor!))
+        {
+            return true;
+        }
+
+        var resolvedType = OperatorTypeAliasResolver.Resolve(operatorType);
+        if (resolvedType != operatorType && _executors.TryGetValue(resolvedType, out executor!))
+        {
+            return true;
+        }
+
+        executor = null!;
+        return false;
     }
 
     public Task CancelExecutionAsync(Guid flowId)
@@ -1058,7 +1075,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                     }
                 }
 
-                if (!_executors.TryGetValue(op.Type, out var executor))
+                if (!TryResolveExecutor(op.Type, out var executor))
                 {
                     var debugResult = new OperatorDebugResult
                     {
