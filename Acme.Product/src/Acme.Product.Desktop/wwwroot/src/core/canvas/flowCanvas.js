@@ -33,6 +33,13 @@ const COMM_OPERATOR_TYPES = new Set([
     'TcpCommunication', 'SerialCommunication', 'DatabaseWrite'
 ]);
 
+const LEGACY_OPERATOR_TYPE_ALIASES = {
+    'Preprocessing': 'Filtering',
+    'GaussianBlur': 'Filtering',
+    'OnnxInference': 'DeepLearning',
+    'ModbusRtuCommunication': 'ModbusCommunication'
+};
+
 
 class FlowCanvas {
 
@@ -237,14 +244,15 @@ class FlowCanvas {
      * 添加节点
      */
     addNode(type, x, y, config = {}) {
+        const canonicalType = this.normalizeOperatorType(type);
         const node = {
             id: this.generateUUID(),
-            type,
+            type: canonicalType,
             x,
             y,
             width: 140,
             height: 60,
-            title: config.title || type,
+            title: config.title || canonicalType,
             inputs: (config.inputs || []).map(p => ({
                 id: p.id || this.generateUUID(),
                 name: p.name,
@@ -1226,6 +1234,11 @@ class FlowCanvas {
         return map[type.toLowerCase()] || type;
     }
 
+    normalizeOperatorType(type) {
+        if (!type) return type;
+        return LEGACY_OPERATOR_TYPE_ALIASES[type] || type;
+    }
+
     /**
      * 序列化流程数据 - 适配后端 DTO (camelCase)
      * 后端 Program.cs 配置 JsonNamingPolicy.CamelCase，所以必须使用小驼峰
@@ -1254,7 +1267,7 @@ class FlowCanvas {
         const operators = Array.from(this.nodes.values()).map(node => ({
             id: node.id,
             name: node.title,
-            type: node.type,
+            type: this.normalizeOperatorType(node.type),
             x: node.x,
             y: node.y,
             inputPorts: (node.inputs || []).map(p => ({
@@ -1387,7 +1400,7 @@ class FlowCanvas {
             operators.forEach(op => {
                 // 适配后端 DTO (PascalCase) 或前端 (camelCase)
                 const id = op.id ?? op.Id;
-                const type = op.type ?? op.Type;
+                const type = this.normalizeOperatorType(op.type ?? op.Type);
                 const title = op.name ?? op.Name ?? op.title ?? type;
                 
                 // 【修复】标准化端口数据，统一使用小写属性名（id/name/type）

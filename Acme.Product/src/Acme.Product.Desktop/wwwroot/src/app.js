@@ -1636,7 +1636,7 @@ async function importProjectFromJson(file) {
         if (window.flowCanvas && importData.project.flow) {
             window.flowCanvas.deserialize(importData.project.flow);
             // 将流程数据保存到后端
-            project.flow = importData.project.flow;
+            project.flow = window.flowCanvas.serialize();
             await projectManager.saveProject(project);
         }
         
