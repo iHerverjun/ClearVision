@@ -9,8 +9,6 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Services;
-using Port = Acme.Product.Core.ValueObjects.Port;
-using Parameter = Acme.Product.Core.ValueObjects.Parameter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -50,7 +48,7 @@ public static class PreviewNodeEndpoints
                 if (request.FlowData?.Operators?.Count > 0)
                 {
                     // 使用前端传来的流程数据
-                    flow = FlowEntityMapper.ToEntity(request.FlowData);
+                    flow = FlowEntityMapper.ToEntity(request.FlowData, "PreviewFlow");
                 }
                 else
                 {
@@ -116,9 +114,7 @@ public static class PreviewNodeEndpoints
 
                 if (nodeOutput == null)
                 {
-                    return Results.Problem(
-                        detail: $"无法获取节点 {request.TargetNodeId} 的输出，可能节点执行失败或未被执行",
-                        statusCode: 400);
+                    return Results.Ok(BuildFailureResponse(request, result, request.TargetNodeId));
                 }
 
                 // 提取输出图像
@@ -133,12 +129,17 @@ public static class PreviewNodeEndpoints
                     "[PreviewNode] 预览完成: Project={ProjectId}, Node={NodeId}, Success={Success}",
                     request.ProjectId, request.TargetNodeId, result.IsSuccess);
 
+                var targetDebugResult = result.DebugOperatorResults.FirstOrDefault(r => r.OperatorId == request.TargetNodeId);
+                var inputImageBytes = TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot);
+                var inputImageBase64 = inputImageBytes != null ? Convert.ToBase64String(inputImageBytes) : null;
+
                 return Results.Ok(new PreviewNodeResponse
                 {
                     Success = result.IsSuccess,
                     ProjectId = request.ProjectId,
                     TargetNodeId = request.TargetNodeId,
                     DebugSessionId = request.DebugSessionId,
+                    InputImageBase64 = inputImageBase64,
                     OutputData = sanitizedOutputData,
                     OutputImageBase64 = outputImageBase64,
                     ExecutionTimeMs = result.ExecutionTimeMs,
@@ -199,6 +200,16 @@ public static class PreviewNodeEndpoints
         };
     }
 
+    private static byte[]? TryGetImageBytesFromSnapshot(Dictionary<string, object>? snapshot)
+    {
+        if (snapshot == null)
+        {
+            return null;
+        }
+
+        return TryGetOutputImageBytes(snapshot);
+    }
+
     private static byte[]? TryDecodeBase64(string? base64)
     {
         if (string.IsNullOrWhiteSpace(base64))
@@ -214,6 +225,76 @@ public static class PreviewNodeEndpoints
         {
             return null;
         }
+    }
+
+    private static string BuildMissingNodeOutputDetail(
+        FlowDebugExecutionResult result,
+        Guid targetNodeId)
+    {
+        var targetResult = result.DebugOperatorResults
+            .FirstOrDefault(item => item.OperatorId == targetNodeId);
+
+        if (targetResult != null && !targetResult.IsSuccess)
+        {
+            return $"目标节点 '{targetResult.OperatorName}' 执行失败: {targetResult.ErrorMessage ?? "未知错误"}";
+        }
+
+        var failedOperator = result.DebugOperatorResults
+            .FirstOrDefault(item => !item.IsSuccess);
+
+        if (failedOperator != null)
+        {
+            return $"上游或目标节点 '{failedOperator.OperatorName}' 执行失败: {failedOperator.ErrorMessage ?? "未知错误"}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            return result.ErrorMessage!;
+        }
+
+        return $"无法获取节点 {targetNodeId} 的输出，可能节点执行失败或未被执行";
+    }
+
+    private static PreviewNodeResponse BuildFailureResponse(
+        PreviewNodeRequest request,
+        FlowDebugExecutionResult result,
+        Guid targetNodeId)
+    {
+        var targetResult = result.DebugOperatorResults
+            .FirstOrDefault(item => item.OperatorId == targetNodeId);
+        var failedOperator = targetResult?.IsSuccess == false
+            ? targetResult
+            : result.DebugOperatorResults.FirstOrDefault(item => !item.IsSuccess);
+
+        var failureMessage = BuildMissingNodeOutputDetail(result, targetNodeId);
+        var inputImageBytes = TryGetImageBytesFromSnapshot(targetResult?.InputSnapshot)
+            ?? TryGetImageBytesFromSnapshot(failedOperator?.InputSnapshot);
+        var inputImageBase64 = inputImageBytes != null ? Convert.ToBase64String(inputImageBytes) : null;
+
+        return new PreviewNodeResponse
+        {
+            Success = false,
+            ProjectId = request.ProjectId,
+            TargetNodeId = request.TargetNodeId,
+            DebugSessionId = request.DebugSessionId,
+            InputImageBase64 = inputImageBase64,
+            OutputData = targetResult?.OutputSnapshot ?? failedOperator?.OutputSnapshot,
+            OutputImageBase64 = null,
+            ExecutionTimeMs = result.ExecutionTimeMs,
+            ErrorMessage = failureMessage,
+            FailedOperatorId = failedOperator?.OperatorId,
+            FailedOperatorName = failedOperator?.OperatorName,
+            FailedOperatorType = null,
+            Metrics = null,
+            ExecutedOperators = result.DebugOperatorResults.Select(r => new ExecutedOperatorInfo
+            {
+                OperatorId = r.OperatorId,
+                OperatorName = r.OperatorName,
+                ExecutionOrder = r.ExecutionOrder,
+                ExecutionTimeMs = r.ExecutionTimeMs,
+                IsSuccess = r.IsSuccess
+            }).ToList()
+        };
     }
 
     private static PreviewFeedbackMetrics BuildPreviewMetrics(
@@ -568,7 +649,7 @@ public class PreviewNodeRequest
     /// <summary>
     /// 流程数据（包含所有算子和连接）
     /// </summary>
-    public FlowData? FlowData { get; set; }
+    public UpdateFlowRequest? FlowData { get; set; }
 
     /// <summary>
     /// 输入图像（Base64），可选
@@ -612,6 +693,11 @@ public class PreviewNodeResponse
     public Guid DebugSessionId { get; set; }
 
     /// <summary>
+    /// 输入图像（Base64），用于失败态下回显已到达目标节点的输入
+    /// </summary>
+    public string? InputImageBase64 { get; set; }
+
+    /// <summary>
     /// 节点输出数据
     /// </summary>
     public Dictionary<string, object>? OutputData { get; set; }
@@ -630,6 +716,9 @@ public class PreviewNodeResponse
     /// 错误信息
     /// </summary>
     public string? ErrorMessage { get; set; }
+    public Guid? FailedOperatorId { get; set; }
+    public string? FailedOperatorName { get; set; }
+    public string? FailedOperatorType { get; set; }
     public PreviewFeedbackMetrics? Metrics { get; set; }
 
     /// <summary>
@@ -653,132 +742,3 @@ public class ExecutedOperatorInfo
 /// <summary>
 /// 流程数据传输对象（用于前端序列化）
 /// </summary>
-public class FlowData
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = "PreviewFlow";
-    public List<OperatorData> Operators { get; set; } = new();
-    public List<ConnectionData> Connections { get; set; } = new();
-
-    /// <summary>
-    /// 转换为实体
-    /// </summary>
-    public Acme.Product.Core.Entities.OperatorFlow ToEntity()
-    {
-        var flow = new Acme.Product.Core.Entities.OperatorFlow();
-        
-        // 使用反射设置 Id
-        typeof(Acme.Product.Core.Entities.OperatorFlow)
-            .GetProperty("Id")?
-            .SetValue(flow, Guid.NewGuid());
-
-        // 转换算子
-        foreach (var opData in Operators)
-        {
-            var opType = Enum.Parse<Acme.Product.Core.Enums.OperatorType>(opData.Type);
-            
-            // 创建算子
-            var op = new Acme.Product.Core.Entities.Operator(opData.Name, opType, opData.X, opData.Y);
-            
-            // 使用反射设置 Id
-            typeof(Acme.Product.Core.Entities.Operator)
-                .GetProperty("Id")?
-                .SetValue(op, opData.Id);
-
-            // 添加参数
-            if (opData.Parameters != null)
-            {
-                foreach (var param in opData.Parameters)
-                {
-                    var paramEntity = new Parameter(
-                        Guid.NewGuid(),
-                        param.Key,
-                        param.Key,
-                        "",
-                        param.Value?.GetType()?.Name ?? "string",
-                        param.Value,
-                        null,
-                        null,
-                        false,
-                        null);
-                    op.Parameters.Add(paramEntity);
-                }
-            }
-
-            // 添加端口
-            if (opData.InputPorts != null)
-            {
-                foreach (var port in opData.InputPorts)
-                {
-                    var dataType = Enum.Parse<Acme.Product.Core.Enums.PortDataType>(port.DataType);
-                    var portEntity = new Port(
-                        port.Id,
-                        port.Name,
-                        Acme.Product.Core.Enums.PortDirection.Input,
-                        dataType,
-                        false);
-                    op.InputPorts.Add(portEntity);
-                }
-            }
-
-            if (opData.OutputPorts != null)
-            {
-                foreach (var port in opData.OutputPorts)
-                {
-                    var dataType = Enum.Parse<Acme.Product.Core.Enums.PortDataType>(port.DataType);
-                    var portEntity = new Port(
-                        port.Id,
-                        port.Name,
-                        Acme.Product.Core.Enums.PortDirection.Output,
-                        dataType,
-                        false);
-                    op.OutputPorts.Add(portEntity);
-                }
-            }
-
-            flow.Operators.Add(op);
-        }
-
-        // 转换连接
-        foreach (var connData in Connections)
-        {
-            var conn = new Acme.Product.Core.ValueObjects.OperatorConnection(
-                connData.SourceOperatorId,
-                connData.SourcePortId,
-                connData.TargetOperatorId,
-                connData.TargetPortId);
-            flow.Connections.Add(conn);
-        }
-
-        return flow;
-    }
-}
-
-public class OperatorData
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public double X { get; set; }
-    public double Y { get; set; }
-    public Dictionary<string, object>? Parameters { get; set; }
-    public List<PortData>? InputPorts { get; set; }
-    public List<PortData>? OutputPorts { get; set; }
-}
-
-public class PortData
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string DataType { get; set; } = string.Empty;
-    public bool IsRequired { get; set; }
-}
-
-public class ConnectionData
-{
-    public Guid Id { get; set; }
-    public Guid SourceOperatorId { get; set; }
-    public Guid SourcePortId { get; set; }
-    public Guid TargetOperatorId { get; set; }
-    public Guid TargetPortId { get; set; }
-}
