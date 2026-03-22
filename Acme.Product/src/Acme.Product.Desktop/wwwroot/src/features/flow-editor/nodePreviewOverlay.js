@@ -51,6 +51,8 @@ export class NodePreviewOverlay {
         }
 
         const presenter = this.state.presenter;
+        const primaryImageSrc = presenter.outputImageSrc || presenter.inputImageSrc || null;
+        const primaryImageLabel = presenter.outputImageSrc ? '输出图像' : (presenter.inputImageSrc ? '输入图像' : '');
         const summaryItems = presenter.summaryItems.length > 0
             ? presenter.summaryItems.map(item => `
                 <div class="node-preview-summary-item">
@@ -73,9 +75,12 @@ export class NodePreviewOverlay {
                         <button type="button" class="node-preview-action-btn" data-action="close">关闭</button>
                     </div>
                 </div>
-                <div class="node-preview-media ${presenter.outputImageSrc ? 'has-image' : ''}" data-action="${presenter.canOpenImage ? 'open-image' : ''}">
-                    ${presenter.outputImageSrc
-                        ? `<img src="${presenter.outputImageSrc}" alt="节点输出预览" />`
+                <div class="node-preview-media ${primaryImageSrc ? 'has-image' : ''}" data-action="${primaryImageSrc ? 'open-image' : ''}">
+                    ${primaryImageSrc
+                        ? `
+                            <img src="${primaryImageSrc}" alt="${primaryImageLabel || '节点预览'}" />
+                            ${primaryImageLabel ? `<div class="node-preview-media-chip">${primaryImageLabel}</div>` : ''}
+                          `
                         : `<div class="node-preview-media-placeholder">${presenter.isLoading ? '预览生成中...' : (presenter.hasError ? '预览失败' : '暂无图像输出')}</div>`}
                 </div>
                 <div class="node-preview-summary">${summaryItems}</div>
@@ -104,8 +109,8 @@ export class NodePreviewOverlay {
         imageContainer?.addEventListener('click', event => {
             event.preventDefault();
             event.stopPropagation();
-            if (presenter.outputImageSrc) {
-                this.onOpenImage(presenter.outputImageSrc);
+            if (primaryImageSrc) {
+                this.onOpenImage(primaryImageSrc);
             }
         });
 

@@ -431,10 +431,12 @@ function parsePreviewResponse(response) {
     const isSuccess = Boolean(readFirstDefined(response, ['success', 'Success']));
     return {
         isSuccess,
+        inputImageBase64: normalizeBase64Image(readFirstDefined(response, ['inputImageBase64', 'InputImageBase64'])),
         outputImageBase64: normalizeBase64Image(readFirstDefined(response, ['outputImageBase64', 'OutputImageBase64'])),
         outputData: readFirstDefined(response, ['outputData', 'OutputData']) || null,
         executionTimeMs: readFirstDefined(response, ['executionTimeMs', 'ExecutionTimeMs']) ?? null,
-        errorMessage: readFirstDefined(response, ['errorMessage', 'ErrorMessage']) || null
+        errorMessage: readFirstDefined(response, ['errorMessage', 'ErrorMessage']) || null,
+        failedOperatorName: readFirstDefined(response, ['failedOperatorName', 'FailedOperatorName']) || null
     };
 }
 
@@ -626,10 +628,14 @@ export class NodePreviewCoordinator {
                     title: this.state.title,
                     status: parsed.isSuccess ? 'success' : 'error',
                     executionTimeMs: parsed.executionTimeMs,
-                    errorMessage: parsed.isSuccess ? null : (parsed.errorMessage || '预览执行失败'),
+                    errorMessage: parsed.isSuccess
+                        ? null
+                        : (parsed.failedOperatorName
+                            ? `${parsed.failedOperatorName}: ${parsed.errorMessage || '预览执行失败'}`
+                            : (parsed.errorMessage || '预览执行失败')),
                     canvasEligibility: this.state.canvasEligibility,
                     request,
-                    inputImageBase64: inputImageBase64 || null,
+                    inputImageBase64: parsed.inputImageBase64 || inputImageBase64 || null,
                     outputImageBase64: parsed.outputImageBase64,
                     outputData: parsed.outputData
                 };
