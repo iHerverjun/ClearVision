@@ -70,4 +70,5 @@ public class ScenarioPackageConstraints
     public List<string> ExpectedSequence { get; set; } = new();
     public int? ExpectedDetectionCount { get; set; }
     public string? JudgeOperatorType { get; set; }
+    public List<string> RequiredResources { get; set; } = new();
 }

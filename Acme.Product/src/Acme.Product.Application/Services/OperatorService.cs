@@ -280,7 +280,7 @@ public class OperatorService : IOperatorService
                     },
                     new() { Name = "InputSize", DisplayName = "输入尺寸", DataType = "int", DefaultValue = 640, MinValue = 320, MaxValue = 1280, IsRequired = true },
                     new() { Name = "TargetClasses", DisplayName = "目标类别", DataType = "string", DefaultValue = "", Description = "检测目标类别（逗号分隔，如 person,car），为空则检测所有类别" },
-                    new() { Name = "LabelFile", DisplayName = "标签文件路径", DataType = "file", DefaultValue = "", Description = "自定义标签文件路径（每行一个标签）" }
+                    new() { Name = "LabelsPath", DisplayName = "标签文件路径", DataType = "file", DefaultValue = "", Description = "自定义标签文件路径（每行一个标签）" }
                 }
             },
             new()
