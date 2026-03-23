@@ -51,6 +51,24 @@ public interface IAutoTuneService
         AutoTuneGoal goal,
         int maxIterations = 5,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// 场景级自动调参
+    /// </summary>
+    /// <param name="scenarioKey">场景键</param>
+    /// <param name="flow">完整流程</param>
+    /// <param name="inputImage">输入图像</param>
+    /// <param name="goal">调参目标</param>
+    /// <param name="maxIterations">最大迭代次数</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>场景级调参结果</returns>
+    Task<ScenarioAutoTuneResult> AutoTuneScenarioAsync(
+        string scenarioKey,
+        OperatorFlow flow,
+        byte[] inputImage,
+        AutoTuneGoal goal,
+        int maxIterations = 5,
+        CancellationToken ct = default);
 }
 
 /// <summary>
