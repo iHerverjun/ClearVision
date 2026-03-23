@@ -416,6 +416,11 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
     private List<ParameterSuggestion> GenerateSuggestions(PreviewMetrics metrics, Dictionary<string, object>? outputData)
     {
         var suggestions = new List<ParameterSuggestion>();
+        var detectionSummary = DetectionOutputInspector.Inspect(outputData);
+        var expectedCount = detectionSummary.ExpectedCount ?? detectionSummary.ExpectedLabels.Count;
+        var actualCount = detectionSummary.DetectionCount > 0
+            ? detectionSummary.DetectionCount
+            : (detectionSummary.DeclaredCount ?? 0);
 
         // 根据诊断标签生成建议
         foreach (var diagnostic in metrics.Diagnostics)
@@ -474,38 +479,40 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                     {
                         ParameterName = "ExpectedLabels",
                         SuggestedValue = "review",
-                        Reason = "Expected labels are missing in the current detection result.",
-                        ExpectedImprovement = "Helps align model output with the target sequence."
+                        Reason = "当前检测结果缺少预期类别，请先复核业务真值或模型标签映射。",
+                        ExpectedImprovement = "避免把缺类问题误判成可自动收敛的阈值问题。"
                     });
                     break;
 
                 case PreviewDiagnosticTags.DuplicateDetectedClass:
                     suggestions.Add(new ParameterSuggestion
                     {
-                        ParameterName = "BoxNms/BoxFilter",
-                        SuggestedValue = "tighten",
-                        Reason = "Duplicate detections were found for the same class.",
-                        ExpectedImprovement = "Reduces duplicate boxes before sequence judgment."
+                        ParameterName = "BoxNms.IouThreshold",
+                        SuggestedValue = "decrease",
+                        Reason = "发现同类重复框，优先收紧 BoxNms 的 IoU 阈值。",
+                        ExpectedImprovement = "在顺序判定前减少重复框。"
                     });
                     break;
 
                 case PreviewDiagnosticTags.DetectionCountMismatch:
                     suggestions.Add(new ParameterSuggestion
                     {
-                        ParameterName = "Confidence",
-                        SuggestedValue = "adjust",
-                        Reason = "Detection count does not match the expected count.",
-                        ExpectedImprovement = "Helps detections converge to the expected quantity."
+                        ParameterName = "BoxNms.ScoreThreshold",
+                        SuggestedValue = actualCount > expectedCount && expectedCount > 0 ? "increase" : "decrease",
+                        Reason = actualCount > expectedCount && expectedCount > 0
+                            ? "当前数量高于预期，优先提高 BoxNms.ScoreThreshold 过滤边缘候选框。"
+                            : "当前数量低于预期，优先降低 BoxNms.ScoreThreshold 保留更多候选框。",
+                        ExpectedImprovement = "让检出数量向预期数量收敛。"
                     });
                     break;
 
                 case PreviewDiagnosticTags.LowDetectionConfidence:
                     suggestions.Add(new ParameterSuggestion
                     {
-                        ParameterName = "Confidence",
-                        SuggestedValue = "review",
-                        Reason = "At least one detection confidence is lower than the working threshold.",
-                        ExpectedImprovement = "Improves sequence stability by reducing marginal detections."
+                        ParameterName = "BoxNms.ScoreThreshold",
+                        SuggestedValue = "decrease",
+                        Reason = "存在边缘置信度目标，优先下调 BoxNms.ScoreThreshold，而不是改业务真值。",
+                        ExpectedImprovement = "减少候选框在业务 NMS 层被过早过滤。"
                     });
                     break;
 
@@ -514,15 +521,15 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                     {
                         ParameterName = "ExpectedLabels",
                         SuggestedValue = "verify-order",
-                        Reason = "Detected label order does not match the expected sequence.",
-                        ExpectedImprovement = "Makes order mismatches easier to diagnose and correct."
+                        Reason = "检测标签顺序与预期不一致，请人工复核 ExpectedLabels/ExpectedCount 或现场工艺真值。",
+                        ExpectedImprovement = "避免系统自动猜测业务真值。"
                     });
                     break;
             }
         }
 
         // 根据数量误差生成建议
-        if (metrics.Goals.CountError > 0.2)
+        if (!detectionSummary.HasDetectionSemantics && metrics.Goals.CountError > 0.2)
         {
             if (metrics.BlobStats.Count > (metrics.Goals.TargetBlobCount ?? 0))
             {
@@ -546,7 +553,10 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
             }
         }
 
-        return suggestions;
+        return suggestions
+            .GroupBy(item => $"{item.ParameterName}:{item.SuggestedValue}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
     }
 
     /// <summary>
