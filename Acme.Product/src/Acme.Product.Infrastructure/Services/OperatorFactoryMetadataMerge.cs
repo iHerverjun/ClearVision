@@ -41,6 +41,7 @@ internal static class OperatorFactoryMetadataMerge
 
         // Keep UI-facing names/categories aligned with pre-migration Chinese catalog.
         OperatorMetadataLocalization.Apply(metadata.Values);
+        OperatorMetadataTextLocalization.Apply(metadata.Values);
 
         ApplyLegacyAliases(metadata);
 
