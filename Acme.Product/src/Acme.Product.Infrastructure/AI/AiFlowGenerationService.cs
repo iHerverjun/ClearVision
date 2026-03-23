@@ -960,7 +960,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     AddResource("Model", "DeepLearning.ModelPath", "缺少可用模型文件路径");
                 }
 
-                if (IsMissingParameter(parameters, "LabelsPath"))
+                if (IsMissingParameter(parameters, "LabelsPath", "LabelFile"))
                 {
                     AddResource("Label", "DeepLearning.LabelsPath", "缺少标签文件路径");
                 }
@@ -988,20 +988,28 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return resources.Values.ToList();
     }
 
-    private static bool IsMissingParameter(IReadOnlyDictionary<string, string> parameters, string key)
+    private static bool IsMissingParameter(IReadOnlyDictionary<string, string> parameters, params string[] keys)
     {
-        if (!parameters.TryGetValue(key, out var value))
-            return true;
+        foreach (var key in keys)
+        {
+            if (!parameters.TryGetValue(key, out var value))
+                continue;
 
-        if (string.IsNullOrWhiteSpace(value))
-            return true;
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
 
-        var normalized = value.Trim();
-        return normalized.Equals("todo", StringComparison.OrdinalIgnoreCase)
-               || normalized.Equals("tbd", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("placeholder", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("your_", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("to_be_filled", StringComparison.OrdinalIgnoreCase);
+            var normalized = value.Trim();
+            if (!normalized.Equals("todo", StringComparison.OrdinalIgnoreCase)
+                && !normalized.Equals("tbd", StringComparison.OrdinalIgnoreCase)
+                && !normalized.Contains("placeholder", StringComparison.OrdinalIgnoreCase)
+                && !normalized.Contains("your_", StringComparison.OrdinalIgnoreCase)
+                && !normalized.Contains("to_be_filled", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private sealed record TemplatePriorityContext(

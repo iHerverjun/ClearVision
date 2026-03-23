@@ -394,6 +394,11 @@ public class AIGeneratedFlowVersionManager : IAIGeneratedFlowVersionManager
             {
                 constraints.JudgeOperatorType = judgeOperatorTypeValue;
             }
+
+            if (artifact.Metadata.TryGetValue("requiredResources", out var requiredResourcesValue))
+            {
+                constraints.RequiredResources = SplitCsv(requiredResourcesValue);
+            }
         }
 
         return constraints;

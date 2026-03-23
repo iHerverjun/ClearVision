@@ -183,6 +183,11 @@ public class FlowTemplateService : IFlowTemplateService
                     SaveTemplates(templates);
                 }
 
+                if (MergeBuiltInTemplates(templates))
+                {
+                    SaveTemplates(templates);
+                }
+
                 return templates;
             }
             catch
@@ -193,6 +198,77 @@ public class FlowTemplateService : IFlowTemplateService
                 return templates;
             }
         }
+    }
+
+    private static bool MergeBuiltInTemplates(List<FlowTemplate> templates)
+    {
+        var changed = false;
+        foreach (var builtInTemplate in CreateBuiltInTemplates())
+        {
+            var existing = templates.FirstOrDefault(item => IsSameTemplateDefinition(item, builtInTemplate));
+            if (existing == null)
+            {
+                templates.Add(builtInTemplate);
+                changed = true;
+                continue;
+            }
+
+            if (!ShouldUpgradeBuiltInTemplate(existing, builtInTemplate))
+                continue;
+
+            ApplyBuiltInTemplate(existing, builtInTemplate);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool IsSameTemplateDefinition(FlowTemplate existing, FlowTemplate candidate)
+    {
+        if (!string.IsNullOrWhiteSpace(existing.ScenarioKey) &&
+            !string.IsNullOrWhiteSpace(candidate.ScenarioKey) &&
+            string.Equals(existing.ScenarioKey, candidate.ScenarioKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(existing.Name, candidate.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldUpgradeBuiltInTemplate(FlowTemplate existing, FlowTemplate candidate)
+    {
+        if (string.IsNullOrWhiteSpace(existing.TemplateVersion))
+            return !string.IsNullOrWhiteSpace(candidate.TemplateVersion);
+
+        return CompareTemplateVersions(candidate.TemplateVersion, existing.TemplateVersion) > 0;
+    }
+
+    private static int CompareTemplateVersions(string? left, string? right)
+    {
+        if (Version.TryParse(left, out var leftVersion) && Version.TryParse(right, out var rightVersion))
+            return leftVersion.CompareTo(rightVersion);
+
+        return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplyBuiltInTemplate(FlowTemplate target, FlowTemplate source)
+    {
+        target.Name = source.Name;
+        target.Description = source.Description;
+        target.Industry = source.Industry;
+        target.Tags = source.Tags;
+        target.FlowJson = source.FlowJson;
+        target.TemplateVersion = source.TemplateVersion;
+        target.ScenarioKey = source.ScenarioKey;
+        target.ScenarioPackage = source.ScenarioPackage == null
+            ? null
+            : new ScenarioPackageBinding
+            {
+                PackageKey = source.ScenarioPackage.PackageKey,
+                PackageVersion = source.ScenarioPackage.PackageVersion,
+                AssetVersionIds = source.ScenarioPackage.AssetVersionIds.ToList(),
+                RequiredResources = source.ScenarioPackage.RequiredResources.ToList()
+            };
     }
 
     private void SaveTemplates(List<FlowTemplate> templates)
@@ -497,71 +573,101 @@ public class FlowTemplateService : IFlowTemplateService
             {
                 Id = Guid.NewGuid(),
                 Name = "端子线序检测",
-                Description = "端子排局部区域的线序检测模板，内置检测 + 顺序判定主干。",
+                Description = "端子排固定 ROI 的线序检测模板，内置检测、NMS 去重与顺序判定主干。",
                 Industry = "线束装配",
-                Tags = ["线序", "YOLO", "端子", "PLC"],
-                TemplateVersion = "1.0.0",
+                Tags = ["线序", "YOLO", "端子", "ROI"],
+                TemplateVersion = "1.2.0",
                 ScenarioKey = "wire-sequence-terminal",
                 ScenarioPackage = new ScenarioPackageBinding
                 {
                     PackageKey = "wire-sequence-terminal",
-                    PackageVersion = "1.0.0",
+                    PackageVersion = "1.2.0",
                     AssetVersionIds =
                     [
-                        "template:terminal-wire-sequence-template@1.0.0",
+                        "template:terminal-wire-sequence-template@1.2.0",
                         "model:wire-seq-yolo@1.1.0",
-                        "rule:wire-sequence-rule@1.0.0",
+                        "rule:wire-sequence-rule@1.2.0",
                         "label:wire-label-set@1.0.0"
                     ],
                     RequiredResources =
                     [
                         "DeepLearning.ModelPath",
-                        "DeepLearning.LabelsPath",
-                        "ModbusCommunication.IpAddress",
-                        "ModbusCommunication.Port"
+                        "DeepLearning.LabelsPath"
                     ]
                 },
                 FlowJson = JsonSerializer.Serialize(new
                 {
-                    explanation = "适用于线束装配工位的端子线序判定，优先复用模板骨架后再补模型、PLC 和 ROI 参数。",
+                    explanation = "适用于线束装配工位的端子线序判定，先固定 ROI，再做目标检测、NMS 去重和顺序判定。",
+                    expectedSequence = new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" },
+                    expectedDetectionCount = 3,
+                    requiredResources = new[] { "DeepLearning.ModelPath", "DeepLearning.LabelsPath" },
+                    tunableParameters = new[]
+                    {
+                        "BoxNms.ScoreThreshold",
+                        "BoxNms.IouThreshold"
+                    },
                     operators = new object[]
                     {
                         Node("op_1", "ImageAcquisition", "图像采集", new Dictionary<string, string> { ["sourceType"] = "camera" }),
-                        Node("op_2", "ImageResize", "尺寸适配", new Dictionary<string, string> { ["Width"] = "640", ["Height"] = "640" }),
-                        Node("op_3", "DeepLearning", "线序检测", new Dictionary<string, string>
+                        Node("op_2", "RoiManager", "固定ROI", new Dictionary<string, string>
                         {
-                            ["Confidence"] = "0.5",
-                            ["TargetClasses"] = "Wire_Brown,Wire_Black,Wire_Blue"
+                            ["Shape"] = "Rectangle",
+                            ["Operation"] = "Crop",
+                            ["X"] = "0",
+                            ["Y"] = "0",
+                            ["Width"] = "640",
+                            ["Height"] = "640"
                         }),
-                        Node("op_4", "DetectionSequenceJudge", "顺序判定", new Dictionary<string, string>
+                        Node("op_3", "ImageResize", "尺寸适配", new Dictionary<string, string> { ["Width"] = "640", ["Height"] = "640" }),
+                        Node("op_4", "DeepLearning", "线根检测", new Dictionary<string, string>
+                        {
+                            ["ModelPath"] = "",
+                            ["LabelsPath"] = "",
+                            ["Confidence"] = "0.05",
+                            ["InputSize"] = "640",
+                            ["TargetClasses"] = "Wire_Brown,Wire_Black,Wire_Blue",
+                            ["EnableInternalNms"] = "false",
+                            ["DetectionMode"] = "Object"
+                        }),
+                        Node("op_5", "BoxNms", "候选框去重", new Dictionary<string, string>
+                        {
+                            ["IouThreshold"] = "0.45",
+                            ["ScoreThreshold"] = "0.25",
+                            ["MaxDetections"] = "10"
+                        }),
+                        Node("op_6", "DetectionSequenceJudge", "顺序判定", new Dictionary<string, string>
                         {
                             ["ExpectedLabels"] = "Wire_Brown,Wire_Black,Wire_Blue",
                             ["SortBy"] = "CenterX",
                             ["Direction"] = "Ascending",
-                            ["ExpectedCount"] = "3"
+                            ["ExpectedCount"] = "3",
+                            ["MinConfidence"] = "0.0"
                         }),
-                        Node("op_5", "ConditionalBranch", "OK/NG分支", new Dictionary<string, string>
+                        Node("op_7", "ResultOutput", "结果输出", new Dictionary<string, string>
                         {
-                            ["Condition"] = "Equals",
-                            ["CompareValue"] = "True"
-                        }),
-                        Node("op_6", "ModbusCommunication", "PLC信号"),
-                        Node("op_7", "ResultOutput", "结果输出")
+                            ["Format"] = "JSON",
+                            ["SaveToFile"] = "true"
+                        })
                     },
                     connections = new object[]
                     {
                         Link("op_1", "Image", "op_2", "Image"),
                         Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "Detections", "op_4", "Detections"),
-                        Link("op_4", "IsMatch", "op_5", "Value"),
-                        Link("op_5", "False", "op_6", "Data"),
-                        Link("op_4", "Message", "op_7", "Result")
+                        Link("op_3", "Image", "op_4", "Image"),
+                        Link("op_4", "Objects", "op_5", "Detections"),
+                        Link("op_4", "Image", "op_5", "Image"),
+                        Link("op_5", "Detections", "op_6", "Detections"),
+                        Link("op_5", "Image", "op_7", "Image"),
+                        Link("op_5", "Diagnostics", "op_7", "Data"),
+                        Link("op_6", "Diagnostics", "op_7", "Result"),
+                        Link("op_6", "Message", "op_7", "Text")
                     },
                     parametersNeedingReview = new Dictionary<string, List<string>>
                     {
-                        ["op_3"] = ["ModelPath", "LabelsPath", "Confidence", "TargetClasses"],
-                        ["op_4"] = ["ExpectedLabels", "ExpectedCount"],
-                        ["op_6"] = ["IpAddress", "Port"]
+                        ["op_2"] = ["X", "Y", "Width", "Height"],
+                        ["op_4"] = ["ModelPath", "LabelsPath"],
+                        ["op_5"] = ["ScoreThreshold", "IouThreshold"],
+                        ["op_6"] = ["ExpectedLabels", "ExpectedCount"]
                     }
                 }, _jsonOptions),
                 CreatedAt = DateTime.UtcNow
