@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
@@ -79,22 +81,12 @@ public class PreviewNodeEndpointsTests
             {
                 ["Threshold"] = 180
             },
-            FlowData = new FlowData
-            {
-                Operators = new List<OperatorData>
-                {
-                    new()
-                    {
-                        Id = targetNodeId,
-                        Name = "Threshold",
-                        Type = "Thresholding",
-                        Parameters = new Dictionary<string, object>
-                        {
-                            ["Threshold"] = 128
-                        }
-                    }
-                }
-            }
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(
+                    targetNodeId,
+                    "Threshold",
+                    OperatorType.Thresholding,
+                    parameters: new Dictionary<string, object> { ["Threshold"] = 128 }))
         };
 
         using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", request);
@@ -162,18 +154,8 @@ public class PreviewNodeEndpointsTests
         {
             ProjectId = projectId,
             TargetNodeId = targetNodeId,
-            FlowData = new FlowData
-            {
-                Operators = new List<OperatorData>
-                {
-                    new()
-                    {
-                        Id = targetNodeId,
-                        Name = "Threshold",
-                        Type = "Thresholding"
-                    }
-                }
-            }
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(targetNodeId, "Threshold", OperatorType.Thresholding))
         });
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -225,18 +207,8 @@ public class PreviewNodeEndpointsTests
         {
             ProjectId = projectId,
             TargetNodeId = targetNodeId,
-            FlowData = new FlowData
-            {
-                Operators = new List<OperatorData>
-                {
-                    new()
-                    {
-                        Id = targetNodeId,
-                        Name = "Judge",
-                        Type = "DetectionSequenceJudge"
-                    }
-                }
-            }
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(targetNodeId, "Judge", OperatorType.DetectionSequenceJudge))
         });
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
@@ -262,6 +234,113 @@ public class PreviewNodeEndpointsTests
         perClassCount.GetProperty("Wire_Black").GetInt32().Should().Be(1);
     }
 
+    [Fact]
+    public async Task PreviewNode_ShouldInjectExternalImage_WhenTargetPathContainsImageAcquisition()
+    {
+        var projectId = Guid.NewGuid();
+        var acquisitionId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var acquisitionOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var targetInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var targetOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        Dictionary<string, object>? capturedInput = null;
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(callInfo =>
+                {
+                    capturedInput = callInfo.ArgAt<Dictionary<string, object>?>(2);
+                    return Task.FromResult(new FlowDebugExecutionResult
+                    {
+                        IsSuccess = true,
+                        DebugSessionId = Guid.NewGuid(),
+                        IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                        {
+                            [targetNodeId] = new()
+                            {
+                                ["Image"] = new byte[] { 1, 2, 3 }
+                            }
+                        }
+                    });
+                });
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            InputImageBase64 = Convert.ToBase64String(new byte[] { 9, 9, 9 }),
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(acquisitionId, "图像采集", OperatorType.ImageAcquisition, outputPorts: [acquisitionOutput]),
+                CreateOperatorDto(targetNodeId, "图像缩放", OperatorType.ImageResize,
+                    inputPorts: [targetInput],
+                    outputPorts: [targetOutput]),
+                CreateConnection(acquisitionId, acquisitionOutput.Id, targetNodeId, targetInput.Id))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        capturedInput.Should().NotBeNull();
+        capturedInput!.Should().ContainKey("Image");
+        ((byte[])capturedInput["Image"]).Should().Equal(new byte[] { 9, 9, 9 });
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldInjectExternalImage_WhenNoImageAcquisitionExistsUpstream()
+    {
+        var projectId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var targetInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var targetOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        Dictionary<string, object>? capturedInput = null;
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(callInfo =>
+                {
+                    capturedInput = callInfo.ArgAt<Dictionary<string, object>?>(2);
+                    return Task.FromResult(new FlowDebugExecutionResult
+                    {
+                        IsSuccess = true,
+                        DebugSessionId = Guid.NewGuid(),
+                        IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                        {
+                            [targetNodeId] = new()
+                            {
+                                ["Image"] = new byte[] { 1, 2, 3 }
+                            }
+                        }
+                    });
+                });
+        });
+
+        var externalImage = Convert.ToBase64String(new byte[] { 7, 8, 9 });
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            InputImageBase64 = externalImage,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(targetNodeId, "图像缩放", OperatorType.ImageResize,
+                    inputPorts: [targetInput],
+                    outputPorts: [targetOutput]))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        capturedInput.Should().NotBeNull();
+        capturedInput!.Should().ContainKey("Image");
+        ((byte[])capturedInput["Image"]).Should().Equal(new byte[] { 7, 8, 9 });
+    }
+
     private static int ReadIntValue(object? value)
     {
         return value switch
@@ -280,6 +359,96 @@ public class PreviewNodeEndpointsTests
         image.Set(0, 0, 255);
         image.Set(1, 1, 255);
         return image.ToBytes(".png");
+    }
+
+    private static UpdateFlowRequest CreateUpdateFlowRequest(params object[] items)
+    {
+        var flow = new UpdateFlowRequest();
+        foreach (var item in items)
+        {
+            switch (item)
+            {
+                case OperatorDto operatorDto:
+                    flow.Operators.Add(operatorDto);
+                    break;
+                case OperatorConnectionDto connectionDto:
+                    flow.Connections.Add(connectionDto);
+                    break;
+            }
+        }
+
+        return flow;
+    }
+
+    private static OperatorDto CreateOperatorDto(
+        Guid id,
+        string name,
+        OperatorType type,
+        List<PortDto>? inputPorts = null,
+        List<PortDto>? outputPorts = null,
+        Dictionary<string, object>? parameters = null)
+    {
+        return new OperatorDto
+        {
+            Id = id,
+            Name = name,
+            Type = type,
+            X = 0,
+            Y = 0,
+            IsEnabled = true,
+            InputPorts = inputPorts ?? new List<PortDto>(),
+            OutputPorts = outputPorts ?? new List<PortDto>(),
+            Parameters = parameters?.Select(kvp => new ParameterDto
+            {
+                Id = Guid.NewGuid(),
+                Name = kvp.Key,
+                DisplayName = kvp.Key,
+                DataType = kvp.Value switch
+                {
+                    int => "int",
+                    long => "int",
+                    float => "double",
+                    double => "double",
+                    bool => "bool",
+                    _ => "string"
+                },
+                Value = kvp.Value,
+                DefaultValue = kvp.Value,
+                IsRequired = false
+            }).ToList() ?? new List<ParameterDto>()
+        };
+    }
+
+    private static PortDto CreatePort(
+        string name,
+        PortDataType dataType,
+        PortDirection direction,
+        bool isRequired = false)
+    {
+        return new PortDto
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            DataType = dataType,
+            Direction = direction,
+            IsRequired = isRequired
+        };
+    }
+
+    private static OperatorConnectionDto CreateConnection(
+        Guid sourceOperatorId,
+        Guid sourcePortId,
+        Guid targetOperatorId,
+        Guid targetPortId)
+    {
+        return new OperatorConnectionDto
+        {
+            Id = Guid.NewGuid(),
+            SourceOperatorId = sourceOperatorId,
+            SourcePortId = sourcePortId,
+            TargetOperatorId = targetOperatorId,
+            TargetPortId = targetPortId
+        };
     }
 
     private sealed class PreviewNodeTestHost : IAsyncDisposable

@@ -18,14 +18,14 @@ public class FlowDataMappingTests
         {
             Id = Guid.NewGuid(),
             Name = "AutoTuneFlow",
-            Operators = new List<OperatorData>
+            Operators = new List<CanvasOperatorDataDto>
             {
                 new()
                 {
                     Id = sourceOperatorId,
                     Name = "Detector",
                     Type = "DeepLearning",
-                    OutputPorts = new List<PortData>
+                    OutputPorts = new List<CanvasPortDataDto>
                     {
                         new()
                         {
@@ -40,7 +40,7 @@ public class FlowDataMappingTests
                     Id = targetOperatorId,
                     Name = "Judge",
                     Type = "DetectionSequenceJudge",
-                    InputPorts = new List<PortData>
+                    InputPorts = new List<CanvasPortDataDto>
                     {
                         new()
                         {

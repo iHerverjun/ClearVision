@@ -2,6 +2,7 @@
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -45,6 +46,41 @@ public class BoxNmsOperatorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.OutputData);
         Assert.Equal(2, (int)result.OutputData!["Count"]);
+        result.OutputData["InputCount"].Should().Be(3);
+        result.OutputData["SuppressedCount"].Should().Be(1);
+        result.OutputData["SuppressedDetections"].Should().BeOfType<DetectionList>();
+        result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenMaxDetectionsTrimsResults_ShouldCountTrimmedBoxesAsSuppressed()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "IouThreshold", 0.5 },
+            { "ScoreThreshold", 0.1 },
+            { "MaxDetections", 2 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("wire", 0.99f, 10, 10, 10, 10),
+            new DetectionResult("wire", 0.89f, 40, 10, 10, 10),
+            new DetectionResult("wire", 0.79f, 70, 10, 10, 10)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(2);
+        result.OutputData["SuppressedCount"].Should().Be(1);
+        var suppressedDetections = result.OutputData["SuppressedDetections"].Should().BeOfType<DetectionList>().Subject;
+        suppressedDetections.Count.Should().Be(1);
+        suppressedDetections.Detections.Single().Confidence.Should().Be(0.79f);
+
+        var diagnostics = result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>().Subject;
+        diagnostics["SuppressedCount"].Should().Be(1);
     }
 
     [Fact]

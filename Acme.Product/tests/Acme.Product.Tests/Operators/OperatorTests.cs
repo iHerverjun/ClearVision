@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,36 @@ public class ImageAcquisitionOperatorTests
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithFilePathConfigured_ShouldPreferFileModeEvenWhenSourceTypeIsCamera()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"cv-image-{Guid.NewGuid():N}.png");
+        using var mat = new OpenCvSharp.Mat(8, 8, OpenCvSharp.MatType.CV_8UC3, new OpenCvSharp.Scalar(10, 20, 30));
+        OpenCvSharp.Cv2.ImWrite(tempFile, mat);
+
+        try
+        {
+            var op = CreateTestOperator();
+            op.AddParameter(new Parameter(Guid.NewGuid(), "SourceType", "采集源", string.Empty, "enum", "Camera"));
+            op.AddParameter(new Parameter(Guid.NewGuid(), "FilePath", "文件路径", string.Empty, "file", tempFile));
+
+            var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>());
+
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            result.OutputData.Should().NotBeNull();
+            result.OutputData!.Should().ContainKey("Image");
+            result.OutputData["Width"].Should().Be(8);
+            result.OutputData["Height"].Should().Be(8);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
     }
 
     [Fact]

@@ -251,6 +251,122 @@ public class Sprint7_AiEvolutionTests
         }
     }
 
+    [Fact(DisplayName = "FlowTemplateService - 已有模板库缺失新增内置模板时应自动补齐")]
+    public async Task FlowTemplateService_GetTemplatesAsync_ShouldMergeMissingBuiltInTemplatesIntoExistingStore()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "clearvision-template-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var templateDirectory = Path.Combine(tempRoot, "templates");
+            Directory.CreateDirectory(templateDirectory);
+
+            var existingTemplates = new List<FlowTemplate>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "传统缺陷检测",
+                    Description = "旧模板库中的内置模板副本",
+                    Industry = "3C电子",
+                    Tags = new List<string> { "缺陷检测" },
+                    FlowJson = "{}",
+                    CreatedAt = DateTime.UtcNow.AddDays(-7)
+                },
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "我的自定义模板",
+                    Description = "需要保留的用户模板",
+                    Industry = "通用制造",
+                    Tags = new List<string> { "自定义" },
+                    FlowJson = "{\"operators\":[]}",
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
+                }
+            };
+
+            var templateFilePath = Path.Combine(templateDirectory, "flow_templates.json");
+            await File.WriteAllTextAsync(
+                templateFilePath,
+                JsonSerializer.Serialize(existingTemplates, new JsonSerializerOptions { WriteIndented = true }));
+
+            var service = new FlowTemplateService(tempRoot);
+
+            var templates = await service.GetTemplatesAsync();
+
+            templates.Select(item => item.Name).Should().Contain("我的自定义模板");
+            templates.Select(item => item.Name).Should().Contain("端子线序检测");
+            templates.Count(item => item.Name == "端子线序检测").Should().Be(1);
+
+            var persisted = JsonSerializer.Deserialize<List<FlowTemplate>>(
+                await File.ReadAllTextAsync(templateFilePath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            persisted.Should().NotBeNull();
+            persisted!.Select(item => item.Name).Should().Contain("端子线序检测");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact(DisplayName = "FlowTemplateService - 已有旧版线序模板时应自动升级到最新骨架")]
+    public async Task FlowTemplateService_GetTemplatesAsync_ShouldUpgradeOutdatedWireSequenceTemplate()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "clearvision-template-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var templateDirectory = Path.Combine(tempRoot, "templates");
+            Directory.CreateDirectory(templateDirectory);
+
+            var oldWireTemplate = new FlowTemplate
+            {
+                Id = Guid.NewGuid(),
+                Name = "端子线序检测",
+                Description = "旧模板",
+                Industry = "线束装配",
+                Tags = new List<string> { "线序" },
+                TemplateVersion = "1.1.0",
+                ScenarioKey = "wire-sequence-terminal",
+                ScenarioPackage = new ScenarioPackageBinding
+                {
+                    PackageKey = "wire-sequence-terminal",
+                    PackageVersion = "1.1.0",
+                    AssetVersionIds = new List<string> { "template:terminal-wire-sequence-template@1.1.0" },
+                    RequiredResources = new List<string> { "DeepLearning.ModelPath", "DeepLearning.LabelsPath" }
+                },
+                FlowJson = "{\"operators\":[{\"tempId\":\"op_4\",\"operatorType\":\"DeepLearning\",\"displayName\":\"线根检测\",\"parameters\":{\"Confidence\":\"0.5\"}}]}",
+                CreatedAt = DateTime.UtcNow.AddDays(-3)
+            };
+
+            var templateFilePath = Path.Combine(templateDirectory, "flow_templates.json");
+            await File.WriteAllTextAsync(
+                templateFilePath,
+                JsonSerializer.Serialize(new[] { oldWireTemplate }, new JsonSerializerOptions { WriteIndented = true }));
+
+            var service = new FlowTemplateService(tempRoot);
+            var templates = await service.GetTemplatesAsync();
+            var upgraded = templates.Single(item => item.ScenarioKey == "wire-sequence-terminal");
+
+            upgraded.TemplateVersion.Should().Be("1.2.0");
+            upgraded.ScenarioPackage.Should().NotBeNull();
+            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.2.0");
+
+            using var document = JsonDocument.Parse(upgraded.FlowJson);
+            var deepLearningParams = document.RootElement.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                .GetProperty("parameters");
+            deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
+            deepLearningParams.GetProperty("Confidence").GetString().Should().Be("0.05");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
     [Fact(DisplayName = "FlowTemplateService - 应支持保存并回读自定义模板")]
     public async Task FlowTemplateService_SaveTemplateAsync_ShouldPersistTemplate()
     {
@@ -275,6 +391,93 @@ public class Sprint7_AiEvolutionTests
             // Assert
             loaded.Should().NotBeNull();
             loaded!.Name.Should().Be("自定义测试模板");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact(DisplayName = "FlowTemplateService - 端子线序模板应对齐固定 ROI + BoxNms 主链")]
+    public async Task FlowTemplateService_WireSequenceTemplate_ShouldUseAlignedSkeleton()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "clearvision-template-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var service = new FlowTemplateService(tempRoot);
+
+            var template = (await service.GetTemplatesAsync())
+                .Single(item => item.Name == "端子线序检测");
+
+            template.TemplateVersion.Should().Be("1.2.0");
+            template.ScenarioPackage.Should().NotBeNull();
+            template.ScenarioPackage!.PackageVersion.Should().Be("1.2.0");
+            template.ScenarioPackage.RequiredResources.Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.2.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("model:wire-seq-yolo@1.1.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.2.0");
+
+            using var document = JsonDocument.Parse(template.FlowJson);
+            var root = document.RootElement;
+            root.GetProperty("expectedSequence").EnumerateArray().Select(item => item.GetString())
+                .Should().Equal("Wire_Brown", "Wire_Black", "Wire_Blue");
+            root.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
+                .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+            root.GetProperty("tunableParameters").EnumerateArray().Select(item => item.GetString())
+                .Should().Equal("BoxNms.ScoreThreshold", "BoxNms.IouThreshold");
+
+            var operatorTypes = root.GetProperty("operators").EnumerateArray()
+                .Select(item => item.GetProperty("operatorType").GetString())
+                .ToList();
+            operatorTypes.Should().Equal(
+                "ImageAcquisition",
+                "RoiManager",
+                "ImageResize",
+                "DeepLearning",
+                "BoxNms",
+                "DetectionSequenceJudge",
+                "ResultOutput");
+            operatorTypes.Should().NotContain("ConditionalBranch");
+            operatorTypes.Should().NotContain("ModbusCommunication");
+
+            var connections = root.GetProperty("connections").EnumerateArray().ToList();
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_4" &&
+                item.GetProperty("sourcePortName").GetString() == "Objects" &&
+                item.GetProperty("targetTempId").GetString() == "op_5" &&
+                item.GetProperty("targetPortName").GetString() == "Detections");
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                item.GetProperty("sourcePortName").GetString() == "Detections" &&
+                item.GetProperty("targetTempId").GetString() == "op_6" &&
+                item.GetProperty("targetPortName").GetString() == "Detections");
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                item.GetProperty("sourcePortName").GetString() == "Diagnostics" &&
+                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetPortName").GetString() == "Data");
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                item.GetProperty("sourcePortName").GetString() == "Diagnostics" &&
+                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetPortName").GetString() == "Result");
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                item.GetProperty("sourcePortName").GetString() == "Message" &&
+                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetPortName").GetString() == "Text");
+
+            var deepLearningParams = root.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                .GetProperty("parameters");
+            deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
+            deepLearningParams.GetProperty("Confidence").GetString().Should().Be("0.05");
+
+            var judgeParams = root.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_6")
+                .GetProperty("parameters");
+            judgeParams.GetProperty("MinConfidence").GetString().Should().Be("0.0");
         }
         finally
         {

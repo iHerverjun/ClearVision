@@ -34,6 +34,10 @@ public class DetectionSequenceJudgeOperatorTests
         result.OutputData["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" });
         result.OutputData["MissingLabels"].Should().BeEquivalentTo(Array.Empty<string>());
         result.OutputData["DuplicateLabels"].Should().BeEquivalentTo(Array.Empty<string>());
+        var diagnostics = result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>().Subject;
+        diagnostics["ReceivedCount"].Should().Be(3);
+        diagnostics["FilteredCount"].Should().Be(3);
+        diagnostics["SortedCount"].Should().Be(3);
     }
 
     [Fact]
@@ -116,6 +120,10 @@ public class DetectionSequenceJudgeOperatorTests
         result.OutputData["MissingLabels"].Should().BeEquivalentTo(new[] { "Wire_Blue" });
         result.OutputData["Message"].Should().BeOfType<string>()
             .Which.Should().Contain("Expected 3 detections but got 2");
+        var diagnostics = result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>().Subject;
+        diagnostics["ReceivedCount"].Should().Be(3);
+        diagnostics["FilteredCount"].Should().Be(2);
+        diagnostics["MinConfidence"].Should().Be(0.9);
     }
 
     private static Operator CreateOperator(

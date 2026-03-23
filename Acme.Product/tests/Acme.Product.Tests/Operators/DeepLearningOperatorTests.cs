@@ -73,6 +73,67 @@ public class DeepLearningOperatorTests
         result.As<HashSet<int>>().Should().BeEquivalentTo(new[] { 0, 2 });
     }
 
+    [Fact]
+    public void ResolveLabelsPath_ShouldPreferLabelsPathAndFallbackToLegacyLabelFile()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "ResolveLabelsPath",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var withLabelsPath = CreateTestOperator("model.onnx", 0.5f);
+        withLabelsPath.AddParameter(new Parameter(Guid.NewGuid(), "LabelsPath", "标签路径", string.Empty, "file", "C:\\labels\\active.txt"));
+        withLabelsPath.AddParameter(new Parameter(Guid.NewGuid(), "LabelFile", "旧标签路径", string.Empty, "file", "C:\\labels\\legacy.txt"));
+
+        var preferLabelsPath = method!.Invoke(null, new object?[] { withLabelsPath });
+        preferLabelsPath.Should().Be("C:\\labels\\active.txt");
+
+        var legacyOnly = CreateTestOperator("model.onnx", 0.5f);
+        legacyOnly.AddParameter(new Parameter(Guid.NewGuid(), "LabelFile", "旧标签路径", string.Empty, "file", "C:\\labels\\legacy.txt"));
+
+        var fallbackLegacy = method.Invoke(null, new object?[] { legacyOnly });
+        fallbackLegacy.Should().Be("C:\\labels\\legacy.txt");
+    }
+
+    [Fact]
+    public void BuildVisualizationDetections_ShouldApplyVisualOnlyNms_WhenInternalNmsIsDisabled()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "BuildVisualizationDetections",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var nestedType = typeof(DeepLearningOperator).GetNestedType("DetectionResult", BindingFlags.NonPublic);
+        nestedType.Should().NotBeNull();
+        var listType = typeof(List<>).MakeGenericType(nestedType!);
+        var detections = Activator.CreateInstance(listType).Should().BeAssignableTo<System.Collections.IList>().Subject;
+        detections.Add(CreateInnerDetectionResult(10f, 10f, 40f, 40f, 0.95f, 0));
+        detections.Add(CreateInnerDetectionResult(12f, 12f, 40f, 40f, 0.85f, 0));
+        detections.Add(CreateInnerDetectionResult(80f, 80f, 20f, 20f, 0.80f, 0));
+
+        var result = method!.Invoke(_operator, new object?[] { detections, 0.05f, false });
+
+        result.Should().BeAssignableTo<System.Collections.IEnumerable>();
+        result.As<System.Collections.IEnumerable>().Cast<object>().Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(3, "Object", "Objects: 3")]
+    [InlineData(2, "Defect", "Defects: 2")]
+    public void BuildStatisticsLabel_ShouldUseAsciiText(int count, string detectionMode, string expected)
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "BuildStatisticsLabel",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var label = method!.Invoke(null, new object?[] { count, detectionMode });
+        label.Should().Be(expected);
+    }
+
     #endregion
 
     #region YOLO 版本支持测试
@@ -250,6 +311,21 @@ public class DeepLearningOperatorTests
         // 创建一个简单的 100x100 红色 PNG 图像
         using var mat = new OpenCvSharp.Mat(100, 100, OpenCvSharp.MatType.CV_8UC3, new OpenCvSharp.Scalar(0, 0, 255));
         return mat.ToBytes(".png");
+    }
+
+    private static object CreateInnerDetectionResult(float x, float y, float width, float height, float confidence, int classId)
+    {
+        var type = typeof(DeepLearningOperator).GetNestedType("DetectionResult", BindingFlags.NonPublic);
+        type.Should().NotBeNull();
+
+        var instance = Activator.CreateInstance(type!);
+        type!.GetProperty("X")!.SetValue(instance, x);
+        type.GetProperty("Y")!.SetValue(instance, y);
+        type.GetProperty("Width")!.SetValue(instance, width);
+        type.GetProperty("Height")!.SetValue(instance, height);
+        type.GetProperty("Confidence")!.SetValue(instance, confidence);
+        type.GetProperty("ClassId")!.SetValue(instance, classId);
+        return instance!;
     }
 
     #endregion
