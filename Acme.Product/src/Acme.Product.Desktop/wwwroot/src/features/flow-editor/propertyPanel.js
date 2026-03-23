@@ -2,6 +2,7 @@ import webMessageBridge from '../../core/messaging/webMessageBridge.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import inspectionController from '../inspection/inspectionController.js';
 import PreviewPanel from './previewPanel.js';
+import RoiEditorPanel from './roiEditorPanel.js';
 import { resolvePreviewInputImageBase64 } from './previewCoordinator.js';
 
 class PropertyPanel {
@@ -10,6 +11,7 @@ class PropertyPanel {
         this.currentOperator = null;
         this.onChangeCallback = null;
         this.previewPanel = null;
+        this.roiEditorPanel = null;
         this.previewCoordinator = options.previewCoordinator ?? null;
         this.onOpenPreviewImage = options.onOpenPreviewImage ?? (() => {});
         this.pendingRecommendation = null;
@@ -65,6 +67,15 @@ class PropertyPanel {
 
             input.value = filePath;
             input.dispatchEvent(new Event('change', { bubbles: true }));
+
+            if (this.currentOperator?.type === 'ImageAcquisition' && parameterName.toLowerCase() === 'filepath') {
+                const sourceTypeInput = this.container.querySelector('#param-SourceType, #param-sourceType, select[name="SourceType"], select[name="sourceType"]');
+                if (sourceTypeInput && sourceTypeInput.value !== 'File') {
+                    sourceTypeInput.value = 'File';
+                    sourceTypeInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+
             this.applyChanges();
         });
     }
@@ -88,6 +99,10 @@ class PropertyPanel {
         if (this.previewPanel) {
             this.previewPanel.destroy();
             this.previewPanel = null;
+        }
+        if (this.roiEditorPanel) {
+            this.roiEditorPanel.destroy();
+            this.roiEditorPanel = null;
         }
         this.currentOperator = null;
         this.container.innerHTML = '<p class="empty-text">选择一个算子查看属性</p>';
@@ -176,6 +191,7 @@ class PropertyPanel {
         }
 
         html += `
+                ${type === 'RoiManager' ? '<div id="roi-editor-container"></div>' : ''}
                 <div id="operator-preview-container"></div>
             </div>
         `;
@@ -184,6 +200,7 @@ class PropertyPanel {
         // 绑定事件
         this.bindEvents();
         this.initSliders();
+        this.initRoiEditorPanel();
         this.initPreviewPanel();
 
         if (this.pendingRecommendation) {
@@ -691,6 +708,28 @@ class PropertyPanel {
         this.previewPanel.scheduleAutoPreview();
     }
 
+    initRoiEditorPanel() {
+        const container = this.container.querySelector('#roi-editor-container');
+        if (!container) {
+            if (this.roiEditorPanel) {
+                this.roiEditorPanel.destroy();
+                this.roiEditorPanel = null;
+            }
+            return;
+        }
+
+        if (this.roiEditorPanel) {
+            this.roiEditorPanel.destroy();
+        }
+
+        this.roiEditorPanel = new RoiEditorPanel(container, {
+            getOperator: () => this.currentOperator,
+            previewCoordinator: this.previewCoordinator,
+            onRectChanged: (values, phase) => this.handleRoiRectChanged(values, phase),
+            onRequestSyncFromParams: () => this.syncRoiEditorFromParams()
+        });
+    }
+
     /**
      * 当前算子是否支持智能推荐
      */
@@ -701,7 +740,13 @@ class PropertyPanel {
     /**
      * 参数变更后的统一通知
      */
-    _notifyValueChanged() {
+    _notifyValueChanged(options = {}) {
+        const {
+            schedulePreview = true,
+            previewDebounceMs = 500,
+            forcePreview = false,
+            syncRoiEditor = true
+        } = options;
         const values = this.getValues();
         this.updateCurrentOperatorParams(values);
 
@@ -709,11 +754,38 @@ class PropertyPanel {
             this.onChangeCallback(values);
         }
 
-        if (this.previewPanel) {
-            this.previewPanel.scheduleAutoPreview();
+        if (syncRoiEditor) {
+            this.syncRoiEditorFromParams();
+        }
+
+        if (schedulePreview && this.previewPanel) {
+            this.previewPanel.scheduleAutoPreview({
+                debounceMs: previewDebounceMs,
+                force: forcePreview
+            });
         }
 
         return values;
+    }
+
+    handleRoiRectChanged(values, phase) {
+        this._applyValuesToForm(values);
+        this.updateCurrentOperatorParams(values);
+
+        if (this.onChangeCallback) {
+            this.onChangeCallback(values);
+        }
+
+        if (phase === 'commit' && this.previewPanel) {
+            this.previewPanel.scheduleAutoPreview({
+                debounceMs: 250,
+                force: true
+            });
+        }
+    }
+
+    syncRoiEditorFromParams() {
+        this.roiEditorPanel?.refreshFromOperator?.();
     }
 
     async recommendParameters() {

@@ -366,6 +366,10 @@ function validatePreviewPrerequisites(node, inputImageBase64) {
         const filePath = String(getParameterValue(node.parameters, 'FilePath', 'filePath') || '').trim();
         const cameraId = String(getParameterValue(node.parameters, 'CameraId', 'cameraId') || '').trim();
 
+        if (filePath) {
+            return null;
+        }
+
         if (sourceType === 'file' && !filePath) {
             return '请先配置文件路径';
         }

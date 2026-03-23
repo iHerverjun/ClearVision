@@ -1,3 +1,5 @@
+import { renderDiagnosticsCardsHtml } from '../inspection/analysisCardsPanel.js';
+
 export class PreviewPanel {
     constructor(container, options = {}) {
         this.container = container;
@@ -64,6 +66,7 @@ export class PreviewPanel {
                     <div class="operator-preview-meta">
                         <div class="operator-preview-status" id="preview-status-text">等待预览</div>
                         <div class="operator-preview-outputs" id="preview-output-list">暂无输出摘要</div>
+                        <div class="operator-preview-diagnostics" id="preview-diagnostics-panel"></div>
                     </div>
                 </div>
             </section>
@@ -96,15 +99,17 @@ export class PreviewPanel {
         });
     }
 
-    scheduleAutoPreview() {
+    scheduleAutoPreview(options = {}) {
         if (!this.autoPreviewEnabled || this.collapsed) {
             return;
         }
 
+        const debounceMs = options.debounceMs ?? this.debounceMs;
+        const force = Boolean(options.force);
         this.previewCoordinator?.requestActivePreview?.({
             immediate: false,
-            force: false,
-            debounceMs: this.debounceMs
+            force,
+            debounceMs
         });
     }
 
@@ -164,16 +169,37 @@ export class PreviewPanel {
 
     _renderOutputs(outputs) {
         const outputContainer = this.container?.querySelector('#preview-output-list');
+        const diagnosticsContainer = this.container?.querySelector('#preview-diagnostics-panel');
         if (!outputContainer) {
             return;
         }
 
         if (!outputs || typeof outputs !== 'object' || Object.keys(outputs).length === 0) {
             outputContainer.textContent = '暂无输出摘要';
+            if (diagnosticsContainer) {
+                diagnosticsContainer.innerHTML = '';
+            }
             return;
         }
 
-        const items = Object.entries(outputs).slice(0, 8).map(([key, value]) => {
+        const items = Object.entries(outputs)
+            .filter(([key]) => ![
+                'image',
+                'diagnostics',
+                'result',
+                'data',
+                'output',
+                'filepath',
+                'text',
+                'detectionlist',
+                'objects',
+                'defects',
+                'rawcandidatecount',
+                'visualizationdetectioncount',
+                'internalnmsenabled'
+            ].includes(String(key).toLowerCase()))
+            .slice(0, 8)
+            .map(([key, value]) => {
             let displayValue;
             if (typeof value === 'number') {
                 displayValue = Number.isInteger(value) ? String(value) : value.toFixed(3);
@@ -193,7 +219,14 @@ export class PreviewPanel {
             `;
         });
 
-        outputContainer.innerHTML = items.join('');
+        outputContainer.innerHTML = items.length > 0 ? items.join('') : '暂无输出摘要';
+
+        if (diagnosticsContainer) {
+            diagnosticsContainer.innerHTML = renderDiagnosticsCardsHtml(outputs, 'OK', {
+                compact: true,
+                containerClass: 'analysis-cards-container ac-diagnostics-inline ac-diagnostics-preview'
+            });
+        }
     }
 }
 

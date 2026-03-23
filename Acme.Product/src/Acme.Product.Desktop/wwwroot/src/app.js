@@ -783,6 +783,7 @@ function initializePropertyPanel() {
         previewCoordinator: nodePreviewCoordinator,
         onOpenPreviewImage: openImageViewerFromPreview
     });
+    window.propertyPanel = propertyPanel;
 
     // 【修复】订阅选中算子变化，使用trackedSubscribe防止内存泄漏
     trackedSubscribe(subscribeSelectedOperator, (operator) => {
