@@ -1,8 +1,22 @@
 {
   "name": "Terminal Wire Sequence Template",
-  "description": "DeepLearning + DetectionSequenceJudge baseline.",
+  "description": "Fixed ROI + DeepLearning + BoxNms + DetectionSequenceJudge baseline.",
   "scenarioKey": "wire-sequence-terminal",
-  "templateVersion": "1.0.0",
+  "templateVersion": "1.2.0",
+  "expectedSequence": [
+    "Wire_Brown",
+    "Wire_Black",
+    "Wire_Blue"
+  ],
+  "expectedDetectionCount": 3,
+  "requiredResources": [
+    "DeepLearning.ModelPath",
+    "DeepLearning.LabelsPath"
+  ],
+  "tunableParameters": [
+    "BoxNms.ScoreThreshold",
+    "BoxNms.IouThreshold"
+  ],
   "operators": [
     {
       "id": "op_1",
@@ -11,34 +25,66 @@
     },
     {
       "id": "op_2",
+      "type": "RoiManager",
+      "name": "FixedRoi",
+      "params": {
+        "Shape": "Rectangle",
+        "Operation": "Crop",
+        "X": "0",
+        "Y": "0",
+        "Width": "640",
+        "Height": "640"
+      }
+    },
+    {
+      "id": "op_3",
       "type": "ImageResize",
       "name": "Resize640"
     },
     {
-      "id": "op_3",
+      "id": "op_4",
       "type": "DeepLearning",
-      "name": "WireDetection",
+      "name": "WireRootDetection",
       "params": {
-        "ModelPath": "models/wire-seq-yolo-v1.1.onnx",
-        "Confidence": "0.5",
-        "TargetClasses": "Wire_Brown,Wire_Black,Wire_Blue"
+        "ModelPath": "",
+        "LabelsPath": "",
+        "Confidence": "0.05",
+        "InputSize": "640",
+        "TargetClasses": "Wire_Brown,Wire_Black,Wire_Blue",
+        "EnableInternalNms": "false",
+        "DetectionMode": "Object"
       }
     },
     {
-      "id": "op_4",
+      "id": "op_5",
+      "type": "BoxNms",
+      "name": "DetectionNms",
+      "params": {
+        "IouThreshold": "0.45",
+        "ScoreThreshold": "0.25",
+        "MaxDetections": "10"
+      }
+    },
+    {
+      "id": "op_6",
       "type": "DetectionSequenceJudge",
       "name": "SequenceJudge",
       "params": {
         "ExpectedLabels": "Wire_Brown,Wire_Black,Wire_Blue",
         "SortBy": "CenterX",
         "Direction": "Ascending",
-        "ExpectedCount": "3"
+        "ExpectedCount": "3",
+        "MinConfidence": "0.0"
       }
     },
     {
-      "id": "op_5",
+      "id": "op_7",
       "type": "ResultOutput",
-      "name": "Output"
+      "name": "Output",
+      "params": {
+        "Format": "JSON",
+        "SaveToFile": "true"
+      }
     }
   ],
   "connections": [
@@ -56,15 +102,71 @@
     },
     {
       "source": "op_3",
-      "sourcePort": "Detections",
+      "sourcePort": "Image",
       "target": "op_4",
+      "targetPort": "Image"
+    },
+    {
+      "source": "op_4",
+      "sourcePort": "Objects",
+      "target": "op_5",
       "targetPort": "Detections"
     },
     {
       "source": "op_4",
-      "sourcePort": "Message",
+      "sourcePort": "Image",
       "target": "op_5",
+      "targetPort": "Image"
+    },
+    {
+      "source": "op_5",
+      "sourcePort": "Detections",
+      "target": "op_6",
+      "targetPort": "Detections"
+    },
+    {
+      "source": "op_5",
+      "sourcePort": "Image",
+      "target": "op_7",
+      "targetPort": "Image"
+    },
+    {
+      "source": "op_5",
+      "sourcePort": "Diagnostics",
+      "target": "op_7",
+      "targetPort": "Data"
+    },
+    {
+      "source": "op_6",
+      "sourcePort": "Diagnostics",
+      "target": "op_7",
       "targetPort": "Result"
+    },
+    {
+      "source": "op_6",
+      "sourcePort": "Message",
+      "target": "op_7",
+      "targetPort": "Text"
     }
-  ]
+  ],
+  "parametersNeedingReview": {
+    "op_2": [
+      "X",
+      "Y",
+      "Width",
+      "Height"
+    ],
+    "op_4": [
+      "ModelPath",
+      "LabelsPath"
+    ],
+    "op_5": [
+      "ScoreThreshold",
+      "IouThreshold"
+    ],
+    "op_6": [
+      "ExpectedLabels",
+      "ExpectedCount"
+    ]
+  }
 }

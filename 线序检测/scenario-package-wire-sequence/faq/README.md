@@ -2,17 +2,22 @@
 
 ## Why does sequence mismatch happen when detections exist?
 
-Use `DetectionSequenceJudge` with `SortBy=CenterX` and verify ROI excludes irrelevant objects.
+Use `DetectionSequenceJudge` with `SortBy=CenterX`, verify `BoxNms` is enabled, and make sure the fixed ROI excludes irrelevant objects.
 
 ## What should be tuned first on site?
 
-Tune only these first:
+Calibrate fixed ROI once per station, then tune only these runtime parameters first:
 
-- ROI position and size
-- Model path
-- Confidence threshold
-- Target classes
-- Expected labels sequence
+- `BoxNms.IouThreshold`
+- `BoxNms.ScoreThreshold`
+
+Do not treat these as runtime tuning targets:
+
+- `ExpectedLabels`
+- `ExpectedCount`
+- model path
+- labels path
+- `DetectionSequenceJudge.MinConfidence`
 
 ## How to release a new package version?
 

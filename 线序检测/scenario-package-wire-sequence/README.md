@@ -1,6 +1,6 @@
 # Wire Sequence Scenario Package
 
-This package is the baseline reusable package for terminal wire-sequence inspection.
+This package is the baseline reusable package for fixed-ROI terminal wire-sequence inspection.
 
 ## Directory Contract
 
@@ -12,6 +12,18 @@ This package is the baseline reusable package for terminal wire-sequence inspect
 - `labels/`: Label conventions for model output alignment.
 - `samples/`: Sample references for tuning and verification.
 - `faq/`: Reusable scenario knowledge and troubleshooting notes.
+
+## Baseline Flow
+
+Current golden flow skeleton:
+
+`ImageAcquisition -> RoiManager -> ImageResize -> DeepLearning -> BoxNms -> DetectionSequenceJudge -> ResultOutput`
+
+Current diagnostics contract:
+
+- `DeepLearning` keeps a low confidence floor and disables internal NMS for this scenario template.
+- `BoxNms` is the single owner of runtime score / IoU filtering.
+- `ResultOutput` should receive `BoxNms.Diagnostics`, `DetectionSequenceJudge.Diagnostics`, and `DetectionSequenceJudge.Message` together with the preview image.
 
 ## Version Policy
 

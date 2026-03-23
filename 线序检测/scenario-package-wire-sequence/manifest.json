@@ -2,20 +2,26 @@
   "SchemaVersion": "1.0",
   "ScenarioKey": "wire-sequence-terminal",
   "ScenarioName": "Terminal Wire Sequence",
-  "Version": "1.0.0",
-  "Description": "Reusable package for wire-sequence inspection with detection + order judgment.",
-  "CreatedAtUtc": "2026-03-19T00:00:00Z",
+  "Version": "1.2.0",
+  "Description": "Reusable package for fixed-ROI wire-sequence inspection with detection, NMS and order judgment.",
+  "CreatedAtUtc": "2026-03-23T00:00:00Z",
   "CreatedBy": "clearvision-team",
   "Assets": [
     {
       "ArtifactType": "Template",
       "ArtifactName": "terminal-wire-sequence-template",
-      "ArtifactVersion": "1.0.0",
+      "ArtifactVersion": "1.2.0",
       "RelativePath": "template/terminal-wire-sequence.flow.template.json",
       "Required": true,
       "ChecksumSha256": null,
       "Metadata": {
-        "entryPoint": "true"
+        "entryPoint": "true",
+        "expectedSequence": "Wire_Brown,Wire_Black,Wire_Blue",
+        "expectedDetectionCount": "3",
+        "judgeOperatorType": "DetectionSequenceJudge",
+        "requiredResources": "DeepLearning.ModelPath,DeepLearning.LabelsPath",
+        "thresholdOwner": "BoxNms",
+        "diagnosticOutputs": "BoxNms.Diagnostics,DetectionSequenceJudge.Diagnostics,DetectionSequenceJudge.Message"
       }
     },
     {
@@ -33,12 +39,14 @@
     {
       "ArtifactType": "Rule",
       "ArtifactName": "wire-sequence-rule",
-      "ArtifactVersion": "1.0.0",
+      "ArtifactVersion": "1.2.0",
       "RelativePath": "rules/sequence-rule.v1.json",
       "Required": true,
       "ChecksumSha256": null,
       "Metadata": {
-        "judgeOperatorType": "DetectionSequenceJudge"
+        "judgeOperatorType": "DetectionSequenceJudge",
+        "expectedSequence": "Wire_Brown,Wire_Black,Wire_Blue",
+        "expectedDetectionCount": "3"
       }
     },
     {
@@ -85,6 +93,10 @@
       "Wire_Blue"
     ],
     "ExpectedDetectionCount": 3,
-    "JudgeOperatorType": "DetectionSequenceJudge"
+    "JudgeOperatorType": "DetectionSequenceJudge",
+    "RequiredResources": [
+      "DeepLearning.ModelPath",
+      "DeepLearning.LabelsPath"
+    ]
   }
 }

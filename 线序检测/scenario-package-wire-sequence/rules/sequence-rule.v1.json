@@ -1,6 +1,6 @@
 {
   "ruleName": "wire-sequence-rule",
-  "ruleVersion": "1.0.0",
+  "ruleVersion": "1.2.0",
   "scenarioKey": "wire-sequence-terminal",
   "expectedSequence": [
     "Wire_Brown",
@@ -8,11 +8,25 @@
     "Wire_Blue"
   ],
   "expectedDetectionCount": 3,
+  "requiredResources": [
+    "DeepLearning.ModelPath",
+    "DeepLearning.LabelsPath"
+  ],
+  "tunableParameters": [
+    "BoxNms.ScoreThreshold",
+    "BoxNms.IouThreshold"
+  ],
   "allowMissing": false,
   "allowDuplicate": false,
-  "minConfidence": 0.5,
+  "minConfidence": 0.0,
   "sortBy": "CenterX",
   "direction": "Ascending",
+  "thresholdOwner": "BoxNms",
+  "diagnosticOutputs": [
+    "BoxNms.Diagnostics",
+    "DetectionSequenceJudge.Diagnostics",
+    "DetectionSequenceJudge.Message"
+  ],
   "diagnosticTags": [
     "MissingExpectedClass",
     "DuplicateDetectedClass",

@@ -1,0 +1,33 @@
+{
+  "ScenarioKey": "wire-sequence-terminal",
+  "PackageVersion": "1.1.0",
+  "ReleasedAtUtc": "2026-03-23T00:00:00Z",
+  "ReleaseNote": "Aligned fixed-ROI template with BoxNms and unified scenario package metadata.",
+  "ManifestPath": "manifest.json",
+  "Artifacts": [
+    {
+      "ArtifactType": "Template",
+      "ArtifactName": "terminal-wire-sequence-template",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "template/terminal-wire-sequence.flow.template.json"
+    },
+    {
+      "ArtifactType": "Model",
+      "ArtifactName": "wire-seq-yolo",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "models/wire-seq-yolo-v1.1.onnx"
+    },
+    {
+      "ArtifactType": "Rule",
+      "ArtifactName": "wire-sequence-rule",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "rules/sequence-rule.v1.json"
+    },
+    {
+      "ArtifactType": "Label",
+      "ArtifactName": "wire-label-set",
+      "ArtifactVersion": "1.0.0",
+      "RelativePath": "labels/labels.txt"
+    }
+  ]
+}
