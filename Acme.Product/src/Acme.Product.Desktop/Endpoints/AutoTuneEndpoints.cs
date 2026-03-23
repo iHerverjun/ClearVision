@@ -156,6 +156,93 @@ public static class AutoTuneEndpoints
         .WithName("AutoTuneFlowNode")
         .WithDescription("对流程中的特定节点进行自动调参");
 
+        // POST /api/autotune/flow-node/preview - 线序场景专用预览与分析
+        group.MapPost("/flow-node/preview", async (
+            FlowNodePreviewRequest request,
+            IFlowNodePreviewService previewService,
+            ILogger<AutoTuneService> logger,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation(
+                    "[AutoTuneAPI] 请求线序预览分析: FlowId={FlowId}, NodeId={NodeId}",
+                    request.FlowId, request.TargetNodeId);
+
+                var flow = FlowEntityMapper.ToEntity(request.FlowData);
+                var inputImage = DecodeBase64Image(request.InputImageBase64);
+                var result = await previewService.PreviewWithMetricsAsync(
+                    flow,
+                    request.TargetNodeId,
+                    inputImage,
+                    ct);
+
+                return Results.Ok(MapFlowNodePreviewResponse(result));
+            }
+            catch (OperationCanceledException)
+            {
+                return Results.StatusCode(499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[AutoTuneAPI] 线序预览分析失败");
+                return Results.Problem(ex.Message);
+            }
+        })
+        .WithName("PreviewFlowNodeWithMetrics")
+        .WithDescription("返回线序节点预览图、结构化指标、诊断码、建议和缺失资源");
+
+        // POST /api/autotune/scenario - 线序场景级自动调参
+        group.MapPost("/scenario", async (
+            ScenarioAutoTuneRequest request,
+            IAutoTuneService autoTuneService,
+            ILogger<AutoTuneService> logger,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation(
+                    "[AutoTuneAPI] 请求场景级自动调参: ScenarioKey={ScenarioKey}",
+                    request.ScenarioKey);
+
+                var flow = FlowEntityMapper.ToEntity(request.FlowData);
+                var inputImage = DecodeBase64Image(request.InputImageBase64);
+                if (inputImage == null || inputImage.Length == 0)
+                {
+                    return Results.BadRequest(new ScenarioAutoTuneResponse
+                    {
+                        Success = false,
+                        ScenarioKey = request.ScenarioKey,
+                        ErrorMessage = "缺少输入图像，无法执行线序场景自动调参。"
+                    });
+                }
+
+                var result = await autoTuneService.AutoTuneScenarioAsync(
+                    request.ScenarioKey,
+                    flow,
+                    inputImage,
+                    request.Goal ?? new AutoTuneGoal(),
+                    request.MaxIterations,
+                    ct);
+
+                var response = MapScenarioAutoTuneResponse(result);
+                return result.Success || result.MissingResources.Count > 0
+                    ? Results.Ok(response)
+                    : Results.BadRequest(response);
+            }
+            catch (OperationCanceledException)
+            {
+                return Results.StatusCode(499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[AutoTuneAPI] 场景级自动调参失败");
+                return Results.Problem(ex.Message);
+            }
+        })
+        .WithName("AutoTuneScenario")
+        .WithDescription("仅对 wire-sequence-terminal 场景执行白名单参数自动调参");
+
         // POST /api/autotune/suggest - 获取参数建议（快速建议，不调参）
         group.MapPost("/suggest", async (
             ParameterSuggestionRequest request,
@@ -278,6 +365,112 @@ public static class AutoTuneEndpoints
         };
     }
 
+    private static FlowNodePreviewResponse MapFlowNodePreviewResponse(FlowNodePreviewWithMetricsResult result)
+    {
+        return new FlowNodePreviewResponse
+        {
+            Success = result.Success,
+            TargetNodeId = result.TargetNodeId,
+            InputImageBase64 = EncodeImage(result.InputImage),
+            PreviewImageBase64 = EncodeImage(result.PreviewImage),
+            Outputs = result.Outputs,
+            Metrics = result.Metrics != null ? MapMetricsToDto(result.Metrics) : null,
+            DiagnosticCodes = result.DiagnosticCodes,
+            Suggestions = result.Suggestions
+                .Select(MapParameterSuggestionToDto)
+                .ToList(),
+            MissingResources = result.MissingResources
+                .Select(MapMissingResourceToDto)
+                .ToList(),
+            ErrorMessage = result.ErrorMessage,
+            FailedOperatorId = result.FailedOperatorId,
+            FailedOperatorName = result.FailedOperatorName
+        };
+    }
+
+    private static ScenarioAutoTuneResponse MapScenarioAutoTuneResponse(ScenarioAutoTuneResult result)
+    {
+        return new ScenarioAutoTuneResponse
+        {
+            Success = result.Success,
+            ScenarioKey = result.ScenarioKey,
+            FinalParameters = result.FinalParameters,
+            TotalIterations = result.TotalIterations,
+            TotalExecutionTimeMs = result.TotalExecutionTimeMs,
+            IsGoalAchieved = result.IsGoalAchieved,
+            ErrorMessage = result.ErrorMessage,
+            Iterations = result.Iterations.Select(item => new AutoTuneIterationDto
+            {
+                Iteration = item.Iteration,
+                Parameters = item.Parameters,
+                Score = item.Score,
+                ExecutionTimeMs = item.ExecutionTimeMs,
+                Metrics = item.Metrics != null ? MapMetricsToDto(item.Metrics) : null
+            }).ToList(),
+            DiagnosticCodes = result.DiagnosticCodes,
+            MissingResources = result.MissingResources
+                .Select(MapMissingResourceToDto)
+                .ToList(),
+            FinalPreview = result.FinalPreview != null
+                ? MapFlowNodePreviewResponse(result.FinalPreview)
+                : null
+        };
+    }
+
+    private static ParameterSuggestionDto MapParameterSuggestionToDto(ParameterSuggestion suggestion)
+    {
+        return new ParameterSuggestionDto
+        {
+            ParameterName = suggestion.ParameterName,
+            CurrentValue = suggestion.CurrentValue,
+            SuggestedValue = suggestion.SuggestedValue,
+            Reason = suggestion.Reason,
+            ExpectedImprovement = suggestion.ExpectedImprovement
+        };
+    }
+
+    private static PreviewMissingResourceDto MapMissingResourceToDto(PreviewMissingResource resource)
+    {
+        return new PreviewMissingResourceDto
+        {
+            ResourceType = resource.ResourceType,
+            ResourceKey = resource.ResourceKey,
+            Description = resource.Description,
+            DiagnosticCode = resource.DiagnosticCode
+        };
+    }
+
+    private static byte[]? DecodeBase64Image(string? inputImageBase64)
+    {
+        if (string.IsNullOrWhiteSpace(inputImageBase64))
+        {
+            return null;
+        }
+
+        var normalized = inputImageBase64.Trim();
+        var commaIndex = normalized.IndexOf(',');
+        if (normalized.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && commaIndex >= 0)
+        {
+            normalized = normalized[(commaIndex + 1)..];
+        }
+
+        try
+        {
+            return Convert.FromBase64String(normalized);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? EncodeImage(byte[]? bytes)
+    {
+        return bytes == null || bytes.Length == 0
+            ? null
+            : Convert.ToBase64String(bytes);
+    }
+
     #endregion
 }
 
@@ -356,6 +549,30 @@ public class FlowNodeAutoTuneRequest
 }
 
 /// <summary>
+/// 线序节点预览请求
+/// </summary>
+public class FlowNodePreviewRequest
+{
+    public Guid FlowId { get; set; }
+    public Guid TargetNodeId { get; set; }
+    public FlowDataDto FlowData { get; set; } = new();
+    public string? InputImageBase64 { get; set; }
+    public AutoTuneGoal? Goal { get; set; }
+}
+
+/// <summary>
+/// 线序场景自动调参请求
+/// </summary>
+public class ScenarioAutoTuneRequest
+{
+    public string ScenarioKey { get; set; } = string.Empty;
+    public FlowDataDto FlowData { get; set; } = new();
+    public string? InputImageBase64 { get; set; }
+    public AutoTuneGoal? Goal { get; set; }
+    public int MaxIterations { get; set; } = 5;
+}
+
+/// <summary>
 /// 参数建议请求
 /// </summary>
 public class ParameterSuggestionRequest
@@ -420,6 +637,43 @@ public class AutoTuneResponse
     /// 迭代历史
     /// </summary>
     public List<AutoTuneIterationDto> Iterations { get; set; } = new();
+}
+
+/// <summary>
+/// 线序节点预览响应
+/// </summary>
+public class FlowNodePreviewResponse
+{
+    public bool Success { get; set; }
+    public Guid TargetNodeId { get; set; }
+    public string? InputImageBase64 { get; set; }
+    public string? PreviewImageBase64 { get; set; }
+    public Dictionary<string, object> Outputs { get; set; } = new();
+    public PreviewMetricsDto? Metrics { get; set; }
+    public List<string> DiagnosticCodes { get; set; } = new();
+    public List<ParameterSuggestionDto> Suggestions { get; set; } = new();
+    public List<PreviewMissingResourceDto> MissingResources { get; set; } = new();
+    public string? ErrorMessage { get; set; }
+    public Guid? FailedOperatorId { get; set; }
+    public string? FailedOperatorName { get; set; }
+}
+
+/// <summary>
+/// 线序场景自动调参响应
+/// </summary>
+public class ScenarioAutoTuneResponse
+{
+    public bool Success { get; set; }
+    public string ScenarioKey { get; set; } = string.Empty;
+    public Dictionary<string, object> FinalParameters { get; set; } = new();
+    public int TotalIterations { get; set; }
+    public long TotalExecutionTimeMs { get; set; }
+    public bool IsGoalAchieved { get; set; }
+    public string? ErrorMessage { get; set; }
+    public List<AutoTuneIterationDto> Iterations { get; set; } = new();
+    public List<string> DiagnosticCodes { get; set; } = new();
+    public List<PreviewMissingResourceDto> MissingResources { get; set; } = new();
+    public FlowNodePreviewResponse? FinalPreview { get; set; }
 }
 
 /// <summary>
@@ -573,6 +827,14 @@ public class ParameterSuggestionDto
     /// 预期改进
     /// </summary>
     public string ExpectedImprovement { get; set; } = string.Empty;
+}
+
+public class PreviewMissingResourceDto
+{
+    public string ResourceType { get; set; } = string.Empty;
+    public string ResourceKey { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string DiagnosticCode { get; set; } = string.Empty;
 }
 
 /// <summary>

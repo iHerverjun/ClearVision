@@ -5,6 +5,7 @@
 
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
+using Acme.Product.Core.Enums;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
@@ -91,11 +92,15 @@ public static class PreviewNodeEndpoints
                 };
 
                 // 准备输入数据
-                var inputData = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(request.InputImageBase64))
+                Dictionary<string, object>? inputData = null;
+                if (!string.IsNullOrEmpty(request.InputImageBase64) &&
+                    !HasUpstreamOperatorType(flow, request.TargetNodeId, OperatorType.ImageAcquisition))
                 {
                     var imageData = Convert.FromBase64String(request.InputImageBase64);
-                    inputData["Image"] = imageData;
+                    inputData = new Dictionary<string, object>
+                    {
+                        ["Image"] = imageData
+                    };
                 }
 
                 // 执行调试流程（自动执行上游子图到目标节点）
@@ -225,6 +230,43 @@ public static class PreviewNodeEndpoints
         {
             return null;
         }
+    }
+
+    private static bool HasUpstreamOperatorType(
+        Acme.Product.Core.Entities.OperatorFlow flow,
+        Guid targetNodeId,
+        OperatorType type)
+    {
+        var visited = new HashSet<Guid>();
+        var stack = new Stack<Guid>();
+        stack.Push(targetNodeId);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            foreach (var connection in flow.Connections.Where(item => item.TargetOperatorId == current))
+            {
+                var sourceOperator = flow.Operators.FirstOrDefault(item => item.Id == connection.SourceOperatorId);
+                if (sourceOperator == null)
+                {
+                    continue;
+                }
+
+                if (sourceOperator.Type == type)
+                {
+                    return true;
+                }
+
+                stack.Push(sourceOperator.Id);
+            }
+        }
+
+        return false;
     }
 
     private static string BuildMissingNodeOutputDetail(

@@ -71,6 +71,7 @@ public static class DependencyInjection
 
         // 【Phase 4】LLM 闭环验证 - 预览指标分析和自动调参
         services.AddScoped<IPreviewMetricsAnalyzer, PreviewMetricsAnalyzer>();
+        services.AddScoped<IFlowNodePreviewService, FlowNodePreviewService>();
         services.AddScoped<IAutoTuneService, AutoTuneService>();
 
         // 应用服务
