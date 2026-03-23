@@ -100,6 +100,28 @@ public class ImageAcquisitionOperator : OperatorBase
             }
         }
 
+        var hasExplicitFilePath = !string.IsNullOrEmpty(filePath);
+
+        // 如果显式配置了文件路径，文件模式优先于采集源枚举。
+        if (hasExplicitFilePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                return OperatorExecutionOutput.Failure($"图像文件不存在: {filePath}");
+            }
+
+            var mat = Cv2.ImRead(filePath, ImreadModes.Color);
+            if (mat.Empty())
+            {
+                return OperatorExecutionOutput.Failure("无法加载图像文件，格式可能不受支持");
+            }
+
+            return OperatorExecutionOutput.Success(CreateImageOutput(mat, new Dictionary<string, object>
+            {
+                { "Channels", mat.Channels() }
+            }));
+        }
+
         // 如果是相机模式
         if (sourceType?.Equals("Camera", StringComparison.OrdinalIgnoreCase) == true)
         {
@@ -164,28 +186,9 @@ public class ImageAcquisitionOperator : OperatorBase
         }
 
         // 如果是文件模式
-        if (sourceType?.Equals("File", StringComparison.OrdinalIgnoreCase) == true || !string.IsNullOrEmpty(filePath))
+        if (sourceType?.Equals("File", StringComparison.OrdinalIgnoreCase) == true)
         {
-            if (string.IsNullOrEmpty(filePath))
-            {
-                return OperatorExecutionOutput.Failure("未指定文件路径");
-            }
-
-            if (!File.Exists(filePath))
-            {
-                return OperatorExecutionOutput.Failure($"图像文件不存在: {filePath}");
-            }
-
-            var mat = Cv2.ImRead(filePath, ImreadModes.Color);
-            if (mat.Empty())
-            {
-                return OperatorExecutionOutput.Failure("无法加载图像文件，格式可能不受支持");
-            }
-
-            return OperatorExecutionOutput.Success(CreateImageOutput(mat, new Dictionary<string, object>
-            {
-                { "Channels", mat.Channels() }
-            }));
+            return OperatorExecutionOutput.Failure("未指定文件路径");
         }
 
         return OperatorExecutionOutput.Failure("未提供图像数据或有效的采集设置");

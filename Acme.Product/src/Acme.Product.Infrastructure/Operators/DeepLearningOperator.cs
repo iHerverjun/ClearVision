@@ -74,7 +74,8 @@ public enum YoloVersion
 [OperatorParam("UseGpu", "使用GPU", "bool", DefaultValue = true)]
 [OperatorParam("GpuDeviceId", "GPU设备ID", "int", DefaultValue = 0, Min = 0, Max = 15)]
 [OperatorParam("TargetClasses", "目标类别", "string", Description = "检测目标类别（逗号分隔，如 person,car），为空则检测所有类别", DefaultValue = "")]
-[OperatorParam("LabelFile", "标签文件路径", "file", Description = "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt", DefaultValue = "")]
+[OperatorParam("LabelsPath", "标签文件路径", "file", Description = "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt", DefaultValue = "")]
+[OperatorParam("EnableInternalNms", "启用内部NMS", "bool", Description = "关闭后输出置信度筛选后的候选框，由下游 BoxNms 负责唯一 NMS。", DefaultValue = true)]
 [OperatorParam("DetectionMode", "检测模式", "enum", Description = "缺陷检测：检出目标视为缺陷(NG)；目标检测：检出目标视为正常(OK)", DefaultValue = "Defect", Options = new[] { "Defect|缺陷检测", "Object|目标检测" })]
 public class DeepLearningOperator : OperatorBase
 {
@@ -152,10 +153,11 @@ public class DeepLearningOperator : OperatorBase
         var yoloVersionStr = GetStringParam(@operator, "ModelVersion", "Auto");
         var yoloVersion = ParseYoloVersion(yoloVersionStr);
         var targetClassesStr = GetStringParam(@operator, "TargetClasses", string.Empty);
-        var labelFile = GetStringParam(@operator, "LabelFile", "");
+        var labelsPath = ResolveLabelsPath(@operator);
+        var enableInternalNms = GetBoolParam(@operator, "EnableInternalNms", true);
 
         // 2.1 加载自定义标签
-        var labels = LoadLabels(labelFile, modelPath);
+        var labels = LoadLabels(labelsPath, modelPath);
         var targetClasses = ParseTargetClasses(targetClassesStr, labels);
         Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", labels.Length, targetClassesStr);
         if (labels.Length > 0 && !ReferenceEquals(labels, CocoClassNames))
@@ -211,11 +213,15 @@ public class DeepLearningOperator : OperatorBase
         Logger.LogInformation("[DeepLearning] 最终使用YOLO版本: {YoloVersion}, 置信度阈值: {Confidence}", yoloVersion, confidenceThreshold);
 
         // 9. 后处理
-        var detections = PostprocessResults(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, yoloVersion, targetClasses);
+        var detections = PostprocessResults(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, yoloVersion, targetClasses, enableInternalNms);
         Logger.LogInformation("[DeepLearning] 检测到目标数量: {DetectionCount}", detections.Count);
 
+        var detectionMode = GetStringParam(@operator, "DetectionMode", "Defect");
+        var isObjectMode = detectionMode.Equals("Object", StringComparison.OrdinalIgnoreCase);
+
         // 10. 绘制结果
-        var outputImage = DrawResults(src, detections, labels);
+        var visualizationDetections = BuildVisualizationDetections(detections, confidenceThreshold, enableInternalNms);
+        var outputImage = DrawResults(src, visualizationDetections, labels, detectionMode);
 
         // 11. 构建输出 - Sprint 1 Task 1.2: 使用 DetectionList 类型
         var detectionList = new DetectionList(
@@ -230,12 +236,12 @@ public class DeepLearningOperator : OperatorBase
             })
         );
 
-        var detectionMode = GetStringParam(@operator, "DetectionMode", "Defect");
-        var isObjectMode = detectionMode.Equals("Object", StringComparison.OrdinalIgnoreCase);
-
         var additionalData = new Dictionary<string, object>
         {
             { "DetectionMode", detectionMode },
+            { "InternalNmsEnabled", enableInternalNms },
+            { "RawCandidateCount", detections.Count },
+            { "VisualizationDetectionCount", visualizationDetections.Count },
             { "DetectionList", detectionList },
             { "Objects", isObjectMode ? detectionList : new DetectionList() },
             { "ObjectCount", isObjectMode ? detections.Count : 0 },
@@ -503,16 +509,17 @@ public class DeepLearningOperator : OperatorBase
         int originalHeight,
         int inputSize,
         YoloVersion yoloVersion,
-        HashSet<int>? targetClasses)
+        HashSet<int>? targetClasses,
+        bool enableInternalNms)
     {
         // 根据 YOLO 版本选择处理方式
         var detections = yoloVersion switch
         {
-            YoloVersion.YOLOv5 => PostprocessYoloV5V6(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize),
-            YoloVersion.YOLOv6 => PostprocessYoloV5V6(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize),
-            YoloVersion.YOLOv8 => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize),
-            YoloVersion.YOLOv11 => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize),
-            _ => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize)
+            YoloVersion.YOLOv5 => PostprocessYoloV5V6(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, enableInternalNms),
+            YoloVersion.YOLOv6 => PostprocessYoloV5V6(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, enableInternalNms),
+            YoloVersion.YOLOv8 => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, enableInternalNms),
+            YoloVersion.YOLOv11 => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, enableInternalNms),
+            _ => PostprocessYoloV8V11(outputTensor, confidenceThreshold, originalWidth, originalHeight, inputSize, enableInternalNms)
         };
 
         // 如果指定了目标类别，进行过滤
@@ -536,7 +543,8 @@ public class DeepLearningOperator : OperatorBase
         float confidenceThreshold,
         int originalWidth,
         int originalHeight,
-        int inputSize)
+        int inputSize,
+        bool enableInternalNms)
     {
         var detections = new List<DetectionResult>();
         var shape = outputTensor.Dimensions.ToArray();
@@ -650,6 +658,12 @@ public class DeepLearningOperator : OperatorBase
 
         Logger.LogDebug("[DeepLearning] V8/V11后处理: 最大置信度={GlobalMaxConf:F4}, 阈值={ConfidenceThreshold}, 阈值前检测数={DetectionCount}",
             globalMaxConf, confidenceThreshold, detections.Count);
+        if (!enableInternalNms)
+        {
+            Logger.LogDebug("[DeepLearning] 已禁用内部NMS，输出候选框数: {CandidateCount}", detections.Count);
+            return detections;
+        }
+
         var nmsResult = ApplyNMS(detections, 0.45f);
         Logger.LogDebug("[DeepLearning] NMS后检测数: {NmsCount}", nmsResult.Count);
         return nmsResult;
@@ -663,7 +677,8 @@ public class DeepLearningOperator : OperatorBase
         float confidenceThreshold,
         int originalWidth,
         int originalHeight,
-        int inputSize)
+        int inputSize,
+        bool enableInternalNms)
     {
         var detections = new List<DetectionResult>();
         var shape = outputTensor.Dimensions.ToArray();
@@ -720,6 +735,12 @@ public class DeepLearningOperator : OperatorBase
 
         Logger.LogDebug("[DeepLearning] V5/V6后处理: 最大置信度={GlobalMaxConf:F4}, 阈值前检测数={DetectionCount}",
             globalMaxConf, detections.Count);
+        if (!enableInternalNms)
+        {
+            Logger.LogDebug("[DeepLearning] 已禁用内部NMS，输出候选框数: {CandidateCount}", detections.Count);
+            return detections;
+        }
+
         var nmsResult = ApplyNMS(detections, 0.45f);
         Logger.LogDebug("[DeepLearning] NMS后检测数: {NmsCount}", nmsResult.Count);
         return nmsResult;
@@ -916,6 +937,26 @@ public class DeepLearningOperator : OperatorBase
         return CocoClassNames;
     }
 
+    private static string ResolveLabelsPath(Operator @operator)
+    {
+        var labelsPath = @operator.Parameters
+            .FirstOrDefault(parameter => parameter.Name.Equals("LabelsPath", StringComparison.OrdinalIgnoreCase))
+            ?.Value
+            ?.ToString();
+
+        if (!string.IsNullOrWhiteSpace(labelsPath))
+        {
+            return labelsPath;
+        }
+
+        // Backward compatibility for older flows that still persisted LabelFile.
+        return @operator.Parameters
+            .FirstOrDefault(parameter => parameter.Name.Equals("LabelFile", StringComparison.OrdinalIgnoreCase))
+            ?.Value
+            ?.ToString()
+            ?? string.Empty;
+    }
+
     // 存储当前使用的标签数组
     /// <summary>
     /// 获取类别名称
@@ -932,7 +973,44 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 绘制检测结果 - 返回Mat实现零拷贝 (P0优先级)
     /// </summary>
-    private Mat DrawResults(Mat src, List<DetectionResult> detections, IReadOnlyList<string>? labels)
+    private List<DetectionResult> BuildVisualizationDetections(
+        List<DetectionResult> detections,
+        float confidenceThreshold,
+        bool enableInternalNms)
+    {
+        if (detections.Count == 0)
+        {
+            return detections;
+        }
+
+        if (enableInternalNms)
+        {
+            return detections;
+        }
+
+        // For preview readability we apply a visual-only NMS pass when the node is
+        // configured to emit raw candidates to downstream BoxNms.
+        var scoreFloor = Math.Max(confidenceThreshold, 0.25f);
+        var filtered = detections
+            .Where(detection => detection.Confidence >= scoreFloor)
+            .ToList();
+        if (filtered.Count == 0)
+        {
+            filtered = detections;
+        }
+
+        return ApplyNMS(filtered, 0.45f);
+    }
+
+    private static string BuildStatisticsLabel(int count, string detectionMode)
+    {
+        var isObjectMode = detectionMode.Equals("Object", StringComparison.OrdinalIgnoreCase);
+        return isObjectMode
+            ? $"Objects: {count}"
+            : $"Defects: {count}";
+    }
+
+    private Mat DrawResults(Mat src, List<DetectionResult> detections, IReadOnlyList<string>? labels, string detectionMode)
     {
         var result = src.Clone();
 
@@ -975,7 +1053,7 @@ public class DeepLearningOperator : OperatorBase
         }
 
         // 添加统计信息
-        var stats = $"共检测 {detections.Count} 处缺陷";
+        var stats = BuildStatisticsLabel(detections.Count, detectionMode);
         Cv2.PutText(
             result,
             stats,

@@ -36,6 +36,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("MissingLabels", "Missing Labels", PortDataType.Any)]
 [OutputPort("DuplicateLabels", "Duplicate Labels", PortDataType.Any)]
 [OutputPort("SortedDetections", "Sorted Detections", PortDataType.DetectionList)]
+[OutputPort("Diagnostics", "Diagnostics", PortDataType.Any)]
 [OutputPort("Message", "Message", PortDataType.String)]
 [OperatorParam(
     "ExpectedLabels",
@@ -202,6 +203,24 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         var message = isMatch
             ? $"Sequence matched: {FormatLabels(actualOrder)}."
             : string.Join(" ", reasons);
+        var diagnostics = new Dictionary<string, object>
+        {
+            ["IsMatch"] = isMatch,
+            ["ExpectedLabels"] = expectedLabels,
+            ["ActualOrder"] = actualOrder,
+            ["ReceivedCount"] = rawDetections.Count,
+            ["FilteredCount"] = filteredDetections.Count,
+            ["SortedCount"] = sortedDetections.Count,
+            ["ExpectedCount"] = expectedCount,
+            ["MissingLabels"] = missingLabels,
+            ["DuplicateLabels"] = duplicateLabels,
+            ["SortBy"] = sortBy,
+            ["Direction"] = direction,
+            ["MinConfidence"] = minConfidence,
+            ["AllowMissing"] = allowMissing,
+            ["AllowDuplicate"] = allowDuplicate,
+            ["Message"] = message
+        };
 
         var result = new Dictionary<string, object>
         {
@@ -215,6 +234,7 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
             ["ExpectedLabels"] = expectedLabels,
             ["ExpectedCount"] = expectedCount,
             ["RequiredMinConfidence"] = minConfidence,
+            ["Diagnostics"] = diagnostics,
             ["Message"] = message
         };
 

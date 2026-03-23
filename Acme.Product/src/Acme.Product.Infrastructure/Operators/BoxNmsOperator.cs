@@ -30,6 +30,10 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Detections", "Detections", PortDataType.DetectionList)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OutputPort("Count", "Count", PortDataType.Integer)]
+[OutputPort("InputCount", "Input Count", PortDataType.Integer)]
+[OutputPort("SuppressedCount", "Suppressed Count", PortDataType.Integer)]
+[OutputPort("SuppressedDetections", "Suppressed Detections", PortDataType.DetectionList)]
+[OutputPort("Diagnostics", "Diagnostics", PortDataType.Any)]
 [OperatorParam("IouThreshold", "IoU Threshold", "double", DefaultValue = 0.45, Min = 0.1, Max = 1.0)]
 [OperatorParam("ScoreThreshold", "Score Threshold", "double", DefaultValue = 0.25, Min = 0.0, Max = 1.0)]
 [OperatorParam("MaxDetections", "Max Detections", "int", DefaultValue = 100, Min = 1, Max = 1000)]
@@ -54,6 +58,7 @@ public class BoxNmsOperator : OperatorBase
         var iouThreshold = GetDoubleParam(@operator, "IouThreshold", 0.45, 0.1, 1.0);
         var scoreThreshold = GetDoubleParam(@operator, "ScoreThreshold", 0.25, 0.0, 1.0);
         var maxDetections = GetIntParam(@operator, "MaxDetections", 100, 1, 1000);
+        var inputCount = detections.Count;
 
         var candidates = detections
             .Where(d => d.Confidence >= scoreThreshold)
@@ -97,10 +102,25 @@ public class BoxNmsOperator : OperatorBase
 
         if (kept.Count > maxDetections)
         {
-            kept = kept.OrderByDescending(d => d.Confidence).Take(maxDetections).ToList();
+            var orderedKept = kept.OrderByDescending(d => d.Confidence).ToList();
+            foreach (var truncatedDetection in orderedKept.Skip(maxDetections))
+            {
+                suppressed.Add(truncatedDetection);
+            }
+
+            kept = orderedKept.Take(maxDetections).ToList();
         }
 
         var outputDetections = new DetectionListValue(kept);
+        var suppressedDetections = new DetectionListValue(suppressed.OrderByDescending(d => d.Confidence).ToList());
+        var diagnostics = CreateDiagnostics(
+            inputCount,
+            candidates.Count,
+            outputDetections,
+            suppressedDetections,
+            iouThreshold,
+            scoreThreshold,
+            maxDetections);
 
         if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
         {
@@ -114,7 +134,11 @@ public class BoxNmsOperator : OperatorBase
                 var output = CreateImageOutput(resultImage, new Dictionary<string, object>
                 {
                     { "Detections", outputDetections },
-                    { "Count", outputDetections.Count }
+                    { "Count", outputDetections.Count },
+                    { "InputCount", inputCount },
+                    { "SuppressedCount", suppressedDetections.Count },
+                    { "SuppressedDetections", suppressedDetections },
+                    { "Diagnostics", diagnostics }
                 });
                 return Task.FromResult(OperatorExecutionOutput.Success(output));
             }
@@ -123,7 +147,11 @@ public class BoxNmsOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Detections", outputDetections },
-            { "Count", outputDetections.Count }
+            { "Count", outputDetections.Count },
+            { "InputCount", inputCount },
+            { "SuppressedCount", suppressedDetections.Count },
+            { "SuppressedDetections", suppressedDetections },
+            { "Diagnostics", diagnostics }
         }));
     }
 
@@ -307,6 +335,29 @@ public class BoxNmsOperator : OperatorBase
 
         value = raw.ToString() ?? string.Empty;
         return true;
+    }
+
+    private static Dictionary<string, object> CreateDiagnostics(
+        int inputCount,
+        int candidateCount,
+        DetectionListValue keptDetections,
+        DetectionListValue suppressedDetections,
+        double iouThreshold,
+        double scoreThreshold,
+        int maxDetections)
+    {
+        return new Dictionary<string, object>
+        {
+            ["InputCount"] = inputCount,
+            ["CandidateCount"] = candidateCount,
+            ["KeptCount"] = keptDetections.Count,
+            ["SuppressedCount"] = suppressedDetections.Count,
+            ["IouThreshold"] = iouThreshold,
+            ["ScoreThreshold"] = scoreThreshold,
+            ["MaxDetections"] = maxDetections,
+            ["KeptDetections"] = keptDetections,
+            ["SuppressedDetections"] = suppressedDetections
+        };
     }
 }
 

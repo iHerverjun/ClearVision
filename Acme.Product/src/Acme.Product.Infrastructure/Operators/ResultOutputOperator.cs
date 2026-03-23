@@ -188,6 +188,19 @@ public class ResultOutputOperator : OperatorBase
         {
             null => null,
             ImageWrapper wrapper => new { wrapper.Width, wrapper.Height, wrapper.Channels },
+            DetectionList detectionList => detectionList.Detections.Select(NormalizeForExport).ToList(),
+            DetectionResult detection => new
+            {
+                detection.Label,
+                detection.Confidence,
+                detection.X,
+                detection.Y,
+                detection.Width,
+                detection.Height,
+                detection.CenterX,
+                detection.CenterY,
+                detection.Area
+            },
             Position position => new { position.X, position.Y },
             IEnumerable<KeyValuePair<string, object>> dict => dict.ToDictionary(kvp => kvp.Key, kvp => NormalizeForExport(kvp.Value)),
             IEnumerable<object> list => list.Select(NormalizeForExport).ToList(),
