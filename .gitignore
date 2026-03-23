@@ -1,6 +1,9 @@
 # Windows device files / invalid names
 **/nul
 
+# .NET SDK local cache and telemetry
+.dotnet/
+
 # General build output
 [Bb]in/
 [Oo]bj/
