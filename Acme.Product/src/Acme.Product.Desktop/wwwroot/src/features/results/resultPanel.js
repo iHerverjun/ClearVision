@@ -4,6 +4,7 @@
  */
 
 import httpClient from '../../core/messaging/httpClient.js';
+import { renderDiagnosticsCardsHtml } from '../inspection/analysisCardsPanel.js';
 
 class ResultPanel {
     constructor(containerId) {
@@ -1219,6 +1220,7 @@ class ResultPanel {
                             <div class="detail-item"><span class="detail-label">处理耗时</span><span class="detail-value">${processingTime}ms</span></div>
                         </div>
                         ${this.renderAnalysisDataSection(result.analysisData)}
+                        ${this.renderDiagnosticsSection(result.outputData, result.status)}
                         ${this.renderOutputDataTable(result.outputData)}
                         ${result.defects?.length > 0 ? `
                             <div class="detail-section">
@@ -1335,6 +1337,27 @@ class ResultPanel {
         return sections;
     }
 
+    renderDiagnosticsSection(outputData, fallbackStatus) {
+        if (!outputData || typeof outputData !== 'object') {
+            return '';
+        }
+
+        const diagnosticsHtml = renderDiagnosticsCardsHtml(outputData, fallbackStatus || 'OK', {
+            containerClass: 'analysis-cards-container ac-diagnostics-inline ac-diagnostics-detail'
+        });
+
+        if (!diagnosticsHtml) {
+            return '';
+        }
+
+        return `
+            <div class="detail-section">
+                <div class="detail-section-title">诊断面板</div>
+                ${diagnosticsHtml}
+            </div>
+        `;
+    }
+
     getAnalysisCardSummary(card) {
         const fields = Array.isArray(card?.fields) ? card.fields : [];
         const firstField = fields.find(field => field && field.value !== undefined && field.value !== null);
@@ -1420,6 +1443,18 @@ class ResultPanel {
         ].includes(String(key || '').toLowerCase());
     }
 
+    isTechnicalCollectionKey(key) {
+        return [
+            'detectionlist',
+            'objects',
+            'defects',
+            'rawcandidatecount',
+            'visualizationdetectioncount',
+            'internalnmsenabled',
+            'visualizationdetections'
+        ].includes(String(key || '').toLowerCase());
+    }
+
     shouldHideOutputDetailEntry(key, value, outputData) {
         const normalizedKey = String(key || '').toLowerCase();
         if (normalizedKey === 'image') {
@@ -1427,6 +1462,10 @@ class ResultPanel {
         }
 
         if (this.isExportMetadataKey(normalizedKey)) {
+            return true;
+        }
+
+        if (this.isTechnicalCollectionKey(normalizedKey)) {
             return true;
         }
 

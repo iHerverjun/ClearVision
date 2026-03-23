@@ -8,7 +8,7 @@ import inspectionController, { getInspectionState } from './inspectionController
 import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
 import { getCurrentProject } from '../project/projectManager.js';
-import { AnalysisCardsPanel } from './analysisCardsPanel.js';
+import { AnalysisCardsPanel, buildDiagnosticsAnalysisData } from './analysisCardsPanel.js';
 import { showToast } from '../../shared/components/uiComponents.js';
 
 // 检测统计状态
@@ -864,9 +864,12 @@ class InspectionPanel {
             return null;
         }
 
-        return result.analysisData
-            || result.AnalysisData
-            || null;
+        const explicitAnalysis = result.analysisData || result.AnalysisData || null;
+        if (explicitAnalysis && Array.isArray(explicitAnalysis.cards) && explicitAnalysis.cards.length > 0) {
+            return explicitAnalysis;
+        }
+
+        return buildDiagnosticsAnalysisData(result.outputData || result.OutputData, result.status || result.Status || 'OK') || null;
     }
     
     /**

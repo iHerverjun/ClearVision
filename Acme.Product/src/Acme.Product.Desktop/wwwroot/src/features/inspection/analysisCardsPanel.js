@@ -1,6 +1,6 @@
 /**
  * 分析卡片面板组件
- * 只负责渲染显式 `analysisData` 契约，不再从 `outputData` 猜测业务语义。
+ * 优先渲染显式 `analysisData` 契约；在线序诊断场景下，也支持渲染结构化 `Diagnostics` 输出。
  * 作者：蘅芜君
  */
 
@@ -15,6 +15,9 @@ const ICONS = {
     barcode: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"></path><path d="M8 5v14"></path><path d="M12 5v14"></path><path d="M17 5v14"></path><path d="M21 5v14"></path></svg>`,
     defect: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
     target: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line></svg>`,
+    sequence: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h8"></path><path d="M4 12h12"></path><path d="M4 17h6"></path><path d="M16 6l4 3-4 3"></path><path d="M16 15l4 3-4 3"></path></svg>`,
+    filter: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"></polygon></svg>`,
+    note: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"></path><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>`,
     match: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>`,
     generic: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`,
     check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
@@ -32,6 +35,391 @@ const MEASUREMENT_ICON_MAP = {
     width: ICONS.ruler,
     height: ICONS.ruler
 };
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function readFirstDefined(...values) {
+    return values.find(value => value !== undefined && value !== null);
+}
+
+function isPlainObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function toNumberOrNull(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    const parsed = Number.parseFloat(String(value ?? '').trim());
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeStringList(value) {
+    if (Array.isArray(value)) {
+        return value
+            .map(item => String(item ?? '').trim())
+            .filter(Boolean);
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        if (trimmed.includes(',')) {
+            return trimmed
+                .split(',')
+                .map(item => item.trim())
+                .filter(Boolean);
+        }
+
+        return [trimmed];
+    }
+
+    return [];
+}
+
+function looksLikeSequenceDiagnostics(value) {
+    if (!isPlainObject(value)) {
+        return false;
+    }
+
+    return [
+        'ActualOrder',
+        'actualOrder',
+        'ExpectedLabels',
+        'expectedLabels',
+        'IsMatch',
+        'isMatch',
+        'MissingLabels',
+        'missingLabels',
+        'DuplicateLabels',
+        'duplicateLabels'
+    ].some(key => key in value);
+}
+
+function looksLikeNmsDiagnostics(value) {
+    if (!isPlainObject(value)) {
+        return false;
+    }
+
+    return [
+        'InputCount',
+        'inputCount',
+        'CandidateCount',
+        'candidateCount',
+        'KeptCount',
+        'keptCount',
+        'SuppressedCount',
+        'suppressedCount'
+    ].some(key => key in value);
+}
+
+function findDiagnosticsCandidate(outputData, predicate) {
+    if (!isPlainObject(outputData)) {
+        return null;
+    }
+
+    const candidates = [
+        outputData.Diagnostics,
+        outputData.diagnostics,
+        outputData.Result,
+        outputData.result,
+        outputData.Data,
+        outputData.data,
+        outputData
+    ];
+
+    return candidates.find(predicate) || null;
+}
+
+function normalizeSequenceDiagnostics(outputData) {
+    const candidate = findDiagnosticsCandidate(outputData, looksLikeSequenceDiagnostics);
+    if (!candidate) {
+        return null;
+    }
+
+    return {
+        isMatch: Boolean(readFirstDefined(candidate.IsMatch, candidate.isMatch)),
+        expectedLabels: normalizeStringList(readFirstDefined(candidate.ExpectedLabels, candidate.expectedLabels)),
+        actualOrder: normalizeStringList(readFirstDefined(candidate.ActualOrder, candidate.actualOrder)),
+        missingLabels: normalizeStringList(readFirstDefined(candidate.MissingLabels, candidate.missingLabels)),
+        duplicateLabels: normalizeStringList(readFirstDefined(candidate.DuplicateLabels, candidate.duplicateLabels)),
+        receivedCount: toNumberOrNull(readFirstDefined(candidate.ReceivedCount, candidate.receivedCount)),
+        filteredCount: toNumberOrNull(readFirstDefined(candidate.FilteredCount, candidate.filteredCount)),
+        sortedCount: toNumberOrNull(readFirstDefined(candidate.SortedCount, candidate.sortedCount, candidate.Count, candidate.count)),
+        expectedCount: toNumberOrNull(readFirstDefined(candidate.ExpectedCount, candidate.expectedCount)),
+        minConfidence: toNumberOrNull(readFirstDefined(candidate.MinConfidence, candidate.minConfidence, candidate.RequiredMinConfidence, candidate.requiredMinConfidence)),
+        sortBy: readFirstDefined(candidate.SortBy, candidate.sortBy, 'CenterX'),
+        direction: readFirstDefined(candidate.Direction, candidate.direction, 'Ascending'),
+        message: String(readFirstDefined(candidate.Message, candidate.message, outputData.Text, outputData.text) || '').trim()
+    };
+}
+
+function normalizeNmsDiagnostics(outputData) {
+    const candidate = findDiagnosticsCandidate(outputData, looksLikeNmsDiagnostics);
+    if (!candidate) {
+        return null;
+    }
+
+    return {
+        inputCount: toNumberOrNull(readFirstDefined(candidate.InputCount, candidate.inputCount)),
+        candidateCount: toNumberOrNull(readFirstDefined(candidate.CandidateCount, candidate.candidateCount)),
+        keptCount: toNumberOrNull(readFirstDefined(candidate.KeptCount, candidate.keptCount, candidate.Count, candidate.count)),
+        suppressedCount: toNumberOrNull(readFirstDefined(candidate.SuppressedCount, candidate.suppressedCount)),
+        scoreThreshold: toNumberOrNull(readFirstDefined(candidate.ScoreThreshold, candidate.scoreThreshold)),
+        iouThreshold: toNumberOrNull(readFirstDefined(candidate.IouThreshold, candidate.iouThreshold)),
+        maxDetections: toNumberOrNull(readFirstDefined(candidate.MaxDetections, candidate.maxDetections))
+    };
+}
+
+function tryGetDetectionCount(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        return value.length;
+    }
+
+    if (isPlainObject(value)) {
+        if (typeof value.Count === 'number') {
+            return value.Count;
+        }
+        if (typeof value.count === 'number') {
+            return value.count;
+        }
+        if (Array.isArray(value.Detections)) {
+            return value.Detections.length;
+        }
+        if (Array.isArray(value.detections)) {
+            return value.detections.length;
+        }
+    }
+
+    return null;
+}
+
+function normalizeDeepLearningPreviewDiagnostics(outputData) {
+    if (!isPlainObject(outputData)) {
+        return null;
+    }
+
+    const internalNmsEnabled = readFirstDefined(outputData.InternalNmsEnabled, outputData.internalNmsEnabled);
+    if (internalNmsEnabled !== false) {
+        return null;
+    }
+
+    const detectionMode = String(readFirstDefined(outputData.DetectionMode, outputData.detectionMode, 'Object'));
+    const rawCandidates = toNumberOrNull(readFirstDefined(
+        outputData.RawCandidateCount,
+        outputData.rawCandidateCount,
+        detectionMode.toLowerCase() === 'object'
+            ? readFirstDefined(outputData.ObjectCount, outputData.objectCount)
+            : readFirstDefined(outputData.DefectCount, outputData.defectCount)
+    ));
+    const visualizedCount = toNumberOrNull(readFirstDefined(
+        outputData.VisualizationDetectionCount,
+        outputData.visualizationDetectionCount
+    ));
+
+    return {
+        detectionMode,
+        internalNmsEnabled: false,
+        rawCandidateCount: rawCandidates,
+        visualizedCount,
+        visualOwner: 'Preview-NMS',
+        businessOwner: 'BoxNms'
+    };
+}
+
+function formatDiagnosticValue(field) {
+    const { value, variant } = field || {};
+    if ((variant === 'sequence' || variant === 'labels') && Array.isArray(value)) {
+        if (value.length === 0) {
+            return '<span class="ac-diagnostic-empty">无</span>';
+        }
+
+        const className = variant === 'sequence' ? 'ac-diagnostic-sequence' : 'ac-diagnostic-chip-list';
+        const items = value.map(item => `<span class="ac-diagnostic-chip">${escapeHtml(String(item))}</span>`).join('');
+        return `<div class="${className}">${items}</div>`;
+    }
+
+    if (variant === 'status') {
+        const text = String(value ?? '').trim();
+        const lowerText = text.toLowerCase();
+        const isNegativeStatus = text.includes('不匹配')
+            || text.includes('未匹配')
+            || lowerText.includes('mismatch')
+            || lowerText.includes('not match')
+            || lowerText.includes('no match');
+        const isOk = !isNegativeStatus
+            && (text.includes('匹配') || /\bmatch(?:ed)?\b/.test(lowerText));
+        return `<span class="ac-diagnostic-status ${isOk ? 'ok' : 'ng'}">${escapeHtml(String(value))}</span>`;
+    }
+
+    if (typeof value === 'number') {
+        return `<span class="ac-diagnostic-number">${Number.isInteger(value) ? value : value.toFixed(3)}</span>`;
+    }
+
+    if (value === null || value === undefined || value === '') {
+        return '<span class="ac-diagnostic-empty">--</span>';
+    }
+
+    return `<span class="ac-diagnostic-text">${escapeHtml(String(value))}</span>`;
+}
+
+function renderDiagnosticCardHtml(card, fallbackStatus, options = {}) {
+    const compact = Boolean(options.compact);
+    const status = String(card?.status || fallbackStatus || 'OK').toUpperCase();
+    const statusClass = status === 'NG' || status === 'ERROR' ? 'ng' : 'ok';
+    const icon = card?.icon || ICONS.note;
+    const fields = Array.isArray(card?.fields)
+        ? (compact ? card.fields.slice(0, 4) : card.fields)
+        : [];
+    const rows = fields.map(field => `
+        <div class="ac-diagnostic-row">
+            <span class="ac-diagnostic-label">${escapeHtml(field.label || '--')}</span>
+            <div class="ac-diagnostic-value">${formatDiagnosticValue(field)}</div>
+        </div>
+    `).join('');
+    const message = card?.message
+        ? `<div class="ac-diagnostic-message ${statusClass}">${escapeHtml(card.message)}</div>`
+        : '';
+    const hint = compact && Array.isArray(card?.fields) && card.fields.length > fields.length
+        ? `<div class="ac-diagnostic-hint">还有 ${card.fields.length - fields.length} 项诊断字段，请在结果详情查看完整信息。</div>`
+        : '';
+
+    return `
+        <div class="ac-card ac-card-diagnostic ac-status-${statusClass}">
+            <div class="ac-card-header">
+                <span class="ac-card-icon">${icon}</span>
+                <span class="ac-card-title">${escapeHtml(card?.title || '诊断卡片')}</span>
+                <span class="ac-diagnostic-badge ${statusClass}">${status === 'OK' ? 'OK' : 'NG'}</span>
+            </div>
+            <div class="ac-card-body">
+                ${message}
+                <div class="ac-diagnostic-grid">${rows || '<div class="ac-diagnostic-empty">暂无诊断字段</div>'}</div>
+                ${hint}
+            </div>
+        </div>
+    `;
+}
+
+export function buildDiagnosticsAnalysisData(outputData, fallbackStatus = 'OK') {
+    if (!isPlainObject(outputData)) {
+        return null;
+    }
+
+    const cards = [];
+    const sequence = normalizeSequenceDiagnostics(outputData);
+    const nms = normalizeNmsDiagnostics(outputData);
+    const deepLearningPreview = normalizeDeepLearningPreviewDiagnostics(outputData);
+
+    if (deepLearningPreview) {
+        cards.push({
+            category: 'diagnostic',
+            type: 'preview-nms',
+            title: '预览去重说明',
+            status: 'OK',
+            icon: ICONS.note,
+            message: '当前预览图使用 Preview-NMS 收敛重叠框，仅用于可视化；真正业务去重仍由下游 BoxNms 执行。',
+            priority: 130,
+            fields: [
+                { label: '检测模式', value: deepLearningPreview.detectionMode },
+                { label: '原始候选框', value: deepLearningPreview.rawCandidateCount },
+                { label: '预览图显示框', value: deepLearningPreview.visualizedCount },
+                { label: '预览去重层', value: deepLearningPreview.visualOwner },
+                { label: '业务去重层', value: deepLearningPreview.businessOwner },
+                { label: '内部 NMS', value: 'Off' }
+            ]
+        });
+    }
+
+    if (sequence) {
+        cards.push({
+            category: 'diagnostic',
+            type: 'sequence',
+            title: '线序诊断',
+            status: sequence.isMatch ? 'OK' : 'NG',
+            icon: ICONS.sequence,
+            message: sequence.message,
+            priority: sequence.isMatch ? 110 : 160,
+            fields: [
+                { label: '判定结果', value: sequence.isMatch ? '匹配' : '不匹配', variant: 'status' },
+                { label: '预期顺序', value: sequence.expectedLabels, variant: 'sequence' },
+                { label: '实际顺序', value: sequence.actualOrder, variant: 'sequence' },
+                { label: '缺失标签', value: sequence.missingLabels, variant: 'labels' },
+                { label: '重复标签', value: sequence.duplicateLabels, variant: 'labels' },
+                { label: '接收数量', value: sequence.receivedCount },
+                { label: '过滤后数量', value: sequence.filteredCount },
+                { label: '最终排序数量', value: sequence.sortedCount },
+                { label: '预期数量', value: sequence.expectedCount },
+                { label: '最小置信度', value: sequence.minConfidence },
+                { label: '排序字段', value: sequence.sortBy },
+                { label: '排序方向', value: sequence.direction }
+            ]
+        });
+    }
+
+    if (nms) {
+        const nmsStatus = (nms.inputCount ?? 0) > 0 && (nms.keptCount ?? 0) === 0 ? 'NG' : 'OK';
+        const nmsMessage = nmsStatus === 'NG'
+            ? '候选框在分数阈值或 NMS 阶段被全部过滤，请优先检查 BoxNms.ScoreThreshold 和 IoU 阈值。'
+            : '';
+        cards.push({
+            category: 'diagnostic',
+            type: 'nms',
+            title: '候选框诊断',
+            status: nmsStatus,
+            icon: ICONS.filter,
+            message: nmsMessage,
+            priority: 120,
+            fields: [
+                { label: '输入框数', value: nms.inputCount },
+                { label: '候选框数', value: nms.candidateCount },
+                { label: '保留框数', value: nms.keptCount },
+                { label: '抑制框数', value: nms.suppressedCount },
+                { label: '分数阈值', value: nms.scoreThreshold },
+                { label: 'IoU 阈值', value: nms.iouThreshold },
+                { label: '最大保留数', value: nms.maxDetections }
+            ]
+        });
+    }
+
+    if (cards.length === 0) {
+        return null;
+    }
+
+    return {
+        version: 1,
+        cards
+    };
+}
+
+export function renderDiagnosticsCardsHtml(outputData, fallbackStatus = 'OK', options = {}) {
+    const analysisData = buildDiagnosticsAnalysisData(outputData, fallbackStatus);
+    if (!analysisData || !Array.isArray(analysisData.cards) || analysisData.cards.length === 0) {
+        return options.emptyState || '';
+    }
+
+    const containerClass = options.containerClass || 'analysis-cards-container ac-diagnostics-inline';
+    return `
+        <div class="${containerClass}">
+            ${analysisData.cards.map(card => renderDiagnosticCardHtml(card, fallbackStatus, options)).join('')}
+        </div>
+    `;
+}
 
 class AnalysisCardsPanel {
     constructor(containerId) {
@@ -119,6 +507,8 @@ class AnalysisCardsPanel {
                 return this._renderStructuredMeasurementCard(card, fallbackStatus);
             case 'recognition':
                 return this._renderStructuredRecognitionCard(card, fallbackStatus);
+            case 'diagnostic':
+                return renderDiagnosticCardHtml(card, fallbackStatus);
             default:
                 return this._renderStructuredGenericCard(card, fallbackStatus);
         }
@@ -338,13 +728,7 @@ class AnalysisCardsPanel {
     }
 
     _escapeHtml(text) {
-        if (text === null || text === undefined) {
-            return '';
-        }
-
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return escapeHtml(text);
     }
 
     dispose() {
