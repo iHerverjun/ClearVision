@@ -78,6 +78,32 @@ public class PreviewMetricsAnalyzerTests
 
         var suggestedParameters = metrics.Suggestions.Select(suggestion => suggestion.ParameterName).ToList();
         suggestedParameters.Should().Contain("ExpectedLabels");
-        suggestedParameters.Should().Contain("Confidence");
+        suggestedParameters.Should().Contain("BoxNms.ScoreThreshold");
+    }
+
+    [Fact]
+    public void Analyze_DuplicateDetections_UsesBoxNmsRecommendations()
+    {
+        using var image = new Mat(24, 24, MatType.CV_8UC1, Scalar.All(128));
+        var analyzer = new PreviewMetricsAnalyzer(NullLogger<PreviewMetricsAnalyzer>.Instance);
+        var outputData = new Dictionary<string, object>
+        {
+            ["DetectionList"] = new DetectionList(new[]
+            {
+                new DetectionResultValue("Wire_Brown", 0.98f, 10f, 10f, 8f, 8f),
+                new DetectionResultValue("Wire_Brown", 0.96f, 12f, 10f, 8f, 8f),
+                new DetectionResultValue("Wire_Black", 0.94f, 22f, 10f, 8f, 8f)
+            }),
+            ["ExpectedLabels"] = new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" },
+            ["ExpectedCount"] = 3,
+            ["RequiredMinConfidence"] = 0.8
+        };
+
+        var metrics = analyzer.Analyze(image, outputData, new AutoTuneGoal());
+
+        metrics.Diagnostics.Should().Contain(PreviewDiagnosticTags.DuplicateDetectedClass);
+        metrics.Suggestions.Should().Contain(item =>
+            item.ParameterName == "BoxNms.IouThreshold" &&
+            string.Equals(Convert.ToString(item.SuggestedValue), "decrease", StringComparison.OrdinalIgnoreCase));
     }
 }

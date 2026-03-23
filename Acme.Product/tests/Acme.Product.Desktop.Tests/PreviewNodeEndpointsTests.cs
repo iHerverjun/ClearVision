@@ -235,7 +235,7 @@ public class PreviewNodeEndpointsTests
     }
 
     [Fact]
-    public async Task PreviewNode_ShouldInjectExternalImage_WhenTargetPathContainsImageAcquisition()
+    public async Task PreviewNode_ShouldNotInjectExternalImage_WhenTargetPathContainsImageAcquisition()
     {
         var projectId = Guid.NewGuid();
         var acquisitionId = Guid.NewGuid();
@@ -284,9 +284,7 @@ public class PreviewNodeEndpointsTests
         });
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        capturedInput.Should().NotBeNull();
-        capturedInput!.Should().ContainKey("Image");
-        ((byte[])capturedInput["Image"]).Should().Equal(new byte[] { 9, 9, 9 });
+        capturedInput.Should().BeNull();
     }
 
     [Fact]
