@@ -1,0 +1,136 @@
+[
+  {
+    "Id": "16762f96-57ce-48ba-a643-3482da0c3ada",
+    "Name": "传统缺陷检测",
+    "Description": "相机采集后进行去噪、二值化和 Blob 缺陷分析。",
+    "Industry": "3C电子",
+    "Tags": [
+      "缺陷检测",
+      "传统视觉",
+      "表面检测"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u57FA\\u7840\\u4F20\\u7EDF\\u7F3A\\u9677\\u68C0\\u6D4B\\u6D41\\u7A0B\\uFF0C\\u9002\\u5408\\u89C4\\u5219\\u8868\\u9762\\u4E0E\\u7A33\\u5B9A\\u5149\\u7167\\u573A\\u666F\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {\r\n        \"sourceType\": \"camera\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"Filtering\",\r\n      \"displayName\": \"\\u964D\\u566A\",\r\n      \"parameters\": {\r\n        \"KernelSize\": \"5\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"Thresholding\",\r\n      \"displayName\": \"\\u4E8C\\u503C\\u5316\",\r\n      \"parameters\": {\r\n        \"UseOtsu\": \"true\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"BlobAnalysis\",\r\n      \"displayName\": \"\\u7F3A\\u9677\\u5206\\u6790\",\r\n      \"parameters\": {\r\n        \"MinArea\": \"50\",\r\n        \"MaxArea\": \"5000\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"BlobCount\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"Result\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_4\": [\r\n      \"MinArea\",\r\n      \"MaxArea\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2561074Z"
+  },
+  {
+    "Id": "ceee1705-d5d3-4dac-88f3-4549a64db471",
+    "Name": "AI缺陷检测",
+    "Description": "深度学习推理 + 分支判定 + 通信输出。",
+    "Industry": "半导体",
+    "Tags": [
+      "AI",
+      "缺陷检测",
+      "PLC通信"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u9002\\u7528\\u4E8E\\u590D\\u6742\\u7EB9\\u7406\\u4E0E\\u591A\\u7F3A\\u9677\\u7C7B\\u578B\\u573A\\u666F\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {\r\n        \"sourceType\": \"camera\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"ImageResize\",\r\n      \"displayName\": \"\\u5C3A\\u5BF8\\u9002\\u914D\",\r\n      \"parameters\": {\r\n        \"Width\": \"640\",\r\n        \"Height\": \"640\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"DeepLearning\",\r\n      \"displayName\": \"AI\\u68C0\\u6D4B\",\r\n      \"parameters\": {\r\n        \"Confidence\": \"0.5\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"ConditionalBranch\",\r\n      \"displayName\": \"\\u7F3A\\u9677\\u5206\\u652F\",\r\n      \"parameters\": {\r\n        \"Condition\": \"GreaterThan\",\r\n        \"CompareValue\": \"0\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"ModbusCommunication\",\r\n      \"displayName\": \"NG\\u4FE1\\u53F7\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_6\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"DefectCount\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Value\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"True\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_6\",\r\n      \"targetPortName\": \"Image\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_3\": [\r\n      \"ModelPath\",\r\n      \"InputSize\"\r\n    ],\r\n    \"op_5\": [\r\n      \"IpAddress\",\r\n      \"Port\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2561821Z"
+  },
+  {
+    "Id": "c1aa519e-b8eb-4d6b-9097-e73b9bcfc0d3",
+    "Name": "尺寸间距测量",
+    "Description": "边缘检测 + 间距测量 + 坐标换算。",
+    "Industry": "汽车零部件",
+    "Tags": [
+      "测量",
+      "间距",
+      "标定"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u7528\\u4E8E\\u5B54\\u8DDD\\u3001\\u710A\\u70B9\\u95F4\\u8DDD\\u3001\\u5F15\\u811A\\u95F4\\u8DDD\\u7B49\\u573A\\u666F\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"Filtering\",\r\n      \"displayName\": \"\\u9884\\u5904\\u7406\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"EdgeDetection\",\r\n      \"displayName\": \"\\u8FB9\\u7F18\\u68C0\\u6D4B\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"GapMeasurement\",\r\n      \"displayName\": \"\\u95F4\\u8DDD\\u6D4B\\u91CF\",\r\n      \"parameters\": {\r\n        \"ExpectedWidth\": \"0.5\",\r\n        \"Tolerance\": \"0.05\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"CoordinateTransform\",\r\n      \"displayName\": \"\\u50CF\\u7D20\\u8F6C\\u6BEB\\u7C73\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_6\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u6D4B\\u91CF\\u7ED3\\u679C\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"Width\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"PixelX\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_5\",\r\n      \"sourcePortName\": \"PhysicalX\",\r\n      \"targetTempId\": \"op_6\",\r\n      \"targetPortName\": \"Result\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_5\": [\r\n      \"PixelSize\",\r\n      \"CalibrationFile\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2561997Z"
+  },
+  {
+    "Id": "78f521fd-4cb2-466b-9cb0-206b4af5241c",
+    "Name": "条码读取写PLC",
+    "Description": "条码识别结果写入 PLC。",
+    "Industry": "食品包装",
+    "Tags": [
+      "条码",
+      "追溯",
+      "通信"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u7528\\u4E8E\\u5305\\u88C5\\u7EBF\\u3001\\u8FFD\\u6EAF\\u7801\\u91C7\\u96C6\\u4E0E\\u4E0A\\u4F4D\\u673A\\u8054\\u52A8\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"CodeRecognition\",\r\n      \"displayName\": \"\\u6761\\u7801\\u8BC6\\u522B\",\r\n      \"parameters\": {\r\n        \"MaxResults\": \"1\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"ModbusCommunication\",\r\n      \"displayName\": \"PLC\\u5199\\u5165\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Text\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Text\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Result\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_3\": [\r\n      \"IpAddress\",\r\n      \"Port\",\r\n      \"RegisterAddress\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2562101Z"
+  },
+  {
+    "Id": "bf1ca2fb-8d67-4873-a8a5-4d63dbe2c137",
+    "Name": "OCR文本追溯",
+    "Description": "OCR 识别后写入数据库并输出结果。",
+    "Industry": "食品包装",
+    "Tags": [
+      "OCR",
+      "追溯",
+      "数据库"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u7528\\u4E8E\\u6279\\u6B21\\u53F7\\u3001\\u65E5\\u671F\\u7801\\u3001\\u5E8F\\u5217\\u53F7\\u8BC6\\u522B\\u4E0E\\u5F52\\u6863\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"OcrRecognition\",\r\n      \"displayName\": \"OCR\\u8BC6\\u522B\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"DatabaseWrite\",\r\n      \"displayName\": \"\\u5199\\u5165\\u6570\\u636E\\u5E93\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Text\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Text\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Result\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_3\": [\r\n      \"ConnectionString\",\r\n      \"TableName\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2562216Z"
+  },
+  {
+    "Id": "ebf0964f-12b8-4c73-85fc-c37d6d2025f9",
+    "Name": "环形件缺陷检测",
+    "Description": "圆心定位 + 极坐标展开 + 表面缺陷检测。",
+    "Industry": "轴承行业",
+    "Tags": [
+      "环形件",
+      "缺陷检测",
+      "极坐标"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u9002\\u5408\\u8F74\\u627F\\u3001\\u74F6\\u76D6\\u7B49\\u73AF\\u5F62\\u96F6\\u4EF6\\u5916\\u89C2\\u68C0\\u6D4B\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"CircleMeasurement\",\r\n      \"displayName\": \"\\u5706\\u5FC3\\u5B9A\\u4F4D\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"PolarUnwrap\",\r\n      \"displayName\": \"\\u6781\\u5750\\u6807\\u5C55\\u5F00\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"SurfaceDefectDetection\",\r\n      \"displayName\": \"\\u7F3A\\u9677\\u68C0\\u6D4B\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Center\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Center\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"Image\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {}\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2562316Z"
+  },
+  {
+    "Id": "c3ce7e07-a124-4e6d-9997-cf4e153c2cc3",
+    "Name": "多工位循环检测",
+    "Description": "循环计数驱动的多次检测与结果归档。",
+    "Industry": "通用制造",
+    "Tags": [
+      "循环",
+      "多工位",
+      "批量检测"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u7528\\u4E8E\\u5355\\u5DE5\\u4F4D\\u91CD\\u590D\\u68C0\\u6D4B\\u6216\\u591A\\u5DE5\\u4F4D\\u8F6E\\u8BE2\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"CycleCounter\",\r\n      \"displayName\": \"\\u5FAA\\u73AF\\u8BA1\\u6570\",\r\n      \"parameters\": {\r\n        \"CycleLimit\": \"10\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"Thresholding\",\r\n      \"displayName\": \"\\u4E8C\\u503C\\u5316\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"ResultJudgment\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u5224\\u5B9A\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"DatabaseWrite\",\r\n      \"displayName\": \"\\u8BB0\\u5F55\\u7ED3\\u679C\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_6\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"IsOk\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_4\",\r\n      \"sourcePortName\": \"IsOk\",\r\n      \"targetTempId\": \"op_6\",\r\n      \"targetPortName\": \"Result\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_5\": [\r\n      \"ConnectionString\",\r\n      \"TableName\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2562422Z"
+  },
+  {
+    "Id": "ddaa9b25-f1f8-4353-9800-eefec8c1c5cd",
+    "Name": "检测结果分拣",
+    "Description": "判定后分支发送 OK/NG 通信信号。",
+    "Industry": "通用制造",
+    "Tags": [
+      "分拣",
+      "OK/NG",
+      "通信"
+    ],
+    "FlowJson": "{\r\n  \"explanation\": \"\\u5178\\u578B\\u5728\\u7EBF\\u5254\\u9664\\u63A7\\u5236\\u6A21\\u677F\\u3002\",\r\n  \"operators\": [\r\n    {\r\n      \"tempId\": \"op_1\",\r\n      \"operatorType\": \"ImageAcquisition\",\r\n      \"displayName\": \"\\u56FE\\u50CF\\u91C7\\u96C6\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_2\",\r\n      \"operatorType\": \"DeepLearning\",\r\n      \"displayName\": \"AI\\u68C0\\u6D4B\",\r\n      \"parameters\": {\r\n        \"Confidence\": \"0.5\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_3\",\r\n      \"operatorType\": \"ConditionalBranch\",\r\n      \"displayName\": \"\\u5206\\u652F\\u5224\\u5B9A\",\r\n      \"parameters\": {\r\n        \"Condition\": \"GreaterThan\",\r\n        \"CompareValue\": \"0\"\r\n      }\r\n    },\r\n    {\r\n      \"tempId\": \"op_4\",\r\n      \"operatorType\": \"ModbusCommunication\",\r\n      \"displayName\": \"NG\\u4FE1\\u53F7\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_5\",\r\n      \"operatorType\": \"ModbusCommunication\",\r\n      \"displayName\": \"OK\\u4FE1\\u53F7\",\r\n      \"parameters\": {}\r\n    },\r\n    {\r\n      \"tempId\": \"op_6\",\r\n      \"operatorType\": \"ResultOutput\",\r\n      \"displayName\": \"\\u7ED3\\u679C\\u8F93\\u51FA\",\r\n      \"parameters\": {}\r\n    }\r\n  ],\r\n  \"connections\": [\r\n    {\r\n      \"sourceTempId\": \"op_1\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_2\",\r\n      \"targetPortName\": \"Image\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"DefectCount\",\r\n      \"targetTempId\": \"op_3\",\r\n      \"targetPortName\": \"Value\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"True\",\r\n      \"targetTempId\": \"op_4\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_3\",\r\n      \"sourcePortName\": \"False\",\r\n      \"targetTempId\": \"op_5\",\r\n      \"targetPortName\": \"Data\"\r\n    },\r\n    {\r\n      \"sourceTempId\": \"op_2\",\r\n      \"sourcePortName\": \"Image\",\r\n      \"targetTempId\": \"op_6\",\r\n      \"targetPortName\": \"Image\"\r\n    }\r\n  ],\r\n  \"parametersNeedingReview\": {\r\n    \"op_2\": [\r\n      \"ModelPath\"\r\n    ],\r\n    \"op_4\": [\r\n      \"IpAddress\",\r\n      \"Port\"\r\n    ],\r\n    \"op_5\": [\r\n      \"IpAddress\",\r\n      \"Port\"\r\n    ]\r\n  }\r\n}",
+    "CreatedAt": "2026-02-27T03:38:05.2562546Z"
+  },
+  {
+    "Id": "ae33787c-b65d-477f-a3a1-a590a1ac839c",
+    "Name": "端子线序检测",
+    "Description": "端子排固定 ROI 的线序检测模板，内置检测、NMS 去重与顺序判定主干。",
+    "Industry": "线束装配",
+    "Tags": [
+      "线序",
+      "YOLO",
+      "端子",
+      "ROI"
+    ],
+    "FlowJson": "{\n  \"explanation\": \"适用于线束装配工位的端子线序判定，先固定 ROI，再做目标检测、NMS 去重和顺序判定。\",\n  \"expectedSequence\": [\n    \"Wire_Brown\",\n    \"Wire_Black\",\n    \"Wire_Blue\"\n  ],\n  \"expectedDetectionCount\": 3,\n  \"requiredResources\": [\n    \"DeepLearning.ModelPath\",\n    \"DeepLearning.LabelsPath\"\n  ],\n  \"tunableParameters\": [\n    \"DeepLearning.Confidence\",\n    \"BoxNms.IouThreshold\",\n    \"DetectionSequenceJudge.MinConfidence\"\n  ],\n  \"operators\": [\n    {\n      \"tempId\": \"op_1\",\n      \"operatorType\": \"ImageAcquisition\",\n      \"displayName\": \"图像采集\",\n      \"parameters\": {\n        \"sourceType\": \"camera\"\n      }\n    },\n    {\n      \"tempId\": \"op_2\",\n      \"operatorType\": \"RoiManager\",\n      \"displayName\": \"固定ROI\",\n      \"parameters\": {\n        \"Shape\": \"Rectangle\",\n        \"Operation\": \"Crop\",\n        \"X\": \"0\",\n        \"Y\": \"0\",\n        \"Width\": \"640\",\n        \"Height\": \"640\"\n      }\n    },\n    {\n      \"tempId\": \"op_3\",\n      \"operatorType\": \"ImageResize\",\n      \"displayName\": \"尺寸适配\",\n      \"parameters\": {\n        \"Width\": \"640\",\n        \"Height\": \"640\"\n      }\n    },\n    {\n      \"tempId\": \"op_4\",\n      \"operatorType\": \"DeepLearning\",\n      \"displayName\": \"线根检测\",\n      \"parameters\": {\n        \"ModelPath\": \"\",\n        \"LabelsPath\": \"\",\n        \"Confidence\": \"0.5\",\n        \"InputSize\": \"640\",\n        \"TargetClasses\": \"Wire_Brown,Wire_Black,Wire_Blue\",\n        \"DetectionMode\": \"Object\"\n      }\n    },\n    {\n      \"tempId\": \"op_5\",\n      \"operatorType\": \"BoxNms\",\n      \"displayName\": \"候选框去重\",\n      \"parameters\": {\n        \"IouThreshold\": \"0.45\",\n        \"ScoreThreshold\": \"0.25\",\n        \"MaxDetections\": \"10\"\n      }\n    },\n    {\n      \"tempId\": \"op_6\",\n      \"operatorType\": \"DetectionSequenceJudge\",\n      \"displayName\": \"顺序判定\",\n      \"parameters\": {\n        \"ExpectedLabels\": \"Wire_Brown,Wire_Black,Wire_Blue\",\n        \"SortBy\": \"CenterX\",\n        \"Direction\": \"Ascending\",\n        \"ExpectedCount\": \"3\",\n        \"MinConfidence\": \"0.5\"\n      }\n    },\n    {\n      \"tempId\": \"op_7\",\n      \"operatorType\": \"ResultOutput\",\n      \"displayName\": \"结果输出\",\n      \"parameters\": {\n        \"Format\": \"JSON\",\n        \"SaveToFile\": \"true\"\n      }\n    }\n  ],\n  \"connections\": [\n    {\n      \"sourceTempId\": \"op_1\",\n      \"sourcePortName\": \"Image\",\n      \"targetTempId\": \"op_2\",\n      \"targetPortName\": \"Image\"\n    },\n    {\n      \"sourceTempId\": \"op_2\",\n      \"sourcePortName\": \"Image\",\n      \"targetTempId\": \"op_3\",\n      \"targetPortName\": \"Image\"\n    },\n    {\n      \"sourceTempId\": \"op_3\",\n      \"sourcePortName\": \"Image\",\n      \"targetTempId\": \"op_4\",\n      \"targetPortName\": \"Image\"\n    },\n    {\n      \"sourceTempId\": \"op_4\",\n      \"sourcePortName\": \"Objects\",\n      \"targetTempId\": \"op_5\",\n      \"targetPortName\": \"Detections\"\n    },\n    {\n      \"sourceTempId\": \"op_4\",\n      \"sourcePortName\": \"Image\",\n      \"targetTempId\": \"op_5\",\n      \"targetPortName\": \"Image\"\n    },\n    {\n      \"sourceTempId\": \"op_5\",\n      \"sourcePortName\": \"Detections\",\n      \"targetTempId\": \"op_6\",\n      \"targetPortName\": \"Detections\"\n    },\n    {\n      \"sourceTempId\": \"op_5\",\n      \"sourcePortName\": \"Image\",\n      \"targetTempId\": \"op_7\",\n      \"targetPortName\": \"Image\"\n    },\n    {\n      \"sourceTempId\": \"op_6\",\n      \"sourcePortName\": \"Message\",\n      \"targetTempId\": \"op_7\",\n      \"targetPortName\": \"Result\"\n    }\n  ],\n  \"parametersNeedingReview\": {\n    \"op_2\": [\n      \"X\",\n      \"Y\",\n      \"Width\",\n      \"Height\"\n    ],\n    \"op_4\": [\n      \"ModelPath\",\n      \"LabelsPath\",\n      \"Confidence\"\n    ],\n    \"op_5\": [\n      \"IouThreshold\"\n    ],\n    \"op_6\": [\n      \"ExpectedLabels\",\n      \"ExpectedCount\",\n      \"MinConfidence\"\n    ]\n  }\n}",
+    "TemplateVersion": "1.1.0",
+    "ScenarioKey": "wire-sequence-terminal",
+    "ScenarioPackage": {
+      "PackageKey": "wire-sequence-terminal",
+      "PackageVersion": "1.1.0",
+      "AssetVersionIds": [
+        "template:terminal-wire-sequence-template@1.1.0",
+        "model:wire-seq-yolo@1.1.0",
+        "rule:wire-sequence-rule@1.1.0",
+        "label:wire-label-set@1.0.0"
+      ],
+      "RequiredResources": [
+        "DeepLearning.ModelPath",
+        "DeepLearning.LabelsPath"
+      ]
+    },
+    "CreatedAt": "2026-03-23T07:55:56.194632+00:00"
+  }
+]
