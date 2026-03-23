@@ -451,3 +451,161 @@
     font-size: 10px;
     color: var(--text-secondary);
 }
+
+/* ==================================
+ * 6. 诊断卡片 (Diagnostics)
+ * ================================== */
+.ac-diagnostics-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ac-card-diagnostic {
+    border-left: 4px solid rgba(15, 23, 42, 0.08);
+}
+
+.ac-card-diagnostic.ac-status-ok {
+    border-left-color: rgba(16, 185, 129, 0.55);
+}
+
+.ac-card-diagnostic.ac-status-ng {
+    border-left-color: rgba(225, 29, 72, 0.6);
+}
+
+.ac-diagnostic-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.ac-diagnostic-badge.ok {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.ac-diagnostic-badge.ng {
+    color: #e11d48;
+    background: rgba(225, 29, 72, 0.12);
+}
+
+.ac-diagnostic-message {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(248, 250, 252, 0.85);
+    color: var(--text-color);
+}
+
+.ac-diagnostic-message.ok {
+    border-color: rgba(16, 185, 129, 0.28);
+    background: rgba(236, 253, 245, 0.9);
+}
+
+.ac-diagnostic-message.ng {
+    border-color: rgba(225, 29, 72, 0.28);
+    background: rgba(255, 241, 242, 0.92);
+}
+
+.ac-diagnostic-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ac-diagnostic-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 120px) 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+.ac-diagnostic-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ac-diagnostic-value {
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+.ac-diagnostic-number {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.ac-diagnostic-text {
+    color: var(--text-color);
+    line-height: 1.5;
+}
+
+.ac-diagnostic-empty {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.ac-diagnostic-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ac-diagnostic-status.ok {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.ac-diagnostic-status.ng {
+    color: #e11d48;
+    background: rgba(225, 29, 72, 0.12);
+}
+
+.ac-diagnostic-sequence,
+.ac-diagnostic-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ac-diagnostic-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.ac-diagnostic-sequence .ac-diagnostic-chip::after {
+    content: '→';
+    margin-left: 6px;
+    color: var(--text-secondary);
+}
+
+.ac-diagnostic-sequence .ac-diagnostic-chip:last-child::after {
+    content: '';
+    margin: 0;
+}
+
+.ac-diagnostic-hint {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}

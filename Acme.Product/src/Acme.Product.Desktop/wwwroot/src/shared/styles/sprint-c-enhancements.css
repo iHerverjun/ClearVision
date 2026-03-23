@@ -378,6 +378,26 @@
     color: #475569;
 }
 
+.operator-preview-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ac-diagnostics-preview .ac-card {
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.ac-diagnostics-preview .ac-card:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.ac-diagnostics-preview .ac-card-body {
+    padding: 8px 10px;
+}
+
 .operator-preview-output-item {
     display: flex;
     justify-content: space-between;

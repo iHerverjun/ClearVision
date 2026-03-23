@@ -993,6 +993,14 @@
 .detail-value.status-ng { color: var(--error-cinnabar); }
 .detail-value.status-error { color: #f1c40f; }
 
+.ac-diagnostics-detail .ac-card {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.ac-diagnostics-detail .ac-card:hover {
+    transform: none;
+}
+
 .type-string .detail-value { color: #5dade2; }
 .type-number .detail-value { color: var(--gold-accent); font-family: var(--font-mono); }
 .type-bool-true .detail-value { color: var(--success-jade); }
