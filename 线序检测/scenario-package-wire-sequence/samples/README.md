@@ -1,11 +1,26 @@
 # Samples
 
-Current baseline sample image is available at:
+当前仓库只内置最小样本契约，不把完整现场样本包直接纳入版本库。
 
-- `../../unnamed.jpg`
+## 目录约定
 
-Suggested extension policy:
+- `ok/`: OK 样本说明与元数据
+- `ng/`: NG 样本说明与元数据
+- `metadata.example.json`: 单张样本的 sidecar 参考结构
 
-1. Add OK and NG samples in separate subfolders.
-2. Include camera station and lighting metadata in a sidecar JSON file.
-3. Version sample batches alongside package versions when rule/model changes.
+## 当前基线
+
+- 当前仓库中的基线样图仍是：
+  - `../../unnamed.jpg`
+- 这张图可作为 OK 基线参考，但不足以支撑场景级自动调参闭环。
+
+## 扩充要求
+
+1. 至少补齐一组 OK 样本和一组 NG 样本。
+2. 每张样图都带 sidecar 元数据，记录机位、光源、批次、预期线序和备注。
+3. 如果规则或模型版本变化，样本批次也要同步记录版本来源。
+
+## 建议的最小验收批次
+
+- OK：正确线序、无遮挡、不同亮度
+- NG：缺类、重复框、错序

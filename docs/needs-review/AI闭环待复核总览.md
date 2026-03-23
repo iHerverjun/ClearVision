@@ -4,7 +4,7 @@ doc_type: "overview"
 status: "needs-review"
 topic: "AI闭环"
 created: "2026-03-21"
-updated: "2026-03-21"
+updated: "2026-03-23"
 source_docs:
   - "docs/reference/历史资料/needs-review来源/拆分稿/AI闭环/LLM闭环修复框架.md"
 ---
@@ -13,77 +13,44 @@ source_docs:
 
 ## 当前判断
 
-这条线已经不是“要不要做闭环”，而是“已经落地到哪一层闭环”。
+AI 这条线当前不再是“主链有没有闭环”的问题，而是“哪些闭环已经落地，哪些闭环仍在 active 执行中”。
 
-现有文档给出的可信结论是：
+当前可以确认：
 
-- 工作流生成主链上的**结构化闭环修复**已经落地。
-- 视觉预览驱动的**自动调参闭环**还没有完整落地。
-- 因此当前状态更准确地应标成“第一阶段闭环已完成，第二阶段闭环待明确范围和验证方式”。
+- 生成侧结构化闭环已经落地
+- 线序场景的 preview / autotune / AI follow-up 闭环仍在 active 执行中
 
-## 已完成的闭环层
+## 已落地的闭环层
 
-从拆分稿可确认，以下能力已经进入主链：
+- `AiFlowValidator` 已输出结构化诊断
+- `AiFlowGenerationService` 已支持定向重试而不是机械重生
+- `GenerateFlowResponse` 已回传：
+  - `FailureSummary`
+  - `LastAttemptDiagnostics`
+  - `PendingParameters`
+  - `MissingResources`
+- AI 面板已支持取消生成、待确认参数和缺失资源展示
 
-- `AiFlowValidator` 输出结构化诊断，而不是只返回字符串错误。
-- `AiFlowGenerationService` 的重试不再是原样重试，而是带修复优先级和问题清单的定向重试。
-- 失败结果已能回传 `FailureSummary`、`LastAttemptDiagnostics` 等摘要信息。
-- 取消、超时、系统失败已经做了终态区分。
-- 前端 AI 面板已经能消费 `PendingParameters`、`MissingResources`、`FailureSummary`、`LastAttemptDiagnostics`。
+这部分已经不是阻塞线序检测的主要问题。
 
-这意味着“生成失败后完全盲飞”的状态已经结束。
+## 仍在 active 执行中的闭环层
 
-## 尚未完成的闭环层
+真正还没完全收口的是线序专项闭环：
 
-当前文档仍明确把以下能力列为未落地：
+- 节点级 preview 与诊断码收口
+- 场景级自动调参
+- AI follow-up 只改参数、不改结构
 
-- 预览图像驱动的自动参数收敛
-- 独立二审模型
-- 专门的 `AutoTuneService`
-- 面向实验统计的评估流水线
+这些工作已转入：
 
-如果以产品闭环来衡量，当前系统更接近：
+- [线序检测闭环下一步清单](C:/Users/11234/Desktop/ClearVision/docs/active/线序检测闭环下一步清单.md)
 
-> 生成闭环已落地，调参闭环未落地。
+## 为什么还留在 needs-review
 
-## 为什么它还在 needs-review
+因为这里剩下的是“归档边界判断”，不是“方案还没写”：
 
-这份文档留在 `needs-review`，核心不是因为内容混乱，而是因为边界还没有完全收敛：
+1. 生成侧结构化闭环是否可以单独转入 `closed/`
+2. 线序专项闭环是否应继续以 active 专项文档独立推进
+3. `AI闭环` 一词后续是否只保留生成主链含义，而不再混入场景调参闭环
 
-1. 现在的“AI 闭环”到底只指工作流生成主链，还是还要包含预览反馈调参。
-2. `AutoTuneService` 等能力是否仍是当前主线，还是已经降级为后续专题。
-3. 前端对待确认参数、缺失资源、取消请求的交互是否已经足以支撑“用户在环”的闭环定义。
-
-## 建议的收敛方式
-
-建议把这条线拆成两层来管理：
-
-### 层 1：已落地的生成主链闭环
-
-这一层建议后续可以进入 `closed/`，标题可以继续沿用“结构化闭环修复”。
-
-它的范围应只包括：
-
-- 结构化诊断
-- 定向重试
-- 失败摘要回传
-- 前端消费失败诊断
-
-### 层 2：未落地的预览反馈调参闭环
-
-这一层更适合单独转成 `active/` 任务，而不是继续混在当前 needs-review 文档里。
-
-它的范围可明确成：
-
-- 节点预览指标提炼
-- 自动调参策略
-- 样本级效果评估
-- 实验与验收标准
-
-## 当前建议结论
-
-如果你要继续压缩文档体系，AI 这条线建议按下面的判断执行：
-
-1. 当前这份总览暂留 `needs-review`。
-2. 待你确认“生成闭环”和“调参闭环”是两个专题后，把本文件转入 `closed/` 或拆成 `closed + active` 两份。
-3. 详细技术说明继续只保留在 `docs/reference/历史资料/needs-review来源/拆分稿/AI闭环/LLM闭环修复框架.md`。
+在这些归档判断完成前，本文件继续保留在 `needs-review`。

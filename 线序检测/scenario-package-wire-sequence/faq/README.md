@@ -19,6 +19,25 @@ Do not treat these as runtime tuning targets:
 - labels path
 - `DetectionSequenceJudge.MinConfidence`
 
+## Auto-tune Boundary
+
+- Auto-tune for `wire-sequence-terminal` only changes:
+  - `BoxNms.ScoreThreshold`
+  - `BoxNms.IouThreshold`
+- Do not auto-change:
+  - `ExpectedLabels`
+  - `ExpectedCount`
+  - `ModelPath`
+  - `LabelsPath`
+
+## Missing Assets
+
+If preview or auto-tune returns `missing_model` / `missing_labels`:
+
+1. Check whether `DeepLearning.ModelPath` and `DeepLearning.LabelsPath` are both configured.
+2. If the repository intentionally keeps model binaries out of source control, confirm the external delivery path first.
+3. Do not continue tuning until the resource issue is resolved.
+
 ## How to release a new package version?
 
 1. Register new artifact versions (template/model/rule/label).

@@ -1,0 +1,13 @@
+{
+  "sampleId": "wire-sequence-ok-001",
+  "imagePath": "../../unnamed.jpg",
+  "sampleType": "ok",
+  "stationId": "station-a",
+  "lightingProfile": "default",
+  "expectedSequence": [
+    "Wire_Brown",
+    "Wire_Black",
+    "Wire_Blue"
+  ],
+  "notes": "Baseline sample metadata contract. Replace with real local sample information during data collection."
+}
