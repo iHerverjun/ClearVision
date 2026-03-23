@@ -1,6 +1,7 @@
 ﻿import webMessageBridge from '../../core/messaging/webMessageBridge.js';
 import httpClient from '../../core/messaging/httpClient.js';
 import { createSignal } from '../../core/state/store.js';
+import { buildWireSequenceFollowupHint } from '../flow-editor/wireSequenceAssist.js';
 
 /**
  * AI 智能助手面板
@@ -919,6 +920,17 @@ export class AiPanel {
 
         lines.push('如果仍缺文件、模型、地址或标定数据，请明确告诉我还需要补什么。');
         return lines.join('\n');
+    }
+
+    queueParameterOnlyFollowupHint(payload = {}) {
+        const hint = buildWireSequenceFollowupHint(payload);
+        if (!hint) {
+            return '';
+        }
+
+        this.nextHintDraft = hint;
+        this._renderNextHintDraft();
+        return hint;
     }
     
     /**

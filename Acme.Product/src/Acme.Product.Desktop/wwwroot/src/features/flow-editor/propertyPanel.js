@@ -4,6 +4,7 @@ import inspectionController from '../inspection/inspectionController.js';
 import PreviewPanel from './previewPanel.js';
 import RoiEditorPanel from './roiEditorPanel.js';
 import { resolvePreviewInputImageBase64 } from './previewCoordinator.js';
+import { buildWireSequenceFollowupHint, createWireSequenceParameterPatch } from './wireSequenceAssist.js';
 
 class PropertyPanel {
     constructor(containerId, options = {}) {
@@ -702,6 +703,8 @@ class PropertyPanel {
             getOperator: () => this.currentOperator,
             previewCoordinator: this.previewCoordinator,
             onOpenImage: this.onOpenPreviewImage,
+            onAnalyzePreview: async payload => this.handleWireSequenceAnalyze(payload),
+            onAutoTune: async payload => this.handleWireSequenceAutoTune(payload),
             debounceMs: 500
         });
 
@@ -1007,6 +1010,124 @@ class PropertyPanel {
     async resolveInputImageBase64() {
         const inspectionResult = window._lastInspectionResult || inspectionController.getLastResult?.();
         return resolvePreviewInputImageBase64(inspectionResult);
+    }
+
+    async handleWireSequenceAnalyze({ operator, previewState } = {}) {
+        if (!operator?.id) {
+            throw new Error('当前没有可分析的线序节点');
+        }
+
+        const inputImageBase64 = previewState?.inputImageBase64 || await this.resolveInputImageBase64();
+        const result = await inspectionController.previewFlowNodeWithMetrics(operator.id, {
+            inputImageBase64
+        });
+
+        if (result?.missingResources?.length > 0) {
+            this.showToast('线序分析发现缺失资源，请先补齐模型与标签。', 'warning');
+        } else {
+            this.showToast(result?.success ? '线序分析已完成' : '线序分析未完成，请查看诊断。', result?.success ? 'success' : 'warning');
+        }
+
+        const hint = buildWireSequenceFollowupHint({
+            scenarioKey: 'wire-sequence-terminal',
+            diagnosticCodes: result?.diagnosticCodes || [],
+            suggestions: result?.suggestions || [],
+            missingResources: result?.missingResources || []
+        });
+        if (hint) {
+            window.aiPanel?.queueParameterOnlyFollowupHint?.({
+                scenarioKey: 'wire-sequence-terminal',
+                diagnosticCodes: result?.diagnosticCodes || [],
+                suggestions: result?.suggestions || [],
+                missingResources: result?.missingResources || []
+            });
+        }
+
+        return result;
+    }
+
+    async handleWireSequenceAutoTune({ operator, previewState } = {}) {
+        if (!operator?.id) {
+            throw new Error('当前没有可调参的线序节点');
+        }
+
+        const inputImageBase64 = previewState?.inputImageBase64 || await this.resolveInputImageBase64();
+        const result = await inspectionController.autoTuneWireSequenceScenario({
+            scenarioKey: 'wire-sequence-terminal',
+            inputImageBase64
+        });
+
+        const patch = createWireSequenceParameterPatch(
+            window.flowCanvas?.serialize?.() || null,
+            operator.id,
+            result?.finalParameters || {}
+        );
+
+        if (patch) {
+            this.applyWireSequenceParameterPatch(patch);
+        }
+
+        window.aiPanel?.queueParameterOnlyFollowupHint?.({
+            scenarioKey: 'wire-sequence-terminal',
+            diagnosticCodes: result?.diagnosticCodes || [],
+            finalParameters: result?.finalParameters || {},
+            suggestions: result?.finalPreview?.suggestions || [],
+            missingResources: result?.missingResources || []
+        });
+
+        if (result?.missingResources?.length > 0) {
+            this.showToast('自动调参已停止：缺少模型或标签资源。', 'warning');
+        } else if (result?.success) {
+            this.showToast('线序自动调参已完成，并已回写 BoxNms 参数。', 'success');
+        } else {
+            this.showToast(result?.errorMessage || '线序自动调参未收敛，请查看诊断。', 'warning');
+        }
+
+        this.previewCoordinator?.requestActivePreview?.({
+            immediate: true,
+            force: true
+        });
+
+        return result?.finalPreview || result;
+    }
+
+    applyWireSequenceParameterPatch(patch) {
+        if (!patch?.operatorId || !patch?.parameters) {
+            return false;
+        }
+
+        const node = window.flowCanvas?.nodes?.get?.(patch.operatorId);
+        if (!node) {
+            return false;
+        }
+
+        const parameters = Array.isArray(node.parameters) ? node.parameters : [];
+        Object.entries(patch.parameters).forEach(([name, value]) => {
+            let parameter = parameters.find(item => String(item?.name || item?.Name || '').toLowerCase() === name.toLowerCase());
+            if (!parameter) {
+                parameter = {
+                    id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                        ? crypto.randomUUID()
+                        : `${patch.operatorId}-${name}`,
+                    name,
+                    displayName: name,
+                    dataType: typeof value === 'number' ? 'double' : 'string',
+                    value,
+                    defaultValue: value
+                };
+                parameters.push(parameter);
+                return;
+            }
+
+            parameter.value = value;
+            if (Object.prototype.hasOwnProperty.call(parameter, 'Value')) {
+                parameter.Value = value;
+            }
+        });
+
+        node.parameters = parameters;
+        window.flowCanvas?.markFlowStructureChanged?.('wire-sequence-autotune');
+        return true;
     }
 
     /**

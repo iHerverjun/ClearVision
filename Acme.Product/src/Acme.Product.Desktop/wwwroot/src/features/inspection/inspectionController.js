@@ -449,6 +449,71 @@ class InspectionController {
         }
     }
 
+    async previewFlowNodeWithMetrics(targetNodeId, options = {}) {
+        try {
+            const flowData = window.flowCanvas?.serialize?.() || null;
+            if (!flowData) {
+                throw new Error('无法获取流程数据');
+            }
+
+            const result = await httpClient.post('/autotune/flow-node/preview', {
+                flowId: flowData.id || this.projectId || this.generateSessionId(),
+                targetNodeId,
+                flowData,
+                inputImageBase64: options.inputImageBase64 || null,
+                goal: options.goal || null
+            });
+
+            if (result?.previewImageBase64) {
+                const imageData = `data:image/png;base64,${result.previewImageBase64}`;
+                if (window.inspectionImageViewer) {
+                    window.inspectionImageViewer.loadImage(imageData);
+                }
+                if (window.imageViewer) {
+                    window.imageViewer.loadImage(imageData);
+                }
+            }
+
+            return result;
+        } catch (error) {
+            console.error('[InspectionController] 线序预览分析失败:', error);
+            throw error;
+        }
+    }
+
+    async autoTuneWireSequenceScenario(options = {}) {
+        try {
+            const flowData = window.flowCanvas?.serialize?.() || null;
+            if (!flowData) {
+                throw new Error('无法获取流程数据');
+            }
+
+            const result = await httpClient.post('/autotune/scenario', {
+                scenarioKey: options.scenarioKey || 'wire-sequence-terminal',
+                flowData,
+                inputImageBase64: options.inputImageBase64 || null,
+                goal: options.goal || null,
+                maxIterations: options.maxIterations || 5
+            });
+
+            const finalPreview = result?.finalPreview || null;
+            if (finalPreview?.previewImageBase64) {
+                const imageData = `data:image/png;base64,${finalPreview.previewImageBase64}`;
+                if (window.inspectionImageViewer) {
+                    window.inspectionImageViewer.loadImage(imageData);
+                }
+                if (window.imageViewer) {
+                    window.imageViewer.loadImage(imageData);
+                }
+            }
+
+            return result;
+        } catch (error) {
+            console.error('[InspectionController] 线序场景自动调参失败:', error);
+            throw error;
+        }
+    }
+
     /**
      * 【Phase 3】生成调试会话ID
      */

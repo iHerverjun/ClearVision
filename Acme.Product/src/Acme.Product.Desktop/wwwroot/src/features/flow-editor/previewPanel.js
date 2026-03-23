@@ -6,10 +6,15 @@ export class PreviewPanel {
         this.getOperator = options.getOperator ?? (() => null);
         this.previewCoordinator = options.previewCoordinator ?? null;
         this.onOpenImage = options.onOpenImage ?? (() => {});
+        this.onAnalyzePreview = options.onAnalyzePreview ?? null;
+        this.onAutoTune = options.onAutoTune ?? null;
         this.debounceMs = options.debounceMs ?? 500;
 
         this.autoPreviewEnabled = true;
         this.collapsed = false;
+        this.analysisResult = null;
+        this.isAnalyzing = false;
+        this.isAutoTuning = false;
         this.state = this.previewCoordinator?.getState?.() ?? null;
         this.unsubscribePreview = this.previewCoordinator?.subscribe?.(state => {
             this.state = state;
@@ -32,6 +37,11 @@ export class PreviewPanel {
             return;
         }
 
+        const operator = this.getOperator();
+        const showWireSequenceActions = operator?.type === 'DetectionSequenceJudge';
+        const analyzeLabel = this.isAnalyzing ? '分析中...' : '预览并分析';
+        const autoTuneLabel = this.isAutoTuning ? '调参中...' : '一键自动调参';
+
         this.container.innerHTML = `
             <section class="operator-preview-panel ${this.collapsed ? 'collapsed' : ''}">
                 <header class="operator-preview-header">
@@ -43,6 +53,14 @@ export class PreviewPanel {
                             <input type="checkbox" id="preview-auto-toggle" ${this.autoPreviewEnabled ? 'checked' : ''}/>
                             自动预览
                         </label>
+                        ${showWireSequenceActions ? `
+                            <button type="button" class="btn btn-secondary btn-preview-analyze" id="btn-preview-analyze" ${this.isAnalyzing || this.isAutoTuning ? 'disabled' : ''}>
+                                ${analyzeLabel}
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-preview-autotune" id="btn-preview-autotune" ${this.isAnalyzing || this.isAutoTuning ? 'disabled' : ''}>
+                                ${autoTuneLabel}
+                            </button>
+                        ` : ''}
                         <button type="button" class="btn btn-secondary btn-preview-refresh" id="btn-preview-refresh">
                             刷新预览
                         </button>
@@ -89,6 +107,16 @@ export class PreviewPanel {
             this.refresh();
         });
 
+        const analyzeBtn = this.container.querySelector('#btn-preview-analyze');
+        analyzeBtn?.addEventListener('click', () => {
+            this._handleAnalyzePreview();
+        });
+
+        const autoTuneBtn = this.container.querySelector('#btn-preview-autotune');
+        autoTuneBtn?.addEventListener('click', () => {
+            this._handleAutoTune();
+        });
+
         this.container.querySelectorAll('[data-role="preview-before-image"], [data-role="preview-after-image"]').forEach(image => {
             image.addEventListener('click', event => {
                 const source = event.currentTarget.getAttribute('src');
@@ -114,6 +142,7 @@ export class PreviewPanel {
     }
 
     refresh() {
+        this.analysisResult = null;
         this.previewCoordinator?.requestActivePreview?.({
             immediate: true,
             force: true
@@ -127,6 +156,21 @@ export class PreviewPanel {
             this._setImage('before', null);
             this._setImage('after', null);
             this._renderOutputs(null);
+            return;
+        }
+
+        const analysisResult = this.analysisResult?.targetNodeId === operator.id
+            ? this.analysisResult
+            : null;
+
+        if (analysisResult) {
+            const statusText = analysisResult.success
+                ? (this.isAutoTuning ? '线序自动调参已完成' : '线序分析已完成')
+                : (analysisResult.errorMessage || '线序分析未完成');
+            this._setStatus(statusText);
+            this._setImage('before', analysisResult.inputImageSrc || this.state.presenter.inputImageSrc);
+            this._setImage('after', analysisResult.previewImageSrc || this.state.presenter.outputImageSrc);
+            this._renderOutputs(analysisResult.outputs || this.state.outputData);
             return;
         }
 
@@ -227,6 +271,71 @@ export class PreviewPanel {
                 containerClass: 'analysis-cards-container ac-diagnostics-inline ac-diagnostics-preview'
             });
         }
+    }
+
+    async _handleAnalyzePreview() {
+        if (typeof this.onAnalyzePreview !== 'function' || this.isAnalyzing || this.isAutoTuning) {
+            return;
+        }
+
+        try {
+            this.isAnalyzing = true;
+            this.render();
+            this.applyPreviewState();
+            const result = await this.onAnalyzePreview({
+                operator: this.getOperator(),
+                previewState: this.state
+            });
+            this.analysisResult = this._normalizeAnalysisResult(result);
+        } catch (error) {
+            console.error('[PreviewPanel] 线序分析失败:', error);
+        } finally {
+            this.isAnalyzing = false;
+            this.render();
+            this.applyPreviewState();
+        }
+    }
+
+    async _handleAutoTune() {
+        if (typeof this.onAutoTune !== 'function' || this.isAnalyzing || this.isAutoTuning) {
+            return;
+        }
+
+        try {
+            this.isAutoTuning = true;
+            this.render();
+            this.applyPreviewState();
+            const result = await this.onAutoTune({
+                operator: this.getOperator(),
+                previewState: this.state
+            });
+            this.analysisResult = this._normalizeAnalysisResult(result);
+        } catch (error) {
+            console.error('[PreviewPanel] 线序自动调参失败:', error);
+        } finally {
+            this.isAutoTuning = false;
+            this.render();
+            this.applyPreviewState();
+        }
+    }
+
+    _normalizeAnalysisResult(result) {
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        const previewImageBase64 = result.previewImageBase64 || result.PreviewImageBase64 || null;
+        const inputImageBase64 = result.inputImageBase64 || result.InputImageBase64 || null;
+        const outputs = result.outputs || result.Outputs || null;
+
+        return {
+            targetNodeId: result.targetNodeId || result.TargetNodeId || null,
+            success: Boolean(result.success ?? result.Success),
+            errorMessage: result.errorMessage || result.ErrorMessage || null,
+            inputImageSrc: inputImageBase64 ? `data:image/png;base64,${inputImageBase64}` : null,
+            previewImageSrc: previewImageBase64 ? `data:image/png;base64,${previewImageBase64}` : null,
+            outputs
+        };
     }
 }
 
