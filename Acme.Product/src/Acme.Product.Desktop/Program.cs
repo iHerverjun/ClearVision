@@ -371,11 +371,7 @@ static class Program
             return configuredPassword.Trim();
         }
 
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
-        Span<byte> buffer = stackalloc byte[16];
-        RandomNumberGenerator.Fill(buffer);
-
-        return new string(buffer.ToArray().Select(value => alphabet[value % alphabet.Length]).ToArray());
+        return RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
     }
 
     private static void NotifyInitialAdminPassword(string password)
