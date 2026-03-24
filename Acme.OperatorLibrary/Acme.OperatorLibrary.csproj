@@ -42,11 +42,30 @@
              Exclude="..\Acme.Product\src\Acme.PlcComm\bin\**;..\Acme.Product\src\Acme.PlcComm\obj\**;..\Acme.Product\src\Acme.PlcComm\artifacts\**"
              Link="Acme.PlcComm\%(RecursiveDir)%(Filename)%(Extension)" />
 
-    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Operators\**\*.cs" Link="Operators\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\**\*.cs" Link="ImageProcessing\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Memory\MatPool.cs" Link="Memory\MatPool.cs" />
-    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\OcrEngineProvider.cs" Link="Services\OcrEngineProvider.cs" />
-    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\GpuAvailabilityChecker.cs" Link="Services\GpuAvailabilityChecker.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Operators\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Infrastructure\Operators\bin\**;..\Acme.Product\src\Acme.Product.Infrastructure\Operators\obj\**;..\Acme.Product\src\Acme.Product.Infrastructure\Operators\artifacts\**"
+             Link="Operators\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\bin\**;..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\obj\**;..\Acme.Product\src\Acme.Product.Infrastructure\ImageProcessing\artifacts\**"
+             Link="ImageProcessing\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\PointCloud\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Infrastructure\PointCloud\bin\**;..\Acme.Product\src\Acme.Product.Infrastructure\PointCloud\obj\**;..\Acme.Product\src\Acme.Product.Infrastructure\PointCloud\artifacts\**"
+             Link="PointCloud\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Calibration\**\*.cs"
+             Exclude="..\Acme.Product\src\Acme.Product.Infrastructure\Calibration\bin\**;..\Acme.Product\src\Acme.Product.Infrastructure\Calibration\obj\**;..\Acme.Product\src\Acme.Product.Infrastructure\Calibration\artifacts\**"
+             Link="Calibration\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\AI\Anomaly\SimplePatchCoreDetector.cs"
+             Link="AI\Anomaly\SimplePatchCoreDetector.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\AI\Runtime\ModelCatalog.cs"
+             Link="AI\Runtime\ModelCatalog.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Memory\MatPool.cs"
+             Link="Memory\MatPool.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\DetectionOutputInspector.cs"
+             Link="Services\DetectionOutputInspector.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\OcrEngineProvider.cs"
+             Link="Services\OcrEngineProvider.cs" />
+    <Compile Include="..\Acme.Product\src\Acme.Product.Infrastructure\Services\GpuAvailabilityChecker.cs"
+             Link="Services\GpuAvailabilityChecker.cs" />
   </ItemGroup>
 
   <ItemGroup>
