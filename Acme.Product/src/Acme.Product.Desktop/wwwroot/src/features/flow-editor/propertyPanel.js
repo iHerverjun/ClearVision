@@ -5,6 +5,7 @@ import PreviewPanel from './previewPanel.js';
 import RoiEditorPanel from './roiEditorPanel.js';
 import { resolvePreviewInputImageBase64 } from './previewCoordinator.js';
 import { buildWireSequenceFollowupHint, createWireSequenceParameterPatch } from './wireSequenceAssist.js';
+import { getOperatorRoiConfig } from './roiEditorSupport.mjs';
 
 class PropertyPanel {
     constructor(containerId, options = {}) {
@@ -121,6 +122,7 @@ class PropertyPanel {
         // 兼容 title (画布节点) 和 displayName (算子库)
         const title = this.currentOperator.title || this.currentOperator.displayName || this.currentOperator.type;
         const { type, parameters = [], iconPath, icon } = this.currentOperator;
+        const roiEditorConfig = getOperatorRoiConfig(this.currentOperator);
         const parametersForRender = type === 'ImageAcquisition'
             ? parameters.filter(param => !['exposuretime', 'gain', 'triggermode'].includes(String(param?.name || '').toLowerCase()))
             : parameters;
@@ -192,7 +194,7 @@ class PropertyPanel {
         }
 
         html += `
-                ${type === 'RoiManager' ? '<div id="roi-editor-container"></div>' : ''}
+                ${roiEditorConfig.supported ? '<div id="roi-editor-container"></div>' : ''}
                 <div id="operator-preview-container"></div>
             </div>
         `;
@@ -727,6 +729,7 @@ class PropertyPanel {
 
         this.roiEditorPanel = new RoiEditorPanel(container, {
             getOperator: () => this.currentOperator,
+            getRoiConfig: operator => getOperatorRoiConfig(operator),
             previewCoordinator: this.previewCoordinator,
             onRectChanged: (values, phase) => this.handleRoiRectChanged(values, phase),
             onRequestSyncFromParams: () => this.syncRoiEditorFromParams()

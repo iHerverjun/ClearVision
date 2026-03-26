@@ -360,6 +360,10 @@ function validatePreviewPrerequisites(node, inputImageBase64) {
         return '未选中算子';
     }
 
+    if (inputImageBase64) {
+        return null;
+    }
+
     if (node.type === 'ImageAcquisition') {
         const sourceTypeRaw = getParameterValue(node.parameters, 'SourceType', 'sourceType');
         const sourceType = String(sourceTypeRaw || 'File').trim().toLowerCase();

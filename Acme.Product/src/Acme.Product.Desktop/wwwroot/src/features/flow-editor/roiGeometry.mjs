@@ -9,6 +9,20 @@ export const ROI_HANDLE_NAMES = [
     'w'
 ];
 
+export const DEFAULT_RECT_PARAM_KEYS = {
+    x: 'X',
+    y: 'Y',
+    width: 'Width',
+    height: 'Height'
+};
+
+export const REGION_RECT_PARAM_KEYS = {
+    x: 'RegionX',
+    y: 'RegionY',
+    width: 'RegionW',
+    height: 'RegionH'
+};
+
 export function clamp(value, min, max) {
     if (!Number.isFinite(value)) {
         return min;
@@ -116,22 +130,33 @@ export function roundRect(rect) {
     };
 }
 
-export function rectFromParams(values) {
+function normalizeRectParamKeys(paramKeys = DEFAULT_RECT_PARAM_KEYS) {
+    return {
+        x: paramKeys?.x || DEFAULT_RECT_PARAM_KEYS.x,
+        y: paramKeys?.y || DEFAULT_RECT_PARAM_KEYS.y,
+        width: paramKeys?.width || DEFAULT_RECT_PARAM_KEYS.width,
+        height: paramKeys?.height || DEFAULT_RECT_PARAM_KEYS.height
+    };
+}
+
+export function rectFromParams(values, paramKeys = DEFAULT_RECT_PARAM_KEYS) {
+    const keys = normalizeRectParamKeys(paramKeys);
     return roundRect({
-        x: Number(values?.X ?? values?.x ?? 0),
-        y: Number(values?.Y ?? values?.y ?? 0),
-        width: Number(values?.Width ?? values?.width ?? 1),
-        height: Number(values?.Height ?? values?.height ?? 1)
+        x: Number(values?.[keys.x] ?? values?.x ?? 0),
+        y: Number(values?.[keys.y] ?? values?.y ?? 0),
+        width: Number(values?.[keys.width] ?? values?.width ?? 1),
+        height: Number(values?.[keys.height] ?? values?.height ?? 1)
     });
 }
 
-export function rectToParams(rect) {
+export function rectToParams(rect, paramKeys = DEFAULT_RECT_PARAM_KEYS) {
     const normalized = roundRect(rect);
+    const keys = normalizeRectParamKeys(paramKeys);
     return {
-        X: normalized.x,
-        Y: normalized.y,
-        Width: normalized.width,
-        Height: normalized.height
+        [keys.x]: normalized.x,
+        [keys.y]: normalized.y,
+        [keys.width]: normalized.width,
+        [keys.height]: normalized.height
     };
 }
 
