@@ -7,6 +7,7 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Desktop.Endpoints;
+using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -337,6 +338,224 @@ public class PreviewNodeEndpointsTests
         capturedInput.Should().NotBeNull();
         capturedInput!.Should().ContainKey("Image");
         ((byte[])capturedInput["Image"]).Should().Equal(new byte[] { 7, 8, 9 });
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldFallbackInputImageToUpstreamImageAcquisitionOutput()
+    {
+        var projectId = Guid.NewGuid();
+        var acquisitionId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var acquisitionOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var targetInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var targetOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var acquisitionImage = CreateBinaryPreviewImageBytes();
+        var targetImage = new byte[] { 4, 5, 6 };
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = true,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 22,
+                    IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                    {
+                        [targetNodeId] = new()
+                        {
+                            ["Image"] = targetImage
+                        }
+                    },
+                    DebugOperatorResults = new List<OperatorDebugResult>
+                    {
+                        new()
+                        {
+                            OperatorId = acquisitionId,
+                            OperatorName = "Acquire",
+                            IsSuccess = true,
+                            ExecutionOrder = 0,
+                            OutputSnapshot = new Dictionary<string, object>
+                            {
+                                ["Image"] = acquisitionImage
+                            }
+                        },
+                        new()
+                        {
+                            OperatorId = targetNodeId,
+                            OperatorName = "Resize",
+                            IsSuccess = true,
+                            ExecutionOrder = 1,
+                            InputSnapshot = new Dictionary<string, object>(),
+                            OutputSnapshot = new Dictionary<string, object>
+                            {
+                                ["Image"] = targetImage
+                            }
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(
+                    acquisitionId,
+                    "Acquire",
+                    OperatorType.ImageAcquisition,
+                    outputPorts: [acquisitionOutput],
+                    parameters: new Dictionary<string, object> { ["SourceType"] = "File", ["FilePath"] = "demo.png" }),
+                CreateOperatorDto(
+                    targetNodeId,
+                    "Resize",
+                    OperatorType.ImageResize,
+                    inputPorts: [targetInput],
+                    outputPorts: [targetOutput]),
+                CreateConnection(acquisitionId, acquisitionOutput.Id, targetNodeId, targetInput.Id))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("inputImageBase64").GetString().Should().Be(Convert.ToBase64String(acquisitionImage));
+        document.RootElement.GetProperty("outputImageBase64").GetString().Should().Be(Convert.ToBase64String(targetImage));
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldExtractImageFromImageWrapperIntermediateOutput()
+    {
+        var projectId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        using var previewMat = new Mat(2, 2, MatType.CV_8UC1, Scalar.All(0));
+        previewMat.Set(0, 0, 255);
+        var expectedBytes = previewMat.ToBytes(".png");
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = true,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 10,
+                    IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                    {
+                        [targetNodeId] = new()
+                        {
+                            ["Image"] = new ImageWrapper(previewMat.Clone())
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(targetNodeId, "Threshold", OperatorType.Thresholding))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("outputImageBase64").GetString().Should().Be(Convert.ToBase64String(expectedBytes));
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldPreferFailedOperatorInputSnapshotOverAcquisitionFallback()
+    {
+        var projectId = Guid.NewGuid();
+        var acquisitionId = Guid.NewGuid();
+        var resizeId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var acquisitionOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var resizeInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var resizeOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var targetInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var acquisitionImage = new byte[] { 1, 2, 3, 4 };
+        var transformedImage = new byte[] { 9, 8, 7, 6 };
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = false,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 11,
+                    ErrorMessage = "Resize failed",
+                    DebugOperatorResults = new List<OperatorDebugResult>
+                    {
+                        new()
+                        {
+                            OperatorId = acquisitionId,
+                            OperatorName = "Acquire",
+                            IsSuccess = true,
+                            ExecutionOrder = 0,
+                            OutputSnapshot = new Dictionary<string, object>
+                            {
+                                ["Image"] = acquisitionImage
+                            }
+                        },
+                        new()
+                        {
+                            OperatorId = resizeId,
+                            OperatorName = "Resize",
+                            IsSuccess = false,
+                            ErrorMessage = "Resize failed",
+                            ExecutionOrder = 1,
+                            InputSnapshot = new Dictionary<string, object>
+                            {
+                                ["Image"] = transformedImage
+                            }
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(
+                    acquisitionId,
+                    "Acquire",
+                    OperatorType.ImageAcquisition,
+                    outputPorts: [acquisitionOutput],
+                    parameters: new Dictionary<string, object> { ["SourceType"] = "File", ["FilePath"] = "demo.png" }),
+                CreateOperatorDto(
+                    resizeId,
+                    "Resize",
+                    OperatorType.ImageResize,
+                    inputPorts: [resizeInput],
+                    outputPorts: [resizeOutput]),
+                CreateOperatorDto(
+                    targetNodeId,
+                    "Threshold",
+                    OperatorType.Thresholding,
+                    inputPorts: [targetInput]),
+                CreateConnection(acquisitionId, acquisitionOutput.Id, resizeId, resizeInput.Id),
+                CreateConnection(resizeId, resizeOutput.Id, targetNodeId, targetInput.Id))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
+        document.RootElement.GetProperty("inputImageBase64").GetString().Should().Be(Convert.ToBase64String(transformedImage));
     }
 
     private static int ReadIntValue(object? value)

@@ -2,8 +2,10 @@
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Reflection;
 using Xunit;
 
 namespace Acme.Product.Tests.Operators;
@@ -53,6 +55,29 @@ public class BoundingBoxFilterOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public void BuildVisualizationDetections_ShouldApplyPreviewNmsForImageOutput()
+    {
+        var method = typeof(BoundingBoxFilterOperator).GetMethod(
+            "BuildVisualizationDetections",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var detections = new List<DetectionResult>
+        {
+            new("wire", 0.95f, 10, 10, 40, 40),
+            new("wire", 0.85f, 12, 12, 40, 40),
+            new("wire", 0.24f, 60, 60, 20, 20),
+            new("wire", 0.90f, 100, 100, 20, 20)
+        };
+
+        var result = method!.Invoke(null, new object?[] { detections, 0.0d });
+
+        result.Should().BeAssignableTo<IEnumerable<DetectionResult>>();
+        result.As<IEnumerable<DetectionResult>>().Should().HaveCount(2);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

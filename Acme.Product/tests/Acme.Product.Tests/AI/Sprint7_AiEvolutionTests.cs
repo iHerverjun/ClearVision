@@ -239,9 +239,8 @@ public class Sprint7_AiEvolutionTests
             var templates = await service.GetTemplatesAsync();
 
             // Assert
-            templates.Should().HaveCountGreaterOrEqualTo(8);
-            templates.Select(t => t.Name).Should().Contain("传统缺陷检测");
-            templates.Select(t => t.Name).Should().Contain("端子线序检测");
+            templates.Should().HaveCount(1);
+            templates.Select(t => t.Name).Should().ContainSingle().Which.Should().Be("端子线序检测");
             File.Exists(Path.Combine(tempRoot, "templates", "flow_templates.json")).Should().BeTrue();
         }
         finally
@@ -293,8 +292,10 @@ public class Sprint7_AiEvolutionTests
 
             var templates = await service.GetTemplatesAsync();
 
+            templates.Should().HaveCount(2);
             templates.Select(item => item.Name).Should().Contain("我的自定义模板");
             templates.Select(item => item.Name).Should().Contain("端子线序检测");
+            templates.Select(item => item.Name).Should().NotContain("传统缺陷检测");
             templates.Count(item => item.Name == "端子线序检测").Should().Be(1);
 
             var persisted = JsonSerializer.Deserialize<List<FlowTemplate>>(
@@ -303,6 +304,8 @@ public class Sprint7_AiEvolutionTests
 
             persisted.Should().NotBeNull();
             persisted!.Select(item => item.Name).Should().Contain("端子线序检测");
+            persisted.Select(item => item.Name).Should().Contain("我的自定义模板");
+            persisted.Select(item => item.Name).Should().NotContain("传统缺陷检测");
         }
         finally
         {
@@ -349,13 +352,13 @@ public class Sprint7_AiEvolutionTests
             var templates = await service.GetTemplatesAsync();
             var upgraded = templates.Single(item => item.ScenarioKey == "wire-sequence-terminal");
 
-            upgraded.TemplateVersion.Should().Be("1.2.0");
+            upgraded.TemplateVersion.Should().Be("1.4.0");
             upgraded.ScenarioPackage.Should().NotBeNull();
-            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.2.0");
+            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
 
             using var document = JsonDocument.Parse(upgraded.FlowJson);
             var deepLearningParams = document.RootElement.GetProperty("operators").EnumerateArray()
-                .Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                .Single(item => item.GetProperty("tempId").GetString() == "op_2")
                 .GetProperty("parameters");
             deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
             deepLearningParams.GetProperty("Confidence").GetString().Should().Be("0.05");
@@ -410,18 +413,18 @@ public class Sprint7_AiEvolutionTests
             var template = (await service.GetTemplatesAsync())
                 .Single(item => item.Name == "端子线序检测");
 
-            template.TemplateVersion.Should().Be("1.2.0");
+            template.TemplateVersion.Should().Be("1.4.0");
             template.ScenarioPackage.Should().NotBeNull();
-            template.ScenarioPackage!.PackageVersion.Should().Be("1.2.0");
+            template.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
             template.ScenarioPackage.RequiredResources.Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.2.0");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("model:wire-seq-yolo@1.1.0");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.2.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.4.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("model:wire-seq-yolo@1.2.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.4.0");
 
             using var document = JsonDocument.Parse(template.FlowJson);
             var root = document.RootElement;
             root.GetProperty("expectedSequence").EnumerateArray().Select(item => item.GetString())
-                .Should().Equal("Wire_Brown", "Wire_Black", "Wire_Blue");
+                .Should().Equal("Wire_Black", "Wire_Blue");
             root.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
                 .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
             root.GetProperty("tunableParameters").EnumerateArray().Select(item => item.GetString())
@@ -432,9 +435,8 @@ public class Sprint7_AiEvolutionTests
                 .ToList();
             operatorTypes.Should().Equal(
                 "ImageAcquisition",
-                "RoiManager",
-                "ImageResize",
                 "DeepLearning",
+                "BoxFilter",
                 "BoxNms",
                 "DetectionSequenceJudge",
                 "ResultOutput");
@@ -443,40 +445,57 @@ public class Sprint7_AiEvolutionTests
 
             var connections = root.GetProperty("connections").EnumerateArray().ToList();
             connections.Should().Contain(item =>
-                item.GetProperty("sourceTempId").GetString() == "op_4" &&
+                item.GetProperty("sourceTempId").GetString() == "op_2" &&
                 item.GetProperty("sourcePortName").GetString() == "Objects" &&
-                item.GetProperty("targetTempId").GetString() == "op_5" &&
+                item.GetProperty("targetTempId").GetString() == "op_3" &&
                 item.GetProperty("targetPortName").GetString() == "Detections");
             connections.Should().Contain(item =>
-                item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                item.GetProperty("sourceTempId").GetString() == "op_3" &&
                 item.GetProperty("sourcePortName").GetString() == "Detections" &&
-                item.GetProperty("targetTempId").GetString() == "op_6" &&
+                item.GetProperty("targetTempId").GetString() == "op_4" &&
                 item.GetProperty("targetPortName").GetString() == "Detections");
             connections.Should().Contain(item =>
-                item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                item.GetProperty("sourceTempId").GetString() == "op_4" &&
                 item.GetProperty("sourcePortName").GetString() == "Diagnostics" &&
-                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetTempId").GetString() == "op_6" &&
                 item.GetProperty("targetPortName").GetString() == "Data");
             connections.Should().Contain(item =>
-                item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                item.GetProperty("sourceTempId").GetString() == "op_5" &&
                 item.GetProperty("sourcePortName").GetString() == "Diagnostics" &&
-                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetTempId").GetString() == "op_6" &&
                 item.GetProperty("targetPortName").GetString() == "Result");
             connections.Should().Contain(item =>
-                item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                item.GetProperty("sourceTempId").GetString() == "op_5" &&
                 item.GetProperty("sourcePortName").GetString() == "Message" &&
-                item.GetProperty("targetTempId").GetString() == "op_7" &&
+                item.GetProperty("targetTempId").GetString() == "op_6" &&
                 item.GetProperty("targetPortName").GetString() == "Text");
 
-            var deepLearningParams = root.GetProperty("operators").EnumerateArray()
+            var boxFilterParams = root.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_3")
+                .GetProperty("parameters");
+            boxFilterParams.GetProperty("FilterMode").GetString().Should().Be("Region");
+            boxFilterParams.GetProperty("RegionW").GetString().Should().Be("999999");
+            boxFilterParams.GetProperty("RegionH").GetString().Should().Be("999999");
+
+            var boxNmsParams = root.GetProperty("operators").EnumerateArray()
                 .Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                .GetProperty("parameters");
+            boxNmsParams.GetProperty("ShowSuppressed").GetString().Should().Be("false");
+
+            var judgeParams = root.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_5")
+                .GetProperty("parameters");
+            judgeParams.GetProperty("ExpectedLabels").GetString().Should().Be("Wire_Black,Wire_Blue");
+            judgeParams.GetProperty("SortBy").GetString().Should().Be("CenterY");
+            judgeParams.GetProperty("Direction").GetString().Should().Be("TopToBottom");
+
+            var deepLearningParams = root.GetProperty("operators").EnumerateArray()
+                .Single(item => item.GetProperty("tempId").GetString() == "op_2")
                 .GetProperty("parameters");
             deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
             deepLearningParams.GetProperty("Confidence").GetString().Should().Be("0.05");
+            deepLearningParams.GetProperty("LabelsPath").GetString().Should().NotBeNullOrWhiteSpace();
 
-            var judgeParams = root.GetProperty("operators").EnumerateArray()
-                .Single(item => item.GetProperty("tempId").GetString() == "op_6")
-                .GetProperty("parameters");
             judgeParams.GetProperty("MinConfidence").GetString().Should().Be("0.0");
         }
         finally

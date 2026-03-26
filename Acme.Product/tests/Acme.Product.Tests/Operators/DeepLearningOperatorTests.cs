@@ -8,6 +8,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
+using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
@@ -132,6 +133,62 @@ public class DeepLearningOperatorTests
 
         var label = method!.Invoke(null, new object?[] { count, detectionMode });
         label.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithNamedTargetClassesAndBundledLabels_ShouldContinuePastLabelResolution()
+    {
+        var op = CreateTestOperator("model.onnx", 0.5f);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "TargetClasses", "TargetClasses", string.Empty, "string", "Wire_Black,Wire_Blue"));
+        var inputs = CreateTestInputs();
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("模型文件不存在");
+        result.ErrorMessage.Should().NotContain("Failed to resolve TargetClasses");
+    }
+
+    [Fact]
+    public void DetectYoloVersion_WithCustomClassCount_ShouldRecognizeYoloV5Layouts()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "DetectYoloVersion",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var standard = new DenseTensor<float>(new float[1 * 25200 * 7], new[] { 1, 25200, 7 });
+        var transposed = new DenseTensor<float>(new float[1 * 7 * 25200], new[] { 1, 7, 25200 });
+
+        method!.Invoke(_operator, new object?[] { standard, 2 }).Should().Be(YoloVersion.YOLOv5);
+        method.Invoke(_operator, new object?[] { transposed, 2 }).Should().Be(YoloVersion.YOLOv5);
+    }
+
+    [Fact]
+    public void PostprocessYoloV5V6_ShouldSupportTransposedOutput()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PostprocessYoloV5V6",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var tensor = new DenseTensor<float>(new float[56], new[] { 1, 7, 8 });
+        tensor[0, 0, 0] = 100f;
+        tensor[0, 1, 0] = 100f;
+        tensor[0, 2, 0] = 20f;
+        tensor[0, 3, 0] = 20f;
+        tensor[0, 4, 0] = 0.9f;
+        tensor[0, 5, 0] = 0.1f;
+        tensor[0, 6, 0] = 0.95f;
+
+        var result = method!.Invoke(_operator, new object?[] { tensor, 0.5f, 200, 200, 200, false });
+
+        result.Should().BeAssignableTo<System.Collections.IEnumerable>();
+        var detections = result.As<System.Collections.IEnumerable>().Cast<object>().ToList();
+        detections.Should().HaveCount(1);
+        detections[0].GetType().GetProperty("ClassId")!.GetValue(detections[0]).Should().Be(1);
     }
 
     #endregion

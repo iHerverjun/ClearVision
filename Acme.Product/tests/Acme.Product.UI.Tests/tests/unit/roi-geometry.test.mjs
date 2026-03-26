@@ -1,12 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_RECT_PARAM_KEYS,
+  REGION_RECT_PARAM_KEYS,
   clampRectToBounds,
   normalizeRectFromPoints,
+  rectFromParams,
+  rectToParams,
   resizeRectByHandle,
   screenToImagePoint,
   translateRect
 } from '../../../../src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/roiGeometry.mjs';
+import { getOperatorRoiConfig } from '../../../../src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/roiEditorSupport.mjs';
+import RoiEditorPanel from '../../../../src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/roiEditorPanel.js';
 
 test('normalizeRectFromPoints handles reverse drag direction', () => {
   assert.deepEqual(
@@ -52,4 +58,73 @@ test('translateRect keeps moved rectangle within bounds', () => {
     ),
     { x: 80, y: 85, width: 20, height: 15 }
   );
+});
+
+test('rectFromParams supports BoxFilter region parameter names', () => {
+  assert.deepEqual(
+    rectFromParams({
+      RegionX: 12,
+      RegionY: 14,
+      RegionW: 30,
+      RegionH: 18
+    }, REGION_RECT_PARAM_KEYS),
+    { x: 12, y: 14, width: 30, height: 18 }
+  );
+});
+
+test('rectToParams can write back BoxFilter region parameter names', () => {
+  assert.deepEqual(
+    rectToParams({ x: 6, y: 8, width: 20, height: 16 }, REGION_RECT_PARAM_KEYS),
+    { RegionX: 6, RegionY: 8, RegionW: 20, RegionH: 16 }
+  );
+});
+
+test('getOperatorRoiConfig enables ROI editor for BoxFilter region mode', () => {
+  const config = getOperatorRoiConfig({
+    type: 'BoxFilter',
+    parameters: [
+      { name: 'FilterMode', value: 'Region' },
+      { name: 'RegionX', value: 0 },
+      { name: 'RegionY', value: 0 },
+      { name: 'RegionW', value: 100 },
+      { name: 'RegionH', value: 80 }
+    ]
+  });
+
+  assert.equal(config.supported, true);
+  assert.equal(config.editable, true);
+  assert.deepEqual(config.rectParamKeys, REGION_RECT_PARAM_KEYS);
+});
+
+test('getOperatorRoiConfig keeps BoxFilter ROI editor readonly outside region mode', () => {
+  const config = getOperatorRoiConfig({
+    type: 'BoxFilter',
+    parameters: [
+      { name: 'FilterMode', value: 'Score' }
+    ]
+  });
+
+  assert.equal(config.supported, true);
+  assert.equal(config.editable, false);
+  assert.match(config.readonlyMessage, /Region/);
+  assert.deepEqual(DEFAULT_RECT_PARAM_KEYS, {
+    x: 'X',
+    y: 'Y',
+    width: 'Width',
+    height: 'Height'
+  });
+});
+
+test('refreshFromOperator re-applies ROI state instead of only syncing the old overlay', async () => {
+  const panel = {
+    currentConfig: { editable: false },
+    applyState() {
+      this.currentConfig = { editable: true };
+      return Promise.resolve();
+    }
+  };
+
+  await RoiEditorPanel.prototype.refreshFromOperator.call(panel);
+
+  assert.equal(panel.currentConfig.editable, true);
 });
