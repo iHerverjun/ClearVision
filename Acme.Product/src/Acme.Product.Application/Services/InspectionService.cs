@@ -5,6 +5,7 @@
 // 作者：蘅芜君 + 架构修复方案 v2
 
 using Acme.Product.Application.Analysis;
+using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Exceptions;
@@ -12,6 +13,7 @@ using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 using System.Collections;
+using System.Text.Json;
 
 // 【架构修复 v2】IInspectionWorker 从 Infrastructure 移到 Core
 
@@ -34,7 +36,13 @@ public class InspectionService : IInspectionService
     private readonly IInspectionWorker _worker;
     private readonly IImageCacheRepository _imageCacheRepository;
     private readonly IAnalysisDataBuilder _analysisDataBuilder;
+    private readonly IProjectFlowStorage _flowStorage;
     private readonly ILogger<InspectionService> _logger;
+    private static readonly JsonSerializerOptions FlowJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
 
     public InspectionService(
         IInspectionResultRepository resultRepository,
@@ -46,6 +54,7 @@ public class InspectionService : IInspectionService
         IInspectionWorker worker,
         IImageCacheRepository imageCacheRepository,
         IAnalysisDataBuilder analysisDataBuilder,
+        IProjectFlowStorage flowStorage,
         ILogger<InspectionService> logger)
     {
         _resultRepository = resultRepository;
@@ -57,6 +66,7 @@ public class InspectionService : IInspectionService
         _worker = worker;
         _imageCacheRepository = imageCacheRepository;
         _analysisDataBuilder = analysisDataBuilder;
+        _flowStorage = flowStorage;
         _logger = logger;
     }
 
@@ -80,6 +90,7 @@ public class InspectionService : IInspectionService
             worker,
             imageCacheRepository,
             new AnalysisDataBuilder(),
+            new NoOpProjectFlowStorage(),
             logger)
     {
     }
@@ -104,6 +115,7 @@ public class InspectionService : IInspectionService
             worker,
             new NoOpImageCacheRepository(),
             analysisDataBuilder,
+            new NoOpProjectFlowStorage(),
             logger)
     {
     }
@@ -127,6 +139,7 @@ public class InspectionService : IInspectionService
             worker,
             new NoOpImageCacheRepository(),
             new AnalysisDataBuilder(),
+            new NoOpProjectFlowStorage(),
             logger)
     {
     }
@@ -140,7 +153,9 @@ public class InspectionService : IInspectionService
 
     public async Task<InspectionResult> ExecuteSingleAsync(Guid projectId, byte[] imageData, OperatorFlow? flow)
     {
-        OperatorFlow actualFlow;
+        return await ExecuteSingleCoreAsync(projectId, imageData, flow);
+#if false
+        var actualFlow = await ResolveExecutionFlowAsync(projectId, flow);
         if (flow != null)
         {
             actualFlow = flow;
@@ -221,10 +236,13 @@ public class InspectionService : IInspectionService
             await _resultRepository.AddAsync(result);
             throw;
         }
+#endif
     }
 
     public async Task<InspectionResult> ExecuteSingleAsync(Guid projectId, string cameraId)
     {
+        return await ExecuteSingleAsync(projectId, cameraId, null);
+#if false
         try
         {
             var imageDto = await _imageAcquisitionService.AcquireFromCameraAsync(cameraId);
@@ -244,6 +262,12 @@ public class InspectionService : IInspectionService
             await _resultRepository.AddAsync(result);
             throw;
         }
+#endif
+    }
+
+    public async Task<InspectionResult> ExecuteSingleAsync(Guid projectId, string cameraId, OperatorFlow? flow)
+    {
+        return await ExecuteSingleFromCameraCoreAsync(projectId, cameraId, flow);
     }
 
     #endregion
@@ -407,6 +431,167 @@ public class InspectionService : IInspectionService
     #endregion
 
     #region 辅助方法
+
+    private async Task<InspectionResult> ExecuteSingleCoreAsync(Guid projectId, byte[]? imageData, OperatorFlow? flow)
+    {
+        var actualFlow = await ResolveExecutionFlowAsync(projectId, flow);
+        var result = new InspectionResult(projectId);
+
+        try
+        {
+            var executionInputs = new Dictionary<string, object>();
+            if (imageData != null && imageData.Length > 0)
+            {
+                executionInputs["Image"] = imageData;
+            }
+
+            var flowResult = await _flowExecutionService.ExecuteFlowAsync(actualFlow, executionInputs);
+
+            var status = flowResult.IsSuccess
+                ? DetermineStatusFromFlowOutput(flowResult.OutputData)
+                : InspectionStatus.Error;
+
+            if (!flowResult.IsSuccess)
+            {
+                _logger.LogWarning("[InspectionService] 娴佺▼鎵ц澶辫触: {ErrorMessage}", flowResult.ErrorMessage);
+            }
+            else
+            {
+                _logger.LogInformation("[InspectionService] 鍒ゅ畾缁撴灉: {Status}", status);
+            }
+
+            result.SetResult(status, flowResult.ExecutionTimeMs, null, flowResult.ErrorMessage);
+
+            if (flowResult.OutputData?.TryGetValue("Image", out var outputImage) == true
+                && outputImage is byte[] imageBytes)
+            {
+                result.SetOutputImage(imageBytes);
+            }
+
+            if (flowResult.OutputData?.TryGetValue("Defects", out var defectsObj) == true
+                && defectsObj is IList defectsList)
+            {
+                foreach (var item in defectsList)
+                {
+                    if (item is Dictionary<string, object> defectDict)
+                    {
+                        var defect = new Defect(
+                            result.Id,
+                            DefectType.Other,
+                            Convert.ToDouble(defectDict.GetValueOrDefault("X", 0.0)),
+                            Convert.ToDouble(defectDict.GetValueOrDefault("Y", 0.0)),
+                            Convert.ToDouble(defectDict.GetValueOrDefault("Width", 0.0)),
+                            Convert.ToDouble(defectDict.GetValueOrDefault("Height", 0.0)),
+                            Convert.ToDouble(defectDict.GetValueOrDefault("Confidence", 0.0)),
+                            defectDict.GetValueOrDefault("ClassName", "unknown")?.ToString() ?? "unknown");
+                        result.AddDefect(defect);
+                    }
+                }
+            }
+
+            var analysisData = _analysisDataBuilder.Build(actualFlow, flowResult, status);
+            AnalysisPayloadSerialization.TrySetOutputDataJson(result, flowResult.OutputData, _logger);
+            AnalysisPayloadSerialization.TrySetAnalysisDataJson(result, analysisData, _logger);
+            await PersistResultImageAsync(result, CancellationToken.None);
+            await CacheResultImageAsync(result);
+            await _resultRepository.AddAsync(result);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[InspectionService] 妫€娴嬪紓甯? {ErrorMessage}", ex.Message);
+            result.MarkAsError(ex.Message);
+            await _resultRepository.AddAsync(result);
+            throw;
+        }
+    }
+
+    private async Task<InspectionResult> ExecuteSingleFromCameraCoreAsync(Guid projectId, string cameraId, OperatorFlow? flow)
+    {
+        try
+        {
+            var imageDto = await _imageAcquisitionService.AcquireFromCameraAsync(cameraId);
+
+            if (string.IsNullOrEmpty(imageDto.DataBase64))
+            {
+                throw new Exception($"鐩告満 {cameraId} 閲囬泦鐨勫浘鍍忔暟鎹负绌?");
+            }
+
+            var imageData = Convert.FromBase64String(imageDto.DataBase64);
+            return await ExecuteSingleCoreAsync(projectId, imageData, flow);
+        }
+        catch (Exception ex)
+        {
+            var result = new InspectionResult(projectId);
+            result.MarkAsError($"鐩告満閲囬泦鎴栨娴嬪け璐? {ex.Message}");
+            await _resultRepository.AddAsync(result);
+            throw;
+        }
+    }
+
+    private async Task<OperatorFlow> ResolveExecutionFlowAsync(Guid projectId, OperatorFlow? flow)
+    {
+        if (HasExecutableFlow(flow))
+        {
+            _logger.LogInformation(
+                "[InspectionService] 浣跨敤鍓嶇鎻愪緵鐨勬祦绋嬫暟鎹墽琛屾娴? (绠楀瓙鏁? {OperatorCount})",
+                flow!.Operators.Count);
+            return flow;
+        }
+
+        var project = await _projectRepository.GetWithFlowAsync(projectId);
+        if (project == null)
+        {
+            throw new ProjectNotFoundException(projectId);
+        }
+
+        if (HasExecutableFlow(project.Flow))
+        {
+            return project.Flow;
+        }
+
+        var fileFlow = await LoadFlowFromStorageAsync(projectId);
+        if (HasExecutableFlow(fileFlow))
+        {
+            _logger.LogWarning(
+                "[InspectionService] 椤圭洰 {ProjectId} 鏁版嵁搴撴祦绋嬩负绌猴紝宸插洖閫€鍒?ProjectFlows 鏂囦欢娴? (绠楀瓙鏁? {OperatorCount})",
+                projectId,
+                fileFlow!.Operators.Count);
+            return fileFlow;
+        }
+
+        throw new InvalidOperationException($"Project {projectId} does not contain an executable flow.");
+    }
+
+    private async Task<OperatorFlow?> LoadFlowFromStorageAsync(Guid projectId)
+    {
+        try
+        {
+            var flowJson = await _flowStorage.LoadFlowJsonAsync(projectId);
+            if (string.IsNullOrWhiteSpace(flowJson))
+            {
+                return null;
+            }
+
+            var flowDto = JsonSerializer.Deserialize<OperatorFlowDto>(flowJson, FlowJsonOptions);
+            if (flowDto?.Operators?.Count > 0)
+            {
+                return flowDto.ToEntity();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[InspectionService] 鍔犺浇椤圭洰娴佺▼鏂囦欢澶辫触: {ProjectId}", projectId);
+        }
+
+        return null;
+    }
+
+    private static bool HasExecutableFlow(OperatorFlow? flow)
+    {
+        return flow?.Operators?.Count > 0;
+    }
 
     private InspectionStatus DetermineStatusFromFlowOutput(Dictionary<string, object>? outputData)
     {
@@ -585,6 +770,19 @@ public class InspectionService : IInspectionService
         public Task CleanExpiredAsync(TimeSpan expiration)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NoOpProjectFlowStorage : IProjectFlowStorage
+    {
+        public Task SaveFlowJsonAsync(Guid projectId, string flowJson)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> LoadFlowJsonAsync(Guid projectId)
+        {
+            return Task.FromResult<string?>(null);
         }
     }
 

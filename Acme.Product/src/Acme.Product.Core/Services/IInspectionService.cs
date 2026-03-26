@@ -37,6 +37,7 @@ public interface IInspectionService
     /// <param name="cameraId">相机ID</param>
     /// <returns>检测结果</returns>
     Task<InspectionResult> ExecuteSingleAsync(Guid projectId, string cameraId);
+    Task<InspectionResult> ExecuteSingleAsync(Guid projectId, string cameraId, OperatorFlow? flow);
 
     /// <summary>
     /// 开始实时检测（相机驱动模式 - 兼容旧模式）
