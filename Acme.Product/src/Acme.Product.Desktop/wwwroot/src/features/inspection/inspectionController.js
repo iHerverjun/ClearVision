@@ -49,6 +49,14 @@ class InspectionController {
         this.cameraId = cameraId;
     }
 
+    getCurrentFlowData() {
+        if (window.flowCanvas && typeof window.flowCanvas.serialize === 'function') {
+            return window.flowCanvas.serialize();
+        }
+
+        return null;
+    }
+
     /**
      * 初始化 WebMessage 监听（降级方案）
      */
@@ -267,6 +275,7 @@ class InspectionController {
 
         try {
             let result;
+            const flowData = this.getCurrentFlowData();
 
             if (imageData) {
                 const base64Data = imageData instanceof Uint8Array 
@@ -275,22 +284,19 @@ class InspectionController {
 
                 result = await httpClient.post('/inspection/execute', {
                     projectId: this.projectId,
-                    imageBase64: base64Data
+                    imageBase64: base64Data,
+                    flowData
                 });
             } else if (this.cameraId) {
                 result = await httpClient.post('/inspection/execute', {
                     projectId: this.projectId,
-                    cameraId: this.cameraId
+                    cameraId: this.cameraId,
+                    flowData
                 });
             } else {
-                let flowData = null;
-                if (window.flowCanvas && typeof window.flowCanvas.serialize === 'function') {
-                    flowData = window.flowCanvas.serialize();
-                }
-                
                 result = await httpClient.post('/inspection/execute', {
                     projectId: this.projectId,
-                    flowData: flowData
+                    flowData
                 });
             }
 
@@ -322,7 +328,7 @@ class InspectionController {
         try {
             this.abortController = new AbortController();
 
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.getCurrentFlowData();
             
             await httpClient.post('/inspection/realtime/start', {
                 projectId: this.projectId,
@@ -353,7 +359,7 @@ class InspectionController {
         try {
             this.abortController = new AbortController();
 
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.getCurrentFlowData();
             if (!flowData) {
                 throw new Error('无法获取流程数据');
             }
@@ -411,7 +417,7 @@ class InspectionController {
         }
 
         try {
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.getCurrentFlowData();
             if (!flowData) {
                 throw new Error('无法获取流程数据');
             }
@@ -451,7 +457,7 @@ class InspectionController {
 
     async previewFlowNodeWithMetrics(targetNodeId, options = {}) {
         try {
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.getCurrentFlowData();
             if (!flowData) {
                 throw new Error('无法获取流程数据');
             }
@@ -483,7 +489,7 @@ class InspectionController {
 
     async autoTuneWireSequenceScenario(options = {}) {
         try {
-            const flowData = window.flowCanvas?.serialize?.() || null;
+            const flowData = this.getCurrentFlowData();
             if (!flowData) {
                 throw new Error('无法获取流程数据');
             }
@@ -748,6 +754,11 @@ class InspectionController {
         normalized.outputImage = normalized.outputImage || normalized.OutputImage;
         normalized.outputImageBase64 = normalized.outputImageBase64 || normalized.OutputImageBase64;
         normalized.resultImageBase64 = normalized.resultImageBase64 || normalized.ResultImageBase64;
+        normalized.imageData = normalized.imageData
+            || normalized.ImageData
+            || normalized.outputImage
+            || normalized.resultImageBase64
+            || normalized.outputImageBase64;
         normalized.imageId = normalized.imageId || normalized.ImageId;
 
         return normalized;

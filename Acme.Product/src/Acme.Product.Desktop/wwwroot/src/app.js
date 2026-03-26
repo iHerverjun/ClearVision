@@ -538,6 +538,34 @@ function normalizeAnalysisData(result) {
         || null;
 }
 
+function normalizeOutputData(result) {
+    if (!result || typeof result !== 'object') {
+        return {};
+    }
+
+    return result.outputData
+        || result.OutputData
+        || tryParseJsonPayload(result.outputDataJson)
+        || tryParseJsonPayload(result.OutputDataJson)
+        || {};
+}
+
+function getInlineResultImageBase64(result) {
+    if (!result || typeof result !== 'object') {
+        return null;
+    }
+
+    return result.imageData
+        || result.ImageData
+        || result.outputImage
+        || result.OutputImage
+        || result.outputImageBase64
+        || result.OutputImageBase64
+        || result.resultImageBase64
+        || result.ResultImageBase64
+        || null;
+}
+
 function buildResultDefects(result) {
     const actualDefects = result?.defects || result?.Defects;
     if (Array.isArray(actualDefects) && actualDefects.length > 0) {
@@ -684,7 +712,7 @@ function initializeInspectionController() {
         // 如果在检测视图，立即更新检测面板和图像查看器
         if (getCurrentView() === 'inspection') {
             // 显示处理后的图像
-            const outputImage = result.outputImage || result.outputImageBase64 || result.resultImageBase64;
+            const outputImage = getInlineResultImageBase64(result);
             if (outputImage && window.inspectionImageViewer) {
                 const imageData = `data:image/png;base64,${outputImage}`;
                 window.inspectionImageViewer.loadImage(imageData);
@@ -714,8 +742,11 @@ function initializeInspectionController() {
                 timestamp: result.timestamp || result.inspectionTime || new Date().toISOString(),
                 confidenceScore: result.confidenceScore,
                 imageId: result.imageId || result.ImageId,
-                imageData: result.outputImage || result.outputImageBase64 || result.resultImageBase64 || result.imageData,
-                outputData: result.outputData || {},
+                imageData: getInlineResultImageBase64(result),
+                outputImage: result.outputImage || result.OutputImage || null,
+                outputImageBase64: result.outputImageBase64 || result.OutputImageBase64 || null,
+                resultImageBase64: result.resultImageBase64 || result.ResultImageBase64 || null,
+                outputData: normalizeOutputData(result),
                 analysisData: normalizeAnalysisData(result)
             });
 
@@ -865,9 +896,12 @@ async function loadInspectionHistory({
                 processingTime: result.processingTimeMs ?? result.ProcessingTimeMs ?? result.processingTime ?? result.executionTimeMs,
                 timestamp: result.timestamp || result.Timestamp || result.inspectionTime || result.InspectionTime,
                 confidenceScore: result.confidenceScore ?? result.ConfidenceScore,
-                imageData: result.outputImage || result.OutputImage || result.imageData || result.ImageData,
+                imageData: getInlineResultImageBase64(result),
+                outputImage: result.outputImage || result.OutputImage || null,
+                outputImageBase64: result.outputImageBase64 || result.OutputImageBase64 || null,
+                resultImageBase64: result.resultImageBase64 || result.ResultImageBase64 || null,
                 imageId: result.imageId || result.ImageId,
-                outputData: result.outputData || result.OutputData || {},
+                outputData: normalizeOutputData(result),
                 analysisData: normalizeAnalysisData(result)
             }));
 

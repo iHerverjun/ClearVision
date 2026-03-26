@@ -724,9 +724,26 @@ class ResultPanel {
         this.render();
     }
 
+    getInlineResultImageBase64(result) {
+        if (!result) {
+            return null;
+        }
+
+        return result.imageData
+            || result.outputImage
+            || result.outputImageBase64
+            || result.resultImageBase64
+            || null;
+    }
+
     getResultImageSrc(result) {
         if (!result) {
             return '';
+        }
+
+        const inlineImage = this.getInlineResultImageBase64(result);
+        if (inlineImage) {
+            return `data:image/png;base64,${inlineImage}`;
         }
 
         if (result.imageUrl) {
@@ -735,10 +752,6 @@ class ResultPanel {
 
         if (result.imageId) {
             return httpClient.buildRequestUrl(`/images/${result.imageId}`);
-        }
-
-        if (result.imageData) {
-            return `data:image/png;base64,${result.imageData}`;
         }
 
         return '';
