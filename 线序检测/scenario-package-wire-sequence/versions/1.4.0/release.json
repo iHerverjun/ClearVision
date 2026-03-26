@@ -1,0 +1,33 @@
+{
+  "ScenarioKey": "wire-sequence-terminal",
+  "PackageVersion": "1.4.0",
+  "ReleasedAtUtc": "2026-03-24T00:00:00Z",
+  "ReleaseNote": "Switched the default wire-sequence template to full-image detection with ROI-region box filtering after YOLO.",
+  "ManifestPath": "manifest.json",
+  "Artifacts": [
+    {
+      "ArtifactType": "Template",
+      "ArtifactName": "terminal-wire-sequence-template",
+      "ArtifactVersion": "1.4.0",
+      "RelativePath": "template/terminal-wire-sequence.flow.template.json"
+    },
+    {
+      "ArtifactType": "Model",
+      "ArtifactName": "wire-seq-yolo",
+      "ArtifactVersion": "1.2.0",
+      "RelativePath": "models/wire-seq-yolo-v1.2.onnx"
+    },
+    {
+      "ArtifactType": "Rule",
+      "ArtifactName": "wire-sequence-rule",
+      "ArtifactVersion": "1.4.0",
+      "RelativePath": "rules/sequence-rule.v1.json"
+    },
+    {
+      "ArtifactType": "Label",
+      "ArtifactName": "wire-label-set",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "labels/labels.txt"
+    }
+  ]
+}

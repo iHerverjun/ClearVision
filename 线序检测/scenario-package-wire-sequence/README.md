@@ -1,6 +1,6 @@
 # Wire Sequence Scenario Package
 
-This package is the baseline reusable package for fixed-ROI terminal wire-sequence inspection.
+This package is the baseline reusable package for full-image terminal wire-sequence inspection with ROI-based detection filtering.
 
 ## Directory Contract
 
@@ -17,11 +17,12 @@ This package is the baseline reusable package for fixed-ROI terminal wire-sequen
 
 Current golden flow skeleton:
 
-`ImageAcquisition -> RoiManager -> ImageResize -> DeepLearning -> BoxNms -> DetectionSequenceJudge -> ResultOutput`
+`ImageAcquisition -> DeepLearning -> BoxFilter(FilterMode=Region) -> BoxNms -> DetectionSequenceJudge -> ResultOutput`
 
 Current diagnostics contract:
 
-- `DeepLearning` keeps a low confidence floor and disables internal NMS for this scenario template.
+- `DeepLearning` runs on the full image, keeps a low confidence floor, and disables internal NMS for this scenario template.
+- `BoxFilter(FilterMode=Region)` is the ROI gate and removes detections whose center falls outside the configured region.
 - `BoxNms` is the single owner of runtime score / IoU filtering.
 - `ResultOutput` should receive `BoxNms.Diagnostics`, `DetectionSequenceJudge.Diagnostics`, and `DetectionSequenceJudge.Message` together with the preview image.
 
@@ -36,10 +37,10 @@ Current tuning contract:
 
 ## Asset Delivery
 
-- The package manifest still points to `models/wire-seq-yolo-v1.1.onnx`.
+- The package manifest currently points to `models/wire-seq-yolo-v1.2.onnx`.
 - The repository does not commit the private model binary by default.
 - Local or on-site delivery must provide one of the following:
-  - the model file at `models/wire-seq-yolo-v1.1.onnx`, or
+  - the model file at `models/wire-seq-yolo-v1.2.onnx`, or
   - an explicit `DeepLearning.ModelPath` pointing to a real external file.
 - `labels/labels.txt` remains the required label source of truth for this package version.
 

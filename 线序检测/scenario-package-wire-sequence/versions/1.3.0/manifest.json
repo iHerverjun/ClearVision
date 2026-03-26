@@ -2,16 +2,16 @@
   "SchemaVersion": "1.0",
   "ScenarioKey": "wire-sequence-terminal",
   "ScenarioName": "Terminal Wire Sequence",
-  "Version": "1.4.0",
+  "Version": "1.3.0",
   "Description": "Reusable package for fixed-ROI wire-sequence inspection with detection, NMS and order judgment.",
-  "CreatedAtUtc": "2026-03-23T00:00:00Z",
+  "CreatedAtUtc": "2026-03-24T00:00:00Z",
   "CreatedBy": "clearvision-team",
   "Assets": [
     {
       "ArtifactType": "Template",
       "ArtifactName": "terminal-wire-sequence-template",
-      "ArtifactVersion": "1.4.0",
-      "RelativePath": "template/terminal-wire-sequence.flow.template.json",
+      "ArtifactVersion": "1.3.0",
+      "RelativePath": "versions/1.3.0/template/terminal-wire-sequence.flow.template.json",
       "Required": true,
       "ChecksumSha256": null,
       "Metadata": {
@@ -39,8 +39,8 @@
     {
       "ArtifactType": "Rule",
       "ArtifactName": "wire-sequence-rule",
-      "ArtifactVersion": "1.4.0",
-      "RelativePath": "rules/sequence-rule.v1.json",
+      "ArtifactVersion": "1.3.0",
+      "RelativePath": "versions/1.3.0/rules/sequence-rule.v1.json",
       "Required": true,
       "ChecksumSha256": null,
       "Metadata": {
@@ -53,7 +53,7 @@
       "ArtifactType": "Label",
       "ArtifactName": "wire-label-set",
       "ArtifactVersion": "1.1.0",
-      "RelativePath": "labels/labels.txt",
+      "RelativePath": "versions/1.3.0/labels/labels.txt",
       "Required": true,
       "ChecksumSha256": null,
       "Metadata": {}

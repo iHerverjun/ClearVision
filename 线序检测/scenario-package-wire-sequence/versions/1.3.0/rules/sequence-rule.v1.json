@@ -1,6 +1,6 @@
 {
   "ruleName": "wire-sequence-rule",
-  "ruleVersion": "1.4.0",
+  "ruleVersion": "1.3.0",
   "scenarioKey": "wire-sequence-terminal",
   "expectedSequence": [
     "Wire_Black",

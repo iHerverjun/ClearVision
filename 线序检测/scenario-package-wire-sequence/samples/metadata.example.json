@@ -5,7 +5,6 @@
   "stationId": "station-a",
   "lightingProfile": "default",
   "expectedSequence": [
-    "Wire_Brown",
     "Wire_Black",
     "Wire_Blue"
   ],

@@ -1,0 +1,33 @@
+{
+  "ScenarioKey": "wire-sequence-terminal",
+  "PackageVersion": "1.3.0",
+  "ReleasedAtUtc": "2026-03-24T00:00:00Z",
+  "ReleaseNote": "Changed the default terminal wire-sequence package to a two-wire top-to-bottom contract for Wire_Black and Wire_Blue.",
+  "ManifestPath": "versions/1.3.0/manifest.json",
+  "Artifacts": [
+    {
+      "ArtifactType": "Template",
+      "ArtifactName": "terminal-wire-sequence-template",
+      "ArtifactVersion": "1.3.0",
+      "RelativePath": "versions/1.3.0/template/terminal-wire-sequence.flow.template.json"
+    },
+    {
+      "ArtifactType": "Model",
+      "ArtifactName": "wire-seq-yolo",
+      "ArtifactVersion": "1.2.0",
+      "RelativePath": "models/wire-seq-yolo-v1.2.onnx"
+    },
+    {
+      "ArtifactType": "Rule",
+      "ArtifactName": "wire-sequence-rule",
+      "ArtifactVersion": "1.3.0",
+      "RelativePath": "versions/1.3.0/rules/sequence-rule.v1.json"
+    },
+    {
+      "ArtifactType": "Label",
+      "ArtifactName": "wire-label-set",
+      "ArtifactVersion": "1.1.0",
+      "RelativePath": "versions/1.3.0/labels/labels.txt"
+    }
+  ]
+}

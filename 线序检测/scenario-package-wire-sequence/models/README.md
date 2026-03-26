@@ -1,33 +1,36 @@
 # Models
 
-当前场景包的激活模型契约仍然是：
+This scenario package now targets a two-wire terminal sequence contract:
 
-- `wire-seq-yolo-v1.1.onnx`
+- `Wire_Black`
+- `Wire_Blue`
 
-但当前仓库默认**不提交模型二进制**。本目录只保留：
+The recommended external model artifact name is:
 
-1. 模型文件名与版本约定
-2. 场景包 `manifest` / `release.json` 使用的相对路径契约
-3. 本地或现场放置模型时的检查说明
+- `wire-seq-yolo-v1.2.onnx`
 
-## 外置模型交付规则
+The repository does not commit the actual ONNX binary. This folder keeps only the
+contract for package metadata and local deployment paths.
 
-- 本地开发或现场调试时，将真实 ONNX 文件放到：
-  - `线序检测/scenario-package-wire-sequence/models/wire-seq-yolo-v1.1.onnx`
-- 如果不希望把模型放进仓库，也必须保证 `DeepLearning.ModelPath` 指向一份实际存在的外置文件。
-- CI 默认只校验路径契约与文档一致性，不强依赖私有模型二进制。
+## Local placement
 
-## 标签一致性
+Place the trained model at:
 
-- 模型输出类别必须与 `../labels/labels.txt` 对齐：
-  - `Wire_Brown`
-  - `Wire_Black`
-  - `Wire_Blue`
+- `线序检测/scenario-package-wire-sequence/models/wire-seq-yolo-v1.2.onnx`
 
-## 版本说明
+Or point `DeepLearning.ModelPath` to any valid external ONNX file.
 
-- `1.2.0` 仍沿用 `wire-seq-yolo-v1.1.onnx`。
-- 后续只要模型文件、类别顺序或推理前处理发生变化，都必须同步更新：
-  - `manifest.json`
-  - `versions/<packageVersion>/release.json`
-  - `README.md`
+## Label alignment
+
+The model output class order must match [labels.txt](../labels/labels.txt):
+
+1. `Wire_Black`
+2. `Wire_Blue`
+
+If the training/export label order changes, update these files together:
+
+- `manifest.json`
+- `rules/sequence-rule.v1.json`
+- `template/terminal-wire-sequence.flow.template.json`
+- `labels/labels.txt`
+- `versions/<packageVersion>/release.json`

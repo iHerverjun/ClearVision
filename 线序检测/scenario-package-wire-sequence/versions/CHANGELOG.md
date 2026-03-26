@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 - 2026-03-24
+
+- Switched the wire-sequence template from ROI image cropping to full-image detection followed by ROI-region box filtering.
+- Replaced the `RoiManager -> ImageResize` front-end path with `BoxFilter(FilterMode=Region)` after `DeepLearning`.
+- Kept the two-wire top-to-bottom contract `Wire_Black -> Wire_Blue` unchanged while aligning inference with full-frame training data.
+
+## 1.3.0 - 2026-03-24
+
+- Narrowed the default terminal wire-sequence contract to two labels: `Wire_Black` and `Wire_Blue`.
+- Updated the template, rule, manifest, labels, and sample metadata to expect exactly two detections in top-to-bottom order.
+- Bumped the recommended model artifact path/version to `wire-seq-yolo-v1.2.onnx`.
+
 ## 1.2.0 - 2026-03-23
 
 - Added structured diagnostics outputs for `BoxNms` and `DetectionSequenceJudge`.
