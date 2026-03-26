@@ -62,6 +62,7 @@ public enum YoloVersion
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "结果图像", PortDataType.Image)]
+[OutputPort("OriginalImage", "原始图像", PortDataType.Image)]
 [OutputPort("DetectionList", "检测列表", PortDataType.DetectionList)]
 [OutputPort("Defects", "缺陷列表", PortDataType.DetectionList)]
 [OutputPort("DefectCount", "缺陷数量", PortDataType.Integer)]
@@ -246,6 +247,9 @@ public class DeepLearningOperator : OperatorBase
             })
         );
 
+        // 输出原始图像（不带任何绘制），供下游节点重新绘制
+        var originalImage = src.Clone();
+        
         var additionalData = new Dictionary<string, object>
         {
             { "DetectionMode", detectionMode },
@@ -256,7 +260,8 @@ public class DeepLearningOperator : OperatorBase
             { "Objects", isObjectMode ? detectionList : new DetectionList() },
             { "ObjectCount", isObjectMode ? detections.Count : 0 },
             { "Defects", isObjectMode ? new DetectionList() : detectionList },
-            { "DefectCount", isObjectMode ? 0 : detections.Count }
+            { "DefectCount", isObjectMode ? 0 : detections.Count },
+            { "OriginalImage", new ImageWrapper(originalImage) }
         };
 
         Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);

@@ -27,6 +27,7 @@ namespace Acme.Product.Infrastructure.Operators;
 )]
 [InputPort("Detections", "Detections", PortDataType.DetectionList, IsRequired = true)]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
+[InputPort("SourceImage", "Source Image", PortDataType.Image, IsRequired = false)]
 [OutputPort("Detections", "Detections", PortDataType.DetectionList)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OutputPort("Count", "Count", PortDataType.Integer)]
@@ -124,9 +125,14 @@ public class BoxNmsOperator : OperatorBase
             scoreThreshold,
             maxDetections);
 
-        if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
+        // Try to use SourceImage first (clean image), fallback to Image (may have previous drawings)
+        var imageToUse = TryGetInputImage(inputs, "SourceImage", out var sourceImageWrapper) && sourceImageWrapper != null
+            ? sourceImageWrapper
+            : (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null ? imageWrapper : null);
+        
+        if (imageToUse != null)
         {
-            var src = imageWrapper.GetMat();
+            var src = imageToUse.GetMat();
             if (!src.Empty())
             {
                 var resultImage = src.Clone();

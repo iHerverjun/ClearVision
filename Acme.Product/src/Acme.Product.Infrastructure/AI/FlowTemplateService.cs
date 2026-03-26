@@ -478,6 +478,7 @@ public class FlowTemplateService : IFlowTemplateService
                         Link("op_1", "Image", "op_3", "Image"),
                         Link("op_3", "Detections", "op_4", "Detections"),
                         Link("op_1", "Image", "op_4", "Image"),
+                        Link("op_2", "OriginalImage", "op_4", "SourceImage"),  // 使用原始图像重新绘制，避免图像叠加污染
                         Link("op_4", "Detections", "op_5", "Detections"),
                         Link("op_4", "Image", "op_6", "Image"),
                         Link("op_4", "Diagnostics", "op_6", "Data"),

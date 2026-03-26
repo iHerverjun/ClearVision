@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T18:46:50.6676488+08:00",
+  "generatedAt": "2026-03-26T20:16:17.5776687+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -1566,6 +1566,12 @@
         {
           "name": "Image",
           "displayName": "结果图像",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "OriginalImage",
+          "displayName": "原始图像",
           "dataType": "Image",
           "isRequired": null
         },
@@ -10844,6 +10850,12 @@
         {
           "name": "Image",
           "displayName": "Image",
+          "dataType": "Image",
+          "isRequired": false
+        },
+        {
+          "name": "SourceImage",
+          "displayName": "Source Image",
           "dataType": "Image",
           "isRequired": false
         }
