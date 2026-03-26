@@ -2,6 +2,8 @@ using System.Text.Json;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
+using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -76,13 +78,13 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
 
         if (nodeOutput == null)
         {
-            return BuildFailureResult(targetNodeId, result, missingResources);
+            return BuildFailureResult(flow, targetNodeId, result, missingResources);
         }
 
         var targetDebugResult = result.DebugOperatorResults.FirstOrDefault(item => item.OperatorId == targetNodeId);
         var previewImageBytes = TryGetOutputImageBytes(nodeOutput)
             ?? TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot);
-        var inputSnapshotImage = TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot);
+        var inputSnapshotImage = ResolveInputImageBytes(flow, targetNodeId, result, targetDebugResult, inputImage);
         var sanitizedOutputs = BuildResponseOutputData(nodeOutput);
         var metrics = AnalyzePreviewMetrics(previewImageBytes, sanitizedOutputs);
         var diagnosticCodes = BuildDiagnosticCodes(metrics, missingResources);
@@ -176,15 +178,16 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
             }
 
             var labelsPath = GetStringParam(op, "LabelsPath", "LabelFile");
-            if (string.IsNullOrWhiteSpace(labelsPath) || !PathExists(labelsPath))
+            var targetClasses = GetStringParam(op, "TargetClasses");
+            if (!DeepLearningLabelResolver.AreLabelsResolvable(labelsPath, modelPath, targetClasses, out _))
             {
                 missing.Add(new PreviewMissingResource
                 {
                     ResourceType = "Label",
                     ResourceKey = "DeepLearning.LabelsPath",
                     Description = string.IsNullOrWhiteSpace(labelsPath)
-                        ? "缺少标签文件路径"
-                        : $"标签文件不存在：{labelsPath}",
+                        ? "缺少可用的标签文件，且未找到可匹配目标类别的内置标签"
+                        : $"标签文件不存在，且未找到可匹配目标类别的内置标签：{labelsPath}",
                     DiagnosticCode = "missing_labels"
                 });
             }
@@ -197,6 +200,7 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
     }
 
     private static FlowNodePreviewWithMetricsResult BuildFailureResult(
+        OperatorFlow flow,
         Guid targetNodeId,
         FlowDebugExecutionResult result,
         List<PreviewMissingResource> missingResources)
@@ -206,7 +210,8 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
             ? targetResult
             : result.DebugOperatorResults.FirstOrDefault(item => !item.IsSuccess);
         var inputImage = TryGetImageBytesFromSnapshot(targetResult?.InputSnapshot)
-            ?? TryGetImageBytesFromSnapshot(failedOperator?.InputSnapshot);
+            ?? TryGetImageBytesFromSnapshot(failedOperator?.InputSnapshot)
+            ?? ResolveInputImageBytes(flow, targetNodeId, result, targetResult, null);
         var outputs = targetResult?.OutputSnapshot ?? failedOperator?.OutputSnapshot ?? new Dictionary<string, object>();
 
         return new FlowNodePreviewWithMetricsResult
@@ -370,6 +375,8 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
 
         return imageValue switch
         {
+            ImageWrapper wrapper => wrapper.GetBytes(),
+            Mat mat when !mat.Empty() => mat.ToBytes(".png"),
             byte[] bytes => bytes,
             string base64 when !string.IsNullOrWhiteSpace(base64) => TryDecodeBase64(base64),
             JsonElement element when element.ValueKind == JsonValueKind.String => TryDecodeBase64(element.GetString()),
@@ -421,5 +428,59 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
         return !string.IsNullOrWhiteSpace(result.ErrorMessage)
             ? result.ErrorMessage!
             : $"无法获取节点 {targetNodeId} 的输出，可能节点执行失败或未被执行";
+    }
+    private static byte[]? ResolveInputImageBytes(
+        OperatorFlow flow,
+        Guid targetNodeId,
+        FlowDebugExecutionResult result,
+        OperatorDebugResult? targetDebugResult,
+        byte[]? externalInputImage)
+    {
+        return TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot)
+            ?? TryGetNearestImageAcquisitionOutputBytes(flow, targetNodeId, result)
+            ?? externalInputImage;
+    }
+
+    private static byte[]? TryGetNearestImageAcquisitionOutputBytes(
+        OperatorFlow flow,
+        Guid targetNodeId,
+        FlowDebugExecutionResult result)
+    {
+        var relevantIds = CollectRelevantOperatorIds(flow, targetNodeId);
+        var imageAcquisitionIds = flow.Operators
+            .Where(item => relevantIds.Contains(item.Id) && item.Type == OperatorType.ImageAcquisition)
+            .Select(item => item.Id)
+            .ToHashSet();
+
+        if (imageAcquisitionIds.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var debugResult in result.DebugOperatorResults
+                     .Where(item => imageAcquisitionIds.Contains(item.OperatorId))
+                     .OrderByDescending(item => item.ExecutionOrder))
+        {
+            var bytes = TryGetImageBytesFromSnapshot(debugResult.OutputSnapshot)
+                ?? TryGetImageBytesFromSnapshot(debugResult.InputSnapshot);
+            if (bytes != null && bytes.Length > 0)
+            {
+                return bytes;
+            }
+        }
+
+        foreach (var operatorId in imageAcquisitionIds)
+        {
+            if (result.IntermediateResults.TryGetValue(operatorId, out var outputData))
+            {
+                var bytes = TryGetOutputImageBytes(outputData);
+                if (bytes != null && bytes.Length > 0)
+                {
+                    return bytes;
+                }
+            }
+        }
+
+        return null;
     }
 }

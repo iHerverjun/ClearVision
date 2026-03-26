@@ -173,12 +173,12 @@ public static class ApiEndpoints
                 if (!string.IsNullOrEmpty(request.ImageBase64))
                 {
                     var imageData = Convert.FromBase64String(request.ImageBase64);
-                    var result = await service.ExecuteSingleAsync(request.ProjectId, imageData);
+                    var result = await service.ExecuteSingleAsync(request.ProjectId, imageData, request.FlowData?.ToEntity());
                     return Results.Ok(result);
                 }
                 else if (!string.IsNullOrEmpty(request.CameraId))
                 {
-                    var result = await service.ExecuteSingleAsync(request.ProjectId, request.CameraId);
+                    var result = await service.ExecuteSingleAsync(request.ProjectId, request.CameraId, request.FlowData?.ToEntity());
                     return Results.Ok(result);
                 }
                 else

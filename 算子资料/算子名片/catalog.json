@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T12:03:10.3395604+08:00",
+  "generatedAt": "2026-03-26T18:46:50.6676488+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -1700,11 +1700,22 @@
           "options": null
         },
         {
-          "name": "LabelFile",
+          "name": "LabelsPath",
           "displayName": "标签文件路径",
           "dataType": "file",
           "description": "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt",
           "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EnableInternalNms",
+          "displayName": "启用内部NMS",
+          "dataType": "bool",
+          "description": "关闭后输出置信度筛选后的候选框，由下游 BoxNms 负责唯一 NMS。",
+          "defaultValue": "true",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -6594,6 +6605,12 @@
           "isRequired": null
         },
         {
+          "name": "Diagnostics",
+          "displayName": "Diagnostics",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
           "name": "Message",
           "displayName": "Message",
           "dataType": "String",
@@ -10849,6 +10866,30 @@
           "displayName": "Count",
           "dataType": "Integer",
           "isRequired": null
+        },
+        {
+          "name": "InputCount",
+          "displayName": "Input Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "SuppressedCount",
+          "displayName": "Suppressed Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "SuppressedDetections",
+          "displayName": "Suppressed Detections",
+          "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
+          "name": "Diagnostics",
+          "displayName": "Diagnostics",
+          "dataType": "Any",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -10882,6 +10923,17 @@
           "defaultValue": "100",
           "min": "1",
           "max": "1000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ShowSuppressed",
+          "displayName": "Show Suppressed",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         }

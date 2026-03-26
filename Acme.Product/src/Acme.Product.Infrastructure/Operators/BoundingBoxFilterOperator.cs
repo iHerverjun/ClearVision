@@ -99,7 +99,8 @@ public class BoundingBoxFilterOperator : OperatorBase
             if (!src.Empty())
             {
                 var resultImage = src.Clone();
-                foreach (var d in resultDetections)
+                var visualizationDetections = BuildVisualizationDetections(resultDetections, minScore);
+                foreach (var d in visualizationDetections)
                 {
                     var rect = new Rect((int)d.X, (int)d.Y, (int)d.Width, (int)d.Height);
                     rect = ClampRect(rect, resultImage.Width, resultImage.Height);
@@ -121,7 +122,8 @@ public class BoundingBoxFilterOperator : OperatorBase
                 var output = CreateImageOutput(resultImage, new Dictionary<string, object>
                 {
                     { "Detections", outputList },
-                    { "Count", outputList.Count }
+                    { "Count", outputList.Count },
+                    { "VisualizationCount", visualizationDetections.Count }
                 });
 
                 return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -160,6 +162,75 @@ public class BoundingBoxFilterOperator : OperatorBase
         var w = Math.Clamp(rect.Width, 0, width - x);
         var h = Math.Clamp(rect.Height, 0, height - y);
         return new Rect(x, y, w, h);
+    }
+
+    private static List<DetectionResultValue> BuildVisualizationDetections(
+        List<DetectionResultValue> detections,
+        double minScore)
+    {
+        if (detections.Count == 0)
+        {
+            return detections;
+        }
+
+        var scoreFloor = Math.Max((float)minScore, 0.25f);
+        var filtered = detections
+            .Where(detection => detection.Confidence >= scoreFloor)
+            .ToList();
+        if (filtered.Count == 0)
+        {
+            filtered = detections;
+        }
+
+        var kept = new List<DetectionResultValue>();
+        foreach (var group in filtered.GroupBy(detection => detection.Label ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            var groupCandidates = group
+                .OrderByDescending(detection => detection.Confidence)
+                .ToList();
+            var removed = new bool[groupCandidates.Count];
+
+            for (var i = 0; i < groupCandidates.Count; i++)
+            {
+                if (removed[i])
+                {
+                    continue;
+                }
+
+                kept.Add(groupCandidates[i]);
+                for (var j = i + 1; j < groupCandidates.Count; j++)
+                {
+                    if (removed[j])
+                    {
+                        continue;
+                    }
+
+                    if (IoU(groupCandidates[i], groupCandidates[j]) > 0.45f)
+                    {
+                        removed[j] = true;
+                    }
+                }
+            }
+        }
+
+        return kept;
+    }
+
+    private static float IoU(DetectionResultValue a, DetectionResultValue b)
+    {
+        var xx1 = Math.Max(a.X, b.X);
+        var yy1 = Math.Max(a.Y, b.Y);
+        var xx2 = Math.Min(a.X + a.Width, b.X + b.Width);
+        var yy2 = Math.Min(a.Y + a.Height, b.Y + b.Height);
+
+        var interW = Math.Max(0, xx2 - xx1);
+        var interH = Math.Max(0, yy2 - yy1);
+        var inter = interW * interH;
+
+        var union = Math.Max(0, a.Width) * Math.Max(0, a.Height)
+            + Math.Max(0, b.Width) * Math.Max(0, b.Height)
+            - inter;
+        return union <= 0 ? 0 : inter / union;
     }
 
     private static bool TryParseDetectionList(object? obj, out List<DetectionResultValue> detections)

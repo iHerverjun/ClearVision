@@ -157,7 +157,17 @@ public class DeepLearningOperator : OperatorBase
         var enableInternalNms = GetBoolParam(@operator, "EnableInternalNms", true);
 
         // 2.1 加载自定义标签
-        var labels = LoadLabels(labelsPath, modelPath);
+        var labels = LoadLabels(labelsPath, modelPath, targetClassesStr);
+        var unresolvedTargetClasses = FindUnresolvedTargetClasses(targetClassesStr, labels);
+        if (unresolvedTargetClasses.Count > 0)
+        {
+            var labelSource = ReferenceEquals(labels, CocoClassNames)
+                ? "the default COCO labels"
+                : "the active labels";
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model."));
+        }
+
         var targetClasses = ParseTargetClasses(targetClassesStr, labels);
         Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", labels.Length, targetClassesStr);
         if (labels.Length > 0 && !ReferenceEquals(labels, CocoClassNames))
@@ -208,7 +218,7 @@ public class DeepLearningOperator : OperatorBase
 
         if (yoloVersion == YoloVersion.Auto)
         {
-            yoloVersion = DetectYoloVersion(outputTensor);
+            yoloVersion = DetectYoloVersion(outputTensor, labels.Length);
         }
         Logger.LogInformation("[DeepLearning] 最终使用YOLO版本: {YoloVersion}, 置信度阈值: {Confidence}", yoloVersion, confidenceThreshold);
 
@@ -685,8 +695,9 @@ public class DeepLearningOperator : OperatorBase
 
         if (shape.Length != 3)
             return detections;
-        int numAnchors = shape[1];
-        int numFeatures = shape[2];
+        var isTransposed = shape[1] < shape[2];
+        int numAnchors = isTransposed ? shape[2] : shape[1];
+        int numFeatures = isTransposed ? shape[1] : shape[2];
         int numClasses = numFeatures - 5;
         float globalMaxConf = 0f;
         var scale = Math.Min((float)inputSize / originalWidth, (float)inputSize / originalHeight);
@@ -695,21 +706,25 @@ public class DeepLearningOperator : OperatorBase
 
         for (int i = 0; i < numAnchors; i++)
         {
-            float objConf = outputTensor[0, i, 4];
+            float objConf = isTransposed
+                ? outputTensor[0, 4, i]
+                : outputTensor[0, i, 4];
             if (objConf < confidenceThreshold)
                 continue;
 
-            float x = outputTensor[0, i, 0];
-            float y = outputTensor[0, i, 1];
-            float w = outputTensor[0, i, 2];
-            float h = outputTensor[0, i, 3];
+            float x = isTransposed ? outputTensor[0, 0, i] : outputTensor[0, i, 0];
+            float y = isTransposed ? outputTensor[0, 1, i] : outputTensor[0, i, 1];
+            float w = isTransposed ? outputTensor[0, 2, i] : outputTensor[0, i, 2];
+            float h = isTransposed ? outputTensor[0, 3, i] : outputTensor[0, i, 3];
 
             float maxClassProb = 0;
             int maxClassId = 0;
 
             for (int c = 0; c < numClasses; c++)
             {
-                float prob = outputTensor[0, i, 5 + c];
+                float prob = isTransposed
+                    ? outputTensor[0, 5 + c, i]
+                    : outputTensor[0, i, 5 + c];
                 if (prob > maxClassProb)
                 { maxClassProb = prob; maxClassId = c; }
             }
@@ -749,7 +764,7 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 自动检测 YOLO 版本
     /// </summary>
-    private YoloVersion DetectYoloVersion(DenseTensor<float> outputTensor)
+    private YoloVersion DetectYoloVersion(DenseTensor<float> outputTensor, int knownLabelCount = 0)
     {
         var shape = outputTensor.Dimensions.ToArray();
 
@@ -765,6 +780,44 @@ public class DeepLearningOperator : OperatorBase
         // dim1=8400, dim2=84 -> Transposed V8/V11
         // dim1=84, dim2=8400 -> Standard V8/V11
         // dim1=25200, dim2=85 -> Transposed V5/V6 (standard output)
+
+        if (knownLabelCount > 0)
+        {
+            if (dim1 > dim2)
+            {
+                if (dim2 == knownLabelCount + 5)
+                {
+                    Logger.LogDebug("[DeepLearning] 自动检测: YOLOv5/v6自定义类别格式 (anchors={Dim1}, features={Dim2}, labels={KnownLabelCount})", dim1, dim2, knownLabelCount);
+                    return YoloVersion.YOLOv5;
+                }
+
+                if (dim2 == knownLabelCount + 4)
+                {
+                    Logger.LogDebug("[DeepLearning] 自动检测: YOLOv8/v11自定义类别格式 (anchors={Dim1}, features={Dim2}, labels={KnownLabelCount})", dim1, dim2, knownLabelCount);
+                    return YoloVersion.YOLOv8;
+                }
+            }
+            else
+            {
+                if (dim1 == knownLabelCount + 5)
+                {
+                    Logger.LogDebug("[DeepLearning] 自动检测: YOLOv5/v6转置格式 (features={Dim1}, anchors={Dim2}, labels={KnownLabelCount})", dim1, dim2, knownLabelCount);
+                    return YoloVersion.YOLOv5;
+                }
+
+                if (dim1 == knownLabelCount + 4)
+                {
+                    Logger.LogDebug("[DeepLearning] 自动检测: YOLOv8/v11标准格式 (features={Dim1}, anchors={Dim2}, labels={KnownLabelCount})", dim1, dim2, knownLabelCount);
+                    return YoloVersion.YOLOv8;
+                }
+            }
+        }
+
+        if (dim1 == 85 && dim2 > dim1)
+        {
+            Logger.LogDebug("[DeepLearning] 自动检测: YOLOv5/v6转置格式 (features={Dim1}, anchors={Dim2})", dim1, dim2);
+            return YoloVersion.YOLOv5;
+        }
 
         if (dim1 > dim2)
         {
@@ -901,7 +954,42 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 加载标签 - 支持自定义标签文件或自动查找
     /// </summary>
-    private string[] LoadLabels(string labelFile, string modelPath)
+    /// <summary>
+    /// Validates that named target classes exist in the active label set.
+    /// </summary>
+    private List<string> FindUnresolvedTargetClasses(string targetClassesStr, IReadOnlyList<string>? labels)
+    {
+        if (string.IsNullOrWhiteSpace(targetClassesStr))
+        {
+            return new List<string>();
+        }
+
+        var unresolved = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var part in targetClassesStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = part.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || int.TryParse(trimmed, out _))
+            {
+                continue;
+            }
+
+            if (FindClassIndex(labels, trimmed) >= 0 || !seen.Add(trimmed))
+            {
+                continue;
+            }
+
+            unresolved.Add(trimmed);
+        }
+
+        return unresolved;
+    }
+
+    /// <summary>
+    /// 鍔犺浇鏍囩 - 鏀寔鑷畾涔夋爣绛炬枃浠舵垨鑷姩鏌ユ壘
+    /// </summary>
+    private string[] LoadLabels(string labelFile, string modelPath, string targetClassesStr = "")
     {
         string[] labels = Array.Empty<string>();
 
@@ -934,7 +1022,22 @@ public class DeepLearningOperator : OperatorBase
         }
 
         // 3. 回退到 COCO 80 类默认标签
+        var bundledLabelFile = TryResolveBundledLabelsPath(targetClassesStr);
+        if (!string.IsNullOrEmpty(bundledLabelFile))
+        {
+            labels = File.ReadAllLines(bundledLabelFile)
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToArray();
+            Logger.LogInformation("[DeepLearning] 使用内置标签文件: {File}, 共 {Count} 个标签", bundledLabelFile, labels.Length);
+            return labels;
+        }
+
         return CocoClassNames;
+    }
+
+    private string? TryResolveBundledLabelsPath(string targetClassesStr)
+    {
+        return DeepLearningLabelResolver.TryResolveBundledLabelsPath(targetClassesStr);
     }
 
     private static string ResolveLabelsPath(Operator @operator)

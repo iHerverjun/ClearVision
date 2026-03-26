@@ -37,6 +37,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("IouThreshold", "IoU Threshold", "double", DefaultValue = 0.45, Min = 0.1, Max = 1.0)]
 [OperatorParam("ScoreThreshold", "Score Threshold", "double", DefaultValue = 0.25, Min = 0.0, Max = 1.0)]
 [OperatorParam("MaxDetections", "Max Detections", "int", DefaultValue = 100, Min = 1, Max = 1000)]
+[OperatorParam("ShowSuppressed", "Show Suppressed", "bool", DefaultValue = true)]
 public class BoxNmsOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.BoxNms;
@@ -58,6 +59,7 @@ public class BoxNmsOperator : OperatorBase
         var iouThreshold = GetDoubleParam(@operator, "IouThreshold", 0.45, 0.1, 1.0);
         var scoreThreshold = GetDoubleParam(@operator, "ScoreThreshold", 0.25, 0.0, 1.0);
         var maxDetections = GetIntParam(@operator, "MaxDetections", 100, 1, 1000);
+        var showSuppressed = GetBoolParam(@operator, "ShowSuppressed", true);
         var inputCount = detections.Count;
 
         var candidates = detections
@@ -128,7 +130,11 @@ public class BoxNmsOperator : OperatorBase
             if (!src.Empty())
             {
                 var resultImage = src.Clone();
-                DrawDetections(resultImage, suppressed, new Scalar(0, 0, 255), 1, "S");
+                if (showSuppressed)
+                {
+                    DrawDetections(resultImage, suppressed, new Scalar(0, 0, 255), 1, "S");
+                }
+
                 DrawDetections(resultImage, kept, new Scalar(0, 255, 0), 2, "K");
 
                 var output = CreateImageOutput(resultImage, new Dictionary<string, object>

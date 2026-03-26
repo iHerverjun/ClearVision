@@ -9,6 +9,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Interfaces;
 using Acme.Product.Core.Services;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Operators;
 using Acme.Product.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -93,8 +94,8 @@ public static class PreviewNodeEndpoints
 
                 // 准备输入数据
                 Dictionary<string, object>? inputData = null;
-                if (!string.IsNullOrEmpty(request.InputImageBase64) &&
-                    !HasUpstreamOperatorType(flow, request.TargetNodeId, OperatorType.ImageAcquisition))
+                if (!string.IsNullOrEmpty(request.InputImageBase64)
+                    && !HasUpstreamOperatorType(flow, request.TargetNodeId, OperatorType.ImageAcquisition))
                 {
                     var imageData = Convert.FromBase64String(request.InputImageBase64);
                     inputData = new Dictionary<string, object>
@@ -119,7 +120,7 @@ public static class PreviewNodeEndpoints
 
                 if (nodeOutput == null)
                 {
-                    return Results.Ok(BuildFailureResponse(request, result, request.TargetNodeId));
+                    return Results.Ok(BuildFailureResponse(request, flow, result, request.TargetNodeId));
                 }
 
                 // 提取输出图像
@@ -135,7 +136,7 @@ public static class PreviewNodeEndpoints
                     request.ProjectId, request.TargetNodeId, result.IsSuccess);
 
                 var targetDebugResult = result.DebugOperatorResults.FirstOrDefault(r => r.OperatorId == request.TargetNodeId);
-                var inputImageBytes = TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot);
+                var inputImageBytes = ResolveInputImageBytes(flow, request.TargetNodeId, result, targetDebugResult, request.InputImageBase64);
                 var inputImageBase64 = inputImageBytes != null ? Convert.ToBase64String(inputImageBytes) : null;
 
                 return Results.Ok(new PreviewNodeResponse
@@ -198,6 +199,8 @@ public static class PreviewNodeEndpoints
 
         return imageValue switch
         {
+            ImageWrapper wrapper => wrapper.GetBytes(),
+            Mat mat when !mat.Empty() => mat.ToBytes(".png"),
             byte[] bytes => bytes,
             string base64 when !string.IsNullOrWhiteSpace(base64) => TryDecodeBase64(base64),
             JsonElement element when element.ValueKind == JsonValueKind.String => TryDecodeBase64(element.GetString()),
@@ -299,6 +302,7 @@ public static class PreviewNodeEndpoints
 
     private static PreviewNodeResponse BuildFailureResponse(
         PreviewNodeRequest request,
+        Acme.Product.Core.Entities.OperatorFlow flow,
         FlowDebugExecutionResult result,
         Guid targetNodeId)
     {
@@ -310,7 +314,8 @@ public static class PreviewNodeEndpoints
 
         var failureMessage = BuildMissingNodeOutputDetail(result, targetNodeId);
         var inputImageBytes = TryGetImageBytesFromSnapshot(targetResult?.InputSnapshot)
-            ?? TryGetImageBytesFromSnapshot(failedOperator?.InputSnapshot);
+            ?? TryGetImageBytesFromSnapshot(failedOperator?.InputSnapshot)
+            ?? ResolveInputImageBytes(flow, targetNodeId, result, targetResult, request.InputImageBase64);
         var inputImageBase64 = inputImageBytes != null ? Convert.ToBase64String(inputImageBytes) : null;
 
         return new PreviewNodeResponse
@@ -337,6 +342,84 @@ public static class PreviewNodeEndpoints
                 IsSuccess = r.IsSuccess
             }).ToList()
         };
+    }
+
+    private static byte[]? ResolveInputImageBytes(
+        Acme.Product.Core.Entities.OperatorFlow flow,
+        Guid targetNodeId,
+        FlowDebugExecutionResult result,
+        OperatorDebugResult? targetDebugResult,
+        string? requestInputImageBase64)
+    {
+        return TryGetImageBytesFromSnapshot(targetDebugResult?.InputSnapshot)
+            ?? TryGetNearestImageAcquisitionOutputBytes(flow, targetNodeId, result)
+            ?? TryDecodeBase64(requestInputImageBase64);
+    }
+
+    private static byte[]? TryGetNearestImageAcquisitionOutputBytes(
+        Acme.Product.Core.Entities.OperatorFlow flow,
+        Guid targetNodeId,
+        FlowDebugExecutionResult result)
+    {
+        var relevantIds = CollectRelevantOperatorIds(flow, targetNodeId);
+        var imageAcquisitionIds = flow.Operators
+            .Where(item => relevantIds.Contains(item.Id) && item.Type == OperatorType.ImageAcquisition)
+            .Select(item => item.Id)
+            .ToHashSet();
+
+        if (imageAcquisitionIds.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var debugResult in result.DebugOperatorResults
+                     .Where(item => imageAcquisitionIds.Contains(item.OperatorId))
+                     .OrderByDescending(item => item.ExecutionOrder))
+        {
+            var bytes = TryGetImageBytesFromSnapshot(debugResult.OutputSnapshot)
+                ?? TryGetImageBytesFromSnapshot(debugResult.InputSnapshot);
+            if (bytes != null && bytes.Length > 0)
+            {
+                return bytes;
+            }
+        }
+
+        foreach (var operatorId in imageAcquisitionIds)
+        {
+            if (result.IntermediateResults.TryGetValue(operatorId, out var outputData))
+            {
+                var bytes = TryGetOutputImageBytes(outputData);
+                if (bytes != null && bytes.Length > 0)
+                {
+                    return bytes;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static HashSet<Guid> CollectRelevantOperatorIds(
+        Acme.Product.Core.Entities.OperatorFlow flow,
+        Guid targetNodeId)
+    {
+        var visited = new HashSet<Guid> { targetNodeId };
+        var stack = new Stack<Guid>();
+        stack.Push(targetNodeId);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            foreach (var connection in flow.Connections.Where(item => item.TargetOperatorId == current))
+            {
+                if (visited.Add(connection.SourceOperatorId))
+                {
+                    stack.Push(connection.SourceOperatorId);
+                }
+            }
+        }
+
+        return visited;
     }
 
     private static PreviewFeedbackMetrics BuildPreviewMetrics(

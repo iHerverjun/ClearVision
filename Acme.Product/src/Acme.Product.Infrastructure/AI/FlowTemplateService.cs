@@ -4,6 +4,7 @@
 // 作者：蘅芜君
 using System.Text.Json;
 using Acme.Product.Core.Entities;
+using Acme.Product.Infrastructure.Services;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -38,6 +39,22 @@ public class FlowTemplateService : IFlowTemplateService
         PropertyNameCaseInsensitive = true,
         WriteIndented = true
     };
+    private const string WireSequenceScenarioKey = "wire-sequence-terminal";
+    private const string WireSequenceTemplateName = "端子线序检测";
+    private const string WireSequenceIndustry = "线束装配";
+    private const string WireSequenceDefaultRegionExtent = "999999";
+    private static readonly IReadOnlyDictionary<string, string> _deprecatedBuiltInTemplates =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["传统缺陷检测"] = "3C电子",
+            ["AI缺陷检测"] = "半导体",
+            ["尺寸间距测量"] = "汽车零部件",
+            ["条码读取写PLC"] = "食品包装",
+            ["OCR文本追溯"] = "食品包装",
+            ["环形件缺陷检测"] = "轴承行业",
+            ["多工位循环检测"] = "通用制造",
+            ["检测结果分拣"] = "通用制造"
+        };
 
     private readonly string _templateFilePath;
     private readonly object _syncRoot = new();
@@ -183,7 +200,13 @@ public class FlowTemplateService : IFlowTemplateService
                     SaveTemplates(templates);
                 }
 
+                var changed = RemoveDeprecatedBuiltInTemplates(templates);
                 if (MergeBuiltInTemplates(templates))
+                {
+                    changed = true;
+                }
+
+                if (changed)
                 {
                     SaveTemplates(templates);
                 }
@@ -198,6 +221,11 @@ public class FlowTemplateService : IFlowTemplateService
                 return templates;
             }
         }
+    }
+
+    private static bool RemoveDeprecatedBuiltInTemplates(List<FlowTemplate> templates)
+    {
+        return templates.RemoveAll(IsDeprecatedBuiltInTemplate) > 0;
     }
 
     private static bool MergeBuiltInTemplates(List<FlowTemplate> templates)
@@ -233,6 +261,28 @@ public class FlowTemplateService : IFlowTemplateService
         }
 
         return string.Equals(existing.Name, candidate.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDeprecatedBuiltInTemplate(FlowTemplate template)
+    {
+        if (IsWireSequenceTemplate(template))
+        {
+            return false;
+        }
+
+        return _deprecatedBuiltInTemplates.TryGetValue(template.Name, out var expectedIndustry) &&
+            string.Equals(template.Industry, expectedIndustry, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWireSequenceTemplate(FlowTemplate template)
+    {
+        if (string.Equals(template.ScenarioKey, WireSequenceScenarioKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(template.Name, WireSequenceTemplateName, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(template.Industry, WireSequenceIndustry, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ShouldUpgradeBuiltInTemplate(FlowTemplate existing, FlowTemplate candidate)
@@ -341,253 +391,25 @@ public class FlowTemplateService : IFlowTemplateService
     {
         return new List<FlowTemplate>
         {
-            CreateTemplate(
-                "传统缺陷检测",
-                "相机采集后进行去噪、二值化和 Blob 缺陷分析。",
-                "3C电子",
-                ["缺陷检测", "传统视觉", "表面检测"],
-                new
-                {
-                    explanation = "基础传统缺陷检测流程，适合规则表面与稳定光照场景。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集", new Dictionary<string, string> { ["sourceType"] = "camera" }),
-                        Node("op_2", "Filtering", "降噪", new Dictionary<string, string> { ["KernelSize"] = "5" }),
-                        Node("op_3", "Thresholding", "二值化", new Dictionary<string, string> { ["UseOtsu"] = "true" }),
-                        Node("op_4", "BlobAnalysis", "缺陷分析", new Dictionary<string, string> { ["MinArea"] = "50", ["MaxArea"] = "5000" }),
-                        Node("op_5", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "Image", "op_4", "Image"),
-                        Link("op_4", "BlobCount", "op_5", "Result")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_4"] = ["MinArea", "MaxArea"]
-                    }
-                }),
-            CreateTemplate(
-                "AI缺陷检测",
-                "深度学习推理 + 分支判定 + 通信输出。",
-                "半导体",
-                ["AI", "缺陷检测", "PLC通信"],
-                new
-                {
-                    explanation = "适用于复杂纹理与多缺陷类型场景。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集", new Dictionary<string, string> { ["sourceType"] = "camera" }),
-                        Node("op_2", "ImageResize", "尺寸适配", new Dictionary<string, string> { ["Width"] = "640", ["Height"] = "640" }),
-                        Node("op_3", "DeepLearning", "AI检测", new Dictionary<string, string> { ["Confidence"] = "0.5" }),
-                        Node("op_4", "ConditionalBranch", "缺陷分支", new Dictionary<string, string> { ["Condition"] = "GreaterThan", ["CompareValue"] = "0" }),
-                        Node("op_5", "ModbusCommunication", "NG信号"),
-                        Node("op_6", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "DefectCount", "op_4", "Value"),
-                        Link("op_4", "True", "op_5", "Data"),
-                        Link("op_3", "Image", "op_6", "Image")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_3"] = ["ModelPath", "InputSize"],
-                        ["op_5"] = ["IpAddress", "Port"]
-                    }
-                }),
-            CreateTemplate(
-                "尺寸间距测量",
-                "边缘检测 + 间距测量 + 坐标换算。",
-                "汽车零部件",
-                ["测量", "间距", "标定"],
-                new
-                {
-                    explanation = "用于孔距、焊点间距、引脚间距等场景。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集"),
-                        Node("op_2", "Filtering", "预处理"),
-                        Node("op_3", "EdgeDetection", "边缘检测"),
-                        Node("op_4", "GapMeasurement", "间距测量", new Dictionary<string, string> { ["ExpectedWidth"] = "0.5", ["Tolerance"] = "0.05" }),
-                        Node("op_5", "CoordinateTransform", "像素转毫米"),
-                        Node("op_6", "ResultOutput", "测量结果")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "Image", "op_4", "Image"),
-                        Link("op_4", "Width", "op_5", "PixelX"),
-                        Link("op_5", "PhysicalX", "op_6", "Result")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_5"] = ["PixelSize", "CalibrationFile"]
-                    }
-                }),
-            CreateTemplate(
-                "条码读取写PLC",
-                "条码识别结果写入 PLC。",
-                "食品包装",
-                ["条码", "追溯", "通信"],
-                new
-                {
-                    explanation = "用于包装线、追溯码采集与上位机联动。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集"),
-                        Node("op_2", "CodeRecognition", "条码识别", new Dictionary<string, string> { ["MaxResults"] = "1" }),
-                        Node("op_3", "ModbusCommunication", "PLC写入"),
-                        Node("op_4", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Text", "op_3", "Data"),
-                        Link("op_2", "Text", "op_4", "Result")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_3"] = ["IpAddress", "Port", "RegisterAddress"]
-                    }
-                }),
-            CreateTemplate(
-                "OCR文本追溯",
-                "OCR 识别后写入数据库并输出结果。",
-                "食品包装",
-                ["OCR", "追溯", "数据库"],
-                new
-                {
-                    explanation = "用于批次号、日期码、序列号识别与归档。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集"),
-                        Node("op_2", "OcrRecognition", "OCR识别"),
-                        Node("op_3", "DatabaseWrite", "写入数据库"),
-                        Node("op_4", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Text", "op_3", "Data"),
-                        Link("op_2", "Text", "op_4", "Result")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_3"] = ["ConnectionString", "TableName"]
-                    }
-                }),
-            CreateTemplate(
-                "环形件缺陷检测",
-                "圆心定位 + 极坐标展开 + 表面缺陷检测。",
-                "轴承行业",
-                ["环形件", "缺陷检测", "极坐标"],
-                new
-                {
-                    explanation = "适合轴承、瓶盖等环形零件外观检测。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集"),
-                        Node("op_2", "CircleMeasurement", "圆心定位"),
-                        Node("op_3", "PolarUnwrap", "极坐标展开"),
-                        Node("op_4", "SurfaceDefectDetection", "缺陷检测"),
-                        Node("op_5", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_1", "Image", "op_3", "Image"),
-                        Link("op_2", "Center", "op_3", "Center"),
-                        Link("op_3", "Image", "op_4", "Image"),
-                        Link("op_4", "Image", "op_5", "Image")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>()
-                }),
-            CreateTemplate(
-                "多工位循环检测",
-                "循环计数驱动的多次检测与结果归档。",
-                "通用制造",
-                ["循环", "多工位", "批量检测"],
-                new
-                {
-                    explanation = "用于单工位重复检测或多工位轮询。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "CycleCounter", "循环计数", new Dictionary<string, string> { ["CycleLimit"] = "10" }),
-                        Node("op_2", "ImageAcquisition", "图像采集"),
-                        Node("op_3", "Thresholding", "二值化"),
-                        Node("op_4", "ResultJudgment", "结果判定"),
-                        Node("op_5", "DatabaseWrite", "记录结果"),
-                        Node("op_6", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "Image", "op_4", "Image"),
-                        Link("op_4", "IsOk", "op_5", "Data"),
-                        Link("op_4", "IsOk", "op_6", "Result")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_5"] = ["ConnectionString", "TableName"]
-                    }
-                }),
-            CreateTemplate(
-                "检测结果分拣",
-                "判定后分支发送 OK/NG 通信信号。",
-                "通用制造",
-                ["分拣", "OK/NG", "通信"],
-                new
-                {
-                    explanation = "典型在线剔除控制模板。",
-                    operators = new object[]
-                    {
-                        Node("op_1", "ImageAcquisition", "图像采集"),
-                        Node("op_2", "DeepLearning", "AI检测", new Dictionary<string, string> { ["Confidence"] = "0.5" }),
-                        Node("op_3", "ConditionalBranch", "分支判定", new Dictionary<string, string> { ["Condition"] = "GreaterThan", ["CompareValue"] = "0" }),
-                        Node("op_4", "ModbusCommunication", "NG信号"),
-                        Node("op_5", "ModbusCommunication", "OK信号"),
-                        Node("op_6", "ResultOutput", "结果输出")
-                    },
-                    connections = new object[]
-                    {
-                        Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "DefectCount", "op_3", "Value"),
-                        Link("op_3", "True", "op_4", "Data"),
-                        Link("op_3", "False", "op_5", "Data"),
-                        Link("op_2", "Image", "op_6", "Image")
-                    },
-                    parametersNeedingReview = new Dictionary<string, List<string>>
-                    {
-                        ["op_2"] = ["ModelPath"],
-                        ["op_4"] = ["IpAddress", "Port"],
-                        ["op_5"] = ["IpAddress", "Port"]
-                    }
-                }),
             new FlowTemplate
             {
                 Id = Guid.NewGuid(),
-                Name = "端子线序检测",
-                Description = "端子排固定 ROI 的线序检测模板，内置检测、NMS 去重与顺序判定主干。",
-                Industry = "线束装配",
+                Name = WireSequenceTemplateName,
+                Description = "端子线序检测模板，先做全图 YOLO 检测，再按 ROI 区域过滤框，最后做 NMS 与顺序判定。",
+                Industry = WireSequenceIndustry,
                 Tags = ["线序", "YOLO", "端子", "ROI"],
-                TemplateVersion = "1.2.0",
-                ScenarioKey = "wire-sequence-terminal",
+                TemplateVersion = "1.4.0",
+                ScenarioKey = WireSequenceScenarioKey,
                 ScenarioPackage = new ScenarioPackageBinding
                 {
-                    PackageKey = "wire-sequence-terminal",
-                    PackageVersion = "1.2.0",
+                    PackageKey = WireSequenceScenarioKey,
+                    PackageVersion = "1.4.0",
                     AssetVersionIds =
                     [
-                        "template:terminal-wire-sequence-template@1.2.0",
-                        "model:wire-seq-yolo@1.1.0",
-                        "rule:wire-sequence-rule@1.2.0",
-                        "label:wire-label-set@1.0.0"
+                        "template:terminal-wire-sequence-template@1.4.0",
+                        "model:wire-seq-yolo@1.2.0",
+                        "rule:wire-sequence-rule@1.4.0",
+                        "label:wire-label-set@1.1.0"
                     ],
                     RequiredResources =
                     [
@@ -597,9 +419,9 @@ public class FlowTemplateService : IFlowTemplateService
                 },
                 FlowJson = JsonSerializer.Serialize(new
                 {
-                    explanation = "适用于线束装配工位的端子线序判定，先固定 ROI，再做目标检测、NMS 去重和顺序判定。",
-                    expectedSequence = new[] { "Wire_Brown", "Wire_Black", "Wire_Blue" },
-                    expectedDetectionCount = 3,
+                    explanation = "适用于线束装配工位的端子线序判定，先做全图 YOLO 检测，再用 ROI 区域过滤框，最后做 NMS 去重和顺序判定。",
+                    expectedSequence = new[] { "Wire_Black", "Wire_Blue" },
+                    expectedDetectionCount = 2,
                     requiredResources = new[] { "DeepLearning.ModelPath", "DeepLearning.LabelsPath" },
                     tunableParameters = new[]
                     {
@@ -609,41 +431,41 @@ public class FlowTemplateService : IFlowTemplateService
                     operators = new object[]
                     {
                         Node("op_1", "ImageAcquisition", "图像采集", new Dictionary<string, string> { ["sourceType"] = "camera" }),
-                        Node("op_2", "RoiManager", "固定ROI", new Dictionary<string, string>
-                        {
-                            ["Shape"] = "Rectangle",
-                            ["Operation"] = "Crop",
-                            ["X"] = "0",
-                            ["Y"] = "0",
-                            ["Width"] = "640",
-                            ["Height"] = "640"
-                        }),
-                        Node("op_3", "ImageResize", "尺寸适配", new Dictionary<string, string> { ["Width"] = "640", ["Height"] = "640" }),
-                        Node("op_4", "DeepLearning", "线根检测", new Dictionary<string, string>
+                        Node("op_2", "DeepLearning", "线根检测", new Dictionary<string, string>
                         {
                             ["ModelPath"] = "",
-                            ["LabelsPath"] = "",
+                            ["LabelsPath"] = ResolveWireSequenceLabelsPath(),
                             ["Confidence"] = "0.05",
                             ["InputSize"] = "640",
-                            ["TargetClasses"] = "Wire_Brown,Wire_Black,Wire_Blue",
+                            ["TargetClasses"] = "Wire_Black,Wire_Blue",
                             ["EnableInternalNms"] = "false",
                             ["DetectionMode"] = "Object"
                         }),
-                        Node("op_5", "BoxNms", "候选框去重", new Dictionary<string, string>
+                        Node("op_3", "BoxFilter", "ROI框过滤", new Dictionary<string, string>
+                        {
+                            ["FilterMode"] = "Region",
+                            ["RegionX"] = "0",
+                            ["RegionY"] = "0",
+                            ["RegionW"] = WireSequenceDefaultRegionExtent,
+                            ["RegionH"] = WireSequenceDefaultRegionExtent,
+                            ["MinScore"] = "0.0"
+                        }),
+                        Node("op_4", "BoxNms", "候选框去重", new Dictionary<string, string>
                         {
                             ["IouThreshold"] = "0.45",
                             ["ScoreThreshold"] = "0.25",
-                            ["MaxDetections"] = "10"
+                            ["MaxDetections"] = "10",
+                            ["ShowSuppressed"] = "false"
                         }),
-                        Node("op_6", "DetectionSequenceJudge", "顺序判定", new Dictionary<string, string>
+                        Node("op_5", "DetectionSequenceJudge", "顺序判定", new Dictionary<string, string>
                         {
-                            ["ExpectedLabels"] = "Wire_Brown,Wire_Black,Wire_Blue",
-                            ["SortBy"] = "CenterX",
-                            ["Direction"] = "Ascending",
-                            ["ExpectedCount"] = "3",
+                            ["ExpectedLabels"] = "Wire_Black,Wire_Blue",
+                            ["SortBy"] = "CenterY",
+                            ["Direction"] = "TopToBottom",
+                            ["ExpectedCount"] = "2",
                             ["MinConfidence"] = "0.0"
                         }),
-                        Node("op_7", "ResultOutput", "结果输出", new Dictionary<string, string>
+                        Node("op_6", "ResultOutput", "结果输出", new Dictionary<string, string>
                         {
                             ["Format"] = "JSON",
                             ["SaveToFile"] = "true"
@@ -652,22 +474,22 @@ public class FlowTemplateService : IFlowTemplateService
                     connections = new object[]
                     {
                         Link("op_1", "Image", "op_2", "Image"),
-                        Link("op_2", "Image", "op_3", "Image"),
-                        Link("op_3", "Image", "op_4", "Image"),
-                        Link("op_4", "Objects", "op_5", "Detections"),
-                        Link("op_4", "Image", "op_5", "Image"),
-                        Link("op_5", "Detections", "op_6", "Detections"),
-                        Link("op_5", "Image", "op_7", "Image"),
-                        Link("op_5", "Diagnostics", "op_7", "Data"),
-                        Link("op_6", "Diagnostics", "op_7", "Result"),
-                        Link("op_6", "Message", "op_7", "Text")
+                        Link("op_2", "Objects", "op_3", "Detections"),
+                        Link("op_1", "Image", "op_3", "Image"),
+                        Link("op_3", "Detections", "op_4", "Detections"),
+                        Link("op_1", "Image", "op_4", "Image"),
+                        Link("op_4", "Detections", "op_5", "Detections"),
+                        Link("op_4", "Image", "op_6", "Image"),
+                        Link("op_4", "Diagnostics", "op_6", "Data"),
+                        Link("op_5", "Diagnostics", "op_6", "Result"),
+                        Link("op_5", "Message", "op_6", "Text")
                     },
                     parametersNeedingReview = new Dictionary<string, List<string>>
                     {
-                        ["op_2"] = ["X", "Y", "Width", "Height"],
-                        ["op_4"] = ["ModelPath", "LabelsPath"],
-                        ["op_5"] = ["ScoreThreshold", "IouThreshold"],
-                        ["op_6"] = ["ExpectedLabels", "ExpectedCount"]
+                        ["op_2"] = ["ModelPath", "LabelsPath"],
+                        ["op_3"] = ["RegionX", "RegionY", "RegionW", "RegionH"],
+                        ["op_4"] = ["ScoreThreshold", "IouThreshold"],
+                        ["op_5"] = ["ExpectedLabels", "ExpectedCount"]
                     }
                 }, _jsonOptions),
                 CreatedAt = DateTime.UtcNow
@@ -675,23 +497,9 @@ public class FlowTemplateService : IFlowTemplateService
         };
     }
 
-    private static FlowTemplate CreateTemplate(
-        string name,
-        string description,
-        string industry,
-        IEnumerable<string> tags,
-        object flowDefinition)
+    private static string ResolveWireSequenceLabelsPath()
     {
-        return new FlowTemplate
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Description = description,
-            Industry = industry,
-            Tags = tags.ToList(),
-            FlowJson = JsonSerializer.Serialize(flowDefinition, _jsonOptions),
-            CreatedAt = DateTime.UtcNow
-        };
+        return DeepLearningLabelResolver.TryResolveBundledLabelsPath("Wire_Black,Wire_Blue") ?? string.Empty;
     }
 
     private static object Node(
