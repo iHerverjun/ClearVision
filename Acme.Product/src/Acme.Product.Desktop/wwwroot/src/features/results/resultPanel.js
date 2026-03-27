@@ -1470,7 +1470,7 @@ class ResultPanel {
 
     shouldHideOutputDetailEntry(key, value, outputData) {
         const normalizedKey = String(key || '').toLowerCase();
-        if (normalizedKey === 'image') {
+        if (normalizedKey === 'image' || normalizedKey === 'originalimage') {
             return true;
         }
 

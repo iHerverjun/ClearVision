@@ -229,6 +229,7 @@ export class PreviewPanel {
         const items = Object.entries(outputs)
             .filter(([key]) => ![
                 'image',
+                'originalimage',
                 'diagnostics',
                 'result',
                 'data',
