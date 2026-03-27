@@ -1,2 +1,2 @@
-Wire_Black
 Wire_Blue
+Wire_Black

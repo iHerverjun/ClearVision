@@ -24,8 +24,15 @@ Or point `DeepLearning.ModelPath` to any valid external ONNX file.
 
 The model output class order must match [labels.txt](../labels/labels.txt):
 
+1. `Wire_Blue`
+2. `Wire_Black`
+
+The inspection business order is still:
+
 1. `Wire_Black`
 2. `Wire_Blue`
+
+Do not use the business order as the model class-order labels.
 
 If the training/export label order changes, update these files together:
 

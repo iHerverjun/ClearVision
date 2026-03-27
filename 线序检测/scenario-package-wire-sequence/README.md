@@ -9,7 +9,7 @@ This package is the baseline reusable package for full-image terminal wire-seque
 - `template/`: Flow template artifacts.
 - `models/`: Model artifacts and model version notes.
 - `rules/`: Rule definitions (expected order, tolerance, NG reasons).
-- `labels/`: Label conventions for model output alignment.
+- `labels/`: Model class-order labels used for `classId -> label` alignment.
 - `samples/`: Sample references for tuning and verification.
 - `faq/`: Reusable scenario knowledge and troubleshooting notes.
 
@@ -42,7 +42,8 @@ Current tuning contract:
 - Local or on-site delivery must provide one of the following:
   - the model file at `models/wire-seq-yolo-v1.2.onnx`, or
   - an explicit `DeepLearning.ModelPath` pointing to a real external file.
-- `labels/labels.txt` remains the required label source of truth for this package version.
+- `labels/labels.txt` stores the model export class order and must match the ONNX metadata `names` order when metadata is present.
+- `expectedSequence` and `DetectionSequenceJudge.ExpectedLabels` remain the business inspection order and are intentionally independent from model class order.
 
 ## Sample Delivery
 
