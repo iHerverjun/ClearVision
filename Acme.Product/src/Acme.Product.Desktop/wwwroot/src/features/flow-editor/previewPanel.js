@@ -1,4 +1,17 @@
 import { renderDiagnosticsCardsHtml } from '../inspection/analysisCardsPanel.js';
+import {
+    formatPreviewOutputValue,
+    isPreviewImageLikePayload
+} from './previewOutputFormatter.mjs';
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 export class PreviewPanel {
     constructor(container, options = {}) {
@@ -227,11 +240,10 @@ export class PreviewPanel {
         }
 
         const items = Object.entries(outputs)
-            .filter(([key]) => ![
+            .filter(([key, value]) => ![
                 'image',
                 'originalimage',
                 'diagnostics',
-                'result',
                 'data',
                 'output',
                 'filepath',
@@ -242,24 +254,20 @@ export class PreviewPanel {
                 'rawcandidatecount',
                 'visualizationdetectioncount',
                 'internalnmsenabled'
-            ].includes(String(key).toLowerCase()))
+            ].includes(String(key).toLowerCase()) && !(typeof value === 'string' && isPreviewImageLikePayload(value)))
             .slice(0, 8)
             .map(([key, value]) => {
-            let displayValue;
-            if (typeof value === 'number') {
-                displayValue = Number.isInteger(value) ? String(value) : value.toFixed(3);
-            } else if (typeof value === 'string') {
-                displayValue = value.length > 48 ? `${value.substring(0, 48)}...` : value;
-            } else if (typeof value === 'boolean') {
-                displayValue = value ? 'true' : 'false';
-            } else {
-                displayValue = JSON.stringify(value);
-            }
+            const formattedValue = formatPreviewOutputValue(key, value, {
+                stringMaxLength: 48
+            });
+            const titleAttribute = formattedValue.title
+                ? ` title="${escapeHtml(formattedValue.title)}"`
+                : '';
 
             return `
-                <div class="operator-preview-output-item">
-                    <span class="key">${key}</span>
-                    <span class="value">${displayValue}</span>
+                <div class="operator-preview-output-item" data-output-kind="${formattedValue.kind}">
+                    <span class="key">${escapeHtml(key)}</span>
+                    <span class="value"${titleAttribute}>${escapeHtml(formattedValue.text)}</span>
                 </div>
             `;
         });

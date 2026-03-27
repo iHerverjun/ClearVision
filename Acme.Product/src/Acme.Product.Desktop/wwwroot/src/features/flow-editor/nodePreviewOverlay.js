@@ -1,3 +1,12 @@
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export class NodePreviewOverlay {
     constructor(container, flowCanvas, previewCoordinator, options = {}) {
         this.container = container;
@@ -56,8 +65,8 @@ export class NodePreviewOverlay {
         const summaryItems = presenter.summaryItems.length > 0
             ? presenter.summaryItems.map(item => `
                 <div class="node-preview-summary-item">
-                    <span class="key">${item.key}</span>
-                    <span class="value">${item.value}</span>
+                    <span class="key">${escapeHtml(item.key)}</span>
+                    <span class="value"${item.title ? ` title="${escapeHtml(item.title)}"` : ''}>${escapeHtml(item.value)}</span>
                 </div>
             `).join('')
             : '<div class="node-preview-summary-empty">暂无输出摘要</div>';

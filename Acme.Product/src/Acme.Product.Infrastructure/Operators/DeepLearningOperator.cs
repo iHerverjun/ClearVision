@@ -133,6 +133,26 @@ public class DeepLearningOperator : OperatorBase
         "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
     };
 
+    private sealed class LabelSourceInfo
+    {
+        public required string[] Labels { get; init; }
+        public required string Source { get; init; }
+        public string Path { get; init; } = string.Empty;
+        public bool IsFileBacked { get; init; }
+    }
+
+    private sealed class LabelContract
+    {
+        public required string[] ResolvedLabels { get; init; }
+        public required string[] MetadataLabels { get; init; }
+        public required string[] ExternalLabels { get; init; }
+        public required string ResolvedLabelSource { get; init; }
+        public string ResolvedLabelPath { get; init; } = string.Empty;
+        public string ValidationStatus { get; init; } = "Unknown";
+        public string? ValidationMessage { get; init; }
+        public bool IsValid => string.IsNullOrWhiteSpace(ValidationMessage);
+    }
+
     /// <summary>
     /// 执行算子核心逻辑
     /// </summary>
@@ -158,9 +178,9 @@ public class DeepLearningOperator : OperatorBase
         var enableInternalNms = GetBoolParam(@operator, "EnableInternalNms", true);
 
         // 2.1 加载自定义标签
-        var labels = LoadLabels(labelsPath, modelPath, targetClassesStr);
-        var unresolvedTargetClasses = FindUnresolvedTargetClasses(targetClassesStr, labels);
-        if (unresolvedTargetClasses.Count > 0)
+        var labels = Array.Empty<string>();
+        var unresolvedTargetClasses = new List<string>();
+        if (unresolvedTargetClasses.Count > 0 && labels.Length > 0)
         {
             var labelSource = ReferenceEquals(labels, CocoClassNames)
                 ? "the default COCO labels"
@@ -169,7 +189,7 @@ public class DeepLearningOperator : OperatorBase
                 $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model."));
         }
 
-        var targetClasses = ParseTargetClasses(targetClassesStr, labels);
+        HashSet<int>? targetClasses = null;
         Logger.LogInformation("[DeepLearning] 当前使用标签数量: {Count}, 目标参数: {TargetStr}", labels.Length, targetClassesStr);
         if (labels.Length > 0 && !ReferenceEquals(labels, CocoClassNames))
         {
@@ -207,6 +227,31 @@ public class DeepLearningOperator : OperatorBase
         }
 
         // 6. 预处理图像
+        var labelContract = ResolveLabelContract(session, labelsPath, modelPath, targetClassesStr);
+        if (!labelContract.IsValid)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(labelContract.ValidationMessage!));
+        }
+
+        labels = labelContract.ResolvedLabels;
+        unresolvedTargetClasses = FindUnresolvedTargetClasses(targetClassesStr, labels);
+        if (unresolvedTargetClasses.Count > 0)
+        {
+            var labelSource = labelContract.ResolvedLabelSource.Equals("CocoDefault", StringComparison.OrdinalIgnoreCase)
+                ? "the default COCO labels"
+                : "the active labels";
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model."));
+        }
+
+        targetClasses = ParseTargetClasses(targetClassesStr, labels);
+        Logger.LogInformation(
+            "[DeepLearning] Using {Count} labels. TargetClasses={TargetStr}, LabelSource={LabelSource}, ValidationStatus={ValidationStatus}",
+            labels.Length,
+            targetClassesStr,
+            labelContract.ResolvedLabelSource,
+            labelContract.ValidationStatus);
+
         var inputTensor = PreprocessImage(src, inputSize);
         Logger.LogDebug("[DeepLearning] 输入张量形状: [1, 3, {InputSize}, {InputSize}]", inputSize, inputSize);
 
@@ -261,7 +306,12 @@ public class DeepLearningOperator : OperatorBase
             { "ObjectCount", isObjectMode ? detections.Count : 0 },
             { "Defects", isObjectMode ? new DetectionList() : detectionList },
             { "DefectCount", isObjectMode ? 0 : detections.Count },
-            { "OriginalImage", new ImageWrapper(originalImage) }
+            { "OriginalImage", new ImageWrapper(originalImage) },
+            { "LabelSource", labelContract.ResolvedLabelSource },
+            { "ResolvedLabels", labelContract.ResolvedLabels },
+            { "ModelMetadataLabels", labelContract.MetadataLabels },
+            { "LabelsPath", labelContract.ResolvedLabelPath },
+            { "LabelValidationStatus", labelContract.ValidationStatus }
         };
 
         Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);
@@ -1043,6 +1093,169 @@ public class DeepLearningOperator : OperatorBase
     private string? TryResolveBundledLabelsPath(string targetClassesStr)
     {
         return DeepLearningLabelResolver.TryResolveBundledLabelsPath(targetClassesStr);
+    }
+
+    private LabelContract ResolveLabelContract(
+        InferenceSession session,
+        string configuredLabelsPath,
+        string modelPath,
+        string targetClassesStr)
+    {
+        var metadataLabels = DeepLearningLabelResolver.GetMetadataLabels(session);
+        var externalLabels = LoadExternalLabels(configuredLabelsPath, modelPath, targetClassesStr);
+        return BuildLabelContract(modelPath, metadataLabels, externalLabels);
+    }
+
+    private LabelContract BuildLabelContract(
+        string modelPath,
+        string[] metadataLabels,
+        LabelSourceInfo externalLabels)
+    {
+        if (metadataLabels.Length > 0)
+        {
+            Logger.LogInformation("[DeepLearning] Loaded {Count} labels from ONNX metadata.", metadataLabels.Length);
+
+            if (externalLabels.IsFileBacked && !LabelSequencesEqual(metadataLabels, externalLabels.Labels))
+            {
+                return new LabelContract
+                {
+                    ResolvedLabels = metadataLabels,
+                    MetadataLabels = metadataLabels,
+                    ExternalLabels = externalLabels.Labels,
+                    ResolvedLabelSource = "ModelMetadata",
+                    ResolvedLabelPath = externalLabels.Path,
+                    ValidationStatus = "Mismatch",
+                    ValidationMessage = BuildLabelContractMismatchMessage(modelPath, externalLabels, metadataLabels)
+                };
+            }
+
+            return new LabelContract
+            {
+                ResolvedLabels = metadataLabels,
+                MetadataLabels = metadataLabels,
+                ExternalLabels = externalLabels.IsFileBacked ? externalLabels.Labels : Array.Empty<string>(),
+                ResolvedLabelSource = "ModelMetadata",
+                ResolvedLabelPath = externalLabels.Path,
+                ValidationStatus = externalLabels.IsFileBacked
+                    ? "MetadataValidatedWithExternalLabels"
+                    : "MetadataOnly"
+            };
+        }
+
+        return new LabelContract
+        {
+            ResolvedLabels = externalLabels.Labels,
+            MetadataLabels = Array.Empty<string>(),
+            ExternalLabels = externalLabels.Labels,
+            ResolvedLabelSource = externalLabels.Source,
+            ResolvedLabelPath = externalLabels.Path,
+            ValidationStatus = externalLabels.Source.Equals("CocoDefault", StringComparison.OrdinalIgnoreCase)
+                ? "DefaultCocoFallback"
+                : "ExternalLabelsOnly"
+        };
+    }
+
+    private LabelSourceInfo LoadExternalLabels(string labelFile, string modelPath, string targetClassesStr)
+    {
+        if (!string.IsNullOrWhiteSpace(labelFile) && File.Exists(labelFile))
+        {
+            var labels = DeepLearningLabelResolver.ReadLabelsFromFile(labelFile);
+            Logger.LogInformation("[DeepLearning] Loaded labels from explicit LabelsPath: {File}", labelFile);
+            return new LabelSourceInfo
+            {
+                Labels = labels,
+                Source = "ExplicitFile",
+                Path = labelFile,
+                IsFileBacked = true
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(modelPath))
+        {
+            var modelDir = Path.GetDirectoryName(modelPath);
+            if (!string.IsNullOrWhiteSpace(modelDir))
+            {
+                var autoLabelFile = Path.Combine(modelDir, "labels.txt");
+                if (File.Exists(autoLabelFile))
+                {
+                    var labels = DeepLearningLabelResolver.ReadLabelsFromFile(autoLabelFile);
+                    Logger.LogInformation("[DeepLearning] Loaded labels from model directory: {File}", autoLabelFile);
+                    return new LabelSourceInfo
+                    {
+                        Labels = labels,
+                        Source = "ModelDirectoryFile",
+                        Path = autoLabelFile,
+                        IsFileBacked = true
+                    };
+                }
+            }
+        }
+
+        var bundledLabelFile = TryResolveBundledLabelsPath(targetClassesStr);
+        if (!string.IsNullOrEmpty(bundledLabelFile))
+        {
+            var labels = DeepLearningLabelResolver.ReadLabelsFromFile(bundledLabelFile);
+            Logger.LogInformation("[DeepLearning] Loaded bundled labels: {File}", bundledLabelFile);
+            return new LabelSourceInfo
+            {
+                Labels = labels,
+                Source = "BundledFile",
+                Path = bundledLabelFile,
+                IsFileBacked = true
+            };
+        }
+
+        return new LabelSourceInfo
+        {
+            Labels = CocoClassNames,
+            Source = "CocoDefault",
+            Path = string.Empty,
+            IsFileBacked = false
+        };
+    }
+
+    private static bool LabelSequencesEqual(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!string.Equals(left[i], right[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildLabelContractMismatchMessage(
+        string modelPath,
+        LabelSourceInfo externalLabels,
+        IReadOnlyList<string> metadataLabels)
+    {
+        var externalLabelPath = string.IsNullOrWhiteSpace(externalLabels.Path)
+            ? "<not provided>"
+            : externalLabels.Path;
+
+        return string.Join(
+            Environment.NewLine,
+            "Label contract mismatch: ONNX metadata names do not match the external labels file.",
+            $"ModelPath: {modelPath}",
+            $"LabelsPath: {externalLabelPath}",
+            $"ModelMetadataLabels: {FormatLabelSequence(metadataLabels)}",
+            $"ExternalLabels: {FormatLabelSequence(externalLabels.Labels)}",
+            "Update labels.txt to match the model export order, or remove the mismatched external labels file.");
+    }
+
+    private static string FormatLabelSequence(IReadOnlyList<string> labels)
+    {
+        return labels.Count == 0
+            ? "<empty>"
+            : string.Join(", ", labels);
     }
 
     private static string ResolveLabelsPath(Operator @operator)

@@ -1,7 +1,15 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.ML.OnnxRuntime;
+
 namespace Acme.Product.Infrastructure.Services;
 
 internal static class DeepLearningLabelResolver
 {
+    private static readonly Regex MetadataNamePairRegex = new(
+        @"['""]?(?<key>\d+)['""]?\s*:\s*(?<quote>['""])(?<value>.*?)\k<quote>",
+        RegexOptions.Compiled);
+
     public static bool AreLabelsResolvable(
         string? explicitLabelPath,
         string? modelPath,
@@ -13,13 +21,22 @@ internal static class DeepLearningLabelResolver
             return true;
         }
 
-        if (ParseNamedTargetClasses(targetClassesStr).Length == 0)
+        var requiredLabels = ParseNamedTargetClasses(targetClassesStr);
+        if (requiredLabels.Length == 0)
         {
             resolvedPath = null;
             return true;
         }
 
-        resolvedPath = TryResolveBundledLabelsPath(targetClassesStr);
+        if (TryLoadMetadataLabels(modelPath, out var metadataLabels) &&
+            requiredLabels.All(requiredLabel =>
+                metadataLabels.Any(label => string.Equals(label, requiredLabel, StringComparison.OrdinalIgnoreCase))))
+        {
+            resolvedPath = null;
+            return true;
+        }
+
+        resolvedPath = TryResolveBundledLabelsPath(requiredLabels);
         return !string.IsNullOrWhiteSpace(resolvedPath);
     }
 
@@ -47,9 +64,7 @@ internal static class DeepLearningLabelResolver
                 return candidate;
             }
 
-            var labels = File.ReadAllLines(candidate)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToArray();
+            var labels = ReadLabelsFromFile(candidate);
             if (required.All(requiredLabel =>
                     labels.Any(label => string.Equals(label, requiredLabel, StringComparison.OrdinalIgnoreCase))))
             {
@@ -71,6 +86,130 @@ internal static class DeepLearningLabelResolver
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(label => !string.IsNullOrWhiteSpace(label) && !int.TryParse(label, out _))
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static string[] GetMetadataLabels(InferenceSession session)
+    {
+        if (session == null)
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return ExtractMetadataLabels(session.ModelMetadata?.CustomMetadataMap);
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    public static bool TryLoadMetadataLabels(string? modelPath, out string[] labels)
+    {
+        labels = Array.Empty<string>();
+        if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var session = new InferenceSession(modelPath);
+            labels = GetMetadataLabels(session);
+            return labels.Length > 0;
+        }
+        catch
+        {
+            labels = Array.Empty<string>();
+            return false;
+        }
+    }
+
+    public static string[] ExtractMetadataLabels(IReadOnlyDictionary<string, string>? customMetadataMap)
+    {
+        if (customMetadataMap == null ||
+            !customMetadataMap.TryGetValue("names", out var rawNames))
+        {
+            return Array.Empty<string>();
+        }
+
+        return ParseMetadataNames(rawNames);
+    }
+
+    public static string[] ParseMetadataNames(string? rawNames)
+    {
+        if (string.IsNullOrWhiteSpace(rawNames))
+        {
+            return Array.Empty<string>();
+        }
+
+        var trimmed = rawNames.Trim();
+
+        if (trimmed.StartsWith('['))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<string[]>(trimmed);
+                if (parsed != null)
+                {
+                    return parsed.Where(label => !string.IsNullOrWhiteSpace(label)).ToArray();
+                }
+            }
+            catch
+            {
+                // Fall through to regex-based parsing.
+            }
+        }
+
+        if (trimmed.StartsWith('{'))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(trimmed);
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    return document.RootElement
+                        .EnumerateObject()
+                        .Where(property => int.TryParse(property.Name, out _) && property.Value.ValueKind == JsonValueKind.String)
+                        .OrderBy(property => int.Parse(property.Name))
+                        .Select(property => property.Value.GetString())
+                        .Where(label => !string.IsNullOrWhiteSpace(label))
+                        .Cast<string>()
+                        .ToArray();
+                }
+            }
+            catch
+            {
+                // Fall through to regex-based parsing for Ultralytics metadata.
+            }
+        }
+
+        var matches = MetadataNamePairRegex.Matches(trimmed);
+        if (matches.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return matches
+            .Cast<Match>()
+            .Where(match => match.Success)
+            .Select(match => new
+            {
+                Key = int.Parse(match.Groups["key"].Value),
+                Value = match.Groups["value"].Value.Trim()
+            })
+            .OrderBy(item => item.Key)
+            .Select(item => item.Value)
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .ToArray();
+    }
+
+    public static string[] ReadLabelsFromFile(string labelPath)
+    {
+        return File.ReadAllLines(labelPath)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToArray();
     }
 

@@ -655,7 +655,16 @@
                 </section>
 
                 <!-- 右侧面板 -->
-                <aside class="sidebar right">
+                <div
+                    class="sidebar-resizer hidden"
+                    data-sidebar-resizer="property"
+                    role="separator"
+                    aria-label="Property sidebar width"
+                    aria-orientation="vertical"
+                    aria-disabled="true"
+                    tabindex="-1"
+                ></div>
+                <aside class="sidebar right" data-sidebar="property">
                     <div class="panel">
                         <h3 class="panel-title">属性</h3>
                         <div class="property-panel" id="property-panel">

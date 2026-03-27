@@ -1,3 +1,8 @@
+import {
+    buildPreviewSummaryItems,
+    isPreviewImageLikePayload
+} from './previewOutputFormatter.mjs';
+
 const DEFAULT_DEBOUNCE_MS = 500;
 const IMAGE_NODE_TYPE_FALLBACKS = new Set([
     'ImageAcquisition'
@@ -28,7 +33,7 @@ const IMAGE_NODE_TYPE_FALLBACKS = new Set([
  *   statusText: string,
  *   inputImageSrc: string | null,
  *   outputImageSrc: string | null,
- *   summaryItems: Array<{ key: string, value: string }>,
+ *   summaryItems: Array<{ key: string, value: string, title?: string | null, kind?: string }>,
  *   overlayEnabled: boolean,
  *   canOpenImage: boolean,
  *   isLoading: boolean,
@@ -78,65 +83,6 @@ function normalizeBase64Image(imageValue) {
     return trimmed;
 }
 
-function hasKnownImageSignature(base64Text) {
-    const sanitized = String(base64Text || '').replace(/\s+/g, '');
-    if (sanitized.length < 32 || /[^A-Za-z0-9+/=]/.test(sanitized)) {
-        return false;
-    }
-
-    if (typeof atob !== 'function') {
-        return false;
-    }
-
-    const prefixLength = Math.min(64, sanitized.length);
-    let sample = sanitized.slice(0, prefixLength);
-    const paddingLength = sample.length % 4;
-    if (paddingLength !== 0) {
-        sample = sample.padEnd(sample.length + (4 - paddingLength), '=');
-    }
-
-    try {
-        const decoded = atob(sample);
-        if (!decoded || decoded.length < 4) {
-            return false;
-        }
-
-        const bytes = Array.from(decoded.slice(0, 12)).map(char => char.charCodeAt(0));
-        const ascii = decoded.slice(0, 12);
-
-        return (
-            (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) ||
-            (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
-            (bytes[0] === 0x42 && bytes[1] === 0x4d) ||
-            ascii.startsWith('GIF8') ||
-            ascii.startsWith('RIFF')
-        );
-    } catch {
-        return false;
-    }
-}
-
-function isImageLikePayload(value) {
-    if (typeof value !== 'string') {
-        return false;
-    }
-
-    const trimmed = value.trim();
-    if (!trimmed) {
-        return false;
-    }
-
-    if (trimmed.startsWith('data:image/')) {
-        return true;
-    }
-
-    if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.includes('"Format"')) {
-        return false;
-    }
-
-    return hasKnownImageSignature(trimmed);
-}
-
 export function extractPreviewImageBase64(result) {
     if (!result || typeof result !== 'object') {
         return null;
@@ -157,7 +103,7 @@ export function extractPreviewImageBase64(result) {
 
     for (const key of candidateKeys) {
         const value = result[key];
-        if (typeof value === 'string' && isImageLikePayload(value)) {
+        if (typeof value === 'string' && isPreviewImageLikePayload(value)) {
             return normalizeBase64Image(value);
         }
     }
@@ -275,44 +221,6 @@ function hashString(input) {
     return hash.toString(16);
 }
 
-function buildSummaryItems(outputs, maxItems = 3) {
-    if (!outputs || typeof outputs !== 'object') {
-        return [];
-    }
-
-    const items = [];
-    for (const [key, value] of Object.entries(outputs)) {
-        if (items.length >= maxItems) {
-            break;
-        }
-
-        if (typeof value === 'string' && isImageLikePayload(value)) {
-            continue;
-        }
-
-        let displayValue;
-        if (typeof value === 'number') {
-            displayValue = Number.isInteger(value) ? String(value) : value.toFixed(3);
-        } else if (typeof value === 'boolean') {
-            displayValue = value ? 'true' : 'false';
-        } else if (typeof value === 'string') {
-            displayValue = value.length > 42 ? `${value.slice(0, 42)}...` : value;
-        } else {
-            displayValue = stableSerialize(value);
-            if (displayValue.length > 42) {
-                displayValue = `${displayValue.slice(0, 42)}...`;
-            }
-        }
-
-        items.push({
-            key,
-            value: displayValue
-        });
-    }
-
-    return items;
-}
-
 function createPresenterState(state) {
     let statusText = '等待预览';
     if (state.status === 'idle' && state.errorMessage) {
@@ -332,7 +240,11 @@ function createPresenterState(state) {
         statusText,
         inputImageSrc: toImageSource(state.inputImageBase64),
         outputImageSrc: toImageSource(state.outputImageBase64),
-        summaryItems: buildSummaryItems(state.outputData),
+        summaryItems: buildPreviewSummaryItems(state.outputData, {
+            maxItems: 3,
+            stringMaxLength: 42,
+            skipImageLikeValues: true
+        }),
         overlayEnabled: state.canvasEligibility.eligible,
         canOpenImage: Boolean(state.outputImageBase64),
         isLoading: state.status === 'loading',

@@ -60,6 +60,7 @@ import { OperatorLibraryPanel } from './features/operator-library/operatorLibrar
 import inspectionController from './features/inspection/inspectionController.js';
 import { showToast, createModal, closeModal, createInput, createLabeledInput, createButton } from './shared/components/uiComponents.js';
 import { PropertyPanel } from './features/flow-editor/propertyPanel.js';
+import PropertySidebarController from './features/flow-editor/propertySidebarController.mjs';
 import { NodePreviewCoordinator, resolvePreviewInputImageBase64 } from './features/flow-editor/previewCoordinator.js';
 import NodePreviewOverlay from './features/flow-editor/nodePreviewOverlay.js';
 import projectManager, {
@@ -86,6 +87,7 @@ let operatorLibraryPanel = null;
 let flowCanvas = null;
 let flowEditorInteraction = null;
 let propertyPanel = null;
+let propertySidebarController = null;
 let nodePreviewCoordinator = null;
 let nodePreviewOverlay = null;
 let projectView = null;
@@ -202,6 +204,7 @@ async function initializeApp() {
     initializeWebMessage();
     initializeInspectionController();
     initializePropertyPanel();
+    initializePropertySidebarController();
     initializeTheme();
     initializeToolbar();
     startStatusBarUpdates();
@@ -391,6 +394,8 @@ async function switchView(view) {
         leftSidebar?.classList.add('hidden');
         rightSidebar?.classList.add('hidden');
     }
+
+    propertySidebarController?.sync(view);
 
     switch (view) {
         case 'flow':
@@ -844,6 +849,24 @@ function initializePropertyPanel() {
 
 /**
  * 加载检测历史数据
+ */
+function initializePropertySidebarController() {
+    const handle = document.querySelector('[data-sidebar-resizer="property"]');
+    if (!handle) {
+        console.warn('[App] Property sidebar resizer not found');
+        return;
+    }
+
+    propertySidebarController?.destroy?.();
+    propertySidebarController = new PropertySidebarController({
+        handle,
+        root: document.documentElement,
+        getCurrentView
+    });
+}
+
+/**
+ * 鍔犺浇妫€娴嬪巻鍙叉暟鎹?
  */
 async function loadInspectionHistory({
     pageIndex = 0,
