@@ -337,7 +337,7 @@ public class Sprint7_AiEvolutionTests
                     PackageKey = "wire-sequence-terminal",
                     PackageVersion = "1.1.0",
                     AssetVersionIds = new List<string> { "template:terminal-wire-sequence-template@1.1.0" },
-                    RequiredResources = new List<string> { "DeepLearning.ModelPath", "DeepLearning.LabelsPath" }
+                    RequiredResources = new List<string> { "DeepLearning.ModelPath" }
                 },
                 FlowJson = "{\"operators\":[{\"tempId\":\"op_4\",\"operatorType\":\"DeepLearning\",\"displayName\":\"线根检测\",\"parameters\":{\"Confidence\":\"0.5\"}}]}",
                 CreatedAt = DateTime.UtcNow.AddDays(-3)
@@ -352,9 +352,9 @@ public class Sprint7_AiEvolutionTests
             var templates = await service.GetTemplatesAsync();
             var upgraded = templates.Single(item => item.ScenarioKey == "wire-sequence-terminal");
 
-            upgraded.TemplateVersion.Should().Be("1.4.1");
+            upgraded.TemplateVersion.Should().Be("1.4.2");
             upgraded.ScenarioPackage.Should().NotBeNull();
-            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.4.1");
+            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
 
             using var document = JsonDocument.Parse(upgraded.FlowJson);
             var deepLearningParams = document.RootElement.GetProperty("operators").EnumerateArray()
@@ -413,20 +413,20 @@ public class Sprint7_AiEvolutionTests
             var template = (await service.GetTemplatesAsync())
                 .Single(item => item.Name == "端子线序检测");
 
-            template.TemplateVersion.Should().Be("1.4.1");
+            template.TemplateVersion.Should().Be("1.4.2");
             template.ScenarioPackage.Should().NotBeNull();
-            template.ScenarioPackage!.PackageVersion.Should().Be("1.4.1");
-            template.ScenarioPackage.RequiredResources.Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.4.1");
+            template.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
+            template.ScenarioPackage.RequiredResources.Should().Equal("DeepLearning.ModelPath");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.4.0");
             template.ScenarioPackage.AssetVersionIds.Should().Contain("model:wire-seq-yolo@1.2.0");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.4.1");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.4.0");
 
             using var document = JsonDocument.Parse(template.FlowJson);
             var root = document.RootElement;
             root.GetProperty("expectedSequence").EnumerateArray().Select(item => item.GetString())
                 .Should().Equal("Wire_Black", "Wire_Blue");
             root.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
-                .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+                .Should().Equal("DeepLearning.ModelPath");
             root.GetProperty("tunableParameters").EnumerateArray().Select(item => item.GetString())
                 .Should().Equal("BoxNms.ScoreThreshold", "BoxNms.IouThreshold");
 
@@ -499,7 +499,7 @@ public class Sprint7_AiEvolutionTests
                 .GetProperty("parameters");
             deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
             deepLearningParams.GetProperty("Confidence").GetString().Should().Be("0.05");
-            deepLearningParams.GetProperty("LabelsPath").GetString().Should().NotBeNullOrWhiteSpace();
+            deepLearningParams.GetProperty("LabelsPath").GetString().Should().BeEmpty();
 
             judgeParams.GetProperty("MinConfidence").GetString().Should().Be("0.0");
         }

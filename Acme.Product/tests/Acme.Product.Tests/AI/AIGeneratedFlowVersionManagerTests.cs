@@ -90,7 +90,7 @@ public class AIGeneratedFlowVersionManagerTests : IDisposable
             "template/terminal-wire-sequence.flow.template.json",
             metadata: new Dictionary<string, string>
             {
-                ["requiredResources"] = "DeepLearning.ModelPath,DeepLearning.LabelsPath"
+                ["requiredResources"] = "DeepLearning.ModelPath"
             });
 
         var modelV1 = await sut.SaveScenarioArtifactVersionAsync(
@@ -136,7 +136,7 @@ public class AIGeneratedFlowVersionManagerTests : IDisposable
         manifest.Constraints.ExpectedSequence.Should().Equal("Wire_Brown", "Wire_Black", "Wire_Blue");
         manifest.Constraints.ExpectedDetectionCount.Should().Be(3);
         manifest.Constraints.JudgeOperatorType.Should().Be("DetectionSequenceJudge");
-        manifest.Constraints.RequiredResources.Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+        manifest.Constraints.RequiredResources.Should().Equal("DeepLearning.ModelPath");
     }
 
     public void Dispose()

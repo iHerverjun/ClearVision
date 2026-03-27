@@ -21,7 +21,7 @@ public class WireSequenceScenarioPackageTests
         manifest.RootElement.GetProperty("Version").GetString().Should().Be("1.4.0");
         manifest.RootElement.GetProperty("Constraints").GetProperty("RequiredResources")
             .EnumerateArray().Select(item => item.GetString())
-            .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+            .Should().Equal("DeepLearning.ModelPath");
 
         var assetVersions = manifest.RootElement.GetProperty("Assets").EnumerateArray()
             .ToDictionary(
@@ -32,7 +32,7 @@ public class WireSequenceScenarioPackageTests
         assetVersions["Rule"].Should().Be("1.4.0");
 
         template.RootElement.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
-            .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+            .Should().Equal("DeepLearning.ModelPath");
         template.RootElement.GetProperty("tunableParameters").EnumerateArray().Select(item => item.GetString())
             .Should().Equal("BoxNms.ScoreThreshold", "BoxNms.IouThreshold");
 
@@ -108,7 +108,7 @@ public class WireSequenceScenarioPackageTests
         manifestSequence.Should().Equal(templateSequence);
         ruleSequence.Should().Equal(templateSequence);
         rule.RootElement.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
-            .Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
+            .Should().Equal("DeepLearning.ModelPath");
         rule.RootElement.GetProperty("thresholdOwner").GetString().Should().Be("BoxNms");
         rule.RootElement.GetProperty("minConfidence").GetDouble().Should().Be(0.0);
         rule.RootElement.GetProperty("sortBy").GetString().Should().Be("CenterY");
