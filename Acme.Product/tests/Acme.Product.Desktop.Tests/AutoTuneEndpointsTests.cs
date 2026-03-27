@@ -138,6 +138,109 @@ public class AutoTuneEndpointsTests
     }
 
     [Fact]
+    public async Task FlowNodePreview_ShouldPreserveCanvasSerializedImageAcquisitionParameters()
+    {
+        var acquisitionId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        OperatorFlow? capturedFlow = null;
+        var previewService = Substitute.For<IFlowNodePreviewService>();
+        var autoTuneService = Substitute.For<IAutoTuneService>();
+        using var acquisitionParametersJson = JsonDocument.Parse("""
+            [
+              { "name": "SourceType", "value": "File", "dataType": "enum" },
+              { "name": "FilePath", "value": "demo.png", "dataType": "file" }
+            ]
+            """);
+
+        var acquisitionOutputId = Guid.NewGuid();
+        var targetInputId = Guid.NewGuid();
+
+        previewService.PreviewWithMetricsAsync(
+                Arg.Any<OperatorFlow>(),
+                Arg.Any<Guid>(),
+                Arg.Any<byte[]?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                capturedFlow = callInfo.ArgAt<OperatorFlow>(0);
+                return Task.FromResult(new FlowNodePreviewWithMetricsResult
+                {
+                    Success = true,
+                    TargetNodeId = targetNodeId
+                });
+            });
+
+        await using var host = await AutoTuneEndpointTestHost.CreateAsync(previewService, autoTuneService);
+
+        using var response = await host.Client.PostAsJsonAsync("/api/autotune/flow-node/preview", new
+        {
+            flowId = Guid.NewGuid(),
+            targetNodeId = targetNodeId,
+            flowData = new
+            {
+                id = Guid.NewGuid(),
+                name = "CanvasPreviewFlow",
+                operators = new object[]
+                {
+                    new
+                    {
+                        id = acquisitionId,
+                        name = "Acquire",
+                        type = "ImageAcquisition",
+                        x = 0,
+                        y = 0,
+                        parameters = acquisitionParametersJson.RootElement.Clone(),
+                        outputPorts = new[]
+                        {
+                            new
+                            {
+                                id = acquisitionOutputId,
+                                name = "Image",
+                                dataType = "Image",
+                                isRequired = false
+                            }
+                        }
+                    },
+                    new
+                    {
+                        id = targetNodeId,
+                        name = "Resize",
+                        type = "ImageResize",
+                        x = 10,
+                        y = 10,
+                        inputPorts = new[]
+                        {
+                            new
+                            {
+                                id = targetInputId,
+                                name = "Image",
+                                dataType = "Image",
+                                isRequired = true
+                            }
+                        }
+                    }
+                },
+                connections = new object[]
+                {
+                    new
+                    {
+                        sourceOperatorId = acquisitionId,
+                        sourcePortId = acquisitionOutputId,
+                        targetOperatorId = targetNodeId,
+                        targetPortId = targetInputId
+                    }
+                }
+            }
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        capturedFlow.Should().NotBeNull();
+        var acquisition = capturedFlow!.Operators.Single(op => op.Id == acquisitionId);
+        acquisition.Parameters.Single(p => p.Name == "SourceType").GetValue().Should().Be("File");
+        acquisition.Parameters.Single(p => p.Name == "FilePath").GetValue().Should().Be("demo.png");
+    }
+
+    [Fact]
     public async Task ScenarioAutoTune_ShouldReturnFinalPreviewAndParameters()
     {
         var targetNodeId = Guid.NewGuid();

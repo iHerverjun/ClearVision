@@ -5,6 +5,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 using System.Reflection;
 using Xunit;
 
@@ -78,6 +79,41 @@ public class BoundingBoxFilterOperatorTests
 
         result.Should().BeAssignableTo<IEnumerable<DetectionResult>>();
         result.As<IEnumerable<DetectionResult>>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithImageAndNoKeptBoxes_ShouldStillRenderIncomingPreviewDetections()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FilterMode", "Score" },
+            { "MinScore", 0.99 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("wire", 0.9f, 10, 10, 20, 20)
+        });
+
+        using var sourceMat = new Mat(80, 80, MatType.CV_8UC3, Scalar.All(0));
+        var inputImage = new ImageWrapper(sourceMat.Clone());
+        var sourceBytes = inputImage.GetBytes();
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            { "Detections", detections },
+            { "Image", inputImage }
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(0);
+        result.OutputData["ReceivedCount"].Should().Be(1);
+        result.OutputData["ReceivedVisualizationCount"].Should().Be(1);
+        result.OutputData["Image"].Should().BeOfType<ImageWrapper>();
+
+        var previewImage = (ImageWrapper)result.OutputData["Image"];
+        previewImage.GetBytes().Should().NotEqual(sourceBytes);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

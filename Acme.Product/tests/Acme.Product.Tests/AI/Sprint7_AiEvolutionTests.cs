@@ -352,9 +352,9 @@ public class Sprint7_AiEvolutionTests
             var templates = await service.GetTemplatesAsync();
             var upgraded = templates.Single(item => item.ScenarioKey == "wire-sequence-terminal");
 
-            upgraded.TemplateVersion.Should().Be("1.4.0");
+            upgraded.TemplateVersion.Should().Be("1.4.1");
             upgraded.ScenarioPackage.Should().NotBeNull();
-            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
+            upgraded.ScenarioPackage!.PackageVersion.Should().Be("1.4.1");
 
             using var document = JsonDocument.Parse(upgraded.FlowJson);
             var deepLearningParams = document.RootElement.GetProperty("operators").EnumerateArray()
@@ -413,13 +413,13 @@ public class Sprint7_AiEvolutionTests
             var template = (await service.GetTemplatesAsync())
                 .Single(item => item.Name == "端子线序检测");
 
-            template.TemplateVersion.Should().Be("1.4.0");
+            template.TemplateVersion.Should().Be("1.4.1");
             template.ScenarioPackage.Should().NotBeNull();
-            template.ScenarioPackage!.PackageVersion.Should().Be("1.4.0");
+            template.ScenarioPackage!.PackageVersion.Should().Be("1.4.1");
             template.ScenarioPackage.RequiredResources.Should().Equal("DeepLearning.ModelPath", "DeepLearning.LabelsPath");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.4.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("template:terminal-wire-sequence-template@1.4.1");
             template.ScenarioPackage.AssetVersionIds.Should().Contain("model:wire-seq-yolo@1.2.0");
-            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.4.0");
+            template.ScenarioPackage.AssetVersionIds.Should().Contain("rule:wire-sequence-rule@1.4.1");
 
             using var document = JsonDocument.Parse(template.FlowJson);
             var root = document.RootElement;
@@ -454,6 +454,11 @@ public class Sprint7_AiEvolutionTests
                 item.GetProperty("sourcePortName").GetString() == "Detections" &&
                 item.GetProperty("targetTempId").GetString() == "op_4" &&
                 item.GetProperty("targetPortName").GetString() == "Detections");
+            connections.Should().Contain(item =>
+                item.GetProperty("sourceTempId").GetString() == "op_2" &&
+                item.GetProperty("sourcePortName").GetString() == "OriginalImage" &&
+                item.GetProperty("targetTempId").GetString() == "op_4" &&
+                item.GetProperty("targetPortName").GetString() == "SourceImage");
             connections.Should().Contain(item =>
                 item.GetProperty("sourceTempId").GetString() == "op_4" &&
                 item.GetProperty("sourcePortName").GetString() == "Diagnostics" &&

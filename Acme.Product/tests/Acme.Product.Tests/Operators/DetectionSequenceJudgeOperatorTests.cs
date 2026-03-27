@@ -126,6 +126,50 @@ public class DetectionSequenceJudgeOperatorTests
         diagnostics["MinConfidence"].Should().Be(0.9);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithTopYSort_ShouldRespectTopEdgeInsteadOfCenterY()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_Black,Wire_Blue",
+            sortBy: "TopY",
+            direction: "TopToBottom");
+        var detections = CreateDetections(
+            ("Wire_Black", 0.96f, 20f, 10f, 10f, 60f),
+            ("Wire_Blue", 0.94f, 22f, 18f, 10f, 8f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_Black", "Wire_Blue" });
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithTopYSort_ShouldUseCenterXAsTieBreaker()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_Blue,Wire_Black",
+            sortBy: "TopY",
+            direction: "TopToBottom");
+        var detections = CreateDetections(
+            ("Wire_Black", 0.96f, 0f, 10f, 100f, 12f),
+            ("Wire_Blue", 0.94f, 10f, 10f, 10f, 20f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_Blue", "Wire_Black" });
+        result.OutputData["IsMatch"].Should().Be(true);
+    }
+
     private static Operator CreateOperator(
         string expectedLabels,
         double minConfidence = 0.0,
@@ -152,5 +196,16 @@ public class DetectionSequenceJudgeOperatorTests
             10f,
             8f,
             8f));
+    }
+
+    private static IEnumerable<DetectionResult> CreateDetections(params (string Label, float Confidence, float X, float Y, float Width, float Height)[] items)
+    {
+        return items.Select(item => new DetectionResult(
+            item.Label,
+            item.Confidence,
+            item.X,
+            item.Y,
+            item.Width,
+            item.Height));
     }
 }

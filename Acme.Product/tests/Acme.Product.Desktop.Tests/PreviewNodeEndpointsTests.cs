@@ -471,6 +471,206 @@ public class PreviewNodeEndpointsTests
     }
 
     [Fact]
+    public async Task PreviewNode_ShouldHideOriginalImageFromOutputData_AndKeepPreviewBoundToImage()
+    {
+        var projectId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var previewImage = new byte[] { 1, 2, 3, 4 };
+        var originalImage = new byte[] { 9, 8, 7, 6 };
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = true,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 10,
+                    IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                    {
+                        [targetNodeId] = new()
+                        {
+                            ["Image"] = previewImage,
+                            ["OriginalImage"] = originalImage,
+                            ["Count"] = 1
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(targetNodeId, "Resize", OperatorType.ImageResize))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("outputImageBase64").GetString().Should().Be(Convert.ToBase64String(previewImage));
+
+        var outputData = document.RootElement.GetProperty("outputData");
+        outputData.TryGetProperty("OriginalImage", out _).Should().BeFalse();
+        outputData.TryGetProperty("Image", out _).Should().BeFalse();
+        outputData.GetProperty("Count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldIgnoreInvalidDownstreamConnectionsOutsideTargetSubgraph()
+    {
+        var projectId = Guid.NewGuid();
+        var acquisitionId = Guid.NewGuid();
+        var integerNodeId = Guid.NewGuid();
+        var invalidTargetNodeId = Guid.NewGuid();
+        var acquisitionOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var integerOutput = CreatePort("Count", PortDataType.Integer, PortDirection.Output);
+        var detectionInput = CreatePort("Detections", PortDataType.DetectionList, PortDirection.Input, isRequired: true);
+        var previewImage = new byte[] { 4, 3, 2, 1 };
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new FlowDebugExecutionResult
+                {
+                    IsSuccess = true,
+                    DebugSessionId = Guid.NewGuid(),
+                    ExecutionTimeMs = 8,
+                    IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                    {
+                        [acquisitionId] = new()
+                        {
+                            ["Image"] = previewImage
+                        }
+                    }
+                }));
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = acquisitionId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(
+                    acquisitionId,
+                    "Acquire",
+                    OperatorType.ImageAcquisition,
+                    outputPorts: [acquisitionOutput],
+                    parameters: new Dictionary<string, object> { ["SourceType"] = "File", ["FilePath"] = "demo.png" }),
+                CreateOperatorDto(
+                    integerNodeId,
+                    "Counter",
+                    OperatorType.VariableIncrement,
+                    outputPorts: [integerOutput]),
+                CreateOperatorDto(
+                    invalidTargetNodeId,
+                    "BoxFilter",
+                    OperatorType.BoxFilter,
+                    inputPorts: [detectionInput]),
+                CreateConnection(integerNodeId, integerOutput.Id, invalidTargetNodeId, detectionInput.Id))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
+        document.RootElement.GetProperty("outputImageBase64").GetString().Should().Be(Convert.ToBase64String(previewImage));
+    }
+
+    [Fact]
+    public async Task PreviewNode_ShouldRepairIncompatiblePreferredPortIdsWithinTargetSubgraph()
+    {
+        var projectId = Guid.NewGuid();
+        var acquisitionId = Guid.NewGuid();
+        var deepLearningId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+        var acquisitionImageOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var deepLearningImageInput = CreatePort("Image", PortDataType.Image, PortDirection.Input, isRequired: true);
+        var deepLearningImageOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var deepLearningObjectCountOutput = CreatePort("ObjectCount", PortDataType.Integer, PortDirection.Output);
+        var deepLearningObjectsOutput = CreatePort("Objects", PortDataType.DetectionList, PortDirection.Output);
+        var roiDetectionsInput = CreatePort("Detections", PortDataType.DetectionList, PortDirection.Input, isRequired: true);
+        var roiImageInput = CreatePort("Image", PortDataType.Image, PortDirection.Input);
+        var roiImageOutput = CreatePort("Image", PortDataType.Image, PortDirection.Output);
+        var roiDetectionsOutput = CreatePort("Detections", PortDataType.DetectionList, PortDirection.Output);
+        OperatorFlow? capturedFlow = null;
+
+        await using var host = await PreviewNodeTestHost.CreateAsync(flowExecution =>
+        {
+            flowExecution.ExecuteFlowDebugAsync(
+                    Arg.Any<OperatorFlow>(),
+                    Arg.Any<DebugOptions>(),
+                    Arg.Any<Dictionary<string, object>?>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(callInfo =>
+                {
+                    capturedFlow = callInfo.ArgAt<OperatorFlow>(0);
+                    return Task.FromResult(new FlowDebugExecutionResult
+                    {
+                        IsSuccess = true,
+                        DebugSessionId = Guid.NewGuid(),
+                        ExecutionTimeMs = 9,
+                        IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                        {
+                            [targetNodeId] = new()
+                            {
+                                ["Image"] = new byte[] { 1, 2, 3 },
+                                ["Count"] = 1
+                            }
+                        }
+                    });
+                });
+        });
+
+        using var response = await host.Client.PostAsJsonAsync("/api/flows/preview-node", new PreviewNodeRequest
+        {
+            ProjectId = projectId,
+            TargetNodeId = targetNodeId,
+            FlowData = CreateUpdateFlowRequest(
+                CreateOperatorDto(
+                    acquisitionId,
+                    "Acquire",
+                    OperatorType.ImageAcquisition,
+                    outputPorts: [acquisitionImageOutput],
+                    parameters: new Dictionary<string, object> { ["SourceType"] = "File", ["FilePath"] = "demo.png" }),
+                CreateOperatorDto(
+                    deepLearningId,
+                    "DeepLearning",
+                    OperatorType.DeepLearning,
+                    inputPorts: [deepLearningImageInput],
+                    outputPorts: [deepLearningImageOutput, deepLearningObjectCountOutput, deepLearningObjectsOutput]),
+                CreateOperatorDto(
+                    targetNodeId,
+                    "BoxFilter",
+                    OperatorType.BoxFilter,
+                    inputPorts: [roiDetectionsInput, roiImageInput],
+                    outputPorts: [roiDetectionsOutput, roiImageOutput]),
+                CreateConnection(acquisitionId, acquisitionImageOutput.Id, deepLearningId, deepLearningImageInput.Id),
+                CreateConnection(acquisitionId, acquisitionImageOutput.Id, targetNodeId, roiImageInput.Id),
+                CreateConnection(deepLearningId, deepLearningObjectCountOutput.Id, targetNodeId, roiDetectionsInput.Id))
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        capturedFlow.Should().NotBeNull();
+
+        var deepLearning = capturedFlow!.Operators.Single(op => op.Id == deepLearningId);
+        var repairedConnection = capturedFlow.Connections.Single(conn =>
+            conn.SourceOperatorId == deepLearningId &&
+            conn.TargetOperatorId == targetNodeId);
+        var repairedSourcePort = deepLearning.OutputPorts.Single(port => port.Id == repairedConnection.SourcePortId);
+
+        repairedSourcePort.Name.Should().Be("Objects");
+        repairedSourcePort.DataType.Should().Be(PortDataType.DetectionList);
+    }
+
+    [Fact]
     public async Task PreviewNode_ShouldPreferFailedOperatorInputSnapshotOverAcquisitionFallback()
     {
         var projectId = Guid.NewGuid();

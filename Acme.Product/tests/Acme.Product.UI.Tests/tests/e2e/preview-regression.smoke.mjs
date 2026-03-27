@@ -8,6 +8,7 @@ import {
   getCanvasPreviewEligibility,
   resolvePreviewInputImageBase64,
 } from '../../../../src/Acme.Product.Desktop/wwwroot/src/features/flow-editor/previewCoordinator.js';
+import ResultPanel from '../../../../src/Acme.Product.Desktop/wwwroot/src/features/results/resultPanel.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,6 +158,28 @@ function runSourceWiringChecks() {
   );
 }
 
+function runResultPanelChecks() {
+  const fakeResultPanel = {
+    isExportMetadataKey: ResultPanel.prototype.isExportMetadataKey,
+    isTechnicalCollectionKey: ResultPanel.prototype.isTechnicalCollectionKey,
+    isStructuredExportText: () => false,
+  };
+
+  assert.equal(
+    ResultPanel.prototype.shouldHideOutputDetailEntry.call(fakeResultPanel, 'OriginalImage', 'hidden', {}),
+    true
+  );
+  assert.equal(
+    ResultPanel.prototype.shouldHideOutputDetailEntry.call(fakeResultPanel, 'Image', 'hidden', {}),
+    true
+  );
+  assert.equal(
+    ResultPanel.prototype.shouldHideOutputDetailEntry.call(fakeResultPanel, 'Count', 1, {}),
+    false
+  );
+}
+
 await runPreviewCoordinatorChecks();
 runSourceWiringChecks();
+runResultPanelChecks();
 console.log('preview regression smoke passed');

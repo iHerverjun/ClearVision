@@ -109,6 +109,51 @@ public class FlowNodePreviewServiceTests
         }
     }
 
+    [Fact]
+    public async Task PreviewWithMetricsAsync_ShouldExcludeOriginalImageFromOutputs()
+    {
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var target = new Operator("Resize", OperatorType.ImageResize, 0, 0);
+        var flow = new OperatorFlow("preview-flow");
+        flow.AddOperator(target);
+        var previewImage = new byte[] { 1, 2, 3, 4 };
+        var originalImage = new byte[] { 9, 8, 7, 6 };
+
+        flowExecution.ExecuteFlowDebugAsync(
+                Arg.Any<OperatorFlow>(),
+                Arg.Any<DebugOptions>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowDebugExecutionResult
+            {
+                IsSuccess = true,
+                DebugSessionId = Guid.NewGuid(),
+                IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                {
+                    [target.Id] = new()
+                    {
+                        ["Image"] = previewImage,
+                        ["OriginalImage"] = originalImage,
+                        ["ObjectCount"] = 2
+                    }
+                }
+            }));
+
+        var service = new FlowNodePreviewService(
+            NullLogger<FlowNodePreviewService>.Instance,
+            flowExecution,
+            Substitute.For<IPreviewMetricsAnalyzer>());
+
+        var result = await service.PreviewWithMetricsAsync(flow, target.Id, null);
+
+        result.Success.Should().BeTrue();
+        result.PreviewImage.Should().Equal(previewImage);
+        result.PreviewImage.Should().NotEqual(originalImage);
+        result.Outputs.Should().ContainKey("ObjectCount");
+        result.Outputs.Should().NotContainKey("Image");
+        result.Outputs.Should().NotContainKey("OriginalImage");
+    }
+
     private static byte[] CreatePreviewImageBytes()
     {
         using var image = new Mat(4, 4, MatType.CV_8UC1, Scalar.All(255));

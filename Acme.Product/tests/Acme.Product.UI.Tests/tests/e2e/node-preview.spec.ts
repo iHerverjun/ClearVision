@@ -83,6 +83,7 @@ test.describe('Node Preview Overlay', () => {
           success: true,
           outputImageBase64: PNG_BASE64,
           outputData: {
+            OriginalImage: 'hidden-clean-image',
             Score: 0.98,
             Label: 'OK',
             Count: 1,
@@ -104,6 +105,9 @@ test.describe('Node Preview Overlay', () => {
     await expect(page.locator('.node-preview-card')).toBeVisible();
     await expect(page.locator('.node-preview-card img')).toBeVisible();
     await expect(page.locator('#preview-status-text')).toContainText('预览完成');
+    await expect(page.locator('#preview-output-list')).toContainText('Score');
+    await expect(page.locator('#preview-output-list')).not.toContainText('OriginalImage');
+    await expect(page.locator('#preview-output-list')).not.toContainText('hidden-clean-image');
   });
 
   test('keeps overlay hidden for non-image nodes while right panel still shows summary', async ({ page }) => {
