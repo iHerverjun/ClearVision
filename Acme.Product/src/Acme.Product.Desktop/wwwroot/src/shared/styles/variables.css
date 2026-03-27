@@ -79,7 +79,9 @@
     --header-height: 56px;           /* Reduced from 64px */
     --footer-height: 28px;           /* Reduced from 32px */
     --sidebar-width: 280px;          /* Reduced from 300px */
+    --right-sidebar-width: 280px;    /* Flow property sidebar width */
     --sidebar-collapsed: 56px;       /* Collapsed width */
+    --sidebar-resizer-hit-area: 8px; /* Dedicated property sidebar resizer */
     --content-gap: 16px;             /* Gap between elements */
     --card-padding: 20px;            /* Card internal padding */
     --float-offset: 12px;            /* Floating card offset */
