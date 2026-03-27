@@ -18,8 +18,10 @@ export async function bootAuthenticatedApp(page: Page): Promise<void> {
   await page.addInitScript(user => {
     sessionStorage.setItem('cv_auth_token', 'e2e-token');
     sessionStorage.setItem('cv_current_user', JSON.stringify(user));
+    localStorage.setItem('cv_welcome_shown', 'true');
   }, E2E_USER);
 
   await page.goto('/index.html');
   await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#loading-screen')).toBeHidden();
 }

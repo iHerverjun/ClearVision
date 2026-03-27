@@ -98,6 +98,63 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
+    public void ParseMetadataNames_ShouldSupportUltralyticsMetadataFormat()
+    {
+        var labels = InvokeParseMetadataNames("{0: 'Wire_Blue', 1: 'Wire_Black'}");
+
+        labels.Should().Equal("Wire_Blue", "Wire_Black");
+    }
+
+    [Fact]
+    public void BuildLabelContract_WithMatchingMetadataAndExternalLabels_ShouldPreferMetadataLabels()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "BuildLabelContract",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var sourceInfo = CreateLabelSourceInfo(
+            new[] { "Wire_Blue", "Wire_Black" },
+            "ExplicitFile",
+            "C:\\labels\\wire.txt",
+            isFileBacked: true);
+
+        var result = method!.Invoke(_operator, new object?[] { "model.onnx", new[] { "Wire_Blue", "Wire_Black" }, sourceInfo });
+
+        result.Should().NotBeNull();
+        GetPropertyValue<bool>(result!, "IsValid").Should().BeTrue();
+        GetPropertyValue<string[]>(result!, "ResolvedLabels").Should().Equal("Wire_Blue", "Wire_Black");
+        GetPropertyValue<string>(result!, "ResolvedLabelSource").Should().Be("ModelMetadata");
+        GetPropertyValue<string>(result!, "ValidationStatus").Should().Be("MetadataValidatedWithExternalLabels");
+    }
+
+    [Fact]
+    public void BuildLabelContract_WithMismatchedMetadataAndExternalLabels_ShouldFailFast()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "BuildLabelContract",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var sourceInfo = CreateLabelSourceInfo(
+            new[] { "Wire_Black", "Wire_Blue" },
+            "ExplicitFile",
+            "C:\\labels\\wire.txt",
+            isFileBacked: true);
+
+        var result = method!.Invoke(_operator, new object?[] { "model.onnx", new[] { "Wire_Blue", "Wire_Black" }, sourceInfo });
+
+        result.Should().NotBeNull();
+        GetPropertyValue<bool>(result!, "IsValid").Should().BeFalse();
+        GetPropertyValue<string>(result!, "ValidationStatus").Should().Be("Mismatch");
+        GetPropertyValue<string>(result!, "ValidationMessage").Should().Contain("Label contract mismatch");
+        GetPropertyValue<string>(result!, "ValidationMessage").Should().Contain("ModelMetadataLabels: Wire_Blue, Wire_Black");
+        GetPropertyValue<string>(result!, "ValidationMessage").Should().Contain("ExternalLabels: Wire_Black, Wire_Blue");
+    }
+
+    [Fact]
     public void BuildVisualizationDetections_ShouldApplyVisualOnlyNms_WhenInternalNmsIsDisabled()
     {
         var method = typeof(DeepLearningOperator).GetMethod(
@@ -383,6 +440,37 @@ public class DeepLearningOperatorTests
         type.GetProperty("Confidence")!.SetValue(instance, confidence);
         type.GetProperty("ClassId")!.SetValue(instance, classId);
         return instance!;
+    }
+
+    private static object CreateLabelSourceInfo(string[] labels, string source, string path, bool isFileBacked)
+    {
+        var type = typeof(DeepLearningOperator).GetNestedType("LabelSourceInfo", BindingFlags.NonPublic);
+        type.Should().NotBeNull();
+
+        var instance = Activator.CreateInstance(type!);
+        type!.GetProperty("Labels")!.SetValue(instance, labels);
+        type.GetProperty("Source")!.SetValue(instance, source);
+        type.GetProperty("Path")!.SetValue(instance, path);
+        type.GetProperty("IsFileBacked")!.SetValue(instance, isFileBacked);
+        return instance!;
+    }
+
+    private static T GetPropertyValue<T>(object instance, string propertyName)
+    {
+        var property = instance.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        property.Should().NotBeNull();
+        return (T)property!.GetValue(instance)!;
+    }
+
+    private static string[] InvokeParseMetadataNames(string rawNames)
+    {
+        var resolverType = typeof(DeepLearningOperator).Assembly.GetType("Acme.Product.Infrastructure.Services.DeepLearningLabelResolver");
+        resolverType.Should().NotBeNull();
+
+        var method = resolverType!.GetMethod("ParseMetadataNames", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        method.Should().NotBeNull();
+
+        return method!.Invoke(null, new object?[] { rawNames }).Should().BeAssignableTo<string[]>().Subject;
     }
 
     #endregion

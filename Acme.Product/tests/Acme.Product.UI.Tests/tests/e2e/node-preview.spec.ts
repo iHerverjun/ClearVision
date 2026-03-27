@@ -110,6 +110,62 @@ test.describe('Node Preview Overlay', () => {
     await expect(page.locator('#preview-output-list')).not.toContainText('hidden-clean-image');
   });
 
+  test('summarizes structured outputs in the property preview and overlay without raw JSON overflow', async ({ page }) => {
+    await page.route('**/api/flows/preview-node', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          outputImageBase64: PNG_BASE64,
+          outputData: {
+            Detections: {
+              detections: [
+                { label: 'Wire_Black', confidence: 0.77 },
+                { label: 'Wire_Red', confidence: 0.61 },
+              ],
+            },
+            SuppressedDetections: {
+              detections: [
+                { label: 'Wire_Blue', confidence: 0.25 },
+              ],
+            },
+            Meta: {
+              station: 'S1',
+              mode: 'Auto',
+            },
+            InternalNmsEnabled: false,
+            RawCandidateCount: 5,
+            VisualizationDetectionCount: 2,
+          },
+          executionTimeMs: 18,
+        }),
+      });
+    });
+
+    await addAndSelectNode(page, {
+      type: 'PreviewImageNode',
+      title: 'Structured Summary Node',
+      outputs: [{ name: 'Image', type: 'Image' }],
+    });
+
+    await expect(page.locator('#preview-output-list')).toContainText('Detections');
+    await expect(page.locator('#preview-output-list')).toContainText('2 detections');
+    await expect(page.locator('#preview-output-list')).toContainText('1 suppressed');
+    await expect(page.locator('#preview-output-list')).toContainText('2 fields');
+    await expect(page.locator('#preview-output-list')).not.toContainText('Wire_Black');
+    await expect(page.locator('#preview-output-list')).not.toContainText('{"detections"');
+
+    await expect(page.locator('.node-preview-summary')).toContainText('2 detections');
+    await expect(page.locator('.node-preview-summary')).toContainText('1 suppressed');
+    await expect(page.locator('#preview-diagnostics-panel .ac-card').first()).toBeVisible();
+
+    const outputListFits = await page.locator('#preview-output-list').evaluate(node =>
+      node.scrollWidth <= node.clientWidth + 1
+    );
+    expect(outputListFits).toBe(true);
+  });
+
   test('keeps overlay hidden for non-image nodes while right panel still shows summary', async ({ page }) => {
     await page.route('**/api/flows/preview-node', async route => {
       await route.fulfill({

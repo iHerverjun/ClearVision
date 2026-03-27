@@ -9,9 +9,10 @@ public class WireSequenceScenarioPackageTests
     public void ScenarioPackage_ShouldAlignTemplateManifestAndRule()
     {
         var repoRoot = ResolveRepoRoot();
-        var templatePath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "template", "terminal-wire-sequence.flow.template.json");
-        var manifestPath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "manifest.json");
-        var rulePath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "rules", "sequence-rule.v1.json");
+        var packageRoot = ResolveScenarioPackageRoot(repoRoot);
+        var templatePath = Path.Combine(packageRoot, "template", "terminal-wire-sequence.flow.template.json");
+        var manifestPath = Path.Combine(packageRoot, "manifest.json");
+        var rulePath = Path.Combine(packageRoot, "rules", "sequence-rule.v1.json");
 
         using var template = JsonDocument.Parse(File.ReadAllText(templatePath));
         using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
@@ -122,7 +123,8 @@ public class WireSequenceScenarioPackageTests
     public void ScenarioPackage_1_3_Release_ShouldPointToFrozenArtifacts()
     {
         var repoRoot = ResolveRepoRoot();
-        var releasePath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "versions", "1.3.0", "release.json");
+        var packageRoot = ResolveScenarioPackageRoot(repoRoot);
+        var releasePath = Path.Combine(packageRoot, "versions", "1.3.0", "release.json");
         using var release = JsonDocument.Parse(File.ReadAllText(releasePath));
 
         release.RootElement.GetProperty("ManifestPath").GetString().Should().Be("versions/1.3.0/manifest.json");
@@ -135,10 +137,10 @@ public class WireSequenceScenarioPackageTests
         artifacts.Single(item => item.GetProperty("ArtifactType").GetString() == "Label")
             .GetProperty("RelativePath").GetString().Should().Be("versions/1.3.0/labels/labels.txt");
 
-        var manifestPath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "versions", "1.3.0", "manifest.json");
-        var templatePath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "versions", "1.3.0", "template", "terminal-wire-sequence.flow.template.json");
-        var rulePath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "versions", "1.3.0", "rules", "sequence-rule.v1.json");
-        var labelsPath = Path.Combine(repoRoot, "线序检测", "scenario-package-wire-sequence", "versions", "1.3.0", "labels", "labels.txt");
+        var manifestPath = Path.Combine(packageRoot, "versions", "1.3.0", "manifest.json");
+        var templatePath = Path.Combine(packageRoot, "versions", "1.3.0", "template", "terminal-wire-sequence.flow.template.json");
+        var rulePath = Path.Combine(packageRoot, "versions", "1.3.0", "rules", "sequence-rule.v1.json");
+        var labelsPath = Path.Combine(packageRoot, "versions", "1.3.0", "labels", "labels.txt");
 
         File.Exists(manifestPath).Should().BeTrue();
         File.Exists(templatePath).Should().BeTrue();
@@ -167,7 +169,37 @@ public class WireSequenceScenarioPackageTests
         template.RootElement.GetProperty("expectedSequence").EnumerateArray().Select(item => item.GetString())
             .Should().Equal("Wire_Black", "Wire_Blue");
         rule.RootElement.GetProperty("direction").GetString().Should().Be("TopToBottom");
-        File.ReadAllLines(labelsPath).Should().Equal("Wire_Black", "Wire_Blue");
+        File.ReadAllLines(labelsPath).Should().Equal("Wire_Blue", "Wire_Black");
+    }
+
+    [Fact]
+    public void ScenarioPackage_Labels_ShouldTrackModelClassOrderSeparatelyFromExpectedSequence()
+    {
+        var repoRoot = ResolveRepoRoot();
+        var packageRoot = ResolveScenarioPackageRoot(repoRoot);
+        var templatePath = Path.Combine(packageRoot, "template", "terminal-wire-sequence.flow.template.json");
+        var labelsPath = Path.Combine(packageRoot, "labels", "labels.txt");
+
+        using var template = JsonDocument.Parse(File.ReadAllText(templatePath));
+
+        var expectedSequence = template.RootElement.GetProperty("expectedSequence")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .ToArray();
+        var modelLabelOrder = File.ReadAllLines(labelsPath);
+
+        expectedSequence.Should().Equal("Wire_Black", "Wire_Blue");
+        modelLabelOrder.Should().Equal("Wire_Blue", "Wire_Black");
+        modelLabelOrder.Should().NotEqual(expectedSequence);
+    }
+
+    private static string ResolveScenarioPackageRoot(string repoRoot)
+    {
+        var packageRoot = Directory.GetDirectories(repoRoot, "scenario-package-wire-sequence", SearchOption.AllDirectories)
+            .SingleOrDefault();
+
+        packageRoot.Should().NotBeNullOrWhiteSpace();
+        return packageRoot!;
     }
 
     private static string ResolveRepoRoot()
@@ -176,8 +208,9 @@ public class WireSequenceScenarioPackageTests
         while (current != null)
         {
             var acmeProduct = Path.Combine(current.FullName, "Acme.Product");
-            var wireSequence = Path.Combine(current.FullName, "线序检测");
-            if (Directory.Exists(acmeProduct) && Directory.Exists(wireSequence))
+            var hasScenarioPackage = Directory.Exists(acmeProduct) &&
+                Directory.GetDirectories(current.FullName, "scenario-package-wire-sequence", SearchOption.AllDirectories).Length > 0;
+            if (hasScenarioPackage)
             {
                 return current.FullName;
             }

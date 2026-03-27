@@ -6,7 +6,7 @@
   "scripts": {
     "test": "npx playwright test --reporter=list",
     "test:preview-smoke": "node tests/e2e/preview-regression.smoke.mjs",
-    "test:unit": "node --test tests/unit/roi-geometry.test.mjs"
+    "test:unit": "node --test tests/unit/roi-geometry.test.mjs tests/unit/property-sidebar-controller.test.mjs tests/unit/preview-output-formatter.test.mjs"
   },
   "keywords": [],
   "author": "",
