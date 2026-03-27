@@ -959,11 +959,6 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 {
                     AddResource("Model", "DeepLearning.ModelPath", "缺少可用模型文件路径");
                 }
-
-                if (IsMissingParameter(parameters, "LabelsPath", "LabelFile"))
-                {
-                    AddResource("Label", "DeepLearning.LabelsPath", "缺少标签文件路径");
-                }
             }
 
             if (op.OperatorType.Contains("Communication", StringComparison.OrdinalIgnoreCase))

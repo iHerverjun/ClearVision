@@ -398,23 +398,22 @@ public class FlowTemplateService : IFlowTemplateService
                 Description = "端子线序检测模板，先做全图 YOLO 检测，再按 ROI 区域过滤框，最后做 NMS 与顺序判定。",
                 Industry = WireSequenceIndustry,
                 Tags = ["线序", "YOLO", "端子", "ROI"],
-                TemplateVersion = "1.4.1",
+                TemplateVersion = "1.4.2",
                 ScenarioKey = WireSequenceScenarioKey,
                 ScenarioPackage = new ScenarioPackageBinding
                 {
                     PackageKey = WireSequenceScenarioKey,
-                    PackageVersion = "1.4.1",
+                    PackageVersion = "1.4.0",
                     AssetVersionIds =
                     [
-                        "template:terminal-wire-sequence-template@1.4.1",
+                        "template:terminal-wire-sequence-template@1.4.0",
                         "model:wire-seq-yolo@1.2.0",
-                        "rule:wire-sequence-rule@1.4.1",
+                        "rule:wire-sequence-rule@1.4.0",
                         "label:wire-label-set@1.1.0"
                     ],
                     RequiredResources =
                     [
-                        "DeepLearning.ModelPath",
-                        "DeepLearning.LabelsPath"
+                        "DeepLearning.ModelPath"
                     ]
                 },
                 FlowJson = JsonSerializer.Serialize(new
@@ -422,7 +421,7 @@ public class FlowTemplateService : IFlowTemplateService
                     explanation = "适用于线束装配工位的端子线序判定，先做全图 YOLO 检测，再用 ROI 区域过滤框，最后做 NMS 去重和顺序判定。",
                     expectedSequence = new[] { "Wire_Black", "Wire_Blue" },
                     expectedDetectionCount = 2,
-                    requiredResources = new[] { "DeepLearning.ModelPath", "DeepLearning.LabelsPath" },
+                    requiredResources = new[] { "DeepLearning.ModelPath" },
                     tunableParameters = new[]
                     {
                         "BoxNms.ScoreThreshold",
@@ -434,7 +433,7 @@ public class FlowTemplateService : IFlowTemplateService
                         Node("op_2", "DeepLearning", "线根检测", new Dictionary<string, string>
                         {
                             ["ModelPath"] = "",
-                            ["LabelsPath"] = ResolveWireSequenceLabelsPath(),
+                            ["LabelsPath"] = "",
                             ["Confidence"] = "0.05",
                             ["InputSize"] = "640",
                             ["TargetClasses"] = "Wire_Black,Wire_Blue",
@@ -487,7 +486,7 @@ public class FlowTemplateService : IFlowTemplateService
                     },
                     parametersNeedingReview = new Dictionary<string, List<string>>
                     {
-                        ["op_2"] = ["ModelPath", "LabelsPath"],
+                        ["op_2"] = ["ModelPath"],
                         ["op_3"] = ["RegionX", "RegionY", "RegionW", "RegionH"],
                         ["op_4"] = ["ScoreThreshold", "IouThreshold"],
                         ["op_5"] = ["ExpectedLabels", "ExpectedCount"]
@@ -496,11 +495,6 @@ public class FlowTemplateService : IFlowTemplateService
                 CreatedAt = DateTime.UtcNow
             }
         };
-    }
-
-    private static string ResolveWireSequenceLabelsPath()
-    {
-        return DeepLearningLabelResolver.TryResolveBundledLabelsPath("Wire_Black,Wire_Blue") ?? string.Empty;
     }
 
     private static object Node(
