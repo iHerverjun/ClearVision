@@ -92,6 +92,8 @@ public class BoundingBoxFilterOperator : OperatorBase
 
         var resultDetections = filtered.ToList();
         var outputList = new DetectionListValue(resultDetections);
+        var incomingVisualizationDetections = BuildVisualizationDetections(detections, minScore);
+        var keptVisualizationDetections = BuildVisualizationDetections(resultDetections, minScore);
 
         if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
         {
@@ -99,19 +101,7 @@ public class BoundingBoxFilterOperator : OperatorBase
             if (!src.Empty())
             {
                 var resultImage = src.Clone();
-                var visualizationDetections = BuildVisualizationDetections(resultDetections, minScore);
-                foreach (var d in visualizationDetections)
-                {
-                    var rect = new Rect((int)d.X, (int)d.Y, (int)d.Width, (int)d.Height);
-                    rect = ClampRect(rect, resultImage.Width, resultImage.Height);
-                    if (rect.Width <= 0 || rect.Height <= 0)
-                    {
-                        continue;
-                    }
-
-                    Cv2.Rectangle(resultImage, rect, new Scalar(0, 255, 0), 2);
-                    Cv2.PutText(resultImage, $"{d.Label} {d.Confidence:P0}", new Point(rect.X, Math.Max(12, rect.Y - 4)), HersheyFonts.HersheySimplex, 0.4, new Scalar(0, 255, 0), 1);
-                }
+                DrawDetections(resultImage, incomingVisualizationDetections, new Scalar(255, 120, 0), 1, "IN");
 
                 if (region.Width > 0 && region.Height > 0)
                 {
@@ -119,11 +109,15 @@ public class BoundingBoxFilterOperator : OperatorBase
                     Cv2.Rectangle(resultImage, drawRegion, new Scalar(255, 200, 0), 1);
                 }
 
+                DrawDetections(resultImage, keptVisualizationDetections, new Scalar(0, 255, 0), 2, "KEEP");
+
                 var output = CreateImageOutput(resultImage, new Dictionary<string, object>
                 {
                     { "Detections", outputList },
+                    { "ReceivedCount", detections.Count },
                     { "Count", outputList.Count },
-                    { "VisualizationCount", visualizationDetections.Count }
+                    { "ReceivedVisualizationCount", incomingVisualizationDetections.Count },
+                    { "VisualizationCount", keptVisualizationDetections.Count }
                 });
 
                 return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -133,6 +127,7 @@ public class BoundingBoxFilterOperator : OperatorBase
         return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Detections", outputList },
+            { "ReceivedCount", detections.Count },
             { "Count", outputList.Count }
         }));
     }
@@ -162,6 +157,28 @@ public class BoundingBoxFilterOperator : OperatorBase
         var w = Math.Clamp(rect.Width, 0, width - x);
         var h = Math.Clamp(rect.Height, 0, height - y);
         return new Rect(x, y, w, h);
+    }
+
+    private static void DrawDetections(
+        Mat image,
+        IEnumerable<DetectionResultValue> detections,
+        Scalar color,
+        int thickness,
+        string tag)
+    {
+        foreach (var detection in detections)
+        {
+            var rect = new Rect((int)Math.Round(detection.X), (int)Math.Round(detection.Y), (int)Math.Round(detection.Width), (int)Math.Round(detection.Height));
+            rect = ClampRect(rect, image.Width, image.Height);
+            if (rect.Width <= 0 || rect.Height <= 0)
+            {
+                continue;
+            }
+
+            Cv2.Rectangle(image, rect, color, thickness);
+            var text = $"{tag}:{detection.Label} {detection.Confidence:P0}";
+            Cv2.PutText(image, text, new Point(rect.X, Math.Max(12, rect.Y - 4)), HersheyFonts.HersheySimplex, 0.4, color, 1);
+        }
     }
 
     private static List<DetectionResultValue> BuildVisualizationDetections(

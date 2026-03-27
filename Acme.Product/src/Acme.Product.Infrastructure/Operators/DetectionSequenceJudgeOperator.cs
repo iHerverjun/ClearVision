@@ -54,6 +54,7 @@ namespace Acme.Product.Infrastructure.Operators;
     {
         "CenterX|Center X",
         "CenterY|Center Y",
+        "TopY|Top Y",
         "Confidence|Confidence",
         "Area|Area"
     })]
@@ -106,6 +107,7 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
     {
         "CenterX",
         "CenterY",
+        "TopY",
         "Confidence",
         "Area"
     };
@@ -280,6 +282,11 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
 
         var ordered = normalizedSortBy switch
         {
+            "TopY" => descending
+                ? detections.OrderByDescending(detection => detection.Y)
+                    .ThenBy(detection => detection.CenterX)
+                : detections.OrderBy(detection => detection.Y)
+                    .ThenBy(detection => detection.CenterX),
             "CenterY" => descending
                 ? detections.OrderByDescending(detection => detection.CenterY)
                     .ThenBy(detection => detection.CenterX)
@@ -312,7 +319,9 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         if (direction.Equals("TopToBottom", StringComparison.OrdinalIgnoreCase) ||
             direction.Equals("BottomToTop", StringComparison.OrdinalIgnoreCase))
         {
-            return "CenterY";
+            return sortBy.Equals("TopY", StringComparison.OrdinalIgnoreCase)
+                ? "TopY"
+                : "CenterY";
         }
 
         return sortBy;
