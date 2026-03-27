@@ -33,7 +33,8 @@ Current tuning contract:
   - `BoxNms.IouThreshold`
 - `DeepLearning.Confidence` remains a low confidence floor and is not the primary现场调参项.
 - `DetectionSequenceJudge.MinConfidence` stays fixed at `0.0`.
-- `ExpectedLabels`, `ExpectedCount`, `DeepLearning.ModelPath`, `DeepLearning.LabelsPath` require manual review and must not be auto-rewritten.
+- `ExpectedLabels`, `ExpectedCount`, and `DeepLearning.ModelPath` require manual review and must not be auto-rewritten.
+- `DeepLearning.LabelsPath` is now an optional compatibility field and should only be configured when the model does not expose usable metadata names.
 
 ## Asset Delivery
 

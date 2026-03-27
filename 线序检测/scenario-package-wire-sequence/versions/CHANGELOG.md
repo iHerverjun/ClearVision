@@ -4,6 +4,7 @@
 
 - Fixed the wire label-set ordering to match the exported ONNX class order: `Wire_Blue`, `Wire_Black`.
 - Clarified that `labels.txt` represents model `classId -> label` order, while `expectedSequence` remains the business inspection order `Wire_Black -> Wire_Blue`.
+- Reduced `DeepLearning.LabelsPath` from a required resource to an optional compatibility field; the default path now trusts ONNX metadata names first.
 
 ## 1.4.0 - 2026-03-24
 

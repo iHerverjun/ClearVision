@@ -16,7 +16,7 @@ Do not treat these as runtime tuning targets:
 - `ExpectedLabels`
 - `ExpectedCount`
 - model path
-- labels path
+- labels path when the model has no metadata names
 - `DetectionSequenceJudge.MinConfidence`
 
 ## Auto-tune Boundary
@@ -28,15 +28,16 @@ Do not treat these as runtime tuning targets:
   - `ExpectedLabels`
   - `ExpectedCount`
   - `ModelPath`
-  - `LabelsPath`
+  - `LabelsPath` unless the model lacks metadata names
 
 ## Missing Assets
 
 If preview or auto-tune returns `missing_model` / `missing_labels`:
 
-1. Check whether `DeepLearning.ModelPath` and `DeepLearning.LabelsPath` are both configured.
-2. If the repository intentionally keeps model binaries out of source control, confirm the external delivery path first.
-3. Do not continue tuning until the resource issue is resolved.
+1. Check whether `DeepLearning.ModelPath` is configured and points to the correct model.
+2. If the model does not expose metadata names, configure `DeepLearning.LabelsPath` or place a matching `labels.txt` next to the model.
+3. If the repository intentionally keeps model binaries out of source control, confirm the external delivery path first.
+4. Do not continue tuning until the resource issue is resolved.
 
 ## How to release a new package version?
 

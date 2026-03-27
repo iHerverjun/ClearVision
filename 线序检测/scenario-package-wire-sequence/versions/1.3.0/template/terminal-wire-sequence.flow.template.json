@@ -9,8 +9,7 @@
   ],
   "expectedDetectionCount": 2,
   "requiredResources": [
-    "DeepLearning.ModelPath",
-    "DeepLearning.LabelsPath"
+    "DeepLearning.ModelPath"
   ],
   "tunableParameters": [
     "BoxNms.ScoreThreshold",
@@ -156,8 +155,7 @@
       "Height"
     ],
     "op_4": [
-      "ModelPath",
-      "LabelsPath"
+      "ModelPath"
     ],
     "op_5": [
       "ScoreThreshold",

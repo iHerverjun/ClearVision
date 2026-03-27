@@ -9,8 +9,7 @@
   ],
   "expectedDetectionCount": 2,
   "requiredResources": [
-    "DeepLearning.ModelPath",
-    "DeepLearning.LabelsPath"
+    "DeepLearning.ModelPath"
   ],
   "tunableParameters": [
     "BoxNms.ScoreThreshold",
@@ -146,8 +145,7 @@
   ],
   "parametersNeedingReview": {
     "op_2": [
-      "ModelPath",
-      "LabelsPath"
+      "ModelPath"
     ],
     "op_3": [
       "RegionX",

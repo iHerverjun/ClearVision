@@ -19,7 +19,7 @@
         "expectedSequence": "Wire_Black,Wire_Blue",
         "expectedDetectionCount": "2",
         "judgeOperatorType": "DetectionSequenceJudge",
-        "requiredResources": "DeepLearning.ModelPath,DeepLearning.LabelsPath",
+        "requiredResources": "DeepLearning.ModelPath",
         "thresholdOwner": "BoxNms",
         "diagnosticOutputs": "BoxNms.Diagnostics,DetectionSequenceJudge.Diagnostics,DetectionSequenceJudge.Message"
       }
@@ -29,7 +29,7 @@
       "ArtifactName": "wire-seq-yolo",
       "ArtifactVersion": "1.2.0",
       "RelativePath": "models/wire-seq-yolo-v1.2.onnx",
-      "Required": true,
+      "Required": false,
       "ChecksumSha256": null,
       "Metadata": {
         "inputSize": "640x640",
@@ -93,8 +93,7 @@
     "ExpectedDetectionCount": 2,
     "JudgeOperatorType": "DetectionSequenceJudge",
     "RequiredResources": [
-      "DeepLearning.ModelPath",
-      "DeepLearning.LabelsPath"
+      "DeepLearning.ModelPath"
     ]
   }
 }
