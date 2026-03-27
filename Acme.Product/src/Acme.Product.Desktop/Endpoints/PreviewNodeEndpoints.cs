@@ -50,7 +50,7 @@ public static class PreviewNodeEndpoints
                 if (request.FlowData?.Operators?.Count > 0)
                 {
                     // 使用前端传来的流程数据
-                    flow = FlowEntityMapper.ToEntity(request.FlowData, "PreviewFlow");
+                    flow = FlowEntityMapper.ToPreviewEntity(request.FlowData, request.TargetNodeId, "PreviewFlow");
                 }
                 else
                 {
@@ -179,7 +179,7 @@ public static class PreviewNodeEndpoints
         var response = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in nodeOutput)
         {
-            if (string.Equals(key, "Image", StringComparison.OrdinalIgnoreCase))
+            if (IsInternalPreviewImageKey(key))
             {
                 continue;
             }
@@ -188,6 +188,12 @@ public static class PreviewNodeEndpoints
         }
 
         return response;
+    }
+
+    private static bool IsInternalPreviewImageKey(string key)
+    {
+        return string.Equals(key, "Image", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "OriginalImage", StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[]? TryGetOutputImageBytes(Dictionary<string, object> nodeOutput)

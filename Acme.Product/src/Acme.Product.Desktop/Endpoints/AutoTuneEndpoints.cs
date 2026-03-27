@@ -108,7 +108,7 @@ public static class AutoTuneEndpoints
                     request.FlowId, request.TargetNodeId);
 
                 // 转换流程数据
-                var flow = FlowEntityMapper.ToEntity(request.FlowData);
+                var flow = FlowEntityMapper.ToPreviewEntity(request.FlowData, request.TargetNodeId);
 
                 var result = await autoTuneService.AutoTuneInFlowAsync(
                     flow,
@@ -169,7 +169,7 @@ public static class AutoTuneEndpoints
                     "[AutoTuneAPI] 请求线序预览分析: FlowId={FlowId}, NodeId={NodeId}",
                     request.FlowId, request.TargetNodeId);
 
-                var flow = FlowEntityMapper.ToEntity(request.FlowData);
+                var flow = FlowEntityMapper.ToPreviewEntity(request.FlowData, request.TargetNodeId);
                 var inputImage = DecodeBase64Image(request.InputImageBase64);
                 var result = await previewService.PreviewWithMetricsAsync(
                     flow,

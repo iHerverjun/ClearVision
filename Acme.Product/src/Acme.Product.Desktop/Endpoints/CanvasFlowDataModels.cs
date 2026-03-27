@@ -15,7 +15,7 @@ public class CanvasOperatorDataDto
     public string Type { get; set; } = string.Empty;
     public double X { get; set; }
     public double Y { get; set; }
-    public Dictionary<string, object>? Parameters { get; set; }
+    public object? Parameters { get; set; }
     public List<CanvasPortDataDto>? InputPorts { get; set; }
     public List<CanvasPortDataDto>? OutputPorts { get; set; }
 }
