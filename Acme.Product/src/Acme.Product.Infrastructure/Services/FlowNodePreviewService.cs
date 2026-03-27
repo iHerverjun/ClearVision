@@ -355,7 +355,7 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
         var response = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in nodeOutput)
         {
-            if (string.Equals(key, "Image", StringComparison.OrdinalIgnoreCase))
+            if (IsInternalPreviewImageKey(key))
             {
                 continue;
             }
@@ -364,6 +364,12 @@ public sealed class FlowNodePreviewService : IFlowNodePreviewService
         }
 
         return response;
+    }
+
+    private static bool IsInternalPreviewImageKey(string key)
+    {
+        return string.Equals(key, "Image", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(key, "OriginalImage", StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[]? TryGetOutputImageBytes(Dictionary<string, object> nodeOutput)

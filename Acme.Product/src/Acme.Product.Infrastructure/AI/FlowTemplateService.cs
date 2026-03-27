@@ -398,17 +398,17 @@ public class FlowTemplateService : IFlowTemplateService
                 Description = "端子线序检测模板，先做全图 YOLO 检测，再按 ROI 区域过滤框，最后做 NMS 与顺序判定。",
                 Industry = WireSequenceIndustry,
                 Tags = ["线序", "YOLO", "端子", "ROI"],
-                TemplateVersion = "1.4.0",
+                TemplateVersion = "1.4.1",
                 ScenarioKey = WireSequenceScenarioKey,
                 ScenarioPackage = new ScenarioPackageBinding
                 {
                     PackageKey = WireSequenceScenarioKey,
-                    PackageVersion = "1.4.0",
+                    PackageVersion = "1.4.1",
                     AssetVersionIds =
                     [
-                        "template:terminal-wire-sequence-template@1.4.0",
+                        "template:terminal-wire-sequence-template@1.4.1",
                         "model:wire-seq-yolo@1.2.0",
-                        "rule:wire-sequence-rule@1.4.0",
+                        "rule:wire-sequence-rule@1.4.1",
                         "label:wire-label-set@1.1.0"
                     ],
                     RequiredResources =
