@@ -9,7 +9,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -37,6 +37,8 @@ public class DatabaseWriteOperator : OperatorBase
     private static readonly Regex ValidTableNameRegex = new(
         @"^[a-zA-Z_][a-zA-Z0-9_]*$",
         RegexOptions.Compiled);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _tableExistsCache = new(StringComparer.OrdinalIgnoreCase);
 
     public override OperatorType OperatorType => OperatorType.DatabaseWrite;
 
@@ -160,6 +162,9 @@ public class DatabaseWriteOperator : OperatorBase
 
     private void CreateTableIfNotExists(SqliteConnection connection, string tableName)
     {
+        if (_tableExistsCache.ContainsKey(tableName))
+            return;
+
         using var cmd = connection.CreateCommand();
         cmd.CommandText = $@"CREATE TABLE IF NOT EXISTS {tableName} (
             Id TEXT PRIMARY KEY,
@@ -167,6 +172,13 @@ public class DatabaseWriteOperator : OperatorBase
             Timestamp DATETIME NOT NULL
         )";
         cmd.ExecuteNonQuery();
+
+        // 开启 WAL 模式提升单点 IO 性能
+        using var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
+        pragmaCmd.ExecuteNonQuery();
+
+        _tableExistsCache.TryAdd(tableName, true);
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)

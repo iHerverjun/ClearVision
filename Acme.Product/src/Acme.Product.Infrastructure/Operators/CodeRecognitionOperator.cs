@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using ZXing;
 using ZXing.Common;
-
+
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -51,7 +51,7 @@ public class CodeRecognitionOperator : OperatorBase
         // 获取参数
         if (!OperatingSystem.IsWindowsVersionAtLeast(6, 1))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("CodeRecognitionOperator 浠呮敮鎸?Windows 6.1+ 骞冲彴"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("CodeRecognitionOperator 仅支持 Windows 6.1+ 平台"));
         }
 
         var codeType = GetStringParam(@operator, "CodeType", "All");
@@ -70,64 +70,73 @@ public class CodeRecognitionOperator : OperatorBase
         // 创建结果图像副本用于绘制标记
         var resultImage = src.Clone();
 
-        // 配置条码读取器 - 使用Bitmap作为类型参数
-        var reader = new BarcodeReader<System.Drawing.Bitmap>(bitmap =>
-        {
-            // 将Bitmap转换为LuminanceSource
-            var luminance = new byte[bitmap.Width * bitmap.Height];
-            for (int y = 0; y < bitmap.Height; y++)
-            {
-                for (int x = 0; x < bitmap.Width; x++)
-                {
-                    var pixel = bitmap.GetPixel(x, y);
-                    luminance[y * bitmap.Width + x] = (byte)((pixel.R + pixel.G + pixel.B) / 3);
-                }
-            }
-            return new RGBLuminanceSource(luminance, bitmap.Width, bitmap.Height, RGBLuminanceSource.BitmapFormat.Gray8);
-        })
-        {
-            AutoRotate = true,
-            Options = new DecodingOptions
-            {
-                TryHarder = true,
-                TryInverted = true,
-                PossibleFormats = GetBarcodeFormats(codeType)
-            }
-        };
+        int width = gray.Width;
+        int height = gray.Height;
+        int size = width * height;
 
-        // 将Mat转换为Bitmap
-        using var bitmap = MatToBitmap(gray);
-        
-        // 识别条码 - 使用多码识别
-        var results = reader.DecodeMultiple(bitmap);
         var codeResults = new List<Dictionary<string, object>>();
 
-        if (results != null && results.Length > 0)
+        // 消除 LOH 分配：直接使用内存池租借解码用的亮度缓冲
+        byte[] luminance = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+        try
         {
-            for (int i = 0; i < results.Length && i < maxResults; i++)
-            {
-                var result = results[i];
-                
-                // 绘制识别区域
-                var points = result.ResultPoints;
-                if (points != null && points.Length >= 2)
-                {
-                    for (int j = 0; j < points.Length; j++)
-                    {
-                        var pt1 = new Point((int)points[j].X, (int)points[j].Y);
-                        var pt2 = new Point((int)points[(j + 1) % points.Length].X, (int)points[(j + 1) % points.Length].Y);
-                        Cv2.Line(resultImage, pt1, pt2, new Scalar(0, 255, 0), 2);
-                    }
-                }
+            // 将单通道灰度数据安全拷贝到托管数组
+            System.Runtime.InteropServices.Marshal.Copy(gray.Data, luminance, 0, size);
 
-                codeResults.Add(new Dictionary<string, object>
+            // 直接构建 LuminanceSource
+            var source = new RGBLuminanceSource(luminance, width, height, RGBLuminanceSource.BitmapFormat.Gray8);
+            var binarizer = new ZXing.Common.GlobalHistogramBinarizer(source); // 或者 HybridBinarizer
+            var binaryBitmap = new BinaryBitmap(binarizer);
+
+            var hints = new Dictionary<DecodeHintType, object>
+            {
+                { DecodeHintType.TRY_HARDER, true },
+                { DecodeHintType.ALSO_INVERTED, true },
+                { DecodeHintType.POSSIBLE_FORMATS, GetBarcodeFormats(codeType) }
+            };
+
+            var reader = new ZXing.MultiFormatReader();
+            var multiReader = new ZXing.Multi.GenericMultipleBarcodeReader(reader);
+
+            // ZXing 的 Java 命名风格保留的小驼峰方法
+            var results = multiReader.decodeMultiple(binaryBitmap, hints);
+
+            if (results != null && results.Length > 0)
+            {
+                for (int i = 0; i < results.Length && i < maxResults; i++)
                 {
-                    { "Index", i },
-                    { "Text", result.Text },
-                    { "Format", result.BarcodeFormat.ToString() },
-                    { "Points", result.ResultPoints?.Select(p => new { X = p.X, Y = p.Y }).ToArray() ?? Array.Empty<object>() }
-                });
+                    var result = results[i];
+
+                    // 绘制识别区域
+                    var points = result.ResultPoints;
+                    if (points != null && points.Length >= 2)
+                    {
+                        for (int j = 0; j < points.Length; j++)
+                        {
+                            var pt1 = new Point((int)points[j].X, (int)points[j].Y);
+                            var pt2 = new Point((int)points[(j + 1) % points.Length].X, (int)points[(j + 1) % points.Length].Y);
+                            Cv2.Line(resultImage, pt1, pt2, new Scalar(0, 255, 0), 2);
+                        }
+                    }
+
+                    codeResults.Add(new Dictionary<string, object>
+                    {
+                        { "Index", i },
+                        { "Text", result.Text },
+                        { "Format", result.BarcodeFormat.ToString() },
+                        { "Points", result.ResultPoints?.Select(p => new { X = p.X, Y = p.Y }).ToArray() ?? Array.Empty<object>() }
+                    });
+                }
             }
+        }
+        catch (ZXing.ReaderException)
+        {
+            // ZXing 在未找到条码时可能抛出，正常流程忽略
+        }
+        finally
+        {
+            // 如果租借到了足够的 buffer 空间，则在解析结束后返还
+            System.Buffers.ArrayPool<byte>.Shared.Return(luminance);
         }
 
         var mainText = codeResults.FirstOrDefault()?.GetValueOrDefault("Text")?.ToString() ?? "";
@@ -146,10 +155,10 @@ public class CodeRecognitionOperator : OperatorBase
     }
 
     /// <summary>
-    /// Mat 转 Bitmap - 使用 PNG 编解码
+    /// Mat 转 Bitmap - 使用 PNG 编解码 (保留用于兼容早期接口)
     /// </summary>
     [SupportedOSPlatform("windows6.1")]
-    private System.Drawing.Bitmap MatToBitmap(Mat mat)
+    public System.Drawing.Bitmap MatToBitmap(Mat mat)
     {
         // 将Mat转换为字节数组
         var imageData = mat.ToBytes(".png");
@@ -176,10 +185,10 @@ public class CodeRecognitionOperator : OperatorBase
             "datamatrix" => new List<BarcodeFormat> { BarcodeFormat.DATA_MATRIX },
             "ean13" => new List<BarcodeFormat> { BarcodeFormat.EAN_13 },
             "code39" => new List<BarcodeFormat> { BarcodeFormat.CODE_39 },
-            _ => new List<BarcodeFormat> 
-            { 
-                BarcodeFormat.QR_CODE, 
-                BarcodeFormat.CODE_128, 
+            _ => new List<BarcodeFormat>
+            {
+                BarcodeFormat.QR_CODE,
+                BarcodeFormat.CODE_128,
                 BarcodeFormat.DATA_MATRIX,
                 BarcodeFormat.EAN_13,
                 BarcodeFormat.CODE_39,
