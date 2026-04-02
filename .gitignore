@@ -94,3 +94,11 @@ docs/temp.md
 
 *.binlog
 .dotnet-cli/
+
+# BenchmarkDotNet output (generated locally)
+BenchmarkDotNet.Artifacts/
+**/BenchmarkDotNet.Artifacts/
+
+# Local scratch / one-off scripts
+docs/templates/temp.md
+test_zxing.cs

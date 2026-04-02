@@ -194,8 +194,8 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
                             Width = Convert.ToDouble(defectDict.GetValueOrDefault("Width", 0)),
                             Height = Convert.ToDouble(defectDict.GetValueOrDefault("Height", 0))
                         },
-                        Area = Convert.ToDouble(defectDict.GetValueOrDefault("Area", 
-                            Convert.ToDouble(defectDict.GetValueOrDefault("Width", 0)) * 
+                        Area = Convert.ToDouble(defectDict.GetValueOrDefault("Area",
+                            Convert.ToDouble(defectDict.GetValueOrDefault("Width", 0)) *
                             Convert.ToDouble(defectDict.GetValueOrDefault("Height", 0)))),
                         RejectReason = defectDict.GetValueOrDefault("RejectReason", null)?.ToString()
                     };
@@ -564,18 +564,29 @@ public class PreviewMetricsAnalyzer : IPreviewMetricsAnalyzer
     /// </summary>
     private double CalculateMedian(Mat image)
     {
-        // 将图像数据展平并排序
-        var data = new byte[image.Total()];
-        Marshal.Copy(image.Data, data, 0, data.Length);
-        Array.Sort(data);
-        
-        if (data.Length % 2 == 0)
+        int length = (int)image.Total();
+        if (length == 0) return 0;
+
+        // 使用内存池优化巨量像素分配，缓解 LOH 和 GC 暂停
+        var pooledData = System.Buffers.ArrayPool<byte>.Shared.Rent(length);
+        try
         {
-            return (data[data.Length / 2 - 1] + data[data.Length / 2]) / 2.0;
+            Marshal.Copy(image.Data, pooledData, 0, length);
+            // 仅对有效长度进行排序，忽略内存池分配的末尾冗余数据
+            Array.Sort(pooledData, 0, length);
+
+            if (length % 2 == 0)
+            {
+                return (pooledData[length / 2 - 1] + pooledData[length / 2]) / 2.0;
+            }
+            else
+            {
+                return pooledData[length / 2];
+            }
         }
-        else
+        finally
         {
-            return data[data.Length / 2];
+            System.Buffers.ArrayPool<byte>.Shared.Return(pooledData);
         }
     }
 
