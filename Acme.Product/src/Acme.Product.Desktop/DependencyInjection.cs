@@ -55,6 +55,10 @@ public static class DependencyInjection
         services.AddSingleton<IImageCacheRepository, ImageCacheRepository>(); // 缓存可以是 Singleton
 
         // 【架构修复 v2】实时检测运行时 - 进程级单例
+        services.AddSingleton<InspectionResultBackgroundService>();
+        services.AddHostedService(sp => sp.GetRequiredService<InspectionResultBackgroundService>());
+        services.AddSingleton<IInspectionResultChannelWriter>(sp => sp.GetRequiredService<InspectionResultBackgroundService>());
+
         services.AddSingleton<IInspectionRuntimeCoordinator, InspectionRuntimeCoordinator>();
         services.AddSingleton<InspectionWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<InspectionWorker>());

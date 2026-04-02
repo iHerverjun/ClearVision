@@ -169,6 +169,12 @@ static class Program
                     dbContext.Database.EnsureCreated();
                 }
 
+                if (dbContext.Database.IsSqlite())
+                {
+                    dbContext.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+                    dbContext.Database.ExecuteSqlRaw("PRAGMA synchronous=NORMAL;");
+                }
+
                 EnsureInspectionResultAnalysisDataColumnAsync(dbContext).GetAwaiter().GetResult();
 
                 // 初始化相机管理器绑定

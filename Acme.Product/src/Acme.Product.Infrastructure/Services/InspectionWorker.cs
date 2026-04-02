@@ -327,7 +327,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             // 解析 Scoped 服务
             var flowExecution = scope.ServiceProvider.GetRequiredService<IFlowExecutionService>();
             var imageAcquisition = scope.ServiceProvider.GetRequiredService<IImageAcquisitionService>();
-            var resultRepository = scope.ServiceProvider.GetRequiredService<IInspectionResultRepository>();
+            var resultChannelWriter = scope.ServiceProvider.GetRequiredService<IInspectionResultChannelWriter>();
             var projectRepository = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<InspectionWorker>>();
 
@@ -357,7 +357,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     cameraId,
                     flowExecution,
                     imageAcquisition,
-                    resultRepository,
+                    resultChannelWriter,
                     ct);
 
                 logger.LogInformation("[InspectionWorker] 检测循环结束");
@@ -404,7 +404,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         string? cameraId,
         IFlowExecutionService flowExecution,
         IImageAcquisitionService imageAcquisition,
-        IInspectionResultRepository resultRepository,
+        IInspectionResultChannelWriter resultChannelWriter,
         CancellationToken ct)
     {
         const int minIntervalMs = 100;
@@ -426,8 +426,8 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                 var result = await ExecuteCycleAsync(
                     projectId, flow, cameraId, flowExecution, imageAcquisition, ct);
 
-                // 保存结果
-                await resultRepository.AddAsync(result);
+                // 保存结果(异步非阻塞)
+                resultChannelWriter.TryWrite(result);
 
                 // 【架构修复 v2】发布结果事件
                 await _eventBus.PublishAsync(new InspectionResultEvent
