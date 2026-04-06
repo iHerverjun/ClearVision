@@ -698,3 +698,10 @@ Threshold / Morphology
 ## 15. 一句话总结
 
 `FindContours` 擅长把前景区域翻译成"可分析的边界"，但它从来不独立承担分割质量和业务语义判断。
+
+---
+
+## 推荐下一步阅读
+
+- 主线建议：接着读 [07-SubpixelEdgeDetection-技术笔记](./07-SubpixelEdgeDetection-技术笔记.md)，把“能找到边”推进到“能更精确地找到边”。
+- 如果你正在做轮廓匹配：也可以直接补读 [14-ShapeMatching-技术笔记](./14-ShapeMatching-技术笔记.md)。

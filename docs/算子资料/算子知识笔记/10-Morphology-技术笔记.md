@@ -685,3 +685,10 @@ Threshold / AdaptiveThreshold
 - 有毛刺噪点 → **开**运算
 - 有孔洞断裂 → **闭**运算  
 - 核大小匹配目标，宁小勿大，迭代慎用！
+
+---
+
+## 推荐下一步阅读
+
+- 主线建议：接着读 [11-BlobDetection-技术笔记](./11-BlobDetection-技术笔记.md)，进入真正的“区域提取与筛选”阶段。
+- 如果你更关心边界形状：也可以接着看 [12-FindContours-技术笔记](./12-FindContours-技术笔记.md)。

@@ -637,3 +637,9 @@ GaussianBlur / CannyEdge / SubpixelEdgeDetection
 1. 不知道线在哪 → 用霍夫
 2. 知道线在哪但需要精确测量 → 用卡尺
 3. 需要线段长度 → 用概率霍夫（HoughLinesP）
+
+---
+
+## 推荐下一步阅读
+
+学完这篇后，建议读 [18-PerspectiveTransform-技术笔记](./18-PerspectiveTransform-技术笔记.md)，开始处理“测得准之前，先拍得正”这类几何问题。

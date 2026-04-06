@@ -659,3 +659,10 @@ Param2      Param2
 ## 14. 一句话总结
 
 `CircleMeasurement` 更像"圆目标的检测与粗测入口"，真正要稳量，常常还得靠更可控的边缘链路。
+
+---
+
+## 推荐下一步阅读
+
+- 主线建议：接着读 [17-LineMeasurement-技术笔记](./17-LineMeasurement-技术笔记.md)，把测量能力从圆扩展到线和边。
+- 如果你已经开始遇到拍摄角度问题：下一步也可以补 [18-PerspectiveTransform-技术笔记](./18-PerspectiveTransform-技术笔记.md)。
