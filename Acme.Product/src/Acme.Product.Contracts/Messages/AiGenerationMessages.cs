@@ -40,6 +40,16 @@ public record GenerateFlowRequestPayload
     /// </summary>
     public string? ExistingFlowJson { get; init; }
 
+    /// <summary>
+    /// 可选：显式指定本次生成模式。未传时后端自动推断。
+    /// </summary>
+    public string? Mode { get; init; }
+
+    /// <summary>
+    /// 可选：请求返回本次发送给模型的调试上下文。
+    /// </summary>
+    public bool? DebugPrompt { get; init; }
+
     public List<string>? Attachments { get; init; }
 }
 
@@ -65,6 +75,7 @@ public record GenerateFlowResponse
     public GenerateFlowTemplateRecommendation? RecommendedTemplate { get; init; }
     public List<GenerateFlowPendingParameter> PendingParameters { get; init; } = new();
     public List<GenerateFlowMissingResource> MissingResources { get; init; } = new();
+    public object? PromptTrace { get; init; }
 }
 
 /// <summary>

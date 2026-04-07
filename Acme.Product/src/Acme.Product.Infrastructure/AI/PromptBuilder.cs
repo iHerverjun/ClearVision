@@ -33,29 +33,28 @@ public class PromptBuilder
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine(GetRoleDefinition());
-        sb.AppendLine();
-        sb.AppendLine(GetDomainKnowledge());
-        sb.AppendLine();
-        sb.AppendLine(GetTemplateFirstStrategy());
-        sb.AppendLine();
-        sb.AppendLine(GetPhase1OperatorExtensions());
-        sb.AppendLine();
-        sb.AppendLine(GetPhase2OperatorExtensions());
-        sb.AppendLine();
-        sb.AppendLine(GetPhase3OperatorExtensions());
-        sb.AppendLine();
-        sb.AppendLine(GetOperatorCatalog(userDescription));
-        sb.AppendLine();
-        sb.AppendLine(GetConnectionRules());
-        sb.AppendLine();
-        sb.AppendLine(GetParameterInferenceGuide());
-        sb.AppendLine();
-        sb.AppendLine(GetOutputFormatSpec());
-        sb.AppendLine();
-        sb.AppendLine(GetFewShotExamples());
+        AppendSection(sb, "Section 1 - Role And Hard Rules", GetRoleDefinition());
+        AppendSection(sb, "Section 2 - Domain Workflow Patterns", GetDomainKnowledge());
+        AppendSection(sb, "Section 3 - Template First Strategy", GetTemplateFirstStrategy());
+        AppendSection(sb, "Section 4 - Phase 1 Operator Extensions", GetPhase1OperatorExtensions());
+        AppendSection(sb, "Section 5 - Phase 2 Operator Extensions", GetPhase2OperatorExtensions());
+        AppendSection(sb, "Section 6 - Phase 3 Operator Extensions", GetPhase3OperatorExtensions());
+        AppendSection(sb, "Section 7 - Operator Catalog", GetOperatorCatalog(userDescription));
+        AppendSection(sb, "Section 8 - Connection Rules", GetConnectionRules());
+        AppendSection(sb, "Section 9 - Parameter Inference Guide", GetParameterInferenceGuide());
+        AppendSection(sb, "Section 10 - Output Format", GetOutputFormatSpec());
+        AppendSection(sb, "Section 11 - Few Shot Examples", GetFewShotExamples());
 
         return sb.ToString();
+    }
+
+    private static void AppendSection(StringBuilder sb, string title, string content)
+    {
+        if (sb.Length > 0)
+            sb.AppendLine();
+
+        sb.AppendLine($"## {title}");
+        sb.AppendLine(content.Trim());
     }
 
     private string GetDomainKnowledge() => """

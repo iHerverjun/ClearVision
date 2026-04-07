@@ -35,6 +35,20 @@ public class PromptBuilderFewShotExamplesTests
         }
     }
 
+    [Fact(DisplayName = "PromptBuilder should expose normalized top-level section headers")]
+    public void BuildSystemPrompt_ShouldContainNormalizedSections()
+    {
+        var factory = new OperatorFactory();
+        var builder = new PromptBuilder(factory);
+
+        var prompt = builder.BuildSystemPrompt("scratch detection");
+
+        prompt.Should().Contain("## Section 1 - Role And Hard Rules");
+        prompt.Should().Contain("## Section 7 - Operator Catalog");
+        prompt.Should().Contain("## Section 10 - Output Format");
+        prompt.Should().Contain("## Section 11 - Few Shot Examples");
+    }
+
     private static List<string> ExtractFewShotJsonObjects(string prompt)
     {
         const string marker = "正确输出：";

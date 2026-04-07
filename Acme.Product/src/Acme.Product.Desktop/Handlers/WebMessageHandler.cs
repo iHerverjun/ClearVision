@@ -10,6 +10,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Events;
 using Acme.Product.Core.Interfaces;
+using Acme.Product.Core.DTOs;
 using Acme.Product.Core.Services;
 using Acme.Product.Desktop.Inspection;
 using Acme.Product.Desktop.Extensions;
@@ -867,6 +868,10 @@ public class WebMessageHandler : IDisposable
             var sessionId = payload.TryGetProperty("sessionId", out var sessionElement)
                 ? sessionElement.GetString()
                 : null;
+            var mode = GenerateFlowModeExtensions.ParseOrAuto(TryGetMessageString(payload, "mode"));
+            var debugPrompt = TryGetBoolean(payload, "debugPrompt") ??
+                              TryGetBoolean(doc.RootElement, "debugPrompt") ??
+                              false;
             var requestId = TryGetMessageString(payload, "requestId")
                 ?? TryGetMessageString(doc.RootElement, "requestId")
                 ?? Guid.NewGuid().ToString("N");
@@ -895,6 +900,8 @@ public class WebMessageHandler : IDisposable
                 sessionId,
                 existingFlowJson,
                 hint,
+                mode,
+                debugPrompt,
                 requestId,
                 attachments,
                 onMessage: (type, payload) =>
@@ -1168,6 +1175,27 @@ public class WebMessageHandler : IDisposable
             return property.GetString();
 
         return null;
+    }
+
+    private static bool? TryGetBoolean(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            var pascalCase = char.ToUpperInvariant(propertyName[0]) + propertyName[1..];
+            if (!element.TryGetProperty(pascalCase, out property))
+                return null;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(property.GetString(), out var parsed) => parsed,
+            _ => null
+        };
     }
 
     private void PublishRealtimeMessages(IInspectionEvent evt)

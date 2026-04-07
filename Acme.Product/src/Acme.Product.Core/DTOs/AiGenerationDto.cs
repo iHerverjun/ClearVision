@@ -14,8 +14,49 @@ public record AiFlowGenerationRequest(
     string? AdditionalContext = null,
     string? SessionId = null,
     string? ExistingFlowJson = null,
-    IReadOnlyList<string>? Attachments = null
+    IReadOnlyList<string>? Attachments = null,
+    GenerateFlowMode Mode = GenerateFlowMode.Auto,
+    bool DebugPrompt = false
 );
+
+public enum GenerateFlowMode
+{
+    Auto,
+    New,
+    Modify,
+    Explain,
+    ReviewPendingParameters
+}
+
+public static class GenerateFlowModeExtensions
+{
+    public static GenerateFlowMode ParseOrAuto(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return GenerateFlowMode.Auto;
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "new" => GenerateFlowMode.New,
+            "modify" => GenerateFlowMode.Modify,
+            "explain" => GenerateFlowMode.Explain,
+            "review_pending_parameters" => GenerateFlowMode.ReviewPendingParameters,
+            _ => GenerateFlowMode.Auto
+        };
+    }
+
+    public static string ToWireValue(this GenerateFlowMode mode)
+    {
+        return mode switch
+        {
+            GenerateFlowMode.New => "new",
+            GenerateFlowMode.Modify => "modify",
+            GenerateFlowMode.Explain => "explain",
+            GenerateFlowMode.ReviewPendingParameters => "review_pending_parameters",
+            _ => "auto"
+        };
+    }
+}
 
 /// <summary>
 /// AI 生成工作流的响应结果
@@ -116,6 +157,11 @@ public class AiFlowGenerationResult
     /// 最近一次尝试的结构化诊断（可用于前端闭环提示）
     /// </summary>
     public List<AiAttemptDiagnostic> LastAttemptDiagnostics { get; set; } = new();
+
+    /// <summary>
+    /// 可选：本次发送给模型的调试追踪信息（开发态或显式开启时返回）
+    /// </summary>
+    public object? PromptTrace { get; set; }
 }
 
 public class AiFailureSummary

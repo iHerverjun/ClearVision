@@ -35,6 +35,8 @@ public class GenerateFlowMessageHandler
         string? sessionId = null,
         string? existingFlowJson = null,
         string? hint = null,
+        GenerateFlowMode mode = GenerateFlowMode.Auto,
+        bool debugPrompt = false,
         string? requestId = null,
         IReadOnlyList<string>? attachments = null,
         Action<string, string>? onMessage = null,
@@ -54,7 +56,14 @@ public class GenerateFlowMessageHandler
                 }, _jsonOptions));
 
             var result = await _generationService.GenerateFlowAsync(
-                new AiFlowGenerationRequest(description, hint, sessionId, existingFlowJson, attachments),
+                new AiFlowGenerationRequest(
+                    Description: description,
+                    AdditionalContext: hint,
+                    SessionId: sessionId,
+                    ExistingFlowJson: existingFlowJson,
+                    Attachments: attachments,
+                    Mode: mode,
+                    DebugPrompt: debugPrompt),
                 progressMsg => onMessage?.Invoke(
                     "GenerateFlowProgress",
                     JsonSerializer.Serialize(new
@@ -92,7 +101,8 @@ public class GenerateFlowMessageHandler
                 DryRunResult = result.DryRunResult,
                 RecommendedTemplate = MapRecommendedTemplate(result.RecommendedTemplate),
                 PendingParameters = MapPendingParameters(result.PendingParameters),
-                MissingResources = MapMissingResources(result.MissingResources)
+                MissingResources = MapMissingResources(result.MissingResources),
+                PromptTrace = result.PromptTrace
             };
 
             return SerializeResponse(response, result.FailureType);
@@ -156,10 +166,10 @@ public class GenerateFlowMessageHandler
     private static string SerializeResponse(GenerateFlowResponse response, string? failureType)
     {
         return JsonSerializer.Serialize(new
-        {
-            response.Type,
-            response.Success,
-            response.Status,
+            {
+                response.Type,
+                response.Success,
+                response.Status,
             response.Flow,
             response.ErrorMessage,
             response.FailureSummary,
@@ -171,11 +181,12 @@ public class GenerateFlowMessageHandler
             response.RequestId,
             response.DetectedIntent,
             response.DryRunResult,
-            response.RecommendedTemplate,
-            response.PendingParameters,
-            response.MissingResources,
-            FailureType = failureType
-        }, _jsonOptions);
+                response.RecommendedTemplate,
+                response.PendingParameters,
+                response.MissingResources,
+                response.PromptTrace,
+                FailureType = failureType
+            }, _jsonOptions);
     }
 
     private static string NormalizeStatus(string? completionStatus, bool success)

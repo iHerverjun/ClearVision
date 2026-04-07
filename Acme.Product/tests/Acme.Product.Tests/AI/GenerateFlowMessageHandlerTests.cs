@@ -59,6 +59,40 @@ public class GenerateFlowMessageHandlerTests
         doc.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
     }
 
+    [Fact(DisplayName = "GenerateFlowMessageHandler should forward mode and debugPrompt")]
+    public async Task HandleAsync_ShouldForwardModeAndDebugPrompt()
+    {
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = true,
+                Flow = new { operators = Array.Empty<object>(), connections = Array.Empty<object>() }
+            }));
+
+        await handler.HandleAsync(
+            description: "review pending parameters",
+            mode: GenerateFlowMode.ReviewPendingParameters,
+            debugPrompt: true);
+
+        await generationService.Received(1).GenerateFlowAsync(
+            Arg.Is<AiFlowGenerationRequest>(request =>
+                request.Mode == GenerateFlowMode.ReviewPendingParameters &&
+                request.DebugPrompt),
+            Arg.Any<Action<string>>(),
+            Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+            Arg.Any<CancellationToken>(),
+            Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>());
+    }
+
     [Fact(DisplayName = "GenerateFlowMessageHandler should forward attachment report message")]
     public async Task HandleAsync_ShouldForwardAttachmentReport()
     {
@@ -277,6 +311,40 @@ public class GenerateFlowMessageHandlerTests
         root.GetProperty("missingResources").GetArrayLength().Should().Be(1);
         root.GetProperty("missingResources")[0].GetProperty("resourceKey").GetString()
             .Should().Be("DeepLearning.ModelPath");
+    }
+
+    [Fact(DisplayName = "GenerateFlowMessageHandler should serialize prompt trace when returned")]
+    public async Task HandleAsync_ShouldSerializePromptTrace()
+    {
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = true,
+                Flow = new { operators = Array.Empty<object>(), connections = Array.Empty<object>() },
+                PromptTrace = new
+                {
+                    mode = "modify",
+                    provider = "OpenAI Compatible",
+                    model = "gpt-5.4",
+                    systemPrompt = "system",
+                    userPrompt = "user"
+                }
+            }));
+
+        var resultJson = await handler.HandleAsync("trace");
+
+        using var doc = JsonDocument.Parse(resultJson);
+        doc.RootElement.GetProperty("promptTrace").GetProperty("mode").GetString().Should().Be("modify");
+        doc.RootElement.GetProperty("promptTrace").GetProperty("model").GetString().Should().Be("gpt-5.4");
     }
 
     [Fact(DisplayName = "GenerateFlowMessageHandler should serialize cancelled completion status")]

@@ -922,6 +922,62 @@
     margin-bottom: 10px;
 }
 
+.prompt-trace-card {
+    border-color: rgba(231, 76, 60, 0.12);
+    background: rgba(231, 76, 60, 0.05);
+}
+
+.ai-prompt-trace-details {
+    width: 100%;
+}
+
+.ai-prompt-trace-details summary {
+    cursor: pointer;
+    color: var(--paper-white);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+    list-style: none;
+}
+
+.ai-prompt-trace-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.ai-prompt-trace-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.ai-prompt-trace-block {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-md);
+    background: rgba(15, 36, 53, 0.4);
+    padding: 10px 12px;
+}
+
+.ai-prompt-trace-label {
+    color: #ffb7aa;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.ai-prompt-trace-pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--paper-dim);
+    font-family: "Cascadia Code", "Consolas", monospace;
+    max-height: 220px;
+    overflow: auto;
+}
+
 .generated-ops-list {
     display: flex;
     flex-direction: column;

@@ -44,7 +44,9 @@ public sealed class ConversationContext
 {
     public required string SessionId { get; init; }
     public required ConversationIntent Intent { get; init; }
+    public required GenerateFlowMode Mode { get; init; }
     public string? ExistingFlowJson { get; init; }
+    public string SessionSummary { get; init; } = string.Empty;
     public string PromptContext { get; init; } = string.Empty;
 }
 
@@ -72,9 +74,10 @@ internal sealed class ConversationStore
 public class ConversationalFlowService : IConversationalFlowService
 {
     private const int MaxHistory = 20;
-    private const int MaxPromptHistory = 6;
+    private const int MaxPromptHistory = 5;
     private const int MaxPersistedSessions = 200;
     private const int MaxLastMessagePreviewLength = 80;
+    private const int MaxPromptTurnLength = 220;
     private static readonly TimeSpan SessionRetention = TimeSpan.FromDays(30);
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -155,16 +158,24 @@ public class ConversationalFlowService : IConversationalFlowService
     {
         var session = GetOrCreateSession(request.SessionId);
         ConversationIntent intent;
+        GenerateFlowMode resolvedMode;
         string? existingFlowJson;
-        string promptContext;
+        string sessionSummary;
 
         lock (session)
         {
-            if (!string.IsNullOrWhiteSpace(request.ExistingFlowJson))
+            if (HasMeaningfulFlow(request.ExistingFlowJson))
             {
                 session.CurrentFlowJson = request.ExistingFlowJson;
                 if (IsCanvasFlowJson(request.ExistingFlowJson))
+                {
                     session.CurrentCanvasFlowJson = request.ExistingFlowJson;
+                }
+            }
+            else if (request.ExistingFlowJson != null)
+            {
+                session.CurrentFlowJson = null;
+                session.CurrentCanvasFlowJson = null;
             }
 
             session.History.Add(new ConversationTurn
@@ -177,13 +188,19 @@ public class ConversationalFlowService : IConversationalFlowService
             TrimHistory(session);
             session.UpdatedAtUtc = DateTime.UtcNow;
 
-            var hasExistingFlow = !string.IsNullOrWhiteSpace(session.CurrentFlowJson);
-            intent = DetectIntent(request.Description, hasExistingFlow);
-            if ((intent == ConversationIntent.Modify || intent == ConversationIntent.Explain) && !hasExistingFlow)
+            var hasExistingFlow = HasMeaningfulFlow(session.CurrentFlowJson);
+            resolvedMode = ResolveMode(request.Mode, request.Description, hasExistingFlow);
+            intent = ToIntent(resolvedMode, request.Description, hasExistingFlow);
+            if (request.Mode == GenerateFlowMode.Auto &&
+                (intent == ConversationIntent.Modify || intent == ConversationIntent.Explain) &&
+                !hasExistingFlow)
+            {
                 intent = ConversationIntent.New;
+                resolvedMode = GenerateFlowMode.New;
+            }
 
-            existingFlowJson = session.CurrentFlowJson;
-            promptContext = BuildPromptContext(session, intent);
+            existingFlowJson = HasMeaningfulFlow(session.CurrentFlowJson) ? session.CurrentFlowJson : null;
+            sessionSummary = BuildPromptSessionSummary(session);
         }
 
         PersistSessions();
@@ -191,9 +208,127 @@ public class ConversationalFlowService : IConversationalFlowService
         {
             SessionId = session.SessionId,
             Intent = intent,
+            Mode = resolvedMode,
             ExistingFlowJson = existingFlowJson,
-            PromptContext = promptContext
+            SessionSummary = sessionSummary,
+            PromptContext = BuildLegacyPromptContext(intent, sessionSummary)
         };
+    }
+
+    private static GenerateFlowMode ResolveMode(
+        GenerateFlowMode requestedMode,
+        string userDescription,
+        bool hasExistingFlow)
+    {
+        if (requestedMode != GenerateFlowMode.Auto)
+            return requestedMode;
+
+        return DetectIntentStatic(userDescription, hasExistingFlow) switch
+        {
+            ConversationIntent.Explain => GenerateFlowMode.Explain,
+            ConversationIntent.Modify => GenerateFlowMode.Modify,
+            _ => GenerateFlowMode.New
+        };
+    }
+
+    private static ConversationIntent ToIntent(
+        GenerateFlowMode mode,
+        string userDescription,
+        bool hasExistingFlow)
+    {
+        return mode switch
+        {
+            GenerateFlowMode.New => ConversationIntent.New,
+            GenerateFlowMode.Explain => ConversationIntent.Explain,
+            GenerateFlowMode.Modify => ConversationIntent.Modify,
+            GenerateFlowMode.ReviewPendingParameters => ConversationIntent.Modify,
+            _ => DetectIntentStatic(userDescription, hasExistingFlow)
+        };
+    }
+
+    private static ConversationIntent DetectIntentStatic(string userDescription, bool hasExistingFlow)
+    {
+        var content = userDescription ?? string.Empty;
+
+        if (!hasExistingFlow)
+            return ConversationIntent.New;
+
+        if (ContainsAny(content, _newKeywords))
+            return ConversationIntent.New;
+
+        if (ContainsAny(content, _explainKeywords))
+            return ConversationIntent.Explain;
+
+        if (ContainsAny(content, _modifyKeywords))
+            return ConversationIntent.Modify;
+
+        return ConversationIntent.Modify;
+    }
+
+    private static string BuildPromptSessionSummary(ConversationSession session)
+    {
+        var sb = new StringBuilder();
+        var historyToInject = session.History
+            .OrderByDescending(turn => turn.TimestampUtc)
+            .Take(MaxPromptHistory)
+            .OrderBy(turn => turn.TimestampUtc)
+            .ToList();
+
+        foreach (var turn in historyToInject)
+        {
+            var sanitizedMessage = SanitizePromptTurn(turn.Message);
+            if (string.IsNullOrWhiteSpace(sanitizedMessage))
+                continue;
+
+            sb.AppendLine($"- {turn.Role}: {sanitizedMessage}");
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    private static string SanitizePromptTurn(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return string.Empty;
+
+        var trimmed = message.Trim();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            return "[workflow json omitted]";
+
+        var fenceIndex = trimmed.IndexOf("```", StringComparison.Ordinal);
+        if (fenceIndex >= 0)
+        {
+            trimmed = trimmed[..fenceIndex].Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+                return "[structured content omitted]";
+        }
+
+        trimmed = trimmed
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal);
+
+        while (trimmed.Contains("  ", StringComparison.Ordinal))
+        {
+            trimmed = trimmed.Replace("  ", " ", StringComparison.Ordinal);
+        }
+
+        if (trimmed.Length > MaxPromptTurnLength)
+            trimmed = trimmed[..MaxPromptTurnLength] + "...";
+
+        return trimmed;
+    }
+
+    private static string BuildLegacyPromptContext(ConversationIntent intent, string sessionSummary)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"会话意图：{ToIntentLabel(intent)}");
+        if (!string.IsNullOrWhiteSpace(sessionSummary))
+        {
+            sb.AppendLine();
+            sb.AppendLine(sessionSummary);
+        }
+
+        return sb.ToString().Trim();
     }
 
     public void RecordAssistantResponse(
@@ -498,6 +633,31 @@ public class ConversationalFlowService : IConversationalFlowService
                 return false;
 
             return first.TryGetProperty("id", out _) || first.TryGetProperty("Id", out _);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasMeaningfulFlow(string? flowJson)
+    {
+        if (string.IsNullOrWhiteSpace(flowJson))
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(flowJson);
+            var root = doc.RootElement;
+            var operators = TryGetArray(root, "operators", "Operators");
+            if (operators == null)
+                return false;
+
+            if (operators.Value.GetArrayLength() > 0)
+                return true;
+
+            var connections = TryGetArray(root, "connections", "Connections");
+            return connections != null && connections.Value.GetArrayLength() > 0;
         }
         catch (JsonException)
         {

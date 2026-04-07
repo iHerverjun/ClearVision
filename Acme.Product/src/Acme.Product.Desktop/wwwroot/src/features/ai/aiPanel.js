@@ -280,6 +280,11 @@ export class AiPanel {
                                 <div class="ai-followup-empty">当前没有待确认参数，暂无需补录。</div>
                             </div>
                         </div>
+
+                        <div class="result-card prompt-trace-card" id="ai-result-prompt-trace-card" hidden>
+                            <div class="card-title">本次发送上下文</div>
+                            <div class="ai-prompt-trace" id="ai-result-prompt-trace"></div>
+                        </div>
                     </div>
                      
                     <div class="apply-container">
@@ -388,6 +393,7 @@ export class AiPanel {
         userMessage = '',
         attachmentPaths = [],
         existingFlowJson = null,
+        explicitMode = '',
         clearInput = true
     }) {
         const input = this.container.querySelector('#ai-input');
@@ -428,15 +434,21 @@ export class AiPanel {
         const thinkingId = `thinking-${Date.now()}`;
         this._addThinkingChain(thinkingId);
 
+        const currentFlowPayload = existingFlowJson ?? this._getCurrentFlowJson();
+        const resolvedMode = this._resolveGenerateRequestMode(explicitMode);
+        const flowPayload = resolvedMode === 'new' ? null : currentFlowPayload;
+
         try {
             this._updateProgress('正在连接 AI 助手...');
             webMessageBridge.sendMessage('GenerateFlow', {
                 payload: {
                     description: normalizedDescription,
                     hint: normalizedHint || null,
+                    mode: resolvedMode,
+                    debugPrompt: this._shouldRequestPromptTrace(),
                     requestId,
                     sessionId: this.sessionId,
-                    existingFlowJson: existingFlowJson ?? this._getCurrentFlowJson(),
+                    existingFlowJson: flowPayload,
                     attachments: attachmentPaths
                 }
             });
@@ -449,6 +461,28 @@ export class AiPanel {
             return true;
         } catch (err) {
             this._handleError(err.message);
+            return false;
+        }
+    }
+
+    _resolveGenerateRequestMode(explicitMode = '') {
+        const normalizedExplicitMode = String(explicitMode || '').trim().toLowerCase();
+        if (normalizedExplicitMode) {
+            return normalizedExplicitMode;
+        }
+
+        return 'auto';
+    }
+
+    _shouldRequestPromptTrace() {
+        try {
+            const search = new URLSearchParams(window.location.search || '');
+            if (search.get('debugPrompt') === '1') {
+                return true;
+            }
+
+            return localStorage.getItem('cv_ai_debug_prompt') === 'true';
+        } catch {
             return false;
         }
     }
@@ -466,6 +500,7 @@ export class AiPanel {
             hint,
             userMessage,
             attachmentPaths,
+            explicitMode: '',
             clearInput: true
         });
     }
@@ -505,6 +540,7 @@ export class AiPanel {
             userMessage: reviewRequest.userMessage,
             existingFlowJson: reviewRequest.existingFlowJson,
             attachmentPaths: [],
+            explicitMode: 'review_pending_parameters',
             clearInput: true
         });
     }
@@ -878,8 +914,81 @@ export class AiPanel {
         const templateNotice = matchedTemplateName ? ` 已按模板优先命中「${matchedTemplateName}」。` : '';
         this._renderFollowupChecklist(data, flow);
         this._renderParameterDraftEditor(data, flow);
+        this._renderPromptTrace(data?.promptTrace ?? data?.PromptTrace ?? null);
         if (appendChatMessage) {
             this._addMessage('ai', `工程方案已生成！包含 ${ops.length} 个算子、${connections.length} 条连线。${templateNotice}可继续输入修改指令。`);
+        }
+    }
+
+    _renderPromptTrace(trace) {
+        const card = this.container?.querySelector('#ai-result-prompt-trace-card');
+        const container = this.container?.querySelector('#ai-result-prompt-trace');
+        if (!card || !container) return;
+
+        if (!trace || typeof trace !== 'object') {
+            card.hidden = true;
+            container.innerHTML = '';
+            return;
+        }
+
+        const mode = String(trace.mode || '').trim();
+        const provider = String(trace.provider || '').trim();
+        const model = String(trace.model || '').trim();
+        const baseUrl = String(trace.baseUrl || '').trim();
+        const capabilities = this._formatPromptTraceJson(trace.capabilities || null);
+        const attachmentReport = this._formatPromptTraceJson(trace.attachmentReport || null);
+        const referenceFlow = String(trace.usedReferenceFlowSummary || '').trim();
+        const systemPrompt = String(trace.systemPrompt || '').trim();
+        const userPrompt = String(trace.userPrompt || '').trim();
+
+        card.hidden = false;
+        container.innerHTML = `
+            <details class="ai-prompt-trace-details">
+                <summary>展开查看本次实际发送给模型的上下文</summary>
+                <div class="ai-prompt-trace-grid">
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">Meta</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml([
+                            `mode=${mode || '--'}`,
+                            `provider=${provider || '--'}`,
+                            `model=${model || '--'}`,
+                            `baseUrl=${baseUrl || '--'}`
+                        ].join('\n'))}</pre>
+                    </div>
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">Capabilities</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml(capabilities)}</pre>
+                    </div>
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">Attachment Report</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml(attachmentReport)}</pre>
+                    </div>
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">Reference Flow Summary</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml(referenceFlow || '--')}</pre>
+                    </div>
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">System Prompt</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml(systemPrompt || '--')}</pre>
+                    </div>
+                    <div class="ai-prompt-trace-block">
+                        <div class="ai-prompt-trace-label">User Prompt</div>
+                        <pre class="ai-prompt-trace-pre">${this._escapeHtml(userPrompt || '--')}</pre>
+                    </div>
+                </div>
+            </details>
+        `;
+    }
+
+    _formatPromptTraceJson(value) {
+        if (value === null || value === undefined || value === '') {
+            return '--';
+        }
+
+        try {
+            return JSON.stringify(value, null, 2);
+        } catch {
+            return String(value);
         }
     }
 
@@ -2836,6 +2945,10 @@ export class AiPanel {
             e6.classList.add('is-empty');
             e6.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数，暂无需补录。</div>';
         }
+        const e7Card = this.container.querySelector('#ai-result-prompt-trace-card');
+        const e7 = this.container.querySelector('#ai-result-prompt-trace');
+        if (e7Card) e7Card.hidden = true;
+        if (e7) e7.innerHTML = '';
         const progress = this.container.querySelector('#ai-progress-container');
         if(progress) progress.innerHTML = '';
         this._streamBuffer = { thinking: '', content: '' };
