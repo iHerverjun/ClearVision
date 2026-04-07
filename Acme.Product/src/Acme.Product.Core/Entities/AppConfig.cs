@@ -1,223 +1,365 @@
-// AppConfig.cs
-// 应用程序全局配置
-// 作者：蘅芜君
+using System.Text.Json.Serialization;
 
 namespace Acme.Product.Core.Entities;
 
-/// <summary>
-/// 应用程序全局配置
-/// </summary>
 public class AppConfig
 {
-    /// <summary>
-    /// 常规设置
-    /// </summary>
     public GeneralConfig General { get; set; } = new();
 
-    /// <summary>
-    /// 硬件通讯设置
-    /// </summary>
     public CommunicationConfig Communication { get; set; } = new();
 
-    /// <summary>
-    /// 数据存储设置
-    /// </summary>
     public StorageConfig Storage { get; set; } = new();
 
-    /// <summary>
-    /// 运行时参数
-    /// </summary>
     public RuntimeConfig Runtime { get; set; } = new();
 
-    /// <summary>
-    /// 相机硬件绑定配置列表
-    /// </summary>
     public List<CameraBindingConfig> Cameras { get; set; } = new();
 
-    /// <summary>
-    /// 安全策略配置
-    /// </summary>
     public SecurityConfig Security { get; set; } = new();
 
-    /// <summary>
-    /// 当前活动相机的逻辑ID
-    /// </summary>
-    public string ActiveCameraId { get; set; } = "";
+    public string ActiveCameraId { get; set; } = string.Empty;
+
+    public void Normalize()
+    {
+        General ??= new GeneralConfig();
+        Communication ??= new CommunicationConfig();
+        Communication.Normalize();
+        Storage ??= new StorageConfig();
+        Runtime ??= new RuntimeConfig();
+        Cameras ??= new List<CameraBindingConfig>();
+        Security ??= new SecurityConfig();
+        ActiveCameraId ??= string.Empty;
+    }
 }
 
 public class GeneralConfig
 {
-    /// <summary>
-    /// 软件标题
-    /// </summary>
     public string SoftwareTitle { get; set; } = "ClearVision 检测站";
 
-    /// <summary>
-    /// 界面主题：dark / light
-    /// </summary>
     public string Theme { get; set; } = "dark";
 
-    /// <summary>
-    /// 是否开机自启动
-    /// </summary>
-    public bool AutoStart { get; set; } = false;
+    public bool AutoStart { get; set; }
 }
 
 public class CommunicationConfig
 {
-    /// <summary>
-    /// PLC IP 地址
-    /// </summary>
-    public string PlcIpAddress { get; set; } = "192.168.1.100";
+    public const string ProtocolS7 = "S7";
+    public const string ProtocolMc = "MC";
+    public const string ProtocolFins = "FINS";
 
-    /// <summary>
-    /// PLC 端口号
-    /// </summary>
-    public int PlcPort { get; set; } = 502;
+    private const int DefaultHeartbeatIntervalMs = 1000;
+    private const int DefaultS7Port = 102;
+    private const int DefaultMcPort = 5002;
+    private const int DefaultFinsPort = 9600;
 
-    /// <summary>
-    /// 通讯协议
-    /// </summary>
-    public string Protocol { get; set; } = "ModbusTcp";
+    public string ActiveProtocol { get; set; } = ProtocolS7;
 
-    /// <summary>
-    /// 心跳检测间隔（毫秒）
-    /// </summary>
-    public int HeartbeatIntervalMs { get; set; } = 1000;
+    public int HeartbeatIntervalMs { get; set; } = DefaultHeartbeatIntervalMs;
 
-    public List<PlcAddressMapping> Mappings { get; set; } = new();
+    public S7CommunicationProfile S7 { get; set; } = S7CommunicationProfile.CreateDefault();
+
+    public PlcCommunicationProfile Mc { get; set; } = PlcCommunicationProfile.CreateDefault(DefaultMcPort);
+
+    public PlcCommunicationProfile Fins { get; set; } = PlcCommunicationProfile.CreateDefault(DefaultFinsPort);
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? PlcIpAddress { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int PlcPort { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? Protocol { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? IpAddress { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Port { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public List<PlcAddressMapping>? Mappings { get; set; }
+
+    public void Normalize()
+    {
+        ActiveProtocol = NormalizeProtocolKey(ActiveProtocol, Protocol);
+        HeartbeatIntervalMs = HeartbeatIntervalMs > 0 ? HeartbeatIntervalMs : DefaultHeartbeatIntervalMs;
+
+        S7 ??= S7CommunicationProfile.CreateDefault();
+        S7.Normalize(DefaultS7Port);
+
+        Mc ??= PlcCommunicationProfile.CreateDefault(DefaultMcPort);
+        Mc.Normalize(DefaultMcPort);
+
+        Fins ??= PlcCommunicationProfile.CreateDefault(DefaultFinsPort);
+        Fins.Normalize(DefaultFinsPort);
+
+        ApplyLegacyMigration();
+    }
+
+    public PlcCommunicationProfile GetProfile(string? protocol = null)
+    {
+        return NormalizeProtocolKey(protocol, ActiveProtocol) switch
+        {
+            ProtocolMc => Mc,
+            ProtocolFins => Fins,
+            _ => S7
+        };
+    }
+
+    public List<PlcAddressMapping> GetMappings(string? protocol = null)
+    {
+        return GetProfile(protocol).Mappings;
+    }
+
+    public void SetMappings(string? protocol, IEnumerable<PlcAddressMapping>? mappings)
+    {
+        GetProfile(protocol).Mappings = NormalizeMappings(mappings);
+    }
+
+    public static string NormalizeProtocolKey(string? protocol, string? fallback = null)
+    {
+        var candidate = (protocol ?? fallback ?? ProtocolS7).Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return ProtocolS7;
+        }
+
+        return candidate.ToUpperInvariant() switch
+        {
+            "S7" or "SIEMENSS7" => ProtocolS7,
+            "MC" or "MITSUBISHIMC" => ProtocolMc,
+            "FINS" or "OMRONFINS" => ProtocolFins,
+            _ => ProtocolS7
+        };
+    }
+
+    public static int GetDefaultPort(string protocol)
+    {
+        return NormalizeProtocolKey(protocol) switch
+        {
+            ProtocolMc => DefaultMcPort,
+            ProtocolFins => DefaultFinsPort,
+            _ => DefaultS7Port
+        };
+    }
+
+    public static List<PlcAddressMapping> NormalizeMappings(IEnumerable<PlcAddressMapping>? mappings)
+    {
+        if (mappings == null)
+        {
+            return new List<PlcAddressMapping>();
+        }
+
+        var normalized = new List<PlcAddressMapping>();
+        foreach (var item in mappings)
+        {
+            if (item == null)
+            {
+                continue;
+            }
+
+            var mapping = item.Normalize();
+            if (mapping.IsEmpty())
+            {
+                continue;
+            }
+
+            normalized.Add(mapping);
+        }
+
+        return normalized;
+    }
+
+    private void ApplyLegacyMigration()
+    {
+        var legacyIpAddress = FirstNonEmpty(PlcIpAddress, IpAddress);
+        var legacyPort = PlcPort > 0 ? PlcPort : Port;
+        var hasLegacyMappings = Mappings is { Count: > 0 };
+        var hasLegacyConnection = !string.IsNullOrWhiteSpace(legacyIpAddress)
+            || legacyPort > 0
+            || !string.IsNullOrWhiteSpace(Protocol);
+
+        if (!hasLegacyConnection && !hasLegacyMappings)
+        {
+            ClearLegacyFields();
+            return;
+        }
+
+        var targetProtocol = NormalizeProtocolKey(Protocol, ActiveProtocol);
+        var targetProfile = GetProfile(targetProtocol);
+
+        if (!string.IsNullOrWhiteSpace(legacyIpAddress))
+        {
+            targetProfile.IpAddress = legacyIpAddress.Trim();
+        }
+
+        if (legacyPort > 0 && legacyPort <= 65535)
+        {
+            targetProfile.Port = legacyPort;
+        }
+
+        if (hasLegacyMappings)
+        {
+            targetProfile.Mappings = NormalizeMappings(Mappings);
+        }
+
+        targetProfile.Normalize(GetDefaultPort(targetProtocol));
+        ActiveProtocol = targetProtocol;
+        ClearLegacyFields();
+    }
+
+    private void ClearLegacyFields()
+    {
+        PlcIpAddress = null;
+        PlcPort = 0;
+        Protocol = null;
+        IpAddress = null;
+        Port = 0;
+        Mappings = null;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
+    }
 }
 
 public class PlcAddressMapping
 {
-    public string Name { get; set; } = "";
-    public string Address { get; set; } = "";
+    public string Name { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
     public string DataType { get; set; } = "Bool";
-    public string Description { get; set; } = "";
+    public string Description { get; set; } = string.Empty;
     public bool CanWrite { get; set; }
+
+    public PlcAddressMapping Normalize()
+    {
+        return new PlcAddressMapping
+        {
+            Name = (Name ?? string.Empty).Trim(),
+            Address = (Address ?? string.Empty).Trim(),
+            DataType = string.IsNullOrWhiteSpace(DataType) ? "Bool" : DataType.Trim(),
+            Description = (Description ?? string.Empty).Trim(),
+            CanWrite = CanWrite
+        };
+    }
+
+    public bool IsEmpty()
+    {
+        return string.IsNullOrWhiteSpace(Name)
+            && string.IsNullOrWhiteSpace(Address)
+            && string.IsNullOrWhiteSpace(Description);
+    }
+}
+
+public class PlcCommunicationProfile
+{
+    public string IpAddress { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public List<PlcAddressMapping> Mappings { get; set; } = new();
+
+    public virtual void Normalize(int defaultPort)
+    {
+        IpAddress = (IpAddress ?? string.Empty).Trim();
+        Port = Port == 0 ? defaultPort : Port;
+        Mappings = CommunicationConfig.NormalizeMappings(Mappings);
+    }
+
+    public static PlcCommunicationProfile CreateDefault(int defaultPort)
+    {
+        return new PlcCommunicationProfile
+        {
+            Port = defaultPort,
+            Mappings = new List<PlcAddressMapping>()
+        };
+    }
+}
+
+public sealed class S7CommunicationProfile : PlcCommunicationProfile
+{
+    public string CpuType { get; set; } = "S7-1200";
+    public int Rack { get; set; }
+    public int Slot { get; set; } = 1;
+
+    public override void Normalize(int defaultPort)
+    {
+        base.Normalize(defaultPort);
+        CpuType = string.IsNullOrWhiteSpace(CpuType) ? "S7-1200" : CpuType.Trim();
+    }
+
+    public static S7CommunicationProfile CreateDefault()
+    {
+        return new S7CommunicationProfile
+        {
+            Port = 102,
+            CpuType = "S7-1200",
+            Rack = 0,
+            Slot = 1,
+            Mappings = new List<PlcAddressMapping>()
+        };
+    }
 }
 
 public class StorageConfig
 {
-    /// <summary>
-    /// 图片保存根目录
-    /// </summary>
     public string ImageSavePath { get; set; } = @"D:\VisionData\Images";
 
-    /// <summary>
-    /// 保存策略
-    /// </summary>
     public string SavePolicy { get; set; } = "NgOnly";
 
-    /// <summary>
-    /// 图片保留天数
-    /// </summary>
     public int RetentionDays { get; set; } = 30;
 
-    /// <summary>
-    /// 磁盘空间下限阈值 (GB)
-    /// </summary>
     public int MinFreeSpaceGb { get; set; } = 5;
 }
 
 public class RuntimeConfig
 {
-    /// <summary>
-    /// 是否自动开始检测
-    /// </summary>
-    public bool AutoRun { get; set; } = false;
+    public bool AutoRun { get; set; }
 
-    /// <summary>
-    /// 连续 NG 停机阈值
-    /// </summary>
-    public int StopOnConsecutiveNg { get; set; } = 0;
+    public int StopOnConsecutiveNg { get; set; }
 
-    /// <summary>
-    /// 缺料等待超时（秒）
-    /// </summary>
     public int MissingMaterialTimeoutSeconds { get; set; } = 30;
 
-    /// <summary>
-    /// 是否启用运行保护规则
-    /// </summary>
     public bool ApplyProtectionRules { get; set; } = true;
 }
 
 public class SecurityConfig
 {
-    /// <summary>
-    /// 密码最小长度
-    /// </summary>
     public int PasswordMinLength { get; set; } = 6;
 
-    /// <summary>
-    /// 会话自动超时（分钟）
-    /// </summary>
     public int SessionTimeoutMinutes { get; set; } = 30;
 
-    /// <summary>
-    /// 登录失败锁定次数
-    /// </summary>
     public int LoginFailureLockoutCount { get; set; } = 5;
 }
 
-/// <summary>
-/// 相机硬件绑定配置 - 描述一台物理相机到逻辑名称的映射
-/// </summary>
 public class CameraBindingConfig
 {
-    /// <summary>
-    /// 逻辑ID（由系统生成的唯一标识）
-    /// </summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
 
-    /// <summary>
-    /// 显示名称
-    /// </summary>
     public string DisplayName { get; set; } = "Camera";
 
-    /// <summary>
-    /// 序列号
-    /// </summary>
-    public string SerialNumber { get; set; } = "";
+    public string SerialNumber { get; set; } = string.Empty;
 
-    /// <summary>
-    /// IP地址
-    /// </summary>
-    public string IpAddress { get; set; } = "";
+    public string IpAddress { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 制造商
-    /// </summary>
     public string Manufacturer { get; set; } = "Huaray";
 
-    /// <summary>
-    /// 型号名称
-    /// </summary>
-    public string ModelName { get; set; } = "";
+    public string ModelName { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 接口类型（USB3 / GigE）
-    /// </summary>
-    public string InterfaceType { get; set; } = "";
+    public string InterfaceType { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 是否启用此配置
-    /// </summary>
     public bool IsEnabled { get; set; } = true;
 
-    /// <summary>
-    /// 曝光时间（微秒）
-    /// </summary>
     public double ExposureTimeUs { get; set; } = 5000.0;
 
-    /// <summary>
-    /// 增益（dB）
-    /// </summary>
     public double GainDb { get; set; } = 1.0;
 
-    /// <summary>
-    /// 触发模式（Software / Continuous / Hardware）
-    /// </summary>
     public string TriggerMode { get; set; } = "Software";
 }

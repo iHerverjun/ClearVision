@@ -275,16 +275,16 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
         string fallbackProtocol = "")
     {
         var global = GetGlobalCommunicationConfig();
+        var normalizedProtocol = CommunicationConfig.NormalizeProtocolKey(fallbackProtocol, global.ActiveProtocol);
+        var globalProfile = global.GetProfile(normalizedProtocol);
         var normalizedIp = (ipAddress ?? string.Empty).Trim();
         var requestedPort = port ?? 0;
 
         var resolvedIp = string.IsNullOrWhiteSpace(normalizedIp)
-            ? (global.PlcIpAddress ?? string.Empty).Trim()
+            ? (globalProfile.IpAddress ?? string.Empty).Trim()
             : normalizedIp;
-        var resolvedPort = requestedPort > 0 ? requestedPort : global.PlcPort;
-        var resolvedProtocol = !string.IsNullOrWhiteSpace(global.Protocol)
-            ? global.Protocol
-            : fallbackProtocol;
+        var resolvedPort = requestedPort > 0 ? requestedPort : globalProfile.Port;
+        var resolvedProtocol = normalizedProtocol;
 
         if (string.IsNullOrWhiteSpace(resolvedIp))
         {
@@ -303,8 +303,8 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
                 OperatorType,
                 ipAddress,
                 port,
-                global.PlcIpAddress,
-                global.PlcPort);
+                globalProfile.IpAddress,
+                globalProfile.Port);
         }
 
         return (resolvedIp, resolvedPort, resolvedProtocol ?? string.Empty);
@@ -323,6 +323,7 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
             var nowUtc = DateTime.UtcNow;
             if (nowUtc - _cachedCommunicationConfigAtUtc < ConfigRefreshInterval)
             {
+                _cachedCommunicationConfig.Normalize();
                 return _cachedCommunicationConfig;
             }
 
@@ -333,9 +334,11 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
                 {
                     var json = File.ReadAllText(configPath);
                     var config = JsonSerializer.Deserialize<AppConfig>(json, _configJsonOptions);
+                    config?.Normalize();
                     if (config?.Communication != null)
                     {
                         _cachedCommunicationConfig = config.Communication;
+                        _cachedCommunicationConfig.Normalize();
                     }
                 }
             }
@@ -345,6 +348,7 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
             }
 
             _cachedCommunicationConfigAtUtc = nowUtc;
+            _cachedCommunicationConfig.Normalize();
             return _cachedCommunicationConfig;
         }
     }

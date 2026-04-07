@@ -45,10 +45,26 @@ function buildSettingsPayload() {
             autoStart: false,
         },
         communication: {
-            protocol: 'ModbusTcp',
-            ipAddress: '127.0.0.1',
-            port: 502,
-            mappings: [],
+            activeProtocol: 'S7',
+            heartbeatIntervalMs: 1000,
+            s7: {
+                ipAddress: '127.0.0.1',
+                port: 102,
+                cpuType: 'S7-1200',
+                rack: 0,
+                slot: 1,
+                mappings: [],
+            },
+            mc: {
+                ipAddress: '127.0.0.1',
+                port: 5002,
+                mappings: [],
+            },
+            fins: {
+                ipAddress: '127.0.0.1',
+                port: 9600,
+                mappings: [],
+            },
         },
         storage: {
             imageSavePath: 'C:/Regression/Images',
@@ -84,7 +100,12 @@ async function mockProjectApis(page: Page) {
     });
 }
 
-async function mockSettingsApis(page: Page) {
+async function mockSettingsApis(
+    page: Page,
+    options: {
+        onPlcSettingsPut?: (payload: any) => void;
+        onSettingsPut?: (payload: any) => void;
+    } = {}) {
     const settingsPayload = buildSettingsPayload();
 
     await page.route('**/api/settings', async route => {
@@ -96,6 +117,13 @@ async function mockSettingsApis(page: Page) {
                 body: JSON.stringify(settingsPayload),
             });
             return;
+        }
+
+        const payload = JSON.parse(route.request().postData() || '{}');
+        options.onSettingsPut?.(payload);
+        Object.assign(settingsPayload, payload);
+        if (payload.communication) {
+            settingsPayload.communication = payload.communication;
         }
 
         await route.fulfill({
@@ -162,6 +190,34 @@ async function mockSettingsApis(page: Page) {
                 'X-Image-Width': '1920',
                 'X-Image-Height': '1080',
             },
+        });
+    });
+
+    await page.route('**/api/plc/settings', async route => {
+        if (route.request().method() !== 'GET') {
+            const payload = JSON.parse(route.request().postData() || '{}');
+            options.onPlcSettingsPut?.(payload);
+            settingsPayload.communication = payload;
+
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    success: true,
+                    settings: settingsPayload.communication,
+                    errors: [],
+                }),
+            });
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                success: true,
+                settings: settingsPayload.communication,
+            }),
         });
     });
 }
@@ -404,6 +460,46 @@ test.describe('High Frequency Regression', () => {
         await expect(page.locator('.calib-wizard-title')).toContainText('手眼标定向导');
         await expect(page.locator('#calib-camera-placeholder-secondary')).toContainText('刷新预览');
         await page.locator('#calib-btn-close').click();
+    });
+
+    test('settings plc regression: save all preserves drafts across protocols', async ({ page }) => {
+        const plcSettingsPuts: any[] = [];
+        const settingsPuts: any[] = [];
+
+        await mockProjectApis(page);
+        await mockSettingsApis(page, {
+            onPlcSettingsPut: payload => plcSettingsPuts.push(payload),
+            onSettingsPut: payload => settingsPuts.push(payload),
+        });
+        await bootRegressionApp(page);
+
+        await page.locator('.nav-btn[data-view="settings"]').click();
+        await expect(page.locator('.settings-menu-item[data-tab="communication"]')).toBeVisible();
+        await page.locator('.settings-menu-item[data-tab="communication"]').click();
+
+        await page.locator('#cfg-plcIpAddress').fill('10.10.10.11');
+        await page.locator('#cfg-plcPort').fill('1102');
+
+        await page.locator('#cfg-protocol').selectOption('MC');
+        await expect(page.locator('#cfg-plcPort')).toHaveValue('5002');
+
+        await page.locator('#cfg-plcIpAddress').fill('10.10.10.22');
+        await page.locator('#cfg-plcPort').fill('5003');
+
+        await page.locator('#btn-save-settings').click();
+
+        await expect.poll(() => plcSettingsPuts.length).toBe(1);
+        expect(plcSettingsPuts[0].activeProtocol).toBe('MC');
+        expect(plcSettingsPuts[0].s7.ipAddress).toBe('10.10.10.11');
+        expect(plcSettingsPuts[0].s7.port).toBe(1102);
+        expect(plcSettingsPuts[0].mc.ipAddress).toBe('10.10.10.22');
+        expect(plcSettingsPuts[0].mc.port).toBe(5003);
+
+        await expect.poll(() => settingsPuts.length).toBe(1);
+        expect(settingsPuts[0].communication.s7.ipAddress).toBe('10.10.10.11');
+        expect(settingsPuts[0].communication.s7.port).toBe(1102);
+        expect(settingsPuts[0].communication.mc.ipAddress).toBe('10.10.10.22');
+        expect(settingsPuts[0].communication.mc.port).toBe(5003);
     });
 
     test('continuous run regression: protection guidance is visible before and after continuous run', async ({ page }) => {

@@ -1,7 +1,4 @@
-// PlcEndpoints.cs
-// PLC 接口端点
-// 提供 PLC 通信能力相关的桌面端接口映射
-// 作者：蘅芜君
+using System.Net.Sockets;
 using Acme.PlcComm;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Interfaces;
@@ -9,68 +6,126 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Acme.Product.Desktop.Endpoints;
 
-/// <summary>
-/// PLC settings APIs.
-/// </summary>
 public static class PlcEndpoints
 {
     public static IEndpointRouteBuilder MapPlcEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/plc/settings", async (IConfigurationService configService) =>
+        {
+            var config = await configService.LoadAsync();
+            config.Normalize();
+            return Results.Ok(new
+            {
+                success = true,
+                settings = config.Communication
+            });
+        });
+
+        app.MapPut("/api/plc/settings", async (
+            CommunicationConfig? settings,
+            IConfigurationService configService) =>
+        {
+            settings ??= new CommunicationConfig();
+            settings.Normalize();
+
+            var validation = PlcSettingsValidator.Validate(settings);
+            if (!validation.IsValid)
+            {
+                return Results.Ok(new
+                {
+                    success = false,
+                    message = "PLC 配置校验失败。",
+                    settings,
+                    errors = validation.Errors
+                });
+            }
+
+            var config = await configService.LoadAsync();
+            config.Normalize();
+            config.Communication = settings;
+            config.Normalize();
+            await configService.SaveAsync(config);
+
+            return Results.Ok(new
+            {
+                success = true,
+                message = "PLC 配置已保存。",
+                settings = config.Communication,
+                errors = Array.Empty<PlcValidationIssue>()
+            });
+        });
+
         app.MapPost("/api/plc/test-connection", async (
             PlcTestConnectionRequest request,
             ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            if (!TryNormalizeSupportedProtocol(request.Protocol, out var protocol))
+            {
+                return Results.BadRequest(new
+                {
+                    success = false,
+                    message = "仅支持 S7、MC、FINS 连接测试。"
+                });
+            }
+
             var ipAddress = (request.IpAddress ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(ipAddress))
             {
-                return Results.BadRequest(new { success = false, message = "IP address is required." });
+                return Results.BadRequest(new
+                {
+                    success = false,
+                    message = "PLC IP 地址不能为空。"
+                });
             }
 
             if (request.Port <= 0 || request.Port > 65535)
             {
-                return Results.BadRequest(new { success = false, message = "Port must be between 1 and 65535." });
+                return Results.BadRequest(new
+                {
+                    success = false,
+                    message = "端口必须在 1-65535 之间。"
+                });
+            }
+
+            if (!TryBuildPlcCommConnectionString(protocol, request, out var connectionString, out var badRequestMessage))
+            {
+                return Results.BadRequest(new
+                {
+                    success = false,
+                    message = badRequestMessage
+                });
             }
 
             try
             {
-                if (TryBuildPlcCommConnectionString(request, out var connectionString, out var protocol))
+                var logger = loggerFactory.CreateLogger("PlcConnectionTest");
+                using var client = PlcClientFactory.CreateFromConnectionString(connectionString, logger);
+                var connected = await client.ConnectAsync(ct);
+                var pingOk = connected && await client.PingAsync(ct);
+
+                if (connected)
                 {
-                    var logger = loggerFactory.CreateLogger("PlcConnectionTest");
-                    using var client = PlcClientFactory.CreateFromConnectionString(connectionString, logger);
-
-                    var connected = await client.ConnectAsync(ct);
-                    var pingOk = connected && await client.PingAsync(ct);
-
-                    if (connected)
-                    {
-                        await SafeDisconnectAsync(client);
-                    }
-
-                    return Results.Ok(new
-                    {
-                        success = pingOk,
-                        message = pingOk ? "Connection succeeded." : "Connection failed.",
-                        protocol
-                    });
+                    await SafeDisconnectAsync(client);
                 }
 
-                // For protocols not supported by Acme.PlcComm yet (e.g. ModbusTcp/CIP),
-                // provide a lightweight TCP reachability test.
-                var tcpReachable = await TestTcpReachabilityAsync(ipAddress, request.Port, ct);
                 return Results.Ok(new
                 {
-                    success = tcpReachable,
-                    message = tcpReachable ? "TCP endpoint reachable." : "TCP endpoint is unreachable.",
-                    protocol = request.Protocol
+                    success = pingOk,
+                    message = pingOk ? "连接成功。" : "连接失败。",
+                    protocol
+                });
+            }
+            catch (SocketException ex)
+            {
+                return Results.Ok(new
+                {
+                    success = false,
+                    message = $"连接失败: {ex.Message}",
+                    protocol
                 });
             }
             catch (Exception ex)
@@ -78,7 +133,8 @@ public static class PlcEndpoints
                 return Results.Ok(new
                 {
                     success = false,
-                    message = $"Connection test failed: {ex.Message}"
+                    message = $"连接测试失败: {ex.Message}",
+                    protocol
                 });
             }
         });
@@ -86,8 +142,8 @@ public static class PlcEndpoints
         app.MapGet("/api/plc/mappings", async (IConfigurationService configService) =>
         {
             var config = await configService.LoadAsync();
-            var mappings = config.Communication?.Mappings ?? new List<PlcAddressMapping>();
-            return Results.Ok(mappings);
+            config.Normalize();
+            return Results.Ok(config.Communication.GetMappings(config.Communication.ActiveProtocol));
         });
 
         app.MapPut("/api/plc/mappings", async (
@@ -95,46 +151,36 @@ public static class PlcEndpoints
             IConfigurationService configService) =>
         {
             var config = await configService.LoadAsync();
-            config.Communication ??= new CommunicationConfig();
-            config.Communication.Mappings = NormalizeMappings(mappings);
+            config.Normalize();
+            var communication = config.Communication ?? new CommunicationConfig();
+            communication.SetMappings(communication.ActiveProtocol, mappings);
+
+            var validation = PlcSettingsValidator.Validate(communication);
+            if (!validation.IsValid)
+            {
+                return Results.Ok(new
+                {
+                    success = false,
+                    message = "PLC 映射校验失败。",
+                    mappings = communication.GetMappings(communication.ActiveProtocol),
+                    errors = validation.Errors
+                });
+            }
+
+            config.Communication = communication;
+            config.Normalize();
             await configService.SaveAsync(config);
 
             return Results.Ok(new
             {
-                message = "PLC mappings saved.",
-                mappings = config.Communication.Mappings
+                success = true,
+                message = "PLC 映射已保存。",
+                mappings = config.Communication.GetMappings(config.Communication.ActiveProtocol),
+                errors = Array.Empty<PlcValidationIssue>()
             });
         });
 
         return app;
-    }
-
-    private static List<PlcAddressMapping> NormalizeMappings(List<PlcAddressMapping>? mappings)
-    {
-        if (mappings == null || mappings.Count == 0)
-        {
-            return new List<PlcAddressMapping>();
-        }
-
-        var normalized = new List<PlcAddressMapping>(mappings.Count);
-        foreach (var item in mappings)
-        {
-            if (item == null)
-            {
-                continue;
-            }
-
-            normalized.Add(new PlcAddressMapping
-            {
-                Name = (item.Name ?? string.Empty).Trim(),
-                Address = (item.Address ?? string.Empty).Trim(),
-                DataType = string.IsNullOrWhiteSpace(item.DataType) ? "Bool" : item.DataType.Trim(),
-                Description = (item.Description ?? string.Empty).Trim(),
-                CanWrite = item.CanWrite
-            });
-        }
-
-        return normalized;
     }
 
     private static async Task SafeDisconnectAsync(Acme.PlcComm.Interfaces.IPlcClient client)
@@ -150,56 +196,64 @@ public static class PlcEndpoints
     }
 
     private static bool TryBuildPlcCommConnectionString(
+        string protocol,
         PlcTestConnectionRequest request,
         out string connectionString,
-        out string protocol)
+        out string errorMessage)
     {
-        protocol = (request.Protocol ?? string.Empty).Trim();
         connectionString = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(protocol))
-        {
-            protocol = "S7";
-        }
-
+        errorMessage = string.Empty;
         var ipAddress = (request.IpAddress ?? string.Empty).Trim();
         var port = request.Port;
 
-        switch (protocol.ToUpperInvariant())
+        switch (protocol)
         {
-            case "S7":
-            case "SIEMENSS7":
+            case CommunicationConfig.ProtocolS7:
                 {
                     var cpu = string.IsNullOrWhiteSpace(request.CpuType) ? "S7-1200" : request.CpuType!.Trim();
                     var rack = request.Rack ?? 0;
                     var slot = request.Slot ?? 1;
-                    protocol = "S7";
+                    if (rack < 0 || rack > 15)
+                    {
+                        errorMessage = "Rack 必须在 0-15 之间。";
+                        return false;
+                    }
+
+                    if (slot < 0 || slot > 15)
+                    {
+                        errorMessage = "Slot 必须在 0-15 之间。";
+                        return false;
+                    }
+
                     connectionString = $"S7://{ipAddress}:{port}?cpu={Uri.EscapeDataString(cpu)}&rack={rack}&slot={slot}";
                     return true;
                 }
-            case "MC":
-            case "MITSUBISHIMC":
-                protocol = "MC";
+            case CommunicationConfig.ProtocolMc:
                 connectionString = $"MC://{ipAddress}:{port}";
                 return true;
-            case "FINS":
-            case "OMRONFINS":
-                protocol = "FINS";
+            case CommunicationConfig.ProtocolFins:
                 connectionString = $"FINS://{ipAddress}:{port}";
                 return true;
             default:
+                errorMessage = "仅支持 S7、MC、FINS 协议。";
                 return false;
         }
     }
 
-    private static async Task<bool> TestTcpReachabilityAsync(string host, int port, CancellationToken ct)
+    private static bool TryNormalizeSupportedProtocol(string? protocol, out string normalizedProtocol)
     {
-        using var tcpClient = new TcpClient();
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
+        var rawProtocol = (protocol ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(rawProtocol))
+        {
+            normalizedProtocol = CommunicationConfig.ProtocolS7;
+            return true;
+        }
 
-        await tcpClient.ConnectAsync(host, port, timeoutCts.Token);
-        return tcpClient.Connected;
+        normalizedProtocol = CommunicationConfig.NormalizeProtocolKey(rawProtocol);
+        return rawProtocol.Equals(normalizedProtocol, StringComparison.OrdinalIgnoreCase)
+            || (normalizedProtocol == CommunicationConfig.ProtocolS7 && rawProtocol.Equals("SiemensS7", StringComparison.OrdinalIgnoreCase))
+            || (normalizedProtocol == CommunicationConfig.ProtocolMc && rawProtocol.Equals("MitsubishiMc", StringComparison.OrdinalIgnoreCase))
+            || (normalizedProtocol == CommunicationConfig.ProtocolFins && rawProtocol.Equals("OmronFins", StringComparison.OrdinalIgnoreCase));
     }
 }
 

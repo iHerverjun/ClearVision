@@ -33,7 +33,9 @@ class SettingsView {
         this.diskUsage = null;
         this.plcMappings = [];
         this.plcConnectionStatus = 'unknown';
-        this.plcMappingsLoaded = false;
+        this.plcValidationErrors = [];
+        this.plcSettingsLoaded = false;
+        this.savedCommunicationConfig = null;
         this.activeTab = null;
 
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
@@ -57,10 +59,12 @@ class SettingsView {
         // 获取配置信息
         try {
             console.log('[SettingsView] Fetching main config...');
-            this.config = await httpClient.get('/settings');
+            this.config = this.normalizeAppConfig(await httpClient.get('/settings'));
             this.cameraBindings = this.config.cameras || [];
-            this.plcMappings = this.config?.communication?.mappings || [];
-            this.plcMappingsLoaded = false;
+            this.savedCommunicationConfig = this.cloneCommunicationConfig(this.config.communication);
+            this.syncPlcMappingsFromActiveProfile();
+            this.plcSettingsLoaded = false;
+            this.plcValidationErrors = [];
             
             if (this.isAdmin) {
                 console.log('[SettingsView] Fetching users list...');
@@ -69,9 +73,11 @@ class SettingsView {
         } catch (error) {
             console.error('[SettingsView] Failed to load data:', error);
             showToast('加载系统配置失败: ' + error.message, 'error');
-            this.config = this.getDefaultConfig();
-            this.plcMappings = this.config?.communication?.mappings || [];
-            this.plcMappingsLoaded = false;
+            this.config = this.normalizeAppConfig(this.getDefaultConfig());
+            this.savedCommunicationConfig = this.cloneCommunicationConfig(this.config.communication);
+            this.syncPlcMappingsFromActiveProfile();
+            this.plcSettingsLoaded = false;
+            this.plcValidationErrors = [];
         }
         
         await this.loadAiModels();
@@ -89,6 +95,118 @@ class SettingsView {
         this.activateTab('general');
         
         console.log('[SettingsView] === refresh() END ===');
+    }
+
+    cloneCommunicationConfig(config) {
+        return JSON.parse(JSON.stringify(config || this.getDefaultConfig().communication));
+    }
+
+    normalizePlcProtocol(protocol) {
+        const candidate = `${protocol || ''}`.trim().toUpperCase();
+        if (candidate === 'MC' || candidate === 'MITSUBISHIMC') return 'MC';
+        if (candidate === 'FINS' || candidate === 'OMRONFINS') return 'FINS';
+        return 'S7';
+    }
+
+    getPlcProfileKey(protocol = null) {
+        const normalized = this.normalizePlcProtocol(protocol || this.config?.communication?.activeProtocol);
+        if (normalized === 'MC') return 'mc';
+        if (normalized === 'FINS') return 'fins';
+        return 's7';
+    }
+
+    normalizePlcMappings(mappings) {
+        if (!Array.isArray(mappings)) return [];
+        return mappings
+            .map(item => ({
+                name: item?.name || '',
+                address: item?.address || '',
+                dataType: item?.dataType || 'Bool',
+                description: item?.description || '',
+                canWrite: !!item?.canWrite
+            }))
+            .filter(item => item.name || item.address || item.description);
+    }
+
+    normalizePlcProfile(profile, defaults, includeS7Fields = false) {
+        const normalized = {
+            ipAddress: `${profile?.ipAddress || ''}`.trim(),
+            port: Number.isFinite(Number.parseInt(`${profile?.port ?? ''}`, 10))
+                ? Number.parseInt(`${profile?.port ?? ''}`, 10)
+                : defaults.port,
+            mappings: this.normalizePlcMappings(profile?.mappings ?? defaults.mappings)
+        };
+
+        if (includeS7Fields) {
+            normalized.cpuType = `${profile?.cpuType || defaults.cpuType || 'S7-1200'}`.trim() || 'S7-1200';
+            normalized.rack = Number.isFinite(Number.parseInt(`${profile?.rack ?? ''}`, 10))
+                ? Number.parseInt(`${profile?.rack ?? ''}`, 10)
+                : defaults.rack;
+            normalized.slot = Number.isFinite(Number.parseInt(`${profile?.slot ?? ''}`, 10))
+                ? Number.parseInt(`${profile?.slot ?? ''}`, 10)
+                : defaults.slot;
+        }
+
+        return normalized;
+    }
+
+    normalizeCommunicationConfig(communication) {
+        const defaults = this.getDefaultConfig().communication;
+        const normalized = {
+            activeProtocol: this.normalizePlcProtocol(communication?.activeProtocol || communication?.protocol || defaults.activeProtocol),
+            heartbeatIntervalMs: Number.isFinite(Number.parseInt(`${communication?.heartbeatIntervalMs ?? ''}`, 10))
+                && Number.parseInt(`${communication?.heartbeatIntervalMs ?? ''}`, 10) > 0
+                ? Number.parseInt(`${communication?.heartbeatIntervalMs ?? ''}`, 10)
+                : defaults.heartbeatIntervalMs,
+            s7: this.normalizePlcProfile(communication?.s7 || {}, defaults.s7, true),
+            mc: this.normalizePlcProfile(communication?.mc || {}, defaults.mc),
+            fins: this.normalizePlcProfile(communication?.fins || {}, defaults.fins)
+        };
+
+        const hasProtocolProfiles = !!communication?.s7 || !!communication?.mc || !!communication?.fins;
+        const legacyIp = `${communication?.plcIpAddress || communication?.ipAddress || ''}`.trim();
+        const legacyPort = Number.parseInt(`${communication?.plcPort ?? communication?.port ?? ''}`, 10);
+        const legacyMappings = this.normalizePlcMappings(communication?.mappings);
+        if (!hasProtocolProfiles && (legacyIp || Number.isFinite(legacyPort) || legacyMappings.length > 0)) {
+            const profileKey = this.getPlcProfileKey(normalized.activeProtocol);
+            normalized[profileKey] = {
+                ...normalized[profileKey],
+                ipAddress: legacyIp || normalized[profileKey].ipAddress,
+                port: Number.isFinite(legacyPort) ? legacyPort : normalized[profileKey].port,
+                mappings: legacyMappings.length > 0 ? legacyMappings : normalized[profileKey].mappings
+            };
+        }
+
+        return normalized;
+    }
+
+    normalizeAppConfig(config) {
+        const defaults = this.getDefaultConfig();
+        return {
+            ...defaults,
+            ...config,
+            general: { ...defaults.general, ...(config?.general || {}) },
+            communication: this.normalizeCommunicationConfig(config?.communication),
+            storage: { ...defaults.storage, ...(config?.storage || {}) },
+            runtime: { ...defaults.runtime, ...(config?.runtime || {}) },
+            security: { ...defaults.security, ...(config?.security || {}) },
+            cameras: Array.isArray(config?.cameras) ? config.cameras : (defaults.cameras || []),
+            activeCameraId: config?.activeCameraId || defaults.activeCameraId || ''
+        };
+    }
+
+    getActivePlcProtocol() {
+        return this.normalizePlcProtocol(this.config?.communication?.activeProtocol);
+    }
+
+    getActivePlcProfile() {
+        const communication = this.normalizeCommunicationConfig(this.config?.communication);
+        return communication[this.getPlcProfileKey(communication.activeProtocol)];
+    }
+
+    syncPlcMappingsFromActiveProfile() {
+        const profile = this.getActivePlcProfile();
+        this.plcMappings = this.normalizePlcMappings(profile?.mappings);
     }
     
     async loadAiModels({ preserveEditingId = false } = {}) {
@@ -212,7 +330,7 @@ class SettingsView {
         } else if (tabName === 'cameras') {
             this.loadCameraBindings();
         } else if (tabName === 'communication') {
-            this.loadPlcMappings();
+            this.loadPlcSettings();
         }
     }
 
@@ -287,7 +405,12 @@ class SettingsView {
             }
 
             if (button.id === 'btn-save-plc') {
-                await this.savePlcMappings();
+                await this.savePlcSettings();
+                return;
+            }
+
+            if (button.id === 'btn-reset-plc') {
+                await this.loadPlcSettings({ force: true });
                 return;
             }
 
@@ -318,37 +441,112 @@ class SettingsView {
         communicationTab.addEventListener('change', (e) => {
             const target = e.target;
             if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+            if (target.id === 'cfg-protocol') {
+                const previousProtocol = this.getActivePlcProtocol();
+                this.syncActivePlcProfileDraft(previousProtocol);
+                this.config.communication.activeProtocol = this.normalizePlcProtocol(target.value);
+                this.syncPlcMappingsFromActiveProfile();
+                this.plcValidationErrors = [];
+                this.plcConnectionStatus = 'unknown';
+                this.refreshCommunicationPanel();
+                return;
+            }
             updateField(target);
         });
     }
 
-    async loadPlcMappings({ force = false } = {}) {
-        if (!force && this.plcMappingsLoaded) {
-            this.renderPlcMappingsTable();
+    refreshCommunicationPanel() {
+        const communicationPanel = this.container?.querySelector('[data-section="communication"]');
+        if (!communicationPanel) return;
+
+        this.syncPlcMappingsFromActiveProfile();
+        communicationPanel.innerHTML = this.renderCommunicationTab();
+        this.renderPlcMappingsTable();
+        this.updatePlcConnectionBadge(this.plcConnectionStatus);
+    }
+
+    syncActivePlcProfileDraft(protocol = this.getActivePlcProtocol()) {
+        if (!this.config?.communication) {
+            this.config = this.normalizeAppConfig(this.getDefaultConfig());
+        }
+
+        const communication = this.normalizeCommunicationConfig(this.config.communication);
+        const profileKey = this.getPlcProfileKey(protocol);
+        const defaults = this.getDefaultConfig().communication[profileKey];
+        const currentProfile = communication[profileKey] || defaults;
+        const nextProfile = {
+            ...currentProfile,
+            ipAddress: this.container?.querySelector('#cfg-plcIpAddress')?.value?.trim() ?? currentProfile.ipAddress ?? '',
+            port: Number.parseInt(this.container?.querySelector('#cfg-plcPort')?.value || `${currentProfile.port || defaults.port}`, 10),
+            mappings: this.collectPlcMappingsFromTable()
+        };
+
+        if (protocol === 'S7') {
+            nextProfile.cpuType = this.container?.querySelector('#cfg-s7-cpuType')?.value || currentProfile.cpuType || defaults.cpuType;
+            nextProfile.rack = Number.parseInt(this.container?.querySelector('#cfg-s7-rack')?.value || `${currentProfile.rack ?? defaults.rack}`, 10);
+            nextProfile.slot = Number.parseInt(this.container?.querySelector('#cfg-s7-slot')?.value || `${currentProfile.slot ?? defaults.slot}`, 10);
+        }
+
+        communication.activeProtocol = this.normalizePlcProtocol(protocol);
+        communication[profileKey] = this.normalizePlcProfile(nextProfile, defaults, protocol === 'S7');
+        this.config.communication = communication;
+        this.syncPlcMappingsFromActiveProfile();
+    }
+
+    buildPlcSettingsPayload({ persistAllProfiles = false } = {}) {
+        this.syncActivePlcProfileDraft(this.getActivePlcProtocol());
+        const workingCommunication = this.cloneCommunicationConfig(this.config.communication);
+        if (persistAllProfiles) {
+            return workingCommunication;
+        }
+
+        const savedCommunication = this.cloneCommunicationConfig(this.savedCommunicationConfig || this.getDefaultConfig().communication);
+        const activeProtocol = this.getActivePlcProtocol();
+        const profileKey = this.getPlcProfileKey(activeProtocol);
+        savedCommunication.activeProtocol = activeProtocol;
+        savedCommunication.heartbeatIntervalMs = workingCommunication.heartbeatIntervalMs;
+        savedCommunication[profileKey] = this.cloneCommunicationConfig(workingCommunication[profileKey]);
+        return savedCommunication;
+    }
+
+    async loadPlcSettings({ force = false } = {}) {
+        if (!force && this.plcSettingsLoaded) {
+            this.refreshCommunicationPanel();
             return;
         }
 
         try {
-            const mappings = await httpClient.get('/plc/mappings');
-            this.plcMappings = Array.isArray(mappings)
-                ? mappings.map(item => ({
-                    name: item?.name || '',
-                    address: item?.address || '',
-                    dataType: item?.dataType || 'Bool',
-                    description: item?.description || '',
-                    canWrite: !!item?.canWrite
-                }))
-                : [];
-
-            this.plcMappingsLoaded = true;
-            if (this.config?.communication) {
-                this.config.communication.mappings = [...this.plcMappings];
-            }
-            this.renderPlcMappingsTable();
+            const result = await httpClient.get('/plc/settings');
+            const settings = this.normalizeCommunicationConfig(result?.settings || result);
+            this.savedCommunicationConfig = this.cloneCommunicationConfig(settings);
+            this.config.communication = this.cloneCommunicationConfig(settings);
+            this.plcValidationErrors = [];
+            this.plcSettingsLoaded = true;
+            this.syncPlcMappingsFromActiveProfile();
+            this.refreshCommunicationPanel();
         } catch (error) {
-            console.error('[SettingsView] Failed to load PLC mappings:', error);
-            showToast('加载PLC映射失败: ' + error.message, 'error');
+            console.error('[SettingsView] Failed to load PLC settings:', error);
+            showToast('加载PLC配置失败: ' + error.message, 'error');
         }
+    }
+
+    getCurrentProtocolValidationErrors() {
+        const protocol = this.getActivePlcProtocol();
+        return (this.plcValidationErrors || []).filter(error => this.normalizePlcProtocol(error?.protocol) === protocol);
+    }
+
+    getPlcFieldErrors(section, field, index = null) {
+        return this.getCurrentProtocolValidationErrors().filter(error => {
+            if (`${error?.section || ''}` !== section) return false;
+            if (`${error?.field || ''}` !== field) return false;
+            if (index === null) return error?.index === undefined || error?.index === null;
+            return Number.parseInt(`${error?.index ?? ''}`, 10) === index;
+        });
+    }
+
+    renderPlcErrorText(errors) {
+        if (!Array.isArray(errors) || errors.length === 0) return '';
+        return `<div class="plc-field-error">${errors.map(error => this.escapeHtml(error?.message || '')).join('<br>')}</div>`;
     }
 
     renderPlcMappingsTable() {
@@ -366,25 +564,35 @@ class SettingsView {
             return;
         }
 
-        const dataTypeOptions = ['Bool', 'Int16', 'Int32', 'Float', 'Double', 'String', 'Word', 'DWord'];
+        const dataTypeOptions = ['Bool', 'Byte', 'Int16', 'Int32', 'Float', 'Double', 'String', 'Word', 'DWord'];
         const rowsHtml = this.plcMappings.map((mapping, index) => {
             const name = this.escapeHtml(mapping?.name || '');
             const address = this.escapeHtml(mapping?.address || '');
             const description = this.escapeHtml(mapping?.description || '');
             const dataType = (mapping?.dataType || 'Bool').trim();
             const canWrite = !!mapping?.canWrite;
+            const nameErrors = this.getPlcFieldErrors('mapping', 'name', index);
+            const addressErrors = this.getPlcFieldErrors('mapping', 'address', index);
+            const dataTypeErrors = this.getPlcFieldErrors('mapping', 'dataType', index);
             const optionsHtml = dataTypeOptions.map(type =>
                 `<option value="${type}" ${dataType === type ? 'selected' : ''}>${type}</option>`
             ).join('');
 
             return `
                 <tr class="plc-mapping-row" data-index="${index}">
-                    <td><input type="text" class="cv-input" data-field="name" value="${name}" placeholder="变量名"></td>
-                    <td><input type="text" class="cv-input" data-field="address" value="${address}" placeholder="如 D100 / DB1.DBX0.0"></td>
                     <td>
-                        <select class="cv-input" data-field="dataType">
+                        <input type="text" class="cv-input ${nameErrors.length ? 'plc-invalid-input' : ''}" data-field="name" value="${name}" placeholder="变量名">
+                        ${this.renderPlcErrorText(nameErrors)}
+                    </td>
+                    <td>
+                        <input type="text" class="cv-input ${addressErrors.length ? 'plc-invalid-input' : ''}" data-field="address" value="${address}" placeholder="${this.getActivePlcProtocol() === 'S7' ? '如 DB1.DBX0.0' : this.getActivePlcProtocol() === 'MC' ? '如 D100' : '如 DM100'}">
+                        ${this.renderPlcErrorText(addressErrors)}
+                    </td>
+                    <td>
+                        <select class="cv-input ${dataTypeErrors.length ? 'plc-invalid-input' : ''}" data-field="dataType">
                             ${optionsHtml}
                         </select>
+                        ${this.renderPlcErrorText(dataTypeErrors)}
                     </td>
                     <td>
                         <select class="cv-input" data-field="canWrite">
@@ -443,13 +651,7 @@ class SettingsView {
     collectPlcMappingsFromTable() {
         const rows = this.container?.querySelectorAll('#plc-mapping-tbody tr.plc-mapping-row') || [];
         if (rows.length === 0) {
-            return (this.plcMappings || []).map(item => ({
-                name: item?.name || '',
-                address: item?.address || '',
-                dataType: item?.dataType || 'Bool',
-                description: item?.description || '',
-                canWrite: !!item?.canWrite
-            }));
+            return this.normalizePlcMappings(this.plcMappings);
         }
 
         return Array.from(rows).map(row => {
@@ -462,43 +664,67 @@ class SettingsView {
         }).filter(item => item.name || item.address || item.description);
     }
 
-    async savePlcMappings({ silent = false } = {}) {
-        const mappings = this.collectPlcMappingsFromTable();
+    async savePlcSettings({ silent = false, persistAllProfiles = false } = {}) {
+        const payload = this.buildPlcSettingsPayload({ persistAllProfiles });
         try {
-            await httpClient.put('/plc/mappings', mappings);
-            this.plcMappings = mappings;
-            this.plcMappingsLoaded = true;
+            const result = await httpClient.put('/plc/settings', payload);
+            const success = !!result?.success;
+            const normalizedSettings = this.normalizeCommunicationConfig(result?.settings || payload);
 
-            if (this.config?.communication) {
-                this.config.communication.mappings = [...mappings];
+            this.plcValidationErrors = Array.isArray(result?.errors) ? result.errors : [];
+            this.config.communication = this.cloneCommunicationConfig(normalizedSettings);
+            this.syncPlcMappingsFromActiveProfile();
+            this.refreshCommunicationPanel();
+
+            if (!success) {
+                if (!silent) {
+                    showToast(result?.message || 'PLC 配置校验失败', 'error');
+                }
+                return { success: false, settings: normalizedSettings };
             }
 
-            this.renderPlcMappingsTable();
+            this.savedCommunicationConfig = this.cloneCommunicationConfig(normalizedSettings);
+            this.config.communication = this.cloneCommunicationConfig(normalizedSettings);
+            this.plcValidationErrors = [];
+            this.plcSettingsLoaded = true;
+            this.syncPlcMappingsFromActiveProfile();
+            this.refreshCommunicationPanel();
+
             if (!silent) {
-                showToast('PLC映射已保存', 'success');
+                showToast(result?.message || 'PLC 配置已保存', 'success');
             }
-            return true;
+
+            return { success: true, settings: normalizedSettings };
         } catch (error) {
-            console.error('[SettingsView] Failed to save PLC mappings:', error);
+            console.error('[SettingsView] Failed to save PLC settings:', error);
             if (!silent) {
-                showToast('保存PLC映射失败: ' + error.message, 'error');
+                showToast('保存PLC配置失败: ' + error.message, 'error');
             }
-            return false;
+            return { success: false, settings: null };
         }
     }
 
     async testPlcConnection() {
-        const protocol = this.container?.querySelector('#cfg-protocol')?.value || 'S7';
-        const ipAddress = this.container?.querySelector('#cfg-plcIpAddress')?.value?.trim() || '';
-        const port = Number.parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '0', 10);
-        const testButton = this.container?.querySelector('#btn-plc-test');
+        this.syncActivePlcProfileDraft(this.getActivePlcProtocol());
 
-        if (!ipAddress) {
+        const protocol = this.getActivePlcProtocol();
+        const profile = this.getActivePlcProfile();
+        const testButton = this.container?.querySelector('#btn-plc-test');
+        const payload = {
+            protocol,
+            ipAddress: profile?.ipAddress || '',
+            port: Number.parseInt(`${profile?.port ?? 0}`, 10) || 0,
+            cpuType: protocol === 'S7' ? (profile?.cpuType || 'S7-1200') : null,
+            rack: protocol === 'S7' ? Number.parseInt(`${profile?.rack ?? 0}`, 10) : null,
+            slot: protocol === 'S7' ? Number.parseInt(`${profile?.slot ?? 1}`, 10) : null
+        };
+
+        if (!payload.ipAddress) {
             showToast('请先填写 PLC IP 地址', 'warning');
             return;
         }
 
-        if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+        if (!Number.isFinite(payload.port) || payload.port <= 0 || payload.port > 65535) {
             showToast('端口必须是 1-65535 之间的整数', 'warning');
             return;
         }
@@ -508,7 +734,7 @@ class SettingsView {
         }
 
         try {
-            const result = await httpClient.post('/plc/test-connection', { protocol, ipAddress, port });
+            const result = await httpClient.post('/plc/test-connection', payload);
             const isSuccess = !!result?.success;
             const message = result?.message || (isSuccess ? '连接成功' : '连接失败');
             this.updatePlcConnectionBadge(isSuccess ? 'connected' : 'failed', message);
@@ -523,18 +749,27 @@ class SettingsView {
         }
     }
 
+    getPlcConnectionBadgeMeta(status) {
+        if (status === 'connected') {
+            return { className: 'status-connected', text: '连接正常' };
+        }
+
+        if (status === 'failed') {
+            return { className: 'status-disconnected', text: '连接失败' };
+        }
+
+        return { className: 'status-disconnected', text: '未测试' };
+    }
+
     updatePlcConnectionBadge(status, message = '') {
         this.plcConnectionStatus = status;
         const badge = this.container?.querySelector('#plc-connection-badge');
         if (!badge) return;
 
+        const meta = this.getPlcConnectionBadgeMeta(status);
         badge.classList.remove('status-connected', 'status-disconnected', 'status-error');
-        badge.classList.add(status === 'connected' ? 'status-connected' : 'status-disconnected');
-
-        const text = status === 'connected'
-            ? '连接正常'
-            : (status === 'failed' ? '连接失败' : '未测试');
-        badge.innerHTML = `<span class="status-dot"></span> ${text}`;
+        badge.classList.add(meta.className);
+        badge.innerHTML = `<span class="status-dot"></span> ${meta.text}`;
         badge.title = message || '';
     }
 
@@ -1620,7 +1855,28 @@ class SettingsView {
     getDefaultConfig() {
         return {
             general: { softwareTitle: 'ClearVision', theme: 'dark', autoStart: false },
-            communication: { plcIpAddress: '192.168.1.100', plcPort: 502, protocol: 'ModbusTcp', heartbeatIntervalMs: 1000, mappings: [] },
+            communication: {
+                activeProtocol: 'S7',
+                heartbeatIntervalMs: 1000,
+                s7: {
+                    ipAddress: '192.168.0.1',
+                    port: 102,
+                    cpuType: 'S7-1200',
+                    rack: 0,
+                    slot: 1,
+                    mappings: []
+                },
+                mc: {
+                    ipAddress: '192.168.3.1',
+                    port: 5002,
+                    mappings: []
+                },
+                fins: {
+                    ipAddress: '192.168.250.1',
+                    port: 9600,
+                    mappings: []
+                }
+            },
             storage: { imageSavePath: 'D:\\VisionData\\Images', savePolicy: 'NgOnly', retentionDays: 30, minFreeSpaceGb: 5 },
             runtime: {
                 autoRun: false,
@@ -1632,7 +1888,9 @@ class SettingsView {
                 passwordMinLength: 6,
                 sessionTimeoutMinutes: 30,
                 loginFailureLockoutCount: 5
-            }
+            },
+            cameras: [],
+            activeCameraId: ''
         };
     }
 
@@ -1720,14 +1978,41 @@ class SettingsView {
     }
 
     renderCommunicationTab() {
-        const comm = this.config?.communication || this.getDefaultConfig().communication;
+        const comm = this.normalizeCommunicationConfig(this.config?.communication);
+        const activeProtocol = this.normalizePlcProtocol(comm.activeProtocol);
+        const profileKey = this.getPlcProfileKey(activeProtocol);
+        const profile = comm[profileKey];
+        const badgeMeta = this.getPlcConnectionBadgeMeta(this.plcConnectionStatus);
+        const connectionErrors = {
+            ipAddress: this.getPlcFieldErrors('connection', 'ipAddress'),
+            port: this.getPlcFieldErrors('connection', 'port'),
+            cpuType: this.getPlcFieldErrors('connection', 'cpuType'),
+            rack: this.getPlcFieldErrors('connection', 'rack'),
+            slot: this.getPlcFieldErrors('connection', 'slot')
+        };
+        const activeErrors = this.getCurrentProtocolValidationErrors();
+        const protocolLabel = activeProtocol === 'MC'
+            ? '三菱 MC'
+            : activeProtocol === 'FINS'
+                ? '欧姆龙 FINS'
+                : '西门子 S7';
+        const addressPlaceholder = activeProtocol === 'MC'
+            ? '如 D100 / X10 / M200'
+            : activeProtocol === 'FINS'
+                ? '如 DM100 / CIO10.3'
+                : '如 DB1.DBX0.0 / MW100';
+        const protocolHint = activeProtocol === 'MC'
+            ? '使用 Mitsubishi MC 协议与 FX/Q/iQ 系列 PLC 通讯。'
+            : activeProtocol === 'FINS'
+                ? '使用 Omron FINS/TCP 与 CP/CJ/NJ/NX 系列 PLC 通讯。'
+                : '使用 Siemens S7 协议与 S7-1200/1500 等 PLC 通讯。';
+
         return `
             <div class="settings-section-title">
                 <h2>PLC 通讯配置</h2>
-                <p>配置与外部控制器的数据交换协议和地址映射。</p>
+                <p>聚焦已落地的厂牌协议栈，配置连接参数与地址映射。</p>
             </div>
 
-            <!-- Block 1: 通讯连接设置 -->
             <div class="settings-modern-card">
                 <div class="settings-card-header has-badge">
                     <div class="settings-header-left">
@@ -1735,34 +2020,41 @@ class SettingsView {
                         <span>通讯连接设置</span>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <div class="settings-status-badge status-disconnected" id="plc-connection-badge">
-                            <span class="status-dot"></span> 未测试
-                        </div>
-                        <div class="settings-status-badge status-disconnected" style="color:#b45309; border-color:#f59e0b; background:#fffbeb;">
-                            开发中
+                        <div class="settings-status-badge ${badgeMeta.className}" id="plc-connection-badge">
+                            <span class="status-dot"></span> ${badgeMeta.text}
                         </div>
                     </div>
                 </div>
                 
-                <div class="settings-card-body horizontal-flex">
+                <div class="settings-card-body">
+                    <div class="settings-field-hint" style="margin-bottom: 16px;">${protocolHint}</div>
+                    ${activeErrors.length > 0 ? `
+                        <div class="plc-validation-summary">
+                            <strong>${protocolLabel} 配置存在 ${activeErrors.length} 个问题</strong>
+                            <span>请修正当前协议的连接参数或地址映射后再保存。</span>
+                        </div>
+                    ` : ''}
+                    <div class="horizontal-flex">
                     <div class="settings-fieldset" style="flex:1.5;">
                         <label>通讯协议</label>
                         <select class="cv-input" id="cfg-protocol">
-                            <option value="ModbusTcp" ${comm.protocol === 'ModbusTcp' ? 'selected' : ''}>Modbus TCP</option>
-                            <option value="S7" ${comm.protocol === 'S7' ? 'selected' : ''}>Siemens S7</option>
-                            <option value="CIP" ${comm.protocol === 'CIP' ? 'selected' : ''}>EtherNet/IP (CIP)</option>
+                            <option value="S7" ${activeProtocol === 'S7' ? 'selected' : ''}>Siemens S7</option>
+                            <option value="MC" ${activeProtocol === 'MC' ? 'selected' : ''}>Mitsubishi MC</option>
+                            <option value="FINS" ${activeProtocol === 'FINS' ? 'selected' : ''}>Omron FINS</option>
                         </select>
                     </div>
                     <div class="settings-fieldset" style="flex:2;">
                         <label>PLC IP地址</label>
                         <div class="input-with-icon">
                             <svg class="input-icon" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                            <input type="text" class="cv-input" id="cfg-plcIpAddress" value="${comm.plcIpAddress || ''}">
+                            <input type="text" class="cv-input ${connectionErrors.ipAddress.length ? 'plc-invalid-input' : ''}" id="cfg-plcIpAddress" value="${this.escapeHtml(profile?.ipAddress || '')}" placeholder="192.168.0.10">
                         </div>
+                        ${this.renderPlcErrorText(connectionErrors.ipAddress)}
                     </div>
                     <div class="settings-fieldset" style="flex:1;">
                         <label>端口号</label>
-                        <input type="number" class="cv-input" id="cfg-plcPort" value="${comm.plcPort || 502}">
+                        <input type="number" class="cv-input ${connectionErrors.port.length ? 'plc-invalid-input' : ''}" id="cfg-plcPort" value="${profile?.port || ''}">
+                        ${this.renderPlcErrorText(connectionErrors.port)}
                     </div>
                     <div class="settings-fieldset-action">
                         <button class="cv-btn settings-btn-dark" id="btn-plc-test">
@@ -1770,23 +2062,51 @@ class SettingsView {
                             连接测试
                         </button>
                     </div>
+                    </div>
+                    ${activeProtocol === 'S7' ? `
+                        <div class="horizontal-flex" style="margin-top: 16px;">
+                            <div class="settings-fieldset" style="flex:1.2;">
+                                <label>CPU 类型</label>
+                                <select class="cv-input ${connectionErrors.cpuType.length ? 'plc-invalid-input' : ''}" id="cfg-s7-cpuType">
+                                    <option value="S7-1200" ${profile?.cpuType === 'S7-1200' ? 'selected' : ''}>S7-1200</option>
+                                    <option value="S7-1500" ${profile?.cpuType === 'S7-1500' ? 'selected' : ''}>S7-1500</option>
+                                    <option value="S7-300" ${profile?.cpuType === 'S7-300' ? 'selected' : ''}>S7-300</option>
+                                    <option value="S7-400" ${profile?.cpuType === 'S7-400' ? 'selected' : ''}>S7-400</option>
+                                    <option value="S7-200" ${profile?.cpuType === 'S7-200' ? 'selected' : ''}>S7-200</option>
+                                    <option value="S7-200 Smart" ${profile?.cpuType === 'S7-200 Smart' ? 'selected' : ''}>S7-200 Smart</option>
+                                </select>
+                                ${this.renderPlcErrorText(connectionErrors.cpuType)}
+                            </div>
+                            <div class="settings-fieldset" style="flex:0.8;">
+                                <label>Rack</label>
+                                <input type="number" class="cv-input ${connectionErrors.rack.length ? 'plc-invalid-input' : ''}" id="cfg-s7-rack" value="${Number.isFinite(profile?.rack) ? profile.rack : 0}">
+                                ${this.renderPlcErrorText(connectionErrors.rack)}
+                            </div>
+                            <div class="settings-fieldset" style="flex:0.8;">
+                                <label>Slot</label>
+                                <input type="number" class="cv-input ${connectionErrors.slot.length ? 'plc-invalid-input' : ''}" id="cfg-s7-slot" value="${Number.isFinite(profile?.slot) ? profile.slot : 1}">
+                                ${this.renderPlcErrorText(connectionErrors.slot)}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
 
-            <!-- Block 2: 地址映射表 -->
             <div class="settings-modern-card" style="margin-top: 24px;">
                 <div class="settings-card-header">
                     <div class="settings-header-left">
                         <svg viewBox="0 0 24 24" class="settings-header-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                        <span>地址映射表 (Address Mapping)</span>
+                        <span>${protocolLabel} 地址映射表</span>
                     </div>
                     <div class="settings-header-actions">
-                        <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg></button>
-                        <button class="icon-action-btn" disabled title="功能开发中"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></button>
                         <button class="cv-btn settings-btn-light" style="padding: 4px 12px; margin-left: 8px;" id="btn-add-plc-mapping">
                             <span style="font-size: 16px; margin-right: 4px;">+</span> 添加变量
                         </button>
                     </div>
+                </div>
+
+                <div class="settings-card-body" style="padding-bottom: 0;">
+                    <span class="settings-field-hint">地址格式示例：${addressPlaceholder}</span>
                 </div>
                 
                 <div class="settings-card-table-wrapper">
@@ -1801,73 +2121,16 @@ class SettingsView {
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody id="plc-mapping-tbody">
-                            <tr>
-                                <td class="font-bold">Trigger_Start</td>
-                                <td class="font-mono">D1000</td>
-                                <td><span class="type-badge badge-bool">BOOL</span></td>
-                                <td><span class="rw-badge rw-read">R</span></td>
-                                <td class="text-muted italic">检测启动信号</td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="font-bold">Product_ID</td>
-                                <td class="font-mono">D1002</td>
-                                <td><span class="type-badge badge-int">INT16</span></td>
-                                <td><span class="rw-badge rw-read">R</span></td>
-                                <td class="text-muted italic">当前产品编号</td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="font-bold">Result_OK</td>
-                                <td class="font-mono">D2000</td>
-                                <td><span class="type-badge badge-bool">BOOL</span></td>
-                                <td><span class="rw-badge rw-write">W</span></td>
-                                <td class="text-muted italic">OK结果输出</td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="font-bold">Result_NG</td>
-                                <td class="font-mono">D2001</td>
-                                <td><span class="type-badge badge-bool">BOOL</span></td>
-                                <td><span class="rw-badge rw-write">W</span></td>
-                                <td class="text-muted italic">NG结果输出</td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="font-bold">Coordinate_X</td>
-                                <td class="font-mono">D2010</td>
-                                <td><span class="type-badge badge-float">FLOAT</span></td>
-                                <td><span class="rw-badge rw-write">W</span></td>
-                                <td class="text-muted italic">定位X坐标</td>
-                                <td>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                                    <button class="action-icon-btn"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                                </td>
-                            </tr>
-                        </tbody>
+                        <tbody id="plc-mapping-tbody"></tbody>
                     </table>
                 </div>
             </div>
             
-            <!-- 底部浮动操作区 -->
             <div class="settings-floating-footer">
-                <button class="cv-btn settings-btn-light" style="width: 100px;" disabled title="功能开发中">取消</button>
+                <button class="cv-btn settings-btn-light" style="width: 100px;" id="btn-reset-plc">取消</button>
                 <button class="cv-btn settings-btn-danger" style="width: 140px;" id="btn-save-plc">
                     <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; margin-right: 6px; fill: currentColor;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg> 
-                    同步配置
+                    保存当前协议
                 </button>
             </div>
         `;
@@ -2678,7 +2941,6 @@ class SettingsView {
             ? parsedLoginFailureLockoutCount
             : (this.config?.security?.loginFailureLockoutCount ?? defaultConfig.security.loginFailureLockoutCount);
         const activeCameraId = this.resolveActiveCameraId();
-        const plcMappings = this.collectPlcMappingsFromTable();
 
         // 保证“保存所有更改”也会带上当前选中相机的参数修改。
         if (this.selectedCameraBindingId) {
@@ -2703,7 +2965,12 @@ class SettingsView {
             }
         }
         
-        // 收集表单数据
+        const plcSaveResult = await this.savePlcSettings({ silent: true, persistAllProfiles: true });
+        if (!plcSaveResult?.success) {
+            showToast('PLC 配置校验未通过，请先修正当前协议配置。', 'error');
+            return;
+        }
+
         const config = {
             general: {
                 softwareTitle: this.container?.querySelector('#cfg-softwareTitle')?.value || '',
@@ -2711,11 +2978,8 @@ class SettingsView {
                 autoStart: this.container?.querySelector('#cfg-autoStart')?.checked || false
             },
             communication: {
-                plcIpAddress: this.container?.querySelector('#cfg-plcIpAddress')?.value || '',
-                plcPort: parseInt(this.container?.querySelector('#cfg-plcPort')?.value || '502', 10),
-                protocol: this.container?.querySelector('#cfg-protocol')?.value || 'ModbusTcp',
-                heartbeatIntervalMs,
-                mappings: plcMappings
+                ...this.normalizeCommunicationConfig(plcSaveResult.settings || this.config?.communication),
+                heartbeatIntervalMs
             },
             storage: {
                 imageSavePath: this.container?.querySelector('#cfg-imageSavePath')?.value || '',
@@ -2741,7 +3005,8 @@ class SettingsView {
         try {
             // 首先保存全局配置 (AppConfig)
             await httpClient.put('/settings', config);
-            this.config = config;
+            this.config = this.normalizeAppConfig(config);
+            this.savedCommunicationConfig = this.cloneCommunicationConfig(this.config.communication);
 
             // 保存相机绑定
             const bindingsSaved = await this.saveCameraBindings({ silent: true });
@@ -2749,8 +3014,8 @@ class SettingsView {
                 throw new Error('Camera bindings save failed');
             }
 
-            this.plcMappings = [...plcMappings];
-            this.plcMappingsLoaded = true;
+            this.syncPlcMappingsFromActiveProfile();
+            this.plcSettingsLoaded = true;
 
             // 仅在 AI 页显式保存时同步当前模型，避免全局保存触发隐式副作用。
             const activeTabName = this.getActiveTabName();

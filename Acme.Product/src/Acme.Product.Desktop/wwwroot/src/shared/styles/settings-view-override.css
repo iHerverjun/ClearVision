@@ -483,6 +483,31 @@
 .action-icon-btn svg { width: 18px; height: 18px; fill: #94a3b8; transition: fill 0.2s; }
 .action-icon-btn:hover svg { fill: var(--text-color); }
 
+.plc-validation-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 13px;
+}
+
+.plc-invalid-input {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12);
+}
+
+.plc-field-error {
+    margin-top: 6px;
+    color: #b91c1c;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 /* Floating Footer for saving etc */
 .settings-floating-footer {
     display: flex;
