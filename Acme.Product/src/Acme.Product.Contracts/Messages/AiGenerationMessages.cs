@@ -108,6 +108,7 @@ public record GenerateFlowTemplateRecommendation
 public record GenerateFlowPendingParameter
 {
     public string OperatorId { get; init; } = string.Empty;
+    public string ActualOperatorId { get; init; } = string.Empty;
     public List<string> ParameterNames { get; init; } = new();
 }
 

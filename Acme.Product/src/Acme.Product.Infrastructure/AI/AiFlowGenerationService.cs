@@ -211,7 +211,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 if (lastValidation.IsValid)
                 {
                     // 校验通过，转换为 DTO 并返回
-                    var flowDto = ConvertToFlowDto(generatedFlow, request.Description);
+                    var (flowDto, actualOperatorIdMap) = ConvertToFlowDto(generatedFlow, request.Description);
                     _layoutService.ApplyLayout(flowDto);
 
                     onProgress?.Invoke("正在进行 Dry-Run 沙箱安全校验与分支覆盖率统计...");
@@ -240,15 +240,16 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                         _logger.LogWarning(ex, "DryRun 预演阶段异常，跳过覆盖率采集");
                     }
 
+                    var recommendedTemplate = ResolveRecommendedTemplate(generatedFlow, templatePriority);
+                    var pendingParameters = BuildPendingParameters(generatedFlow, actualOperatorIdMap);
+                    var missingResources = BuildMissingResources(generatedFlow, templatePriority);
+                    generatedFlow.PendingParameters = pendingParameters;
+
                     _conversationalFlowService.RecordAssistantResponse(
                         conversationContext.SessionId,
                         generatedFlow.Explanation,
                         JsonSerializer.Serialize(generatedFlow, _jsonOptions),
                         JsonSerializer.Serialize(flowDto, _jsonOptions));
-
-                    var recommendedTemplate = ResolveRecommendedTemplate(generatedFlow, templatePriority);
-                    var pendingParameters = BuildPendingParameters(generatedFlow);
-                    var missingResources = BuildMissingResources(generatedFlow, templatePriority);
 
                     return new AiFlowGenerationResult
                     {
@@ -872,40 +873,53 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         };
     }
 
-    private static List<AiPendingParameterInfo> BuildPendingParameters(AiGeneratedFlowJson generatedFlow)
+    private static List<AiPendingParameterInfo> BuildPendingParameters(
+        AiGeneratedFlowJson generatedFlow,
+        IReadOnlyDictionary<string, string>? actualOperatorIdMap = null)
     {
-        var merged = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var merged = new Dictionary<string, (HashSet<string> Names, string ActualOperatorId)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in generatedFlow.PendingParameters ?? new List<AiPendingParameterInfo>())
         {
             if (string.IsNullOrWhiteSpace(item.OperatorId))
                 continue;
 
-            if (!merged.TryGetValue(item.OperatorId, out var names))
+            if (!merged.TryGetValue(item.OperatorId, out var entry))
             {
-                names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                merged[item.OperatorId] = names;
+                entry = (
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    ResolveActualOperatorId(item.OperatorId, item.ActualOperatorId, actualOperatorIdMap));
+                merged[item.OperatorId] = entry;
+            }
+            else if (string.IsNullOrWhiteSpace(entry.ActualOperatorId))
+            {
+                merged[item.OperatorId] = (
+                    entry.Names,
+                    ResolveActualOperatorId(item.OperatorId, item.ActualOperatorId, actualOperatorIdMap));
+                entry = merged[item.OperatorId];
             }
 
             foreach (var name in item.ParameterNames ?? new List<string>())
             {
                 if (!string.IsNullOrWhiteSpace(name))
-                    names.Add(name);
+                    entry.Names.Add(name);
             }
         }
 
         foreach (var pair in generatedFlow.ParametersNeedingReview ?? new Dictionary<string, List<string>>())
         {
-            if (!merged.TryGetValue(pair.Key, out var names))
+            if (!merged.TryGetValue(pair.Key, out var entry))
             {
-                names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                merged[pair.Key] = names;
+                entry = (
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    ResolveActualOperatorId(pair.Key, null, actualOperatorIdMap));
+                merged[pair.Key] = entry;
             }
 
             foreach (var name in pair.Value)
             {
                 if (!string.IsNullOrWhiteSpace(name))
-                    names.Add(name);
+                    entry.Names.Add(name);
             }
         }
 
@@ -914,9 +928,28 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             .Select(item => new AiPendingParameterInfo
             {
                 OperatorId = item.Key,
-                ParameterNames = item.Value.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList()
+                ActualOperatorId = item.Value.ActualOperatorId,
+                ParameterNames = item.Value.Names.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList()
             })
             .ToList();
+    }
+
+    private static string ResolveActualOperatorId(
+        string pendingOperatorId,
+        string? existingActualOperatorId,
+        IReadOnlyDictionary<string, string>? actualOperatorIdMap)
+    {
+        if (!string.IsNullOrWhiteSpace(existingActualOperatorId))
+            return existingActualOperatorId;
+
+        if (actualOperatorIdMap != null &&
+            actualOperatorIdMap.TryGetValue(pendingOperatorId, out var actualOperatorId) &&
+            !string.IsNullOrWhiteSpace(actualOperatorId))
+        {
+            return actualOperatorId;
+        }
+
+        return string.Empty;
     }
 
     private static List<AiMissingResourceInfo> BuildMissingResources(
@@ -1308,7 +1341,9 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         }
     }
 
-    private OperatorFlowDto ConvertToFlowDto(AiGeneratedFlowJson generated, string userDescription)
+    private (OperatorFlowDto Flow, Dictionary<string, string> ActualOperatorIdMap) ConvertToFlowDto(
+        AiGeneratedFlowJson generated,
+        string userDescription)
     {
         // tempId 鈫?(IdGuid, Metadata) 鐨勬槧灏?
         var opInfoMapping = new Dictionary<string, (Guid Id, OperatorMetadata Meta)>();
@@ -1409,13 +1444,18 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             };
         }).ToList() ?? new List<OperatorConnectionDto>();
 
-        return new OperatorFlowDto
-        {
-            Id = Guid.NewGuid(),
-            Name = $"AI生成 - {userDescription}",
-            Operators = operators,
-            Connections = connections
-        };
+        return (
+            new OperatorFlowDto
+            {
+                Id = Guid.NewGuid(),
+                Name = $"AI生成 - {userDescription}",
+                Operators = operators,
+                Connections = connections
+            },
+            opInfoMapping.ToDictionary(
+                item => item.Key,
+                item => item.Value.Id.ToString(),
+                StringComparer.OrdinalIgnoreCase));
     }
 
     private OperatorFlow ConvertDtoToEntity(OperatorFlowDto dto)

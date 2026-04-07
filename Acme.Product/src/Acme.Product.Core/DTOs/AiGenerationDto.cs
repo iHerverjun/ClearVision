@@ -190,6 +190,7 @@ public class AiRecommendedTemplateInfo
 public class AiPendingParameterInfo
 {
     public string OperatorId { get; set; } = string.Empty;
+    public string ActualOperatorId { get; set; } = string.Empty;
     public List<string> ParameterNames { get; set; } = new();
 }
 

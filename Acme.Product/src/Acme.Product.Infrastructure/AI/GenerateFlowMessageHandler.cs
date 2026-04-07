@@ -229,6 +229,7 @@ public class GenerateFlowMessageHandler
         return parameters.Select(item => new GenerateFlowPendingParameter
         {
             OperatorId = item.OperatorId,
+            ActualOperatorId = item.ActualOperatorId,
             ParameterNames = item.ParameterNames?.Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>()
         }).ToList();
     }
