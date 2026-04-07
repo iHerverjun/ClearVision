@@ -3,6 +3,7 @@
 // 负责调用外部 AI 服务并处理响应结果
 // 作者：蘅芜君
 using System.Net.Http.Headers;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Generic;
@@ -32,6 +33,405 @@ public class AiApiClient
         _httpClient = httpClient;
         _configStore = configStore;
     }
+
+    private static Dictionary<string, object?> BuildAnthropicRequestBody(
+        string systemPrompt,
+        List<ChatMessage> messages,
+        AiGenerationOptions options,
+        bool stream,
+        AiReasoningSupportInfo support)
+    {
+        var body = CreateObjectMap(
+            ("model", options.Model),
+            ("max_tokens", options.MaxTokens),
+            ("temperature", options.Temperature),
+            ("system", systemPrompt),
+            ("messages", messages.Select(BuildAnthropicMessage).ToArray()));
+        if (stream)
+        {
+            body["stream"] = true;
+        }
+
+        MergeAdditionalBody(body, options.ExtraBody);
+        ApplyExplicitReasoningOverrides(body, options, support);
+        return body;
+    }
+
+    private static Dictionary<string, object?> BuildOpenAiRequestBody(
+        List<object> apiMessages,
+        AiGenerationOptions options,
+        bool stream,
+        AiReasoningSupportInfo support)
+    {
+        var isReasonerPayload = support.FamilyId == AiReasoningModelFamilyCatalog.FamilyDeepSeekReasonerLocked;
+        var reasoningPayload = ResolveOpenAiReasoningPayload(options, support);
+        var body = CreateObjectMap(
+            ("model", options.Model),
+            ("max_tokens", isReasonerPayload ? Math.Max(options.MaxTokens, 8192) : options.MaxTokens),
+            ("messages", apiMessages));
+        if (!isReasonerPayload)
+        {
+            if (reasoningPayload.AllowTemperature)
+            {
+                body["temperature"] = options.Temperature;
+            }
+
+            body["response_format"] = CreateObjectMap(("type", "json_object"));
+        }
+
+        if (stream)
+        {
+            body["stream"] = true;
+        }
+
+        MergeAdditionalBody(body, options.ExtraBody);
+        if (!reasoningPayload.AllowTemperature)
+        {
+            body.Remove("temperature");
+        }
+
+        ApplyExplicitReasoningOverrides(body, options, support, reasoningPayload);
+        return body;
+    }
+
+    private static void ApplyExplicitReasoningOverrides(
+        Dictionary<string, object?> body,
+        AiGenerationOptions options,
+        AiReasoningSupportInfo support,
+        OpenAiReasoningPayload? openAiPayload = null)
+    {
+        var mode = AiReasoningModes.Normalize(options.ReasoningMode);
+        var effort = AiReasoningEfforts.Normalize(options.ReasoningEffort);
+        EnsureReasoningConfigurationSupported(support, mode, effort);
+        body.Remove("thinking");
+        body.Remove("reasoning");
+        body.Remove("reasoning_effort");
+        if (mode == AiReasoningModes.Auto)
+            return;
+
+        switch (support.FamilyId)
+        {
+            case AiReasoningModelFamilyCatalog.FamilyOpenAiGpt5:
+                if (!string.IsNullOrWhiteSpace(openAiPayload?.WireReasoningEffort))
+                {
+                    body["reasoning_effort"] = openAiPayload.WireReasoningEffort;
+                }
+                break;
+            case AiReasoningModelFamilyCatalog.FamilyAnthropicClaude:
+                if (mode == AiReasoningModes.On)
+                {
+                    var budget = MapAnthropicBudget(effort);
+                    body["thinking"] = CreateObjectMap(
+                        ("type", "enabled"),
+                        ("budget_tokens", budget));
+                    var minTokens = budget + 512;
+                    if (!TryReadInt(body.TryGetValue("max_tokens", out var currentValue) ? currentValue : null, out var currentMaxTokens) ||
+                        currentMaxTokens <= budget)
+                    {
+                        body["max_tokens"] = minTokens;
+                    }
+                }
+                break;
+            case AiReasoningModelFamilyCatalog.FamilyDeepSeekChat:
+                if (mode == AiReasoningModes.On)
+                {
+                    body["thinking"] = CreateObjectMap(("type", "enabled"));
+                }
+                break;
+            case AiReasoningModelFamilyCatalog.FamilyGlmToggle:
+                body["thinking"] = CreateObjectMap(("type", mode == AiReasoningModes.On ? "enabled" : "disabled"));
+                break;
+        }
+    }
+
+    private static OpenAiReasoningPayload ResolveOpenAiReasoningPayload(
+        AiGenerationOptions options,
+        AiReasoningSupportInfo support)
+    {
+        var requestedMode = AiReasoningModes.Normalize(options.ReasoningMode);
+        var requestedEffort = AiReasoningEfforts.Normalize(options.ReasoningEffort);
+        EnsureReasoningConfigurationSupported(support, requestedMode, requestedEffort);
+
+        var effectiveMode = support.GetEffectiveMode(requestedMode);
+        string? wireReasoningEffort = null;
+        if (support.FamilyId == AiReasoningModelFamilyCatalog.FamilyOpenAiGpt5 &&
+            requestedMode != AiReasoningModes.Auto)
+        {
+            wireReasoningEffort = effectiveMode == AiReasoningModes.Off ? "none" : requestedEffort;
+        }
+
+        return new OpenAiReasoningPayload(
+            requestedMode,
+            requestedEffort,
+            effectiveMode,
+            wireReasoningEffort,
+            support.AllowsTemperature(requestedMode));
+    }
+
+    private static void EnsureReasoningConfigurationSupported(
+        AiReasoningSupportInfo support,
+        string mode,
+        string effort)
+    {
+        if (!support.AllowsMode(mode))
+        {
+            if (mode == AiReasoningModes.Off && support.IsModelLockedOn)
+            {
+                throw new InvalidOperationException(
+                    $"{support.FamilyName} 当前按固定思考模型处理，不支持关闭 reasoning / thinking。");
+            }
+
+            throw new InvalidOperationException(
+                $"{support.FamilyName} 当前仅支持 {string.Join(" / ", support.AllowedModes.Select(FormatModeLabel))} 推理模式。");
+        }
+
+        if (mode != AiReasoningModes.Off &&
+            !support.AllowsEffort(effort))
+        {
+            throw new InvalidOperationException(
+                $"{support.FamilyName} 当前仅支持 {string.Join(" / ", support.AllowedEfforts.Select(FormatEffortLabel))} 思考强度。");
+        }
+    }
+
+    private static int MapAnthropicBudget(string effort)
+    {
+        return effort switch
+        {
+            AiReasoningEfforts.Low => 1024,
+            AiReasoningEfforts.High => 3072,
+            _ => 2048
+        };
+    }
+
+    private static bool TryReadInt(object? value, out int result)
+    {
+        switch (value)
+        {
+            case int intValue:
+                result = intValue;
+                return true;
+            case long longValue when longValue is <= int.MaxValue and >= int.MinValue:
+                result = (int)longValue;
+                return true;
+            case JsonElement element when element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var parsed):
+                result = parsed;
+                return true;
+            default:
+                result = 0;
+                return false;
+        }
+    }
+
+    private static void MergeAdditionalBody(Dictionary<string, object?> body, Dictionary<string, JsonElement>? extraBody)
+    {
+        if (extraBody == null || extraBody.Count == 0)
+            return;
+
+        foreach (var kv in extraBody)
+        {
+            if (string.IsNullOrWhiteSpace(kv.Key))
+                continue;
+
+            var key = kv.Key.Trim();
+            var sourceValue = ConvertJsonElement(kv.Value);
+            if (body.TryGetValue(key, out var existingValue) &&
+                existingValue is Dictionary<string, object?> existingObject &&
+                sourceValue is Dictionary<string, object?> sourceObject)
+            {
+                MergeAdditionalBody(existingObject, sourceObject);
+                continue;
+            }
+
+            body[key] = sourceValue;
+        }
+    }
+
+    private static void MergeAdditionalBody(Dictionary<string, object?> target, Dictionary<string, object?> source)
+    {
+        foreach (var kv in source)
+        {
+            if (string.IsNullOrWhiteSpace(kv.Key))
+                continue;
+
+            if (target.TryGetValue(kv.Key, out var existingValue) &&
+                existingValue is Dictionary<string, object?> existingObject &&
+                kv.Value is Dictionary<string, object?> sourceObject)
+            {
+                MergeAdditionalBody(existingObject, sourceObject);
+                continue;
+            }
+
+            target[kv.Key] = kv.Value;
+        }
+    }
+
+    private static object? ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element.EnumerateObject()
+                .ToDictionary(
+                    item => item.Name,
+                    item => ConvertJsonElement(item.Value),
+                    StringComparer.OrdinalIgnoreCase),
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt64(out var longValue) => longValue,
+            JsonValueKind.Number when element.TryGetDouble(out var doubleValue) => doubleValue,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => element.GetRawText()
+        };
+    }
+
+    private static string BuildOpenAiApiUrl(AiGenerationOptions options)
+    {
+        var apiUrl = "https://api.openai.com/v1/chat/completions";
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+        {
+            apiUrl = options.BaseUrl.Trim();
+            if (!apiUrl.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!apiUrl.EndsWith("/"))
+                {
+                    apiUrl += "/";
+                }
+
+                if (!apiUrl.Contains("/v1/", StringComparison.OrdinalIgnoreCase) &&
+                    !apiUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+                {
+                    apiUrl += "v1/";
+                }
+
+                apiUrl += "chat/completions";
+            }
+        }
+
+        return AppendQueryParameters(apiUrl, options.ExtraQuery);
+    }
+
+    private static string AppendQueryParameters(string url, Dictionary<string, string>? extraQuery)
+    {
+        if (extraQuery == null || extraQuery.Count == 0)
+            return url;
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
+        {
+            var builder = new UriBuilder(absoluteUri);
+            var queryParts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(builder.Query))
+            {
+                queryParts.Add(builder.Query.TrimStart('?'));
+            }
+
+            foreach (var kv in extraQuery)
+            {
+                if (string.IsNullOrWhiteSpace(kv.Key))
+                    continue;
+
+                queryParts.Add($"{WebUtility.UrlEncode(kv.Key.Trim())}={WebUtility.UrlEncode((kv.Value ?? string.Empty).Trim())}");
+            }
+
+            builder.Query = string.Join("&", queryParts.Where(part => !string.IsNullOrWhiteSpace(part)));
+            return builder.Uri.ToString();
+        }
+
+        var separator = url.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        var query = string.Join(
+            "&",
+            extraQuery
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Key))
+                .Select(kv => $"{WebUtility.UrlEncode(kv.Key.Trim())}={WebUtility.UrlEncode((kv.Value ?? string.Empty).Trim())}"));
+
+        return string.IsNullOrWhiteSpace(query) ? url : $"{url}{separator}{query}";
+    }
+
+    private static void ApplyAuthHeaders(
+        HttpRequestMessage request,
+        AiGenerationOptions options,
+        string defaultAuthMode,
+        string defaultHeaderName)
+    {
+        var authMode = string.IsNullOrWhiteSpace(options.AuthMode)
+            ? defaultAuthMode
+            : options.AuthMode!.Trim().ToLowerInvariant();
+        var headerName = string.IsNullOrWhiteSpace(options.AuthHeaderName)
+            ? defaultHeaderName
+            : options.AuthHeaderName!.Trim();
+
+        request.Headers.Authorization = null;
+        if (string.IsNullOrWhiteSpace(options.ApiKey) || authMode == AiModelConfig.AuthModeNone)
+            return;
+
+        if (authMode == AiModelConfig.AuthModeHeaderKey)
+        {
+            request.Headers.Remove(headerName);
+            request.Headers.TryAddWithoutValidation(headerName, options.ApiKey);
+            return;
+        }
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+    }
+
+    private static void ApplyExtraHeaders(HttpRequestMessage request, Dictionary<string, string>? extraHeaders)
+    {
+        if (extraHeaders == null || extraHeaders.Count == 0)
+            return;
+
+        foreach (var kv in extraHeaders)
+        {
+            if (string.IsNullOrWhiteSpace(kv.Key))
+                continue;
+
+            var key = kv.Key.Trim();
+            var value = kv.Value ?? string.Empty;
+            request.Headers.Remove(key);
+            if (!request.Headers.TryAddWithoutValidation(key, value))
+            {
+                request.Content?.Headers.Remove(key);
+                request.Content?.Headers.TryAddWithoutValidation(key, value);
+            }
+        }
+    }
+
+    private static Dictionary<string, object?> CreateObjectMap(params (string Key, object? Value)[] entries)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in entries)
+        {
+            map[key] = value;
+        }
+
+        return map;
+    }
+
+    private static string FormatModeLabel(string mode)
+    {
+        return AiReasoningModes.Normalize(mode) switch
+        {
+            AiReasoningModes.Off => "Off",
+            AiReasoningModes.On => "On",
+            _ => "Auto"
+        };
+    }
+
+    private static string FormatEffortLabel(string effort)
+    {
+        return AiReasoningEfforts.Normalize(effort) switch
+        {
+            AiReasoningEfforts.Low => "Low",
+            AiReasoningEfforts.High => "High",
+            _ => "Medium"
+        };
+    }
+
+    private sealed record OpenAiReasoningPayload(
+        string RequestedMode,
+        string RequestedEffort,
+        string EffectiveMode,
+        string? WireReasoningEffort,
+        bool AllowTemperature);
 
 
     /// <summary>
@@ -89,23 +489,19 @@ public class AiApiClient
         AiGenerationOptions options,
         CancellationToken cancellationToken)
     {
-        var requestBody = new
-        {
-            model = options.Model,
-            max_tokens = options.MaxTokens,
-            temperature = options.Temperature,
-            system = systemPrompt,
-            messages = messages.Select(BuildAnthropicMessage).ToArray()
-        };
+        var support = AiReasoningModelFamilyCatalog.Resolve(options.Provider, options.Model, options.BaseUrl, options.Protocol);
+        var requestBody = BuildAnthropicRequestBody(systemPrompt, messages, options, stream: false, support);
 
-        var apiUrl = options.BaseUrl ?? "https://api.anthropic.com/v1/messages";
+        var apiUrl = AppendQueryParameters(options.BaseUrl ?? "https://api.anthropic.com/v1/messages", options.ExtraQuery);
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
-        request.Headers.Add("x-api-key", options.ApiKey);
-        request.Headers.Add("anthropic-version", "2023-06-01");
+        ApplyAuthHeaders(request, options, AiModelConfig.AuthModeHeaderKey, "x-api-key");
+        request.Headers.Remove("anthropic-version");
+        request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         request.Content = new StringContent(
             JsonSerializer.Serialize(requestBody, _jsonOptions),
             Encoding.UTF8,
             "application/json");
+        ApplyExtraHeaders(request, options.ExtraHeaders);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
@@ -152,21 +548,16 @@ public class AiApiClient
         Action<AiStreamChunk> onChunk,
         CancellationToken cancellationToken)
     {
-        var requestBody = new
-        {
-            model = options.Model,
-            max_tokens = options.MaxTokens,
-            temperature = options.Temperature,
-            system = systemPrompt,
-            messages = messages.Select(BuildAnthropicMessage).ToArray(),
-            stream = true
-        };
+        var support = AiReasoningModelFamilyCatalog.Resolve(options.Provider, options.Model, options.BaseUrl, options.Protocol);
+        var requestBody = BuildAnthropicRequestBody(systemPrompt, messages, options, stream: true, support);
 
-        var apiUrl = options.BaseUrl ?? "https://api.anthropic.com/v1/messages";
+        var apiUrl = AppendQueryParameters(options.BaseUrl ?? "https://api.anthropic.com/v1/messages", options.ExtraQuery);
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
-        request.Headers.Add("x-api-key", options.ApiKey);
-        request.Headers.Add("anthropic-version", "2023-06-01");
+        ApplyAuthHeaders(request, options, AiModelConfig.AuthModeHeaderKey, "x-api-key");
+        request.Headers.Remove("anthropic-version");
+        request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+        ApplyExtraHeaders(request, options.ExtraHeaders);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
@@ -236,32 +627,13 @@ public class AiApiClient
         apiMessages.AddRange(messages.Select(BuildOpenAiMessage));
 
         // 判断是否为推理模型（如 deepseek-reasoner）
-        var isReasonerModel = options.Model.Contains("reasoner", StringComparison.OrdinalIgnoreCase);
+        var support = AiReasoningModelFamilyCatalog.Resolve(options.Provider, options.Model, options.BaseUrl, options.Protocol);
+        var isReasonerModel = support.FamilyId == AiReasoningModelFamilyCatalog.FamilyDeepSeekReasonerLocked;
 
         // 推理模型不支持 response_format 和 temperature 参数
         // 推理模型的 max_tokens 包含推理 token，需要更多配额
-        object requestBody;
-        if (isReasonerModel)
-        {
-            var reasonerMaxTokens = Math.Max(options.MaxTokens, 8192);
-            requestBody = new
-            {
-                model = options.Model,
-                max_tokens = reasonerMaxTokens,
-                messages = apiMessages
-            };
-        }
-        else
-        {
-            requestBody = new
-            {
-                model = options.Model,
-                max_tokens = options.MaxTokens,
-                temperature = options.Temperature,
-                messages = apiMessages,
-                response_format = new { type = "json_object" }
-            };
-        }
+        var requestBody = BuildOpenAiRequestBody(apiMessages, options, stream: false, support);
+        
 
         var apiUrl = "https://api.openai.com/v1/chat/completions";
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
@@ -287,12 +659,14 @@ public class AiApiClient
             }
         }
 
+        apiUrl = BuildOpenAiApiUrl(options);
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        ApplyAuthHeaders(request, options, AiModelConfig.AuthModeBearer, "Authorization");
         request.Content = new StringContent(
             JsonSerializer.Serialize(requestBody, _jsonOptions),
             Encoding.UTF8,
             "application/json");
+        ApplyExtraHeaders(request, options.ExtraHeaders);
 
         // 推理模型需要更长超时（思维链推理耗时较长）
         var timeoutSeconds = isReasonerModel
@@ -343,17 +717,9 @@ public class AiApiClient
         var apiMessages = new List<object> { new { role = "system", content = systemPrompt } };
         apiMessages.AddRange(messages.Select(BuildOpenAiMessage));
 
-        var isReasonerModel = options.Model.Contains("reasoner", StringComparison.OrdinalIgnoreCase);
-        object requestBody;
-        if (isReasonerModel)
-        {
-            var reasonerMaxTokens = Math.Max(options.MaxTokens, 8192);
-            requestBody = new { model = options.Model, max_tokens = reasonerMaxTokens, messages = apiMessages, stream = true };
-        }
-        else
-        {
-            requestBody = new { model = options.Model, max_tokens = options.MaxTokens, temperature = options.Temperature, messages = apiMessages, response_format = new { type = "json_object" }, stream = true };
-        }
+        var support = AiReasoningModelFamilyCatalog.Resolve(options.Provider, options.Model, options.BaseUrl, options.Protocol);
+        var isReasonerModel = support.FamilyId == AiReasoningModelFamilyCatalog.FamilyDeepSeekReasonerLocked;
+        var requestBody = BuildOpenAiRequestBody(apiMessages, options, stream: true, support);
 
         var apiUrl = "https://api.openai.com/v1/chat/completions";
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
@@ -369,9 +735,11 @@ public class AiApiClient
             }
         }
 
+        apiUrl = BuildOpenAiApiUrl(options);
         var request = new HttpRequestMessage(HttpMethod.Post, apiUrl);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        ApplyAuthHeaders(request, options, AiModelConfig.AuthModeBearer, "Authorization");
         request.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonOptions), Encoding.UTF8, "application/json");
+        ApplyExtraHeaders(request, options.ExtraHeaders);
 
         var timeoutSeconds = isReasonerModel ? Math.Max(options.TimeoutSeconds, 300) : options.TimeoutSeconds;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

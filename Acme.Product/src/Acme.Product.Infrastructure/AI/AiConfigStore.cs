@@ -85,6 +85,10 @@ public class AiConfigStore
     {
         lock (_lock)
         {
+            if (model.Reasoning == null)
+                model.NormalizeAdvancedFields();
+
+            model.ValidateReasoningConfiguration();
             model.NormalizeAdvancedFields();
             model.Capabilities = (model.Capabilities?.Clone() ?? AiModelCapabilities.Infer(model.Provider, model.Model)).Normalize();
 
@@ -106,43 +110,15 @@ public class AiConfigStore
     {
         lock (_lock)
         {
-            var existing = _models.FirstOrDefault(x => x.Id == id);
-            if (existing == null)
+            var index = _models.FindIndex(x => x.Id == id);
+            if (index < 0)
                 return null;
 
-            existing.Name = updated.Name ?? existing.Name;
-            existing.Provider = updated.Provider ?? existing.Provider;
-            existing.Model = updated.Model ?? existing.Model;
-            existing.BaseUrl = updated.BaseUrl;
-            existing.TimeoutMs = updated.TimeoutMs > 0 ? updated.TimeoutMs : existing.TimeoutMs;
-            existing.Protocol = updated.Protocol ?? existing.Protocol;
-            existing.AuthMode = updated.AuthMode ?? existing.AuthMode;
-            existing.AuthHeaderName = updated.AuthHeaderName ?? existing.AuthHeaderName;
-            existing.Priority = updated.Priority ?? existing.Priority;
-
-            if (updated.ExtraHeaders != null)
-                existing.ExtraHeaders = CloneStringDictionary(updated.ExtraHeaders);
-
-            if (updated.ExtraQuery != null)
-                existing.ExtraQuery = CloneStringDictionary(updated.ExtraQuery);
-
-            if (updated.ExtraBody != null)
-                existing.ExtraBody = CloneJsonDictionary(updated.ExtraBody);
-
-            if (updated.RoleBindings != null)
-                existing.RoleBindings = new List<string>(updated.RoleBindings);
-
-            if (updated.Capabilities != null)
-            {
-                existing.Capabilities = updated.Capabilities.Clone().Normalize();
-            }
-
-            if (!string.IsNullOrEmpty(updated.ApiKey))
-            {
-                existing.ApiKey = updated.ApiKey;
-            }
-
-            existing.NormalizeAdvancedFields();
+            var candidate = CloneModel(_models[index]);
+            ApplyUpdatedValues(candidate, updated);
+            candidate.ValidateReasoningConfiguration();
+            candidate.NormalizeAdvancedFields();
+            _models[index] = candidate;
         }
 
         Save();
@@ -262,6 +238,7 @@ public class AiConfigStore
                         RoleBindings = new List<string> { "generation" },
                         Priority = 100,
                         Capabilities = AiModelCapabilities.Infer(legacy.Provider, legacy.Model),
+                        Reasoning = new AiReasoningSettings(),
                         IsActive = true
                     };
                     migrated.NormalizeAdvancedFields();
@@ -296,6 +273,7 @@ public class AiConfigStore
         foreach (var model in models)
         {
             model.Capabilities = (model.Capabilities?.Clone() ?? AiModelCapabilities.Infer(model.Provider, model.Model)).Normalize();
+            model.Reasoning = (model.Reasoning?.Clone() ?? new AiReasoningSettings()).Normalize();
         }
     }
 
@@ -336,6 +314,7 @@ public class AiConfigStore
             RoleBindings = new List<string> { "generation" },
             Priority = 100,
             Capabilities = AiModelCapabilities.Infer(fallback.Provider, fallback.Model),
+            Reasoning = new AiReasoningSettings(),
             IsActive = true
         };
         defaultModel.NormalizeAdvancedFields();
@@ -361,8 +340,53 @@ public class AiConfigStore
         RoleBindings = model.RoleBindings == null ? null : new List<string>(model.RoleBindings),
         Priority = model.Priority,
         Capabilities = model.Capabilities?.Clone(),
+        Reasoning = model.Reasoning?.Clone(),
         IsActive = model.IsActive
     };
+
+    private static void ApplyUpdatedValues(AiModelConfig candidate, AiModelConfig updated)
+    {
+        var providerChanged = !string.IsNullOrWhiteSpace(updated.Provider) &&
+            !string.Equals(updated.Provider, candidate.Provider, StringComparison.Ordinal);
+
+        candidate.Name = updated.Name ?? candidate.Name;
+        candidate.Provider = updated.Provider ?? candidate.Provider;
+        candidate.Model = updated.Model ?? candidate.Model;
+        candidate.BaseUrl = updated.BaseUrl;
+        candidate.TimeoutMs = updated.TimeoutMs > 0 ? updated.TimeoutMs : candidate.TimeoutMs;
+        candidate.Protocol = updated.Protocol ?? (providerChanged ? null : candidate.Protocol);
+        candidate.AuthMode = updated.AuthMode ?? (providerChanged || updated.Protocol != null ? null : candidate.AuthMode);
+        candidate.AuthHeaderName = updated.AuthHeaderName ??
+            (providerChanged || updated.Protocol != null || updated.AuthMode != null ? null : candidate.AuthHeaderName);
+        candidate.Priority = updated.Priority ?? candidate.Priority;
+
+        if (updated.ExtraHeaders != null)
+            candidate.ExtraHeaders = CloneStringDictionary(updated.ExtraHeaders);
+
+        if (updated.ExtraQuery != null)
+            candidate.ExtraQuery = CloneStringDictionary(updated.ExtraQuery);
+
+        if (updated.ExtraBody != null)
+            candidate.ExtraBody = CloneJsonDictionary(updated.ExtraBody);
+
+        if (updated.RoleBindings != null)
+            candidate.RoleBindings = new List<string>(updated.RoleBindings);
+
+        if (updated.Capabilities != null)
+        {
+            candidate.Capabilities = updated.Capabilities.Clone().Normalize();
+        }
+
+        if (updated.Reasoning != null)
+        {
+            candidate.Reasoning = updated.Reasoning.Clone().Normalize();
+        }
+
+        if (!string.IsNullOrEmpty(updated.ApiKey))
+        {
+            candidate.ApiKey = updated.ApiKey;
+        }
+    }
 
     private static Dictionary<string, string>? CloneStringDictionary(Dictionary<string, string>? source)
     {
@@ -395,6 +419,14 @@ public class AiConfigStore
         TimeoutSeconds = options.TimeoutSeconds,
         MaxTokens = options.MaxTokens,
         Temperature = options.Temperature,
-        BaseUrl = options.BaseUrl
+        BaseUrl = options.BaseUrl,
+        Protocol = options.Protocol,
+        AuthMode = options.AuthMode,
+        AuthHeaderName = options.AuthHeaderName,
+        ExtraHeaders = CloneStringDictionary(options.ExtraHeaders),
+        ExtraQuery = CloneStringDictionary(options.ExtraQuery),
+        ExtraBody = CloneJsonDictionary(options.ExtraBody),
+        ReasoningMode = options.ReasoningMode,
+        ReasoningEffort = options.ReasoningEffort
     };
 }

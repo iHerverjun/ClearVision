@@ -99,9 +99,21 @@ public static class SettingsEndpoints
                 m.ExtraBody,
                 m.RoleBindings,
                 m.Priority,
-                m.Capabilities
+                m.Capabilities,
+                m.Reasoning,
+                ReasoningSupport = m.GetReasoningSupport()
             });
             return Results.Ok(result);
+        });
+
+        app.MapPost("/api/ai/reasoning-support", (AiReasoningSupportRequest request) =>
+        {
+            var support = AiReasoningModelFamilyCatalog.Resolve(
+                request.Provider,
+                request.Model,
+                request.BaseUrl,
+                request.Protocol);
+            return Results.Ok(support);
         });
 
         // 创建新模型
@@ -127,7 +139,8 @@ public static class SettingsEndpoints
                     RoleBindings = CloneStringList(request.RoleBindings),
                     Priority = request.Priority,
                     IsActive = false,
-                    Capabilities = request.Capabilities?.Clone()
+                    Capabilities = request.Capabilities?.Clone(),
+                    Reasoning = request.Reasoning?.Clone()
                 };
                 configStore.Add(model);
                 return Results.Ok(new { Message = "模型已创建", model.Id });
@@ -159,7 +172,8 @@ public static class SettingsEndpoints
                     ExtraBody = CloneJsonMap(request.ExtraBody),
                     RoleBindings = CloneStringList(request.RoleBindings),
                     Priority = request.Priority,
-                    Capabilities = request.Capabilities?.Clone()
+                    Capabilities = request.Capabilities?.Clone(),
+                    Reasoning = request.Reasoning?.Clone()
                 };
                 var result = configStore.Update(id, updated);
                 if (result == null)
@@ -207,13 +221,15 @@ public static class SettingsEndpoints
                 if (model == null)
                     return Results.NotFound(new { Success = false, Message = $"模型 {id} 不存在" });
 
-                if (string.IsNullOrEmpty(model.ApiKey))
+                var authMode = AiModelConfig.NormalizeAuthMode(model.AuthMode, model.Protocol ?? model.Provider);
+                if (authMode != AiModelConfig.AuthModeNone && string.IsNullOrEmpty(model.ApiKey))
                     return Results.Ok(new { Success = false, Message = "连接失败: 未配置 API Key" });
 
                 var options = model.ToGenerationOptions();
-                var response = await apiClient.CompleteAsync(
+                var response = await apiClient.StreamCompleteAsync(
                     "You are a helpful assistant.",
                     new List<ChatMessage> { new("user", "Reply with exactly: OK") },
+                    _ => { },
                     options,
                     CancellationToken.None);
 
@@ -576,6 +592,7 @@ public class AiModelCreateRequest
     public Dictionary<string, string>? ExtraHeaders { get; set; }
     public Dictionary<string, string>? ExtraQuery { get; set; }
     public Dictionary<string, JsonElement>? ExtraBody { get; set; }
+    public AiReasoningSettings? Reasoning { get; set; }
     public List<string>? RoleBindings { get; set; }
     public int? Priority { get; set; }
     public AiModelCapabilities? Capabilities { get; set; }
@@ -596,9 +613,18 @@ public class AiModelUpdateRequest
     public Dictionary<string, string>? ExtraHeaders { get; set; }
     public Dictionary<string, string>? ExtraQuery { get; set; }
     public Dictionary<string, JsonElement>? ExtraBody { get; set; }
+    public AiReasoningSettings? Reasoning { get; set; }
     public List<string>? RoleBindings { get; set; }
     public int? Priority { get; set; }
     public AiModelCapabilities? Capabilities { get; set; }
+}
+
+public class AiReasoningSupportRequest
+{
+    public string? Provider { get; set; }
+    public string? Model { get; set; }
+    public string? BaseUrl { get; set; }
+    public string? Protocol { get; set; }
 }
 
 /// <summary>软触发抓图请求</summary>

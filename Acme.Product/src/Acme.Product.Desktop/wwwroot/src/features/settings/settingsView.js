@@ -27,6 +27,9 @@ class SettingsView {
         this.activeAiModelId = null;
         this.editingAiModelId = null;
         this._pendingFormEdits = {}; // 暂存表单中的未保存修改
+        this.aiReasoningSupportPreview = null;
+        this._aiReasoningSupportRequestId = 0;
+        this._aiReasoningSupportDebounce = null;
         this.diskUsage = null;
         this.plcMappings = [];
         this.plcConnectionStatus = 'unknown';
@@ -110,6 +113,8 @@ class SettingsView {
             this.editingAiModelId = this.activeAiModelId;
         }
         this._pendingFormEdits = {};
+        this.aiReasoningSupportPreview = null;
+        this._aiReasoningSupportRequestId += 1;
     }
 
     /**
@@ -542,6 +547,155 @@ class SettingsView {
             .replace(/'/g, '&#39;');
     }
 
+    normalizeAiReasoning(reasoning) {
+        const mode = `${reasoning?.mode || 'auto'}`.toLowerCase();
+        const effort = `${reasoning?.effort || 'medium'}`.toLowerCase();
+        return {
+            mode: ['auto', 'off', 'on'].includes(mode) ? mode : 'auto',
+            effort: ['low', 'medium', 'high'].includes(effort) ? effort : 'medium'
+        };
+    }
+
+    getDefaultAiReasoningSupport() {
+        return {
+            familyId: 'unknown',
+            familyName: 'Unknown',
+            allowedModes: ['auto'],
+            allowedEfforts: ['medium'],
+            supportsExplicitMode: false,
+            supportsEffort: false,
+            isModelLockedOn: false,
+            helpText: '当前模型族未识别，建议保持 Auto，以免覆盖厂商默认行为。'
+        };
+    }
+
+    normalizeAiReasoningSupport(support) {
+        const fallback = this.getDefaultAiReasoningSupport();
+        const allowedModes = Array.isArray(support?.allowedModes) ? support.allowedModes : fallback.allowedModes;
+        const allowedEfforts = Array.isArray(support?.allowedEfforts) ? support.allowedEfforts : fallback.allowedEfforts;
+        const normalizedModes = allowedModes
+            .map(mode => `${mode || ''}`.toLowerCase())
+            .filter(mode => ['auto', 'off', 'on'].includes(mode));
+        const normalizedEfforts = allowedEfforts
+            .map(effort => `${effort || ''}`.toLowerCase())
+            .filter(effort => ['low', 'medium', 'high'].includes(effort));
+        const finalModes = normalizedModes.length > 0 ? [...new Set(normalizedModes)] : fallback.allowedModes;
+        const finalEfforts = normalizedEfforts.length > 0 ? [...new Set(normalizedEfforts)] : fallback.allowedEfforts;
+
+        return {
+            familyId: support?.familyId || fallback.familyId,
+            familyName: support?.familyName || fallback.familyName,
+            allowedModes: finalModes,
+            allowedEfforts: finalEfforts,
+            supportsExplicitMode: finalModes.some(mode => mode === 'on' || mode === 'off'),
+            supportsEffort: finalEfforts.length > 1 || finalEfforts[0] !== 'medium',
+            isModelLockedOn: finalModes.includes('on') && !finalModes.includes('off'),
+            helpText: support?.helpText || fallback.helpText
+        };
+    }
+
+    getAiReasoningNote(support) {
+        const modeText = support.allowedModes.map(mode => mode === 'auto' ? 'Auto' : mode === 'off' ? 'Off' : 'On').join(' / ');
+        const effortText = support.allowedEfforts.map(effort => effort === 'low' ? 'Low' : effort === 'high' ? 'High' : 'Medium').join(' / ');
+
+        if (support.allowedModes.length === 1 && support.allowedModes[0] === 'auto') {
+            return '当前模型族仅支持 Auto。';
+        }
+
+        if (support.allowedEfforts.length === 1) {
+            return `可选模式：${modeText}；强度固定为 ${effortText}。`;
+        }
+
+        return `可选模式：${modeText}；可选强度：${effortText}。`;
+    }
+
+    scheduleAiReasoningSupportPreview() {
+        if (this._aiReasoningSupportDebounce) {
+            clearTimeout(this._aiReasoningSupportDebounce);
+        }
+
+        this._aiReasoningSupportDebounce = setTimeout(() => {
+            this._aiReasoningSupportDebounce = null;
+            this.refreshAiReasoningSupportPreview();
+        }, 120);
+    }
+
+    async refreshAiReasoningSupportPreview() {
+        const aiTab = this.container?.querySelector('[data-section="ai"]');
+        const model = this.aiModels.find(x => x.id === this.editingAiModelId);
+        if (!aiTab || !model) {
+            this.aiReasoningSupportPreview = null;
+            this.syncAiReasoningUiState();
+            return;
+        }
+
+        const requestId = ++this._aiReasoningSupportRequestId;
+        try {
+            const support = await httpClient.post('/ai/reasoning-support', {
+                provider: aiTab.querySelector('#cfg-ai-provider')?.value || model.provider || '',
+                model: aiTab.querySelector('#cfg-ai-model')?.value || model.model || '',
+                baseUrl: aiTab.querySelector('#cfg-ai-baseurl')?.value || model.baseUrl || '',
+                protocol: null
+            });
+
+            if (requestId !== this._aiReasoningSupportRequestId) return;
+            this.aiReasoningSupportPreview = this.normalizeAiReasoningSupport(support);
+        } catch (error) {
+            if (requestId !== this._aiReasoningSupportRequestId) return;
+            console.warn('[SettingsView] Failed to refresh AI reasoning support preview:', error);
+            this.aiReasoningSupportPreview = null;
+        }
+
+        this.syncAiReasoningUiState();
+    }
+
+    getCurrentAiReasoningSupport() {
+        const model = this.aiModels.find(x => x.id === this.editingAiModelId);
+        if (this.aiReasoningSupportPreview) {
+            return this.normalizeAiReasoningSupport(this.aiReasoningSupportPreview);
+        }
+
+        return this.normalizeAiReasoningSupport(model?.reasoningSupport);
+    }
+
+    syncAiReasoningUiState() {
+        const aiTab = this.container?.querySelector('[data-section="ai"]');
+        if (!aiTab) return;
+
+        const modeEl = aiTab.querySelector('#cfg-ai-reasoning-mode');
+        const effortEl = aiTab.querySelector('#cfg-ai-reasoning-effort');
+        const familyEl = aiTab.querySelector('#ai-reasoning-family');
+        const helpEl = aiTab.querySelector('#ai-reasoning-help');
+        const noteEl = aiTab.querySelector('#ai-reasoning-note');
+        if (!modeEl || !effortEl || !familyEl || !helpEl || !noteEl) return;
+
+        const support = this.getCurrentAiReasoningSupport();
+        const allowedModes = support.allowedModes || ['auto'];
+        const allowedEfforts = support.allowedEfforts || ['medium'];
+        const modeOptions = Array.from(modeEl.options || []);
+        const effortOptions = Array.from(effortEl.options || []);
+
+        modeOptions.forEach(option => {
+            option.disabled = !allowedModes.includes(option.value);
+        });
+        effortOptions.forEach(option => {
+            option.disabled = !allowedEfforts.includes(option.value);
+        });
+
+        if (!allowedModes.includes(modeEl.value)) {
+            modeEl.value = allowedModes[0] || 'auto';
+        }
+        if (!allowedEfforts.includes(effortEl.value)) {
+            effortEl.value = allowedEfforts[0] || 'medium';
+        }
+
+        modeEl.disabled = allowedModes.length <= 1;
+        effortEl.disabled = modeEl.value === 'off' || allowedEfforts.length <= 1;
+        familyEl.textContent = `${support.familyName} (${support.familyId})`;
+        helpEl.textContent = support.helpText || '';
+        noteEl.textContent = this.getAiReasoningNote(support);
+    }
+
     bindAiSettingsEvents() {
         const aiTab = this.container.querySelector('[data-section="ai"]');
         if (!aiTab) return;
@@ -577,6 +731,8 @@ class SettingsView {
             } else if (btn.dataset.action === 'edit') {
                 // 切换编辑前先保存当前编辑（如果有未保存的修改）
                 this.editingAiModelId = btn.dataset.id;
+                this.aiReasoningSupportPreview = null;
+                this._aiReasoningSupportRequestId += 1;
                 this._pendingFormEdits = {};
                 this.refreshAiTableAndForm();
             } else if (btn.dataset.action === 'delete') {
@@ -648,23 +804,48 @@ class SettingsView {
             }
         });
         
-        // 监听表单输入变化（暂存到 _pendingFormEdits，不再实时写 localStorage）
-        ['name', 'provider', 'model', 'baseurl', 'apikey', 'timeout'].forEach(f => {
-            aiTab.addEventListener('input', (e) => {
-                const el = e.target;
-                if(el && el.id === `cfg-ai-${f}`) {
-                    const fieldMap = { 'name':'name', 'provider':'provider', 'model':'model', 'baseurl':'baseUrl', 'apikey':'apiKey', 'timeout':'timeoutMs' };
-                    this._pendingFormEdits[fieldMap[f]] = el.value;
-                    // 名称变化时实时刷新表格行
-                    if (f === 'name') {
-                        const m = this.aiModels.find(x => x.id === this.editingAiModelId);
-                        if (m) { m.name = el.value; this.refreshAiTableOnly(); }
-                    }
+        const handleAiFieldChange = (e) => {
+            const el = e.target;
+            if (!el || !el.id) return;
+
+            const fieldMap = {
+                'cfg-ai-name': 'name',
+                'cfg-ai-provider': 'provider',
+                'cfg-ai-model': 'model',
+                'cfg-ai-baseurl': 'baseUrl',
+                'cfg-ai-apikey': 'apiKey',
+                'cfg-ai-timeout': 'timeoutMs',
+                'cfg-ai-reasoning-mode': 'reasoning.mode',
+                'cfg-ai-reasoning-effort': 'reasoning.effort'
+            };
+            const field = fieldMap[el.id];
+            if (!field) return;
+
+            this._pendingFormEdits[field] = el.value;
+            if (el.id === 'cfg-ai-name') {
+                const m = this.aiModels.find(x => x.id === this.editingAiModelId);
+                if (m) {
+                    m.name = el.value;
+                    this.refreshAiTableOnly();
                 }
-            });
-        });
+            }
+
+            if (['cfg-ai-provider', 'cfg-ai-model', 'cfg-ai-baseurl'].includes(el.id)) {
+                this.scheduleAiReasoningSupportPreview();
+            }
+
+            if (['cfg-ai-reasoning-mode', 'cfg-ai-reasoning-effort'].includes(el.id)) {
+                this.syncAiReasoningUiState();
+            }
+        };
+
+        aiTab.addEventListener('input', handleAiFieldChange);
+        aiTab.addEventListener('change', handleAiFieldChange);
         
-        setTimeout(() => this.refreshAiTableAndForm(), 0);
+        setTimeout(() => {
+            this.refreshAiTableAndForm();
+            this.syncAiReasoningUiState();
+        }, 0);
     }
 
     getActiveTabName() {
@@ -699,12 +880,19 @@ class SettingsView {
         const currentTimeout = parseInt(aiTab.querySelector('#cfg-ai-timeout')?.value || '120000', 10);
         const normalizedTimeout = Number.isFinite(currentTimeout) ? currentTimeout : 120000;
         const pendingApiKey = aiTab.querySelector('#cfg-ai-apikey')?.value || '';
+        const currentReasoning = this.normalizeAiReasoning(model.reasoning);
+        const draftReasoning = this.normalizeAiReasoning({
+            mode: aiTab.querySelector('#cfg-ai-reasoning-mode')?.value || currentReasoning.mode,
+            effort: aiTab.querySelector('#cfg-ai-reasoning-effort')?.value || currentReasoning.effort
+        });
 
         return (aiTab.querySelector('#cfg-ai-name')?.value || '') !== (model.name || '')
             || (aiTab.querySelector('#cfg-ai-provider')?.value || 'OpenAI Compatible') !== (model.provider || 'OpenAI Compatible')
             || (aiTab.querySelector('#cfg-ai-model')?.value || '') !== (model.model || '')
             || (aiTab.querySelector('#cfg-ai-baseurl')?.value || '') !== (model.baseUrl || '')
             || normalizedTimeout !== (model.timeoutMs ?? 120000)
+            || draftReasoning.mode !== currentReasoning.mode
+            || draftReasoning.effort !== currentReasoning.effort
             || pendingApiKey.trim().length > 0;
     }
 
@@ -721,11 +909,16 @@ class SettingsView {
             model: aiTab.querySelector('#cfg-ai-model')?.value || '',
             baseUrl: aiTab.querySelector('#cfg-ai-baseurl')?.value || '',
             apiKey: aiTab.querySelector('#cfg-ai-apikey')?.value || '', // 空 → 后端保留原值
-            timeoutMs: parseInt(aiTab.querySelector('#cfg-ai-timeout')?.value || '120000', 10)
+            timeoutMs: parseInt(aiTab.querySelector('#cfg-ai-timeout')?.value || '120000', 10),
+            reasoning: {
+                mode: aiTab.querySelector('#cfg-ai-reasoning-mode')?.value || 'auto',
+                effort: aiTab.querySelector('#cfg-ai-reasoning-effort')?.value || 'medium'
+            }
         };
 
         await httpClient.put(`/ai/models/${modelId}`, payload);
         await this.loadAiModels({ preserveEditingId: true });
+        this.aiReasoningSupportPreview = null;
         this._pendingFormEdits = {};
         this.refreshAiTableOnly();
     }
@@ -776,6 +969,8 @@ class SettingsView {
 
         // apiKey 不再从后端获取真实值，用 placeholder 提示
         const apiKeyPlaceholder = m.hasApiKey ? '●●●●●●（已配置，留空则不修改）' : '请输入 API Key';
+        const reasoning = this.normalizeAiReasoning(m.reasoning);
+        const support = this.normalizeAiReasoningSupport(this.aiReasoningSupportPreview || m.reasoningSupport);
         
         formContainer.innerHTML = `
             <div style="display:flex; gap:16px; margin-bottom:16px;">
@@ -803,25 +998,53 @@ class SettingsView {
                      <input type="text" class="cv-input" id="cfg-ai-baseurl" value="${m.baseUrl || ''}" placeholder="如 https://api.deepseek.com/v1" style="border-radius:0 6px 6px 0;">
                  </div>
              </div>
-             <div style="display:flex; gap:16px;">
-                 <div class="settings-fieldset" style="flex:2;">
-                     <label>API Key</label>
+              <div style="display:flex; gap:16px;">
+                  <div class="settings-fieldset" style="flex:2;">
+                      <label>API Key</label>
                      <div class="input-with-suffix" style="position:relative;">
                          <input type="password" class="cv-input" id="cfg-ai-apikey" value="" placeholder="${apiKeyPlaceholder}" style="padding-right:36px; font-family:monospace;">
                          <button class="icon-action-btn" id="btn-toggle-apikey" style="position:absolute; right:10px; top:50%; transform:translateY(-50%);">👁</button>
                      </div>
                  </div>
-                 <div class="settings-fieldset" style="flex:1;">
-                     <label>请求超时 (ms)</label>
-                     <input type="number" class="cv-input" id="cfg-ai-timeout" value="${m.timeoutMs || 120000}">
-                 </div>
+                  <div class="settings-fieldset" style="flex:1;">
+                      <label>请求超时 (ms)</label>
+                      <input type="number" class="cv-input" id="cfg-ai-timeout" value="${m.timeoutMs || 120000}">
+                  </div>
+              </div>
+              <details class="settings-fieldset" style="margin-top:16px; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; background:#fafcff;" open>
+                  <summary style="cursor:pointer; font-weight:700; color:#1e293b;">推理 / Thinking</summary>
+                  <div style="display:flex; gap:16px; margin-top:14px;">
+                      <div class="settings-fieldset" style="flex:1;">
+                          <label>推理模式</label>
+                          <select class="cv-input" id="cfg-ai-reasoning-mode">
+                              <option value="auto" ${reasoning.mode === 'auto' ? 'selected' : ''}>Auto</option>
+                              <option value="off" ${reasoning.mode === 'off' ? 'selected' : ''}>Off</option>
+                              <option value="on" ${reasoning.mode === 'on' ? 'selected' : ''}>On</option>
+                          </select>
+                      </div>
+                      <div class="settings-fieldset" style="flex:1;">
+                          <label>思考强度</label>
+                          <select class="cv-input" id="cfg-ai-reasoning-effort">
+                              <option value="low" ${reasoning.effort === 'low' ? 'selected' : ''}>Low</option>
+                              <option value="medium" ${reasoning.effort === 'medium' ? 'selected' : ''}>Medium</option>
+                              <option value="high" ${reasoning.effort === 'high' ? 'selected' : ''}>High</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+                       <span style="font-size:12px; font-weight:700; color:#475569;">识别模型族</span>
+                       <span id="ai-reasoning-family" style="font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3;">${this.escapeHtml(`${support.familyName} (${support.familyId})`)}</span>
+                       <span id="ai-reasoning-note" style="font-size:12px; color:#64748b;">${this.escapeHtml(this.getAiReasoningNote(support))}</span>
+                   </div>
+                   <div id="ai-reasoning-help" style="margin-top:8px; font-size:12px; line-height:1.6; color:#475569;">${this.escapeHtml(support.helpText || '')}</div>
+               </details>
+              <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+                  <button class="cv-btn settings-btn-light" id="btn-ai-test">🔗 测试连接</button>
+                  <button class="cv-btn settings-btn-danger" id="btn-ai-save">💾 保存并应用该模型集</button>
              </div>
-             <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
-                 <button class="cv-btn settings-btn-light" id="btn-ai-test">🔗 测试连接</button>
-                 <button class="cv-btn settings-btn-danger" id="btn-ai-save">💾 保存并应用该模型集</button>
-             </div>
-             <div id="ai-test-result" style="margin-top:10px; text-align:right; font-size:13px; font-weight:500;"></div>
-        `;
+              <div id="ai-test-result" style="margin-top:10px; text-align:right; font-size:13px; font-weight:500;"></div>
+         `;
+        this.syncAiReasoningUiState();
     }
     
     bindCameraManagementEvents() {

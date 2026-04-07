@@ -86,6 +86,9 @@ public class AiConfigStoreTests : IDisposable
         Assert.Equal("http://test", defaultModel.BaseUrl);
         Assert.Equal(60000, defaultModel.TimeoutMs);
         Assert.True(defaultModel.IsActive);
+        Assert.NotNull(defaultModel.Reasoning);
+        Assert.Equal(AiReasoningModes.Auto, defaultModel.Reasoning!.Mode);
+        Assert.Equal(AiReasoningEfforts.Medium, defaultModel.Reasoning.Effort);
     }
 
     [Fact]
@@ -222,6 +225,161 @@ public class AiConfigStoreTests : IDisposable
         Assert.Equal("http://legacy", migrated.BaseUrl);
         Assert.Equal(120000, migrated.TimeoutMs);
         Assert.True(migrated.IsActive);
+        Assert.NotNull(migrated.Reasoning);
+        Assert.Equal(AiReasoningModes.Auto, migrated.Reasoning!.Mode);
+        Assert.Equal(AiReasoningEfforts.Medium, migrated.Reasoning.Effort);
+    }
+
+    [Fact]
+    public void Update_WithReasoningSettings_PersistsNormalizedReasoning()
+    {
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "reasoning-model",
+            Name = "Reasoning Model",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.4"
+        });
+
+        var updated = store.Update("reasoning-model", new AiModelConfig
+        {
+            Name = "Reasoning Model",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.4",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = "ON",
+                Effort = "HIGH"
+            }
+        });
+
+        Assert.NotNull(updated);
+        Assert.NotNull(updated!.Reasoning);
+        Assert.Equal(AiReasoningModes.On, updated.Reasoning!.Mode);
+        Assert.Equal(AiReasoningEfforts.High, updated.Reasoning.Effort);
+    }
+
+    [Fact]
+    public void Update_WhenLockedThinkingModelIsTurnedOff_ShouldThrow()
+    {
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "deepseek-reasoner",
+            Name = "DeepSeek Reasoner",
+            Provider = "OpenAI Compatible",
+            Model = "deepseek-reasoner"
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => store.Update("deepseek-reasoner", new AiModelConfig
+        {
+            Name = "DeepSeek Reasoner",
+            Provider = "OpenAI Compatible",
+            Model = "deepseek-reasoner",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.Off,
+                Effort = AiReasoningEfforts.Medium
+            }
+        }));
+        Assert.Contains("不支持关闭 reasoning / thinking", ex.Message);
+    }
+
+    [Fact]
+    public void Update_WhenValidationFails_ShouldNotMutateStoredModel()
+    {
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "gpt-5-legacy",
+            Name = "GPT 5 Legacy",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.4",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.On,
+                Effort = AiReasoningEfforts.High
+            }
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => store.Update("gpt-5-legacy", new AiModelConfig
+        {
+            Name = "GPT 5 Legacy",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.4",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.Off,
+                Effort = AiReasoningEfforts.Medium
+            }
+        }));
+
+        Assert.Contains("不支持关闭 reasoning / thinking", ex.Message);
+        var persisted = store.GetById("gpt-5-legacy");
+        Assert.NotNull(persisted);
+        Assert.Equal(AiReasoningModes.On, persisted!.Reasoning!.Mode);
+        Assert.Equal(AiReasoningEfforts.High, persisted.Reasoning!.Effort);
+    }
+
+    [Fact]
+    public void Update_WhenGpt51ReasoningIsTurnedOff_ShouldAllowNoneMode()
+    {
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "gpt-5-1",
+            Name = "GPT 5.1",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.1"
+        });
+
+        var updated = store.Update("gpt-5-1", new AiModelConfig
+        {
+            Name = "GPT 5.1",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5.1",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.Off,
+                Effort = AiReasoningEfforts.Medium
+            }
+        });
+
+        Assert.NotNull(updated);
+        Assert.Equal(AiReasoningModes.Off, updated!.Reasoning!.Mode);
+    }
+
+    [Fact]
+    public void Update_WhenGpt5ProUsesNonHighEffort_ShouldThrow()
+    {
+        var store = CreateStore();
+        store.Add(new AiModelConfig
+        {
+            Id = "gpt-5-pro",
+            Name = "GPT 5 Pro",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5-pro",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.On,
+                Effort = AiReasoningEfforts.High
+            }
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => store.Update("gpt-5-pro", new AiModelConfig
+        {
+            Name = "GPT 5 Pro",
+            Provider = "OpenAI Compatible",
+            Model = "gpt-5-pro",
+            Reasoning = new AiReasoningSettings
+            {
+                Mode = AiReasoningModes.On,
+                Effort = AiReasoningEfforts.Medium
+            }
+        }));
+
+        Assert.Contains("仅支持 High 思考强度", ex.Message);
     }
 
     [Fact]

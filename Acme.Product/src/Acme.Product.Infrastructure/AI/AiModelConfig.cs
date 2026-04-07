@@ -65,6 +65,9 @@ public class AiModelConfig
     /// <summary>Additional JSON body fields.</summary>
     public Dictionary<string, JsonElement>? ExtraBody { get; set; }
 
+    /// <summary>Explicit reasoning / thinking settings.</summary>
+    public AiReasoningSettings? Reasoning { get; set; }
+
     /// <summary>Logical role bindings for selector policies.</summary>
     public List<string>? RoleBindings { get; set; }
 
@@ -74,6 +77,11 @@ public class AiModelConfig
     public AiModelCapabilities GetEffectiveCapabilities()
     {
         return (Capabilities?.Clone() ?? AiModelCapabilities.Infer(Provider, Model)).Normalize();
+    }
+
+    public AiReasoningSupportInfo GetReasoningSupport()
+    {
+        return AiReasoningModelFamilyCatalog.Resolve(this);
     }
 
     public void NormalizeAdvancedFields()
@@ -92,6 +100,34 @@ public class AiModelConfig
         ExtraHeaders = NormalizeStringMap(ExtraHeaders);
         ExtraQuery = NormalizeStringMap(ExtraQuery);
         ExtraBody = NormalizeJsonMap(ExtraBody);
+        Reasoning = (Reasoning?.Clone() ?? new AiReasoningSettings()).Normalize();
+        var reasoningSupport = GetReasoningSupport();
+        Reasoning.Mode = reasoningSupport.NormalizeMode(Reasoning.Mode);
+        Reasoning.Effort = reasoningSupport.NormalizeEffort(Reasoning.Effort);
+    }
+
+    public void ValidateReasoningConfiguration()
+    {
+        var normalizedReasoning = (Reasoning?.Clone() ?? new AiReasoningSettings()).Normalize();
+        var support = GetReasoningSupport();
+        if (!support.AllowsMode(normalizedReasoning.Mode))
+        {
+            if (normalizedReasoning.Mode == AiReasoningModes.Off && support.IsModelLockedOn)
+            {
+                throw new InvalidOperationException(
+                    $"{support.FamilyName} 当前按固定思考模型处理，不支持关闭 reasoning / thinking。");
+            }
+
+            throw new InvalidOperationException(
+                $"{support.FamilyName} 当前仅支持 {string.Join(" / ", support.AllowedModes.Select(FormatModeLabel))} 推理模式。");
+        }
+
+        if (normalizedReasoning.Mode != AiReasoningModes.Off &&
+            !support.AllowsEffort(normalizedReasoning.Effort))
+        {
+            throw new InvalidOperationException(
+                $"{support.FamilyName} 当前仅支持 {string.Join(" / ", support.AllowedEfforts.Select(FormatEffortLabel))} 思考强度。");
+        }
     }
 
     public static string NormalizeProtocol(string? protocol, string? provider)
@@ -232,10 +268,60 @@ public class AiModelConfig
             ApiKey = ApiKey,
             Model = Model,
             BaseUrl = BaseUrl,
+            Protocol = protocol,
+            AuthMode = AuthMode,
+            AuthHeaderName = AuthHeaderName,
+            ExtraHeaders = CloneStringMap(ExtraHeaders),
+            ExtraQuery = CloneStringMap(ExtraQuery),
+            ExtraBody = CloneJsonMap(ExtraBody),
+            ReasoningMode = Reasoning?.Mode ?? AiReasoningModes.Auto,
+            ReasoningEffort = Reasoning?.Effort ?? AiReasoningEfforts.Medium,
             TimeoutSeconds = TimeoutMs / 1000,
             MaxRetries = 2,
             MaxTokens = 4096,
             Temperature = 0.7
+        };
+    }
+
+    private static Dictionary<string, string>? CloneStringMap(Dictionary<string, string>? map)
+    {
+        if (map == null || map.Count == 0)
+            return null;
+
+        return map.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, JsonElement>? CloneJsonMap(Dictionary<string, JsonElement>? map)
+    {
+        if (map == null || map.Count == 0)
+            return null;
+
+        var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in map)
+        {
+            result[kv.Key] = kv.Value.Clone();
+        }
+
+        return result;
+    }
+
+    private static string FormatModeLabel(string mode)
+    {
+        return AiReasoningModes.Normalize(mode) switch
+        {
+            AiReasoningModes.Off => "Off",
+            AiReasoningModes.On => "On",
+            _ => "Auto"
+        };
+    }
+
+    private static string FormatEffortLabel(string effort)
+    {
+        return AiReasoningEfforts.Normalize(effort) switch
+        {
+            AiReasoningEfforts.Low => "Low",
+            AiReasoningEfforts.High => "High",
+            _ => "Medium"
         };
     }
 }

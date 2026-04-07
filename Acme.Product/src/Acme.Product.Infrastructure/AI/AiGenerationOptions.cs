@@ -2,6 +2,8 @@
 // AI 生成参数选项
 // 定义模型参数、温度与输出约束配置
 // 作者：蘅芜君
+using System.Text.Json;
+
 namespace Acme.Product.Infrastructure.AI;
 
 /// <summary>
@@ -55,4 +57,20 @@ public class AiGenerationOptions
     /// 为 null 时使用各提供商的默认端点。
     /// </summary>
     public string? BaseUrl { get; set; }
+
+    public string? Protocol { get; set; }
+
+    public string? AuthMode { get; set; }
+
+    public string? AuthHeaderName { get; set; }
+
+    public Dictionary<string, string>? ExtraHeaders { get; set; }
+
+    public Dictionary<string, string>? ExtraQuery { get; set; }
+
+    public Dictionary<string, JsonElement>? ExtraBody { get; set; }
+
+    public string ReasoningMode { get; set; } = AiReasoningModes.Auto;
+
+    public string ReasoningEffort { get; set; } = AiReasoningEfforts.Medium;
 }
