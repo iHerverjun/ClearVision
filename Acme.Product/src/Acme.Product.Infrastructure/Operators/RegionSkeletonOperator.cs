@@ -47,20 +47,21 @@ public class RegionSkeletonOperator : OperatorBase
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // 转换为二值图像进行骨架化
+        var originalBounds = region.BoundingBox;
         using var binaryMat = region.ToMat();
-        var skeletonMat = ZhangSuenThinning(binaryMat, maxIterations);
-        var skeletonRegion = Region.FromMat(skeletonMat);
+        using var skeletonMat = ZhangSuenThinning(binaryMat, maxIterations);
+        var skeletonRegion = Region.FromMat(skeletonMat).Translate(originalBounds.X, originalBounds.Y);
 
         // 分析骨架特征
-        var (endPoints, branchPoints) = AnalyzeSkeleton(skeletonMat);
+        var (localEndPoints, localBranchPoints) = AnalyzeSkeleton(skeletonMat);
+        var endPoints = TranslatePoints(localEndPoints, originalBounds.X, originalBounds.Y);
+        var branchPoints = TranslatePoints(localBranchPoints, originalBounds.X, originalBounds.Y);
 
         stopwatch.Stop();
 
         Mat visualization = TryGetInputImage(inputs, "Image", out var img) && img != null
             ? CreateVisualization(img.GetMat(), region, skeletonRegion, endPoints, branchPoints)
             : CreateRegionVisualization(region, skeletonRegion, endPoints, branchPoints);
-
-        skeletonMat.Dispose();
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(visualization, new Dictionary<string, object>
         {
@@ -70,6 +71,7 @@ public class RegionSkeletonOperator : OperatorBase
             { "BranchPoints", branchPoints.Count },
             { "OriginalArea", region.Area },
             { "ReductionRatio", region.Area > 0 ? 1.0 - (double)skeletonRegion.Area / region.Area : 0 },
+            { "PreserveTopology", preserveTopology },
             { "ProcessingTimeMs", stopwatch.ElapsedMilliseconds }
         })));
     }
@@ -193,6 +195,11 @@ public class RegionSkeletonOperator : OperatorBase
         }
 
         return (endPoints, branchPoints);
+    }
+
+    private static List<Point> TranslatePoints(IEnumerable<Point> points, int dx, int dy)
+    {
+        return points.Select(point => new Point(point.X + dx, point.Y + dy)).ToList();
     }
 
     private bool TryGetInputRegion(Dictionary<string, object>? inputs, string key, out Region? region)

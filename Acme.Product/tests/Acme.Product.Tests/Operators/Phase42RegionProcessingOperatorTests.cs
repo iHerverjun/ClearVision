@@ -85,6 +85,49 @@ public class Phase42RegionProcessingOperatorTests
     }
 
     [Fact]
+    public async Task RegionSkeleton_ShouldPreserveOriginalCoordinates()
+    {
+        var sut = new RegionSkeletonOperator(Substitute.For<ILogger<RegionSkeletonOperator>>());
+        var region = CreateOffsetThickCrossRegion();
+        var op = new Operator("RegionSkeleton", OperatorType.RegionSkeleton, 0, 0);
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { ["Region"] = region });
+
+        result.IsSuccess.Should().BeTrue();
+        var skeleton = result.OutputData!["Region"].Should().BeOfType<Region>().Subject;
+        skeleton.BoundingBox.X.Should().BeGreaterThanOrEqualTo(region.BoundingBox.X);
+        skeleton.BoundingBox.Y.Should().BeGreaterThanOrEqualTo(region.BoundingBox.Y);
+        skeleton.BoundingBox.Right.Should().BeLessThanOrEqualTo(region.BoundingBox.Right);
+        skeleton.BoundingBox.Bottom.Should().BeLessThanOrEqualTo(region.BoundingBox.Bottom);
+    }
+
+    [Fact]
+    public async Task RegionDilation_WithEvenSizedKernel_ShouldMatchOpenCv()
+    {
+        var sut = new RegionDilationOperator(Substitute.For<ILogger<RegionDilationOperator>>());
+        using var mat = new Mat(40, 40, MatType.CV_8UC1, Scalar.Black);
+        mat.Set(20, 20, (byte)255);
+        var region = Region.FromMat(mat);
+
+        var op = new Operator("RegionDilation", OperatorType.RegionDilation, 0, 0);
+        op.Parameters.Add(TestHelpers.CreateParameter("KernelWidth", 4, "int"));
+        op.Parameters.Add(TestHelpers.CreateParameter("KernelHeight", 4, "int"));
+        op.Parameters.Add(TestHelpers.CreateParameter("KernelShape", "Rectangle", "string"));
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { ["Region"] = region });
+
+        result.IsSuccess.Should().BeTrue();
+        var dilated = result.OutputData!["Region"].Should().BeOfType<Region>().Subject;
+
+        using var expected = new Mat();
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(4, 4));
+        Cv2.Dilate(mat, expected, kernel);
+        var expectedRegion = Region.FromMat(expected);
+
+        dilated.RunLengths.Should().Equal(expectedRegion.RunLengths);
+    }
+
+    [Fact]
     public async Task RegionBooleanOperators_ShouldProduceConsistentAreas()
     {
         var unionSut = new RegionUnionOperator(Substitute.For<ILogger<RegionUnionOperator>>());
@@ -161,6 +204,14 @@ public class Phase42RegionProcessingOperatorTests
         using var mat = new Mat(80, 80, MatType.CV_8UC1, Scalar.Black);
         Cv2.Rectangle(mat, new Rect(34, 12, 12, 50), Scalar.White, -1);
         Cv2.Rectangle(mat, new Rect(18, 30, 44, 12), Scalar.White, -1);
+        return Region.FromMat(mat);
+    }
+
+    private static Region CreateOffsetThickCrossRegion()
+    {
+        using var mat = new Mat(120, 120, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(58, 32, 12, 58), Scalar.White, -1);
+        Cv2.Rectangle(mat, new Rect(38, 52, 52, 12), Scalar.White, -1);
         return Region.FromMat(mat);
     }
 }

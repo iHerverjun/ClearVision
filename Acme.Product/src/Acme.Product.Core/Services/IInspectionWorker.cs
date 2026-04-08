@@ -24,4 +24,10 @@ public interface IInspectionWorker
     /// 等待后台任务真正退出并完成清理。
     /// </summary>
     Task<bool> WaitForRunExitAsync(Guid projectId, TimeSpan timeout, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 等待指定会话对应的后台任务真正退出并完成清理。
+    /// 如果项目已切换到其他会话，则视为该会话已退出。
+    /// </summary>
+    Task<bool> WaitForRunExitAsync(Guid projectId, Guid sessionId, TimeSpan timeout, CancellationToken cancellationToken = default);
 }

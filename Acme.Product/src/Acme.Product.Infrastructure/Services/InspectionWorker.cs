@@ -213,7 +213,30 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
+        return await WaitForRunExitCoreAsync(projectId, null, timeout, cancellationToken);
+    }
+
+    public async Task<bool> WaitForRunExitAsync(
+        Guid projectId,
+        Guid sessionId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        return await WaitForRunExitCoreAsync(projectId, sessionId, timeout, cancellationToken);
+    }
+
+    private async Task<bool> WaitForRunExitCoreAsync(
+        Guid projectId,
+        Guid? sessionId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
         if (!_runningTasks.TryGetValue(projectId, out var entry))
+        {
+            return true;
+        }
+
+        if (sessionId.HasValue && entry.SessionId != sessionId.Value)
         {
             return true;
         }

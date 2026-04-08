@@ -163,4 +163,9 @@
 | `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.2` |
 
 ## 历史变更 / Historical Changes
-- 当前暂无历史版本变更（均为基线版本记录）。
+
+### OperatorType.RegionSkeleton / Region Skeleton
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-08T17:27:35.2941737+08:00` | `618A97A0B08E` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `0B331757C5AA` |

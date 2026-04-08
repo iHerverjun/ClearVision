@@ -50,6 +50,11 @@ public readonly struct RunLength : IEquatable<RunLength>
 /// </summary>
 public class Region : ValueObject
 {
+    private int? _areaCache;
+    private RegionRect? _boundingBoxCache;
+    private RegionPoint2f? _centerCache;
+    private Dictionary<int, RunLength[]>? _runsByRowCache;
+
     /// <summary>
     /// 游程编码数据 - 按 Y 坐标排序的游程列表
     /// </summary>
@@ -59,19 +64,19 @@ public class Region : ValueObject
     /// 区域边界框
     /// </summary>
     [JsonIgnore]
-    public RegionRect BoundingBox => CalculateBoundingBox();
+    public RegionRect BoundingBox => _boundingBoxCache ??= CalculateBoundingBox();
 
     /// <summary>
     /// 区域面积（像素数）
     /// </summary>
     [JsonIgnore]
-    public int Area => RunLengths.Sum(r => r.Length);
+    public int Area => _areaCache ??= RunLengths.Sum(r => r.Length);
 
     /// <summary>
     /// 区域中心点
     /// </summary>
     [JsonIgnore]
-    public RegionPoint2f Center => CalculateCenter();
+    public RegionPoint2f Center => _centerCache ??= CalculateCenter();
 
     /// <summary>
     /// 是否为空区域
@@ -196,7 +201,46 @@ public class Region : ValueObject
     /// </summary>
     public bool ContainsPoint(int x, int y)
     {
-        return RunLengths.Any(r => r.Y == y && r.Contains(x));
+        if (IsEmpty)
+        {
+            return false;
+        }
+
+        var bbox = BoundingBox;
+        if (!bbox.Contains(x, y))
+        {
+            return false;
+        }
+
+        var runsByRow = _runsByRowCache ??= BuildRunsByRowIndex();
+        if (!runsByRow.TryGetValue(y, out var rowRuns))
+        {
+            return false;
+        }
+
+        int left = 0;
+        int right = rowRuns.Length - 1;
+
+        while (left <= right)
+        {
+            int mid = left + ((right - left) / 2);
+            var run = rowRuns[mid];
+
+            if (x < run.StartX)
+            {
+                right = mid - 1;
+            }
+            else if (x > run.EndX)
+            {
+                left = mid + 1;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -321,6 +365,15 @@ public class Region : ValueObject
         return new RegionPoint2f((float)(sumX / count), (float)(sumY / count));
     }
 
+    private Dictionary<int, RunLength[]> BuildRunsByRowIndex()
+    {
+        return RunLengths
+            .GroupBy(run => run.Y)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(run => run.StartX).ToArray());
+    }
+
     protected override IEnumerable<object> GetEqualityComponents()
     {
         yield return RunLengths.Count;
@@ -362,6 +415,8 @@ public enum MorphologyKernelShape
 /// </summary>
 public class MorphologyKernel : ValueObject
 {
+    private List<(int dx, int dy)>? _offsetCache;
+
     public MorphologyKernelShape Shape { get; init; }
     public int Width { get; init; }
     public int Height { get; init; }
@@ -387,28 +442,51 @@ public class MorphologyKernel : ValueObject
     /// </summary>
     public IEnumerable<(int dx, int dy)> GetOffsets()
     {
-        var offsets = new List<(int dx, int dy)>();
-        int halfW = Width / 2;
-        int halfH = Height / 2;
-
-        for (int dy = -halfH; dy <= halfH; dy++)
+        if (_offsetCache != null)
         {
-            for (int dx = -halfW; dx <= halfW; dx++)
-            {
-                bool include = Shape switch
-                {
-                    MorphologyKernelShape.Rectangle => true,
-                    MorphologyKernelShape.Ellipse => (dx * dx * 4.0 / (Width * Width) + dy * dy * 4.0 / (Height * Height)) <= 1.0,
-                    MorphologyKernelShape.Cross => dx == 0 || dy == 0,
-                    _ => true
-                };
+            return _offsetCache;
+        }
 
-                if (include)
-                    offsets.Add((dx, dy));
+        if (Width <= 0 || Height <= 0)
+        {
+            _offsetCache = new List<(int dx, int dy)>();
+            return _offsetCache;
+        }
+
+        using var kernel = OpenCvSharp.Cv2.GetStructuringElement(
+            ToOpenCvShape(),
+            new OpenCvSharp.Size(Width, Height));
+
+        int anchorX = (Width - 1) / 2;
+        int anchorY = (Height - 1) / 2;
+        var offsets = new List<(int dx, int dy)>();
+
+        for (int y = 0; y < kernel.Rows; y++)
+        {
+            for (int x = 0; x < kernel.Cols; x++)
+            {
+                if (kernel.At<byte>(y, x) == 0)
+                {
+                    continue;
+                }
+
+                offsets.Add((x - anchorX, y - anchorY));
             }
         }
 
-        return offsets;
+        _offsetCache = offsets;
+        return _offsetCache;
+    }
+
+    private OpenCvSharp.MorphShapes ToOpenCvShape()
+    {
+        return Shape switch
+        {
+            MorphologyKernelShape.Rectangle => OpenCvSharp.MorphShapes.Rect,
+            MorphologyKernelShape.Ellipse => OpenCvSharp.MorphShapes.Ellipse,
+            MorphologyKernelShape.Cross => OpenCvSharp.MorphShapes.Cross,
+            _ => OpenCvSharp.MorphShapes.Rect
+        };
     }
 
     protected override IEnumerable<object> GetEqualityComponents()
