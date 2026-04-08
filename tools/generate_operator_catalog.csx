@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env dotnet-script
+#!/usr/bin/env dotnet-script
 // Usage:
 //   dotnet script tools/generate_operator_catalog.csx [repoRoot] [--overwrite] [--enforce-version-bump]
 //

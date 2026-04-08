@@ -5,7 +5,8 @@ echo  ClearVision 项目清理脚本
 echo ==========================================
 echo.
 
-set "PROJECT_ROOT=C:\Users\11234\Desktop\ClearVision"
+set "SCRIPT_DIR=%~dp0"
+set "PROJECT_ROOT=%SCRIPT_DIR:~0,-1%"
 set "ACME_DIR=%PROJECT_ROOT%\Acme.Product"
 
 echo [1/3] 正在清理根目录的构建日志...
