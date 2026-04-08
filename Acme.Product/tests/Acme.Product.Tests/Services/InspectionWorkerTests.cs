@@ -80,6 +80,76 @@ public class InspectionWorkerTests
             TimeSpan.FromSeconds(2));
     }
 
+    [Fact]
+    public async Task WaitForRunExitAsync_WhenProjectHasReplacementSession_TreatsOriginalSessionAsExited()
+    {
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        flowExecution.ExecuteFlowAsync(
+                Arg.Any<OperatorFlow>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo => WaitForCancellationAsync(callInfo.ArgAt<CancellationToken>(3)));
+
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var resultChannelWriter = Substitute.For<IInspectionResultChannelWriter>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        lifetime.ApplicationStopping.Returns(CancellationToken.None);
+
+        using var serviceProvider = BuildScopedServices(
+            flowExecution,
+            imageAcquisition,
+            resultChannelWriter,
+            resultRepository,
+            projectRepository);
+
+        var store = new InMemoryEventStore(NullLogger<InMemoryEventStore>.Instance);
+        var bus = new InMemoryInspectionEventBus(NullLogger<InMemoryInspectionEventBus>.Instance, store);
+        var coordinator = new InspectionRuntimeCoordinator(NullLogger<InspectionRuntimeCoordinator>.Instance);
+        var analysisDataBuilder = new AnalysisDataBuilder();
+        var worker = new InspectionWorker(
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            coordinator,
+            bus,
+            NullLogger<InspectionWorker>.Instance,
+            lifetime,
+            new InspectionMetrics(),
+            analysisDataBuilder);
+
+        var projectId = Guid.NewGuid();
+        var firstSessionId = Guid.NewGuid();
+        var secondSessionId = Guid.NewGuid();
+
+        (await coordinator.TryStartAsync(projectId, firstSessionId, CancellationToken.None)).Should().Be(StartResult.Success);
+        (await worker.TryStartRunAsync(projectId, firstSessionId, new OperatorFlow("First"), null)).Should().BeTrue();
+
+        await WaitUntilAsync(
+            () => coordinator.GetState(projectId)?.Status == RuntimeStatus.Running,
+            TimeSpan.FromSeconds(2));
+
+        (await coordinator.TryStopAsync(projectId, CancellationToken.None)).Should().BeTrue();
+        (await worker.WaitForRunExitAsync(projectId, firstSessionId, TimeSpan.FromSeconds(2))).Should().BeTrue();
+
+        await WaitUntilAsync(
+            () => coordinator.GetState(projectId) == null,
+            TimeSpan.FromSeconds(2));
+
+        (await coordinator.TryStartAsync(projectId, secondSessionId, CancellationToken.None)).Should().Be(StartResult.Success);
+        (await worker.TryStartRunAsync(projectId, secondSessionId, new OperatorFlow("Second"), null)).Should().BeTrue();
+
+        await WaitUntilAsync(
+            () => coordinator.GetState(projectId)?.SessionId == secondSessionId
+                && coordinator.GetState(projectId)?.Status == RuntimeStatus.Running,
+            TimeSpan.FromSeconds(2));
+
+        (await worker.WaitForRunExitAsync(projectId, firstSessionId, TimeSpan.FromMilliseconds(100))).Should().BeTrue();
+
+        (await coordinator.TryStopAsync(projectId, CancellationToken.None)).Should().BeTrue();
+        (await worker.WaitForRunExitAsync(projectId, secondSessionId, TimeSpan.FromSeconds(2))).Should().BeTrue();
+    }
+
     private static async Task<FlowExecutionResult> WaitForCancellationAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.Infinite, cancellationToken);

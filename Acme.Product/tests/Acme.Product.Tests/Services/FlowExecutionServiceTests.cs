@@ -165,17 +165,49 @@ public class FlowExecutionServiceTests
             });
 
         var flow = new OperatorFlow("ParallelFailureFlow");
-        flow.AddOperator(CreateOperatorWithPorts("Fail", OperatorType.Thresholding));
         flow.AddOperator(CreateOperatorWithPorts("Slow", OperatorType.Thresholding));
+        flow.AddOperator(CreateOperatorWithPorts("Fail", OperatorType.Thresholding));
 
         var result = await _sut.ExecuteFlowAsync(flow, enableParallel: true);
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Fail");
+        await canceledTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var slowResult = result.OperatorResults.Single(r => r.OperatorName == "Slow");
         slowResult.IsSuccess.Should().BeFalse();
         slowResult.ErrorMessage.Should().Contain("canceled");
         result.OperatorResults.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ExecuteFlowAsync_WhenParallelFailuresRace_UsesFirstSignaledFailureForErrorMessage()
+    {
+        var slowReadyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFailuresTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _executor.ValidateParameters(Arg.Any<Operator>()).Returns(new ValidationResult { IsValid = true });
+        _executor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var op = callInfo.Arg<Operator>();
+                if (string.Equals(op.Name, "Fail", StringComparison.Ordinal))
+                {
+                    return ReleasePrimaryFailureAsync(slowReadyTcs, releaseFailuresTcs);
+                }
+
+                return ReleaseSecondaryFailureAsync(releaseFailuresTcs, slowReadyTcs);
+            });
+
+        var flow = new OperatorFlow("ParallelFailureRaceFlow");
+        flow.AddOperator(CreateOperatorWithPorts("Slow", OperatorType.Thresholding));
+        flow.AddOperator(CreateOperatorWithPorts("Fail", OperatorType.Thresholding));
+
+        var result = await _sut.ExecuteFlowAsync(flow, enableParallel: true);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Fail");
     }
 
     private static Operator CreateOperatorWithPorts(string name, OperatorType type)
@@ -216,5 +248,23 @@ public class FlowExecutionServiceTests
     {
         await slowStartedTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
         return OperatorExecutionOutput.Failure("boom");
+    }
+
+    private static async Task<OperatorExecutionOutput> ReleasePrimaryFailureAsync(
+        TaskCompletionSource<bool> slowReadyTcs,
+        TaskCompletionSource<bool> releaseFailuresTcs)
+    {
+        await slowReadyTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        releaseFailuresTcs.TrySetResult(true);
+        return OperatorExecutionOutput.Failure("primary boom");
+    }
+
+    private static async Task<OperatorExecutionOutput> ReleaseSecondaryFailureAsync(
+        TaskCompletionSource<bool> releaseFailuresTcs,
+        TaskCompletionSource<bool> slowReadyTcs)
+    {
+        slowReadyTcs.TrySetResult(true);
+        await releaseFailuresTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return OperatorExecutionOutput.Failure("secondary boom");
     }
 }

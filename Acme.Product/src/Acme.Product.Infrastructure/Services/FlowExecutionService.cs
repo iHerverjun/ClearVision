@@ -26,6 +26,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
     private static readonly TimeSpan DebugCleanupInterval = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DebugSessionTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan ExecutionStatusTtl = TimeSpan.FromSeconds(30);
+    private const string OperatorCanceledErrorMessage = "Operator execution was canceled.";
     private readonly ConcurrentDictionary<Guid, FlowExecutionStatus> _executionStatuses = new();
     private readonly Dictionary<OperatorType, IOperatorExecutor> _executors;
     private readonly ILogger<FlowExecutionService> _logger;
@@ -261,7 +262,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             status.ProgressPercentage = (double)completedOperators.Count / executionOrder.Count * 100;
 
             using var layerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var layerFailureSignaled = 0;
+            OperatorExecutionResult? primaryLayerFailure = null;
 
             // 并行执行当前层的所有算子
             var layerTasks = layer.Select(op => ExecuteParallelLayerOperatorAsync(
@@ -271,7 +272,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 fanOutDegrees,
                 cancellationToken,
                 layerCts,
-                () => Interlocked.Exchange(ref layerFailureSignaled, 1) == 0)).ToList();
+                failedResult => Interlocked.CompareExchange(ref primaryLayerFailure, failedResult, null) is null)).ToList();
 
             // Wait for the layer to drain before mutating the method-local result accumulator.
             var layerResults = await Task.WhenAll(layerTasks);
@@ -281,7 +282,10 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             if (layerResults.Any(r => !r.IsSuccess))
             {
                 failed = true;
-                var failedOp = layerResults.First(r => !r.IsSuccess);
+                var failedOp = primaryLayerFailure
+                    ?? layerResults
+                    .FirstOrDefault(r => !r.IsSuccess && !IsCanceledOperatorResult(r))
+                    ?? layerResults.First(r => !r.IsSuccess);
                 result.IsSuccess = false;
                 result.ErrorMessage = cancellationToken.IsCancellationRequested
                     ? "Flow was canceled."
@@ -302,7 +306,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         Dictionary<string, int>? fanOutDegrees,
         CancellationToken cancellationToken,
         CancellationTokenSource layerCts,
-        Func<bool> signalLayerFailure)
+        Func<OperatorExecutionResult, bool> signalLayerFailure)
     {
         if (layerCts.Token.IsCancellationRequested)
         {
@@ -311,18 +315,20 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
 
         if (!TryResolveExecutor(op.Type, out var executor))
         {
-            if (!cancellationToken.IsCancellationRequested && signalLayerFailure())
-            {
-                await CancelLayerAsync(layerCts);
-            }
-
-            return new OperatorExecutionResult
+            var missingExecutorResult = new OperatorExecutionResult
             {
                 OperatorId = op.Id,
                 OperatorName = op.Name,
                 IsSuccess = false,
                 ErrorMessage = $"未找到类型为 {op.Type} 的算子执行器"
             };
+
+            if (!cancellationToken.IsCancellationRequested && signalLayerFailure(missingExecutorResult))
+            {
+                await CancelLayerAsync(layerCts);
+            }
+
+            return missingExecutorResult;
         }
 
         var inputs = PrepareOperatorInputs(flow, op, operatorOutputs);
@@ -341,7 +347,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             return opResult;
         }
 
-        if (!cancellationToken.IsCancellationRequested && signalLayerFailure())
+        if (!cancellationToken.IsCancellationRequested && signalLayerFailure(opResult))
         {
             await CancelLayerAsync(layerCts);
         }
@@ -1465,8 +1471,13 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             OperatorName = op.Name,
             IsSuccess = false,
             ExecutionTimeMs = executionTimeMs,
-            ErrorMessage = "Operator execution was canceled."
+            ErrorMessage = OperatorCanceledErrorMessage
         };
+    }
+
+    private static bool IsCanceledOperatorResult(OperatorExecutionResult result)
+    {
+        return string.Equals(result.ErrorMessage, OperatorCanceledErrorMessage, StringComparison.Ordinal);
     }
 
     private static async Task CancelLayerAsync(CancellationTokenSource layerCts)
