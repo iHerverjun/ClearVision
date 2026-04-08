@@ -31,7 +31,7 @@ public sealed class ParameterRecommender
 
     private static Dictionary<string, object> RecommendThresholding(Mat source)
     {
-        using var gray = EnsureGray(source);
+        using var gray = CreateOwnedGrayMat(source);
         using var binary = new Mat();
 
         var otsuThreshold = Cv2.Threshold(
@@ -52,7 +52,7 @@ public sealed class ParameterRecommender
 
     private static Dictionary<string, object> RecommendFiltering(Mat source)
     {
-        using var gray = EnsureGray(source);
+        using var gray = CreateOwnedGrayMat(source);
         using var laplacian = new Mat();
 
         Cv2.Laplacian(gray, laplacian, MatType.CV_64F);
@@ -81,7 +81,7 @@ public sealed class ParameterRecommender
 
     private static Dictionary<string, object> RecommendBlobAnalysis(Mat source)
     {
-        using var gray = EnsureGray(source);
+        using var gray = CreateOwnedGrayMat(source);
         using var binary = new Mat();
         Cv2.Threshold(gray, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
 
@@ -126,7 +126,7 @@ public sealed class ParameterRecommender
 
     private static Dictionary<string, object> RecommendSharpnessEvaluation(Mat source)
     {
-        using var gray = EnsureGray(source);
+        using var gray = CreateOwnedGrayMat(source);
         using var laplacian = new Mat();
 
         Cv2.Laplacian(gray, laplacian, MatType.CV_64F);
@@ -145,7 +145,10 @@ public sealed class ParameterRecommender
         };
     }
 
-    private static Mat EnsureGray(Mat source)
+    /// <summary>
+    /// Always returns a new Mat owned by the caller, even when the source is already grayscale.
+    /// </summary>
+    private static Mat CreateOwnedGrayMat(Mat source)
     {
         if (source.Channels() == 1)
         {

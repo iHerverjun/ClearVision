@@ -61,6 +61,7 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
         _variableContext.IncrementCycleCount();
         _logger.LogDebug("[FlowExecution] 循环计数: {CycleCount}", _variableContext.CycleCount);
 
+        // Each ExecuteFlowAsync call owns its own FlowExecutionResult instance.
         var result = new FlowExecutionResult();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -259,53 +260,20 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             status.CurrentOperatorId = layer.First().Id;
             status.ProgressPercentage = (double)completedOperators.Count / executionOrder.Count * 100;
 
+            using var layerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var layerFailureSignaled = 0;
+
             // 并行执行当前层的所有算子
-            var layerTasks = layer.Select(async op =>
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return new OperatorExecutionResult
-                    {
-                        IsSuccess = false,
-                        ErrorMessage = "Flow was canceled.",
-                        OperatorId = op.Id,
-                        OperatorName = op.Name
-                    };
-                }
+            var layerTasks = layer.Select(op => ExecuteParallelLayerOperatorAsync(
+                flow,
+                op,
+                operatorOutputs,
+                fanOutDegrees,
+                cancellationToken,
+                layerCts,
+                () => Interlocked.Exchange(ref layerFailureSignaled, 1) == 0)).ToList();
 
-                if (!TryResolveExecutor(op.Type, out var executor))
-                {
-                    return new OperatorExecutionResult
-                    {
-                        OperatorId = op.Id,
-                        OperatorName = op.Name,
-                        IsSuccess = false,
-                        ErrorMessage = $"未找到类型为 {op.Type} 的算子执行器"
-                    };
-                }
-
-                // 准备输入数据
-                var inputs = PrepareOperatorInputs(flow, op, operatorOutputs);
-
-                // 执行算子
-                var opResult = await ExecuteOperatorInternalAsync(op, executor, inputs, cancellationToken);
-
-                if (opResult.IsSuccess)
-                {
-                    var outputs = opResult.OutputData ?? new Dictionary<string, object>();
-                    operatorOutputs[op.Id] = outputs;
-
-                    // Sprint 1 Task 1.1: 应用扇出引用计数
-                    if (fanOutDegrees != null)
-                    {
-                        ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
-                    }
-                }
-
-                return opResult;
-            }).ToList();
-
-            // 等待当前层所有算子执行完成
+            // Wait for the layer to drain before mutating the method-local result accumulator.
             var layerResults = await Task.WhenAll(layerTasks);
             result.OperatorResults.AddRange(layerResults);
 
@@ -325,6 +293,67 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 completedOperators.Add(op.Id);
             }
         }
+    }
+
+    private async Task<OperatorExecutionResult> ExecuteParallelLayerOperatorAsync(
+        OperatorFlow flow,
+        Operator op,
+        ConcurrentDictionary<Guid, Dictionary<string, object>> operatorOutputs,
+        Dictionary<string, int>? fanOutDegrees,
+        CancellationToken cancellationToken,
+        CancellationTokenSource layerCts,
+        Func<bool> signalLayerFailure)
+    {
+        if (layerCts.Token.IsCancellationRequested)
+        {
+            return CreateCanceledOperatorResult(op);
+        }
+
+        if (!TryResolveExecutor(op.Type, out var executor))
+        {
+            if (!cancellationToken.IsCancellationRequested && signalLayerFailure())
+            {
+                await CancelLayerAsync(layerCts);
+            }
+
+            return new OperatorExecutionResult
+            {
+                OperatorId = op.Id,
+                OperatorName = op.Name,
+                IsSuccess = false,
+                ErrorMessage = $"未找到类型为 {op.Type} 的算子执行器"
+            };
+        }
+
+        var inputs = PrepareOperatorInputs(flow, op, operatorOutputs);
+        var opResult = await ExecuteOperatorInternalAsync(op, executor, inputs, layerCts.Token);
+
+        if (opResult.IsSuccess)
+        {
+            var outputs = opResult.OutputData ?? new Dictionary<string, object>();
+            operatorOutputs[op.Id] = outputs;
+
+            if (fanOutDegrees != null)
+            {
+                ApplyFanOutRefCounts(op, outputs, fanOutDegrees);
+            }
+
+            return opResult;
+        }
+
+        if (!cancellationToken.IsCancellationRequested && signalLayerFailure())
+        {
+            await CancelLayerAsync(layerCts);
+        }
+
+        if (!cancellationToken.IsCancellationRequested &&
+            layerCts.IsCancellationRequested &&
+            string.IsNullOrWhiteSpace(opResult.ErrorMessage))
+        {
+            return CreateCanceledOperatorResult(op, opResult.ExecutionTimeMs);
+        }
+
+        return opResult;
     }
 
     /// <summary>
@@ -451,6 +480,14 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 ExecutionTimeMs = opStopwatch.ElapsedMilliseconds,
                 ErrorMessage = $"Operator '{op.Name}' timed out ({DefaultOperatorTimeoutMs / 1000}s)"
             };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            opStopwatch.Stop();
+            op.MarkExecutionFailed("Operator execution was canceled.");
+            _logger.LogWarning("算子执行被取消: {OperatorName} ({OperatorId})", op.Name, op.Id);
+
+            return CreateCanceledOperatorResult(op, opStopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
@@ -609,8 +646,8 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
     }
 
     /// <summary>
-    /// <summary>
     /// 规范化流程输出，避免将 OpenCvSharp.Mat 等非 JSON 安全对象直接暴露到上层。
+    /// 图像类型会被快照化为 byte[]，因此上层不能假设结果仍然是 live Mat。
     /// </summary>
     private Dictionary<string, object> ConvertImageWrappersToBytes(Dictionary<string, object>? outputData)
     {
@@ -1413,8 +1450,34 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             return;
         }
 
+        // This service does not have a finalizer. Per-execution CancellationTokenSources are disposed
+        // in the finally blocks of ExecuteFlowAsync / ExecuteFlowDebugAsync; Dispose only tears down
+        // the service-level cleanup timer.
         _debugCacheCleanupTimer.Dispose();
         _disposed = true;
+    }
+
+    private static OperatorExecutionResult CreateCanceledOperatorResult(Operator op, long executionTimeMs = 0)
+    {
+        return new OperatorExecutionResult
+        {
+            OperatorId = op.Id,
+            OperatorName = op.Name,
+            IsSuccess = false,
+            ExecutionTimeMs = executionTimeMs,
+            ErrorMessage = "Operator execution was canceled."
+        };
+    }
+
+    private static async Task CancelLayerAsync(CancellationTokenSource layerCts)
+    {
+        try
+        {
+            await layerCts.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     #endregion

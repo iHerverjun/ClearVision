@@ -31,7 +31,6 @@ public class AutoTuneServiceTests
         flow.AddOperator(targetOperator);
 
         var seenOptions = new List<DebugOptions>();
-        var allocatedImages = new List<Mat>();
         var metricsCallCount = 0;
 
         flowExecution.ExecuteFlowDebugAsync(
@@ -43,9 +42,6 @@ public class AutoTuneServiceTests
             {
                 seenOptions.Add(callInfo.ArgAt<DebugOptions>(1));
 
-                var image = new Mat(6, 6, MatType.CV_8UC1, Scalar.All(255));
-                allocatedImages.Add(image);
-
                 return Task.FromResult(new FlowDebugExecutionResult
                 {
                     IsSuccess = true,
@@ -53,7 +49,7 @@ public class AutoTuneServiceTests
                     {
                         [targetOperator.Id] = new()
                         {
-                            ["Image"] = image
+                            ["Image"] = CreateOutputImageBytes()
                         }
                     }
                 });
@@ -68,37 +64,80 @@ public class AutoTuneServiceTests
                     : CreateMetrics(currentBlobCount: 5);
             });
 
-        try
-        {
-            var result = await service.AutoTuneInFlowAsync(
-                flow,
-                targetOperator.Id,
-                CreateInputImage(),
-                new Dictionary<string, object> { ["Threshold"] = 100 },
-                new AutoTuneGoal
-                {
-                    TargetBlobCount = 5,
-                    Tolerance = 0.1
-                },
-                maxIterations: 3,
-                ct: CancellationToken.None);
-
-            result.Success.Should().BeTrue();
-            result.IsGoalAchieved.Should().BeTrue();
-            result.TotalIterations.Should().Be(2);
-            Convert.ToInt32(result.FinalParameters["Threshold"]).Should().Be(178);
-            seenOptions.Should().HaveCount(2);
-            seenOptions.Should().OnlyContain(options =>
-                options.BreakAtOperatorId == targetOperator.Id &&
-                options.EnableIntermediateCache);
-        }
-        finally
-        {
-            foreach (var image in allocatedImages)
+        var result = await service.AutoTuneInFlowAsync(
+            flow,
+            targetOperator.Id,
+            CreateInputImage(),
+            new Dictionary<string, object> { ["Threshold"] = 100 },
+            new AutoTuneGoal
             {
-                image.Dispose();
-            }
-        }
+                TargetBlobCount = 5,
+                Tolerance = 0.1
+            },
+            maxIterations: 3,
+            ct: CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.IsGoalAchieved.Should().BeTrue();
+        result.TotalIterations.Should().Be(2);
+        Convert.ToInt32(result.FinalParameters["Threshold"]).Should().Be(178);
+        seenOptions.Should().HaveCount(2);
+        seenOptions.Should().OnlyContain(options =>
+            options.BreakAtOperatorId == targetOperator.Id &&
+            options.EnableIntermediateCache);
+    }
+
+    [Fact]
+    public async Task AutoTuneOperatorAsync_DecodesNormalizedOutputBytes()
+    {
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var metricsAnalyzer = Substitute.For<IPreviewMetricsAnalyzer>();
+        var flowNodePreviewService = Substitute.For<IFlowNodePreviewService>();
+        var service = new AutoTuneService(
+            NullLogger<AutoTuneService>.Instance,
+            flowExecution,
+            metricsAnalyzer,
+            flowNodePreviewService);
+
+        flowExecution.ExecuteFlowDebugAsync(
+                Arg.Any<OperatorFlow>(),
+                Arg.Any<DebugOptions>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowDebugExecutionResult
+            {
+                IsSuccess = true,
+                OutputData = new Dictionary<string, object>
+                {
+                    ["Image"] = CreateOutputImageBytes()
+                }
+            }));
+
+        metricsAnalyzer.Analyze(
+                Arg.Is<Mat>(mat => !mat.Empty() && mat.Width == 6 && mat.Height == 6),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<AutoTuneGoal?>())
+            .Returns(CreateMetrics(currentBlobCount: 5));
+
+        var result = await service.AutoTuneOperatorAsync(
+            OperatorType.Thresholding,
+            CreateInputImage(),
+            new Dictionary<string, object> { ["Threshold"] = 100 },
+            new AutoTuneGoal
+            {
+                TargetBlobCount = 5,
+                Tolerance = 0.1
+            },
+            maxIterations: 1,
+            ct: CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.TotalIterations.Should().Be(1);
+        result.IsGoalAchieved.Should().BeTrue();
+        metricsAnalyzer.Received(1).Analyze(
+            Arg.Any<Mat>(),
+            Arg.Any<Dictionary<string, object>?>(),
+            Arg.Any<AutoTuneGoal?>());
     }
 
     private static PreviewMetrics CreateMetrics(int currentBlobCount)
@@ -121,6 +160,13 @@ public class AutoTuneServiceTests
     private static byte[] CreateInputImage()
     {
         using var image = new Mat(6, 6, MatType.CV_8UC3, Scalar.All(255));
+        Cv2.ImEncode(".png", image, out var encoded);
+        return encoded;
+    }
+
+    private static byte[] CreateOutputImageBytes()
+    {
+        using var image = new Mat(6, 6, MatType.CV_8UC1, Scalar.All(255));
         Cv2.ImEncode(".png", image, out var encoded);
         return encoded;
     }

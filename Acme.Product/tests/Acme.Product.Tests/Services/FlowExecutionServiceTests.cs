@@ -141,6 +141,43 @@ public class FlowExecutionServiceTests
         callCounts["Target"].Should().Be(2, "the edited target node still needs to run again");
     }
 
+    [Fact]
+    public async Task ExecuteFlowAsync_WhenParallelLayerFails_CancelsSiblingOperators()
+    {
+        var slowStartedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceledTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _executor.ValidateParameters(Arg.Any<Operator>()).Returns(new ValidationResult { IsValid = true });
+        _executor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var op = callInfo.Arg<Operator>();
+                var ct = callInfo.ArgAt<CancellationToken>(2);
+                if (string.Equals(op.Name, "Fail", StringComparison.Ordinal))
+                {
+                    return WaitForSiblingToStartThenFailAsync(slowStartedTcs);
+                }
+
+                slowStartedTcs.TrySetResult(true);
+                return WaitForOperatorCancellationAsync(ct, canceledTcs);
+            });
+
+        var flow = new OperatorFlow("ParallelFailureFlow");
+        flow.AddOperator(CreateOperatorWithPorts("Fail", OperatorType.Thresholding));
+        flow.AddOperator(CreateOperatorWithPorts("Slow", OperatorType.Thresholding));
+
+        var result = await _sut.ExecuteFlowAsync(flow, enableParallel: true);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Fail");
+        var slowResult = result.OperatorResults.Single(r => r.OperatorName == "Slow");
+        slowResult.IsSuccess.Should().BeFalse();
+        slowResult.ErrorMessage.Should().Contain("canceled");
+        result.OperatorResults.Should().HaveCount(2);
+    }
+
     private static Operator CreateOperatorWithPorts(string name, OperatorType type)
     {
         var op = new Operator(name, type, 0, 0);
@@ -156,5 +193,28 @@ public class FlowExecutionServiceTests
             source.OutputPorts.First().Id,
             target.Id,
             target.InputPorts.First().Id);
+    }
+
+    private static async Task<OperatorExecutionOutput> WaitForOperatorCancellationAsync(
+        CancellationToken cancellationToken,
+        TaskCompletionSource<bool> canceledTcs)
+    {
+        try
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return OperatorExecutionOutput.Success(new Dictionary<string, object>());
+        }
+        catch (OperationCanceledException)
+        {
+            canceledTcs.TrySetResult(true);
+            throw;
+        }
+    }
+
+    private static async Task<OperatorExecutionOutput> WaitForSiblingToStartThenFailAsync(
+        TaskCompletionSource<bool> slowStartedTcs)
+    {
+        await slowStartedTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return OperatorExecutionOutput.Failure("boom");
     }
 }

@@ -108,25 +108,11 @@ public class AutoTuneService : IAutoTuneService
 
                 var iterSw = Stopwatch.StartNew();
 
-                // 创建临时算子执行
-                var tempOperator = CreateOperator(type, currentParams);
-                var tempFlow = new OperatorFlow($"AutoTune_{type}_{iteration}");
-                tempFlow.AddOperator(tempOperator);
-
                 // 执行获取结果
                 var executionResult = await ExecuteOperatorAsync(type, inputMat, currentParams, ct);
 
-                // 获取输出图像
-                Mat? outputImage = null;
-                if (executionResult.OutputData?.TryGetValue("Image", out var imgObj) == true && imgObj is Mat mat)
-                {
-                    outputImage = mat;
-                }
-                else if (executionResult.OutputData?.TryGetValue("OutputImage", out var outImgObj) == true && outImgObj is Mat outMat)
-                {
-                    outputImage = outMat;
-                }
-
+                // FlowExecutionService exposes normalized snapshots, so recreate an owned Mat for analysis here.
+                using var outputImage = TryCreateOwnedPreviewImage(executionResult.OutputData);
                 if (outputImage == null)
                 {
                     _logger.LogWarning("[AutoTune] 迭代 {Iteration}: 未获取到输出图像", iteration);
@@ -283,17 +269,8 @@ public class AutoTuneService : IAutoTuneService
                     throw new InvalidOperationException($"无法获取算子 {targetNodeId} 的输出");
                 }
 
-                // 获取输出图像
-                Mat? outputImage = null;
-                if (targetOutput.TryGetValue("Image", out var imgObj) && imgObj is Mat mat)
-                {
-                    outputImage = mat;
-                }
-                else if (targetOutput.TryGetValue("OutputImage", out var outImgObj) && outImgObj is Mat outMat)
-                {
-                    outputImage = outMat;
-                }
-
+                // Debug intermediate results are also normalized snapshots, not transferable live Mats.
+                using var outputImage = TryCreateOwnedPreviewImage(targetOutput);
                 if (outputImage == null)
                 {
                     _logger.LogWarning("[AutoTune] 迭代 {Iteration}: 未获取到输出图像", iteration);
@@ -1080,6 +1057,50 @@ public class AutoTuneService : IAutoTuneService
         };
 
         return await _flowExecution.ExecuteFlowDebugAsync(flow, options, inputData);
+    }
+
+    private static Mat? TryCreateOwnedPreviewImage(Dictionary<string, object>? outputData)
+    {
+        if (outputData == null)
+        {
+            return null;
+        }
+
+        if (outputData.TryGetValue("Image", out var imageObj))
+        {
+            var image = TryCreateOwnedPreviewImage(imageObj);
+            if (image != null)
+            {
+                return image;
+            }
+        }
+
+        if (outputData.TryGetValue("OutputImage", out var outputImageObj))
+        {
+            return TryCreateOwnedPreviewImage(outputImageObj);
+        }
+
+        return null;
+    }
+
+    private static Mat? TryCreateOwnedPreviewImage(object? value)
+    {
+        switch (value)
+        {
+            case Mat mat:
+                return mat.Clone();
+            case byte[] bytes when bytes.Length > 0:
+                var decoded = Cv2.ImDecode(bytes, ImreadModes.Unchanged);
+                if (decoded.Empty())
+                {
+                    decoded.Dispose();
+                    return null;
+                }
+
+                return decoded;
+            default:
+                return null;
+        }
     }
 
     private static Operator? FindClosestUpstreamOperator(OperatorFlow flow, Guid targetNodeId, OperatorType type)

@@ -390,8 +390,9 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
                     using var resizedMat = new Mat();
                     Cv2.Resize(resultMat, resizedMat, new Size(targetWidth, targetHeight), 0, 0, InterpolationFlags.Linear);
+                    var nextMat = resizedMat.Clone();
                     resultMat.Dispose();
-                    resultMat = resizedMat.Clone();
+                    resultMat = nextMat;
                 }
 
                 // 应用滤波
@@ -417,8 +418,9 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                             Cv2.GaussianBlur(resultMat, filteredMat, new Size(kernelSize, kernelSize), 0);
                             break;
                     }
+                    var nextMat = filteredMat.Clone();
                     resultMat.Dispose();
-                    resultMat = filteredMat.Clone();
+                    resultMat = nextMat;
                 }
 
                 // 旋转
@@ -428,8 +430,9 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     var center = new Point2f(resultMat.Width / 2f, resultMat.Height / 2f);
                     var rotationMatrix = Cv2.GetRotationMatrix2D(center, options.RotationAngle.Value, 1.0);
                     Cv2.WarpAffine(resultMat, rotatedMat, rotationMatrix, resultMat.Size());
+                    var nextMat = rotatedMat.Clone();
                     resultMat.Dispose();
-                    resultMat = rotatedMat.Clone();
+                    resultMat = nextMat;
                 }
 
                 // 翻转
@@ -439,8 +442,9 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                     var flipCode = options.FlipHorizontal && options.FlipVertical ? -1 :
                                    options.FlipHorizontal ? 1 : 0;
                     Cv2.Flip(resultMat, flippedMat, (FlipMode)flipCode);
+                    var nextMat = flippedMat.Clone();
                     resultMat.Dispose();
-                    resultMat = flippedMat.Clone();
+                    resultMat = nextMat;
                 }
 
                 // 归一化
@@ -448,8 +452,9 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                 {
                     using var normalizedMat = new Mat();
                     Cv2.Normalize(resultMat, normalizedMat, 0, 1, NormTypes.MinMax);
+                    var nextMat = normalizedMat.Clone();
                     resultMat.Dispose();
-                    resultMat = normalizedMat.Clone();
+                    resultMat = nextMat;
                 }
 
                 var newImageId = Guid.NewGuid();
