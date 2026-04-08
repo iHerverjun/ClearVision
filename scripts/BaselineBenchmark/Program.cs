@@ -260,7 +260,14 @@ static void DisposeObjectGraph(object? value)
 
 static Mat CreateTemplate(Mat baseImage)
 {
-    var size = new CvSize(Math.Min(128, baseImage.Width / 2), Math.Min(128, baseImage.Height / 2));
+    if (baseImage.Empty() || baseImage.Width <= 0 || baseImage.Height <= 0)
+    {
+        throw new ArgumentException("Base image must have a positive size.", nameof(baseImage));
+    }
+
+    var size = new CvSize(
+        Math.Max(1, Math.Min(128, baseImage.Width / 2)),
+        Math.Max(1, Math.Min(128, baseImage.Height / 2)));
     var rect = new CvRect(
         Math.Max(0, baseImage.Width / 2 - size.Width / 2),
         Math.Max(0, baseImage.Height / 2 - size.Height / 2),
