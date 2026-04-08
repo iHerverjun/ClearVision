@@ -1,4 +1,4 @@
-﻿// ConnectionPoolManager.cs
+// ConnectionPoolManager.cs
 // 通信连接池管理器
 // 负责 Modbus/TCP 连接复用、健康检查与空闲回收
 // 作者：蘅芜君
@@ -18,15 +18,16 @@ public class ConnectionPoolManager : IDisposable
     private readonly ILogger<ConnectionPoolManager> _logger;
     private readonly ConcurrentDictionary<string, PooledConnection> _connections = new();
     private readonly Timer _heartbeatTimer;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _connectGates = new();
     private readonly TimeSpan _maxIdleTime = TimeSpan.FromMinutes(5);
     private readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(30);
     private readonly IModbusFactory _modbusFactory = new ModbusFactory();
-    private bool _disposed;
+    private int _disposeState;
 
     public ConnectionPoolManager(ILogger<ConnectionPoolManager> logger)
     {
         _logger = logger;
-        // 启动心跳检测定时器
         _heartbeatTimer = new Timer(CheckConnectionHealth, null, _heartbeatInterval, _heartbeatInterval);
     }
 
@@ -34,107 +35,246 @@ public class ConnectionPoolManager : IDisposable
     /// 获取或创建Modbus连接
     /// </summary>
     public async Task<IModbusMaster> GetOrCreateModbusConnectionAsync(
-        string ipAddress, 
-        int port, 
+        string ipAddress,
+        int port,
         byte slaveId,
         CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         var key = $"modbus:{ipAddress}:{port}:{slaveId}";
-        
-        if (_connections.TryGetValue(key, out var existingConnection) && existingConnection.IsValid)
-        {
-            _logger.LogDebug("[ConnectionPool] 复用Modbus连接: {Key}", key);
-            existingConnection.LastUsedTime = DateTime.UtcNow;
-            return (IModbusMaster)existingConnection.Connection;
-        }
+        var connectGate = _connectGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
 
-        // 创建新连接
-        _logger.LogInformation("[ConnectionPool] Creating new Modbus connection: {Key}", key);
-        var client = new TcpClient();
-        
+        await _gate.WaitAsync(cancellationToken);
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
-            
-            await client.ConnectAsync(ipAddress, port, cts.Token);
-            var master = _modbusFactory.CreateMaster(client);
+            ThrowIfDisposed();
 
-            var pooledConnection = new PooledConnection
+            if (TryGetReusableConnectionUnsafe(key, ConnectionType.Modbus, out var existingConnection) &&
+                existingConnection.Connection is IModbusMaster existingMaster)
             {
-                Key = key,
-                Connection = master,
-                Client = client,
-                Type = ConnectionType.Modbus,
-                CreatedTime = DateTime.UtcNow,
-                LastUsedTime = DateTime.UtcNow,
-                IsValid = true
-            };
+                _logger.LogDebug("[ConnectionPool] 复用Modbus连接: {Key}", key);
+                existingConnection.LastUsedTime = DateTime.UtcNow;
+                return existingMaster;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
 
-            // 如果已存在旧连接，先关闭
-            if (_connections.TryRemove(key, out var oldConnection))
+        await connectGate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+
+            await _gate.WaitAsync(cancellationToken);
+            try
             {
-                oldConnection.Dispose();
+                ThrowIfDisposed();
+
+                if (TryGetReusableConnectionUnsafe(key, ConnectionType.Modbus, out var existingConnection) &&
+                    existingConnection.Connection is IModbusMaster existingMaster)
+                {
+                    _logger.LogDebug("[ConnectionPool] 复用Modbus连接: {Key}", key);
+                    existingConnection.LastUsedTime = DateTime.UtcNow;
+                    return existingMaster;
+                }
+
+                RemoveConnectionUnsafe(key);
+            }
+            finally
+            {
+                _gate.Release();
             }
 
-            _connections[key] = pooledConnection;
-            return master;
+            _logger.LogInformation("[ConnectionPool] Creating new Modbus connection: {Key}", key);
+            TcpClient? client = null;
+            PooledConnection? pooledConnection = null;
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                client = await CreateConnectedTcpClientAsync(ipAddress, port, cts.Token);
+                var master = _modbusFactory.CreateMaster(client);
+                pooledConnection = new PooledConnection
+                {
+                    Key = key,
+                    Connection = master,
+                    Client = client,
+                    Type = ConnectionType.Modbus,
+                    CreatedTime = DateTime.UtcNow,
+                    LastUsedTime = DateTime.UtcNow,
+                    IsValid = true
+                };
+
+                await _gate.WaitAsync(cancellationToken);
+                try
+                {
+                    ThrowIfDisposed();
+
+                    if (TryGetReusableConnectionUnsafe(key, ConnectionType.Modbus, out var currentConnection) &&
+                        currentConnection.Connection is IModbusMaster currentMaster)
+                    {
+                        pooledConnection.Dispose();
+                        pooledConnection = null;
+                        return currentMaster;
+                    }
+
+                    var publishedConnection = pooledConnection
+                        ?? throw new InvalidOperationException("Modbus pooled connection was not created.");
+                    _connections[key] = publishedConnection;
+                    pooledConnection = null;
+                    return master;
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+            catch
+            {
+                pooledConnection?.Dispose();
+                client?.Dispose();
+                throw;
+            }
         }
-        catch
+        finally
         {
-            client.Dispose();
-            throw;
+            connectGate.Release();
         }
     }
 
     /// <summary>
-    /// 获取或创建TCP连接
+    /// 获取或创建TCP连接租约。调用方应释放租约，而不是直接释放底层 NetworkStream。
     /// </summary>
-    public async Task<NetworkStream> GetOrCreateTcpConnectionAsync(
-        string ipAddress, 
+    public async Task<PooledTcpConnectionLease> GetOrCreateTcpConnectionAsync(
+        string ipAddress,
         int port,
         CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         var key = $"tcp:{ipAddress}:{port}";
-        
-        if (_connections.TryGetValue(key, out var existingConnection) && existingConnection.IsValid)
-        {
-            _logger.LogDebug("[ConnectionPool] 复用TCP连接: {Key}", key);
-            existingConnection.LastUsedTime = DateTime.UtcNow;
-            return (NetworkStream)existingConnection.Connection;
-        }
+        var connectGate = _connectGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
 
-        // 创建新连接
-        _logger.LogInformation("[ConnectionPool] Creating new TCP connection: {Key}", key);
-        var client = new TcpClient();
-        
+        await _gate.WaitAsync(cancellationToken);
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
-            
-            await client.ConnectAsync(ipAddress, port, cts.Token);
-            var stream = client.GetStream();
+            ThrowIfDisposed();
 
-            var pooledConnection = new PooledConnection
+            if (TryGetReusableConnectionUnsafe(key, ConnectionType.Tcp, out var existingConnection) &&
+                existingConnection.Connection is NetworkStream existingStream)
             {
-                Key = key,
-                Connection = stream,
-                Client = client,
-                Type = ConnectionType.Tcp,
-                CreatedTime = DateTime.UtcNow,
-                LastUsedTime = DateTime.UtcNow,
-                IsValid = true
-            };
+                _logger.LogDebug("[ConnectionPool] 复用TCP连接: {Key}", key);
+                existingConnection.LastUsedTime = DateTime.UtcNow;
+                existingConnection.LeaseCount++;
+                return new PooledTcpConnectionLease(existingStream, () => ReleaseTcpLease(key, existingConnection));
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
 
-            // 如果已存在旧连接，先关闭
-            if (_connections.TryRemove(key, out var oldConnection))
+        await connectGate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+
+            await _gate.WaitAsync(cancellationToken);
+            try
             {
-                oldConnection.Dispose();
+                ThrowIfDisposed();
+
+                if (TryGetReusableConnectionUnsafe(key, ConnectionType.Tcp, out var existingConnection) &&
+                    existingConnection.Connection is NetworkStream existingStream)
+                {
+                    _logger.LogDebug("[ConnectionPool] 复用TCP连接: {Key}", key);
+                    existingConnection.LastUsedTime = DateTime.UtcNow;
+                    existingConnection.LeaseCount++;
+                    return new PooledTcpConnectionLease(existingStream, () => ReleaseTcpLease(key, existingConnection));
+                }
+
+                RemoveConnectionUnsafe(key);
+            }
+            finally
+            {
+                _gate.Release();
             }
 
-            _connections[key] = pooledConnection;
-            return stream;
+            _logger.LogInformation("[ConnectionPool] Creating new TCP connection: {Key}", key);
+            TcpClient? client = null;
+            PooledConnection? pooledConnection = null;
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                client = await CreateConnectedTcpClientAsync(ipAddress, port, cts.Token);
+                var stream = client.GetStream();
+                pooledConnection = new PooledConnection
+                {
+                    Key = key,
+                    Connection = stream,
+                    Client = client,
+                    Type = ConnectionType.Tcp,
+                    CreatedTime = DateTime.UtcNow,
+                    LastUsedTime = DateTime.UtcNow,
+                    IsValid = true,
+                    LeaseCount = 1
+                };
+
+                await _gate.WaitAsync(cancellationToken);
+                try
+                {
+                    ThrowIfDisposed();
+
+                    if (TryGetReusableConnectionUnsafe(key, ConnectionType.Tcp, out var currentConnection) &&
+                        currentConnection.Connection is NetworkStream currentStream)
+                    {
+                        currentConnection.LastUsedTime = DateTime.UtcNow;
+                        currentConnection.LeaseCount++;
+                        pooledConnection.Dispose();
+                        pooledConnection = null;
+                        return new PooledTcpConnectionLease(currentStream, () => ReleaseTcpLease(key, currentConnection));
+                    }
+
+                    var leaseConnection = pooledConnection
+                        ?? throw new InvalidOperationException("TCP pooled connection was not created.");
+                    _connections[key] = leaseConnection;
+                    pooledConnection = null;
+                    return new PooledTcpConnectionLease(stream, () => ReleaseTcpLease(key, leaseConnection));
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+            catch
+            {
+                pooledConnection?.Dispose();
+                client?.Dispose();
+                throw;
+            }
+        }
+        finally
+        {
+            connectGate.Release();
+        }
+    }
+
+    protected virtual async Task<TcpClient> CreateConnectedTcpClientAsync(
+        string ipAddress,
+        int port,
+        CancellationToken cancellationToken)
+    {
+        var client = new TcpClient();
+        try
+        {
+            await client.ConnectAsync(ipAddress, port, cancellationToken);
+            return client;
         }
         catch
         {
@@ -148,10 +288,14 @@ public class ConnectionPoolManager : IDisposable
     /// </summary>
     public void ReleaseConnection(string key)
     {
-        if (_connections.TryRemove(key, out var connection))
+        _gate.Wait();
+        try
         {
-            _logger.LogInformation("[ConnectionPool] 释放连接: {Key}", key);
-            connection.Dispose();
+            RemoveConnectionUnsafe(key);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
@@ -160,42 +304,57 @@ public class ConnectionPoolManager : IDisposable
     /// </summary>
     private void CheckConnectionHealth(object? state)
     {
-        var now = DateTime.UtcNow;
-        var keysToRemove = new List<string>();
-
-        foreach (var kvp in _connections)
+        if (IsDisposed || !_gate.Wait(0))
         {
-            var connection = kvp.Value;
-            
-            // 检查是否超时未使用
-            if (now - connection.LastUsedTime > _maxIdleTime)
-            {
-                _logger.LogDebug("[ConnectionPool] 连接超时未使用，准备释放: {Key}", kvp.Key);
-                keysToRemove.Add(kvp.Key);
-                continue;
-            }
-
-            // 检查连接是否仍然有效
-            if (!IsConnectionAlive(connection))
-            {
-                _logger.LogWarning("[ConnectionPool] 连接已断开，标记为无效: {Key}", kvp.Key);
-                connection.IsValid = false;
-                keysToRemove.Add(kvp.Key);
-            }
+            return;
         }
 
-        // 释放无效连接
-        foreach (var key in keysToRemove)
+        try
         {
-            if (_connections.TryRemove(key, out var connection))
+            if (IsDisposed)
             {
-                connection.Dispose();
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var keysToRemove = new List<string>();
+
+            foreach (var kvp in _connections)
+            {
+                var connection = kvp.Value;
+                if (connection.Type == ConnectionType.Tcp && connection.LeaseCount > 0)
+                {
+                    continue;
+                }
+
+                if (now - connection.LastUsedTime > _maxIdleTime)
+                {
+                    _logger.LogDebug("[ConnectionPool] 连接超时未使用，准备释放: {Key}", kvp.Key);
+                    keysToRemove.Add(kvp.Key);
+                    continue;
+                }
+
+                if (!IsConnectionAlive(connection))
+                {
+                    _logger.LogWarning("[ConnectionPool] 连接已断开，标记为无效: {Key}", kvp.Key);
+                    connection.IsValid = false;
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+
+            foreach (var key in keysToRemove)
+            {
+                RemoveConnectionUnsafe(key);
+            }
+
+            if (keysToRemove.Count > 0)
+            {
+                _logger.LogInformation("[ConnectionPool] Cleaned up {Count} invalid connections.", keysToRemove.Count);
             }
         }
-
-        if (keysToRemove.Count > 0)
+        finally
         {
-            _logger.LogInformation("[ConnectionPool] Cleaned up {Count} invalid connections.", keysToRemove.Count);
+            _gate.Release();
         }
     }
 
@@ -206,22 +365,18 @@ public class ConnectionPoolManager : IDisposable
     {
         try
         {
-            if (connection.Client is TcpClient tcpClient)
+            var socket = connection.Client?.Client;
+            if (socket == null || !socket.Connected)
             {
-                var socket = tcpClient.Client;
-                if (socket == null || !socket.Connected)
-                {
-                    return false;
-                }
-
-                if (socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0)
-                {
-                    return false;
-                }
-
-                return true;
+                return false;
             }
-            return false;
+
+            if (socket.Poll(1000, SelectMode.SelectRead) && socket.Available == 0)
+            {
+                return false;
+            }
+
+            return true;
         }
         catch
         {
@@ -245,17 +400,121 @@ public class ConnectionPoolManager : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        
-        _heartbeatTimer?.Dispose();
-        
-        foreach (var connection in _connections.Values)
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
         {
-            connection.Dispose();
+            return;
         }
-        _connections.Clear();
-        
-        _disposed = true;
+
+        _heartbeatTimer.Dispose();
+
+        _gate.Wait();
+        try
+        {
+            foreach (var key in _connections.Keys.ToList())
+            {
+                RemoveConnectionUnsafe(key, forceDispose: true);
+            }
+
+            _connections.Clear();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    internal void ReleaseTcpLease(string key, PooledConnection connection)
+    {
+        _gate.Wait();
+        try
+        {
+            if (connection.LeaseCount > 0)
+            {
+                connection.LeaseCount--;
+            }
+
+            connection.LastUsedTime = DateTime.UtcNow;
+
+            var isCurrentConnection = _connections.TryGetValue(key, out var currentConnection) &&
+                ReferenceEquals(currentConnection, connection);
+            if (connection.LeaseCount == 0 && (connection.PendingDispose || !isCurrentConnection || IsDisposed))
+            {
+                connection.Dispose();
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private bool TryGetReusableConnectionUnsafe(string key, ConnectionType expectedType, out PooledConnection connection)
+    {
+        if (_connections.TryGetValue(key, out connection!))
+        {
+            if (connection.Type == expectedType && connection.IsValid && !connection.PendingDispose)
+            {
+                return true;
+            }
+        }
+
+        connection = null!;
+        return false;
+    }
+
+    private void RemoveConnectionUnsafe(string key, bool forceDispose = false)
+    {
+        if (_connections.TryRemove(key, out var connection))
+        {
+            _logger.LogInformation("[ConnectionPool] 释放连接: {Key}", key);
+            RetireConnectionUnsafe(connection, forceDispose);
+        }
+    }
+
+    private static void RetireConnectionUnsafe(PooledConnection connection, bool forceDispose)
+    {
+        connection.IsValid = false;
+        if (!forceDispose && connection.Type == ConnectionType.Tcp && connection.LeaseCount > 0)
+        {
+            connection.PendingDispose = true;
+            return;
+        }
+
+        connection.Dispose();
+    }
+
+    private bool IsDisposed => Volatile.Read(ref _disposeState) != 0;
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+    }
+}
+
+/// <summary>
+/// TCP 连接租约。底层 stream 由连接池持有，调用方释放租约即可归还连接。
+/// </summary>
+public sealed class PooledTcpConnectionLease : IDisposable
+{
+    private readonly Action _release;
+    private int _disposeState;
+
+    internal PooledTcpConnectionLease(NetworkStream stream, Action release)
+    {
+        Stream = stream;
+        _release = release;
+    }
+
+    public NetworkStream Stream { get; }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+        {
+            return;
+        }
+
+        _release();
     }
 }
 
@@ -271,6 +530,8 @@ public class PooledConnection : IDisposable
     public DateTime CreatedTime { get; set; }
     public DateTime LastUsedTime { get; set; }
     public bool IsValid { get; set; }
+    public int LeaseCount { get; set; }
+    public bool PendingDispose { get; set; }
 
     public void Dispose()
     {
@@ -282,7 +543,9 @@ public class PooledConnection : IDisposable
             }
             Client?.Dispose();
         }
-        catch { }
+        catch
+        {
+        }
     }
 }
 
@@ -305,4 +568,3 @@ public class ConnectionPoolStats
     public int TcpConnections { get; set; }
     public int ActiveConnections { get; set; }
 }
-
