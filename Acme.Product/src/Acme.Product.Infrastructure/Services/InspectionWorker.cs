@@ -208,12 +208,36 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         return true;
     }
 
+    public bool HasActiveRun(Guid projectId, Guid? sessionId = null)
+    {
+        if (!_runningTasks.TryGetValue(projectId, out var entry))
+        {
+            return false;
+        }
+
+        return !sessionId.HasValue || entry.SessionId == sessionId.Value;
+    }
+
     public async Task<bool> WaitForRunExitAsync(
         Guid projectId,
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
+        return await WaitForRunExitAsync(projectId, sessionId: null, timeout, cancellationToken);
+    }
+
+    public async Task<bool> WaitForRunExitAsync(
+        Guid projectId,
+        Guid? sessionId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
         if (!_runningTasks.TryGetValue(projectId, out var entry))
+        {
+            return true;
+        }
+
+        if (sessionId.HasValue && entry.SessionId != sessionId.Value)
         {
             return true;
         }

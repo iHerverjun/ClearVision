@@ -21,7 +21,18 @@ public interface IInspectionWorker
     Task<bool> TryStartRunAsync(Guid projectId, Guid sessionId, Entities.OperatorFlow flow, string? cameraId);
 
     /// <summary>
+    /// 判断指定项目/会话是否已占用后台运行槽位。
+    /// </summary>
+    bool HasActiveRun(Guid projectId, Guid? sessionId = null);
+
+    /// <summary>
     /// 等待后台任务真正退出并完成清理。
     /// </summary>
     Task<bool> WaitForRunExitAsync(Guid projectId, TimeSpan timeout, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 等待指定会话的后台任务真正退出并完成清理。
+    /// 如果当前项目已经切换到其他会话，则视为目标会话已退出。
+    /// </summary>
+    Task<bool> WaitForRunExitAsync(Guid projectId, Guid? sessionId, TimeSpan timeout, CancellationToken cancellationToken = default);
 }

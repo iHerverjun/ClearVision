@@ -72,6 +72,142 @@ public class InspectionServiceRealtimeTests
         context.Coordinator.GetState(projectId).Should().BeNull();
     }
 
+    [Fact]
+    public async Task StopRealtimeInspectionAsync_TreatsReplacementSessionAsReleasedState()
+    {
+        var projectId = Guid.NewGuid();
+        var stoppedSessionId = Guid.NewGuid();
+        var replacementSessionId = Guid.NewGuid();
+        var getStateCalls = 0;
+
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        coordinator.GetState(projectId).Returns(_ =>
+        {
+            getStateCalls++;
+            return getStateCalls == 1
+                ? new RuntimeState
+                {
+                    ProjectId = projectId,
+                    SessionId = stoppedSessionId,
+                    Status = RuntimeStatus.Running,
+                    StartedAt = DateTime.UtcNow
+                }
+                : new RuntimeState
+                {
+                    ProjectId = projectId,
+                    SessionId = replacementSessionId,
+                    Status = RuntimeStatus.Starting,
+                    StartedAt = DateTime.UtcNow
+                };
+        });
+        coordinator.TryStopAsync(projectId, Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+
+        var worker = Substitute.For<IInspectionWorker>();
+        worker.HasActiveRun(
+                projectId,
+                Arg.Is<Guid?>(sessionId => sessionId == replacementSessionId))
+            .Returns(true);
+        worker.WaitForRunExitAsync(
+                projectId,
+                Arg.Is<Guid?>(sessionId => sessionId == stoppedSessionId),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true));
+
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        configurationService.GetCurrent().Returns(new AppConfig());
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            NullLogger<InspectionService>.Instance);
+
+        await service.StopRealtimeInspectionAsync(projectId).WaitAsync(TimeSpan.FromMilliseconds(500));
+        await worker.Received(1).WaitForRunExitAsync(
+            projectId,
+            Arg.Is<Guid?>(sessionId => sessionId == stoppedSessionId),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
+        worker.Received(1).HasActiveRun(
+            projectId,
+            Arg.Is<Guid?>(sessionId => sessionId == replacementSessionId));
+    }
+
+    [Fact]
+    public async Task StopRealtimeInspectionAsync_DoesNotTreatReplacementSessionWithoutWorkerAsReleasedState()
+    {
+        var projectId = Guid.NewGuid();
+        var stoppedSessionId = Guid.NewGuid();
+        var replacementSessionId = Guid.NewGuid();
+        var getStateCalls = 0;
+
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        coordinator.GetState(projectId).Returns(_ =>
+        {
+            getStateCalls++;
+            return getStateCalls switch
+            {
+                1 => new RuntimeState
+                {
+                    ProjectId = projectId,
+                    SessionId = stoppedSessionId,
+                    Status = RuntimeStatus.Running,
+                    StartedAt = DateTime.UtcNow
+                },
+                2 => new RuntimeState
+                {
+                    ProjectId = projectId,
+                    SessionId = replacementSessionId,
+                    Status = RuntimeStatus.Starting,
+                    StartedAt = DateTime.UtcNow
+                },
+                _ => null
+            };
+        });
+        coordinator.TryStopAsync(projectId, Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+
+        var worker = Substitute.For<IInspectionWorker>();
+        worker.WaitForRunExitAsync(
+                projectId,
+                Arg.Is<Guid?>(sessionId => sessionId == stoppedSessionId),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true));
+
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        configurationService.GetCurrent().Returns(new AppConfig());
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            NullLogger<InspectionService>.Instance);
+
+        await service.StopRealtimeInspectionAsync(projectId).WaitAsync(TimeSpan.FromSeconds(1));
+
+        worker.Received(1).HasActiveRun(
+            projectId,
+            Arg.Is<Guid?>(sessionId => sessionId == replacementSessionId));
+        coordinator.Received(3).GetState(projectId);
+    }
+
     private static TestContext CreateContext()
     {
         var flowExecution = Substitute.For<IFlowExecutionService>();

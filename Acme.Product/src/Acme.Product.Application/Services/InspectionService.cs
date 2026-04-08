@@ -349,12 +349,15 @@ public class InspectionService : IInspectionService
     {
         _logger.LogInformation("[InspectionService] 请求停止实时检测: {ProjectId}", projectId);
 
+        var stateBeforeStop = _coordinator.GetState(projectId);
         var stopped = await _coordinator.TryStopAsync(projectId, CancellationToken.None);
 
         if (stopped)
         {
+            var stoppedSessionId = stateBeforeStop?.SessionId ?? _coordinator.GetState(projectId)?.SessionId;
             var workerExited = await _worker.WaitForRunExitAsync(
                 projectId,
+                stoppedSessionId,
                 TimeSpan.FromSeconds(3),
                 CancellationToken.None);
 
@@ -364,7 +367,7 @@ public class InspectionService : IInspectionService
                 throw new InvalidOperationException("实时检测停止超时，后台任务仍未退出。");
             }
 
-            var stateReleased = await WaitForStateReleaseAsync(projectId, TimeSpan.FromSeconds(3));
+            var stateReleased = await WaitForStateReleaseAsync(projectId, stoppedSessionId, TimeSpan.FromSeconds(3));
             if (!stateReleased)
             {
                 _logger.LogError("[InspectionService] Stop completed but runtime state was not released: {ProjectId}", projectId);
@@ -386,12 +389,12 @@ public class InspectionService : IInspectionService
         return _coordinator.GetState(projectId);
     }
 
-    private async Task<bool> WaitForStateReleaseAsync(Guid projectId, TimeSpan timeout)
+    private async Task<bool> WaitForStateReleaseAsync(Guid projectId, Guid? stoppedSessionId, TimeSpan timeout)
     {
         var startedAt = DateTime.UtcNow;
         while (DateTime.UtcNow - startedAt <= timeout)
         {
-            if (_coordinator.GetState(projectId) == null)
+            if (HasReleasedStoppedSession(projectId, stoppedSessionId))
             {
                 return true;
             }
@@ -399,7 +402,25 @@ public class InspectionService : IInspectionService
             await Task.Delay(50);
         }
 
-        return _coordinator.GetState(projectId) == null;
+        return HasReleasedStoppedSession(projectId, stoppedSessionId);
+    }
+
+    private bool HasReleasedStoppedSession(Guid projectId, Guid? stoppedSessionId)
+    {
+        var currentState = _coordinator.GetState(projectId);
+        if (currentState == null)
+        {
+            return true;
+        }
+
+        if (!stoppedSessionId.HasValue || currentState.SessionId == stoppedSessionId.Value)
+        {
+            return false;
+        }
+
+        return currentState.Status == RuntimeStatus.Running
+            || currentState.Status == RuntimeStatus.Starting
+            && _worker.HasActiveRun(projectId, currentState.SessionId);
     }
 
     #endregion
