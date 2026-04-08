@@ -108,13 +108,33 @@ public class CameraManager : ICameraManager, IDisposable
         return camera;
     }
 
+    /// <summary>
+    /// This is intentionally a synchronous shim. The disconnect path only disposes in-memory camera
+    /// wrappers/providers and does not perform async I/O, so callers should not infer UI-thread deadlock risk.
+    /// </summary>
     public Task DisconnectAllAsync()
     {
+        DisconnectAllCore();
+        return Task.CompletedTask;
+    }
+
+    private void DisconnectAllCore()
+    {
         foreach (var camera in _cameras.Values)
+        {
             camera.Dispose();
+        }
+
+        foreach (var (cameraId, provider) in _providers)
+        {
+            if (!_cameras.ContainsKey(cameraId))
+            {
+                provider.Dispose();
+            }
+        }
+
         _cameras.Clear();
         _providers.Clear();
-        return Task.CompletedTask;
     }
 
     // --- 相机绑定管理功能 ---
@@ -139,7 +159,7 @@ public class CameraManager : ICameraManager, IDisposable
     {
         if (!_disposed)
         {
-            DisconnectAllAsync().Wait();
+            DisconnectAllCore();
             _disposed = true;
         }
         GC.SuppressFinalize(this);
