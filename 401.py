@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib import error, parse, request
-import os
 
 P401 = re.compile(
     r'(^|\D)401(\D|$)|unauthorized|unauthenticated|token\s+expired|login\s+required|authentication\s+failed',
@@ -28,8 +27,8 @@ WINDOW_KEYS = (
 )
 AUTH_FILE_STATUS_METHODS = ('PATCH', 'PUT', 'POST')
 
-BASE_URL = 'http://192.168.100.66:80'
-MANAGEMENT_KEY = ''
+BASE_URL = os.environ.get('CLIPROXY_BASE_URL', '').strip()
+MANAGEMENT_KEY = os.environ.get('CLIPROXY_MANAGEMENT_KEY', '').strip()
 TIMEOUT_SECONDS = 20
 ENABLE_API_CALL_CHECK = True
 API_CALL_URL = os.environ.get(
@@ -541,7 +540,7 @@ def disableAuthFile(name, disabledValue):
 
 def renameAuthFile(oldName, newName, preserveDisabled):
     if not oldName or not newName or oldName == newName:
-        return {'renamed': False, 'skip': 'same_name'}
+        return {'renamed': False, 'status': 'skip_same_name'}
     code, raw = api(
         BASE_URL,
         MANAGEMENT_KEY,
@@ -577,18 +576,60 @@ def renameAuthFile(oldName, newName, preserveDisabled):
         True,
     )
     if deleteCode != 200:
-        raise RuntimeError(
-            '删除旧文件失败: %s HTTP %s %s' % (oldName, deleteCode, deletePayload)
-        )
+        return {
+            'renamed': False,
+            'status': 'partial_delete_old_failed',
+            'manual_retry_required': True,
+            'old_name': oldName,
+            'new_name': newName,
+            'delete_code': deleteCode,
+            'delete_response': deletePayload,
+            'error': '旧文件删除失败，新文件已上传，请人工确认后重试删除旧文件',
+        }
 
     if preserveDisabled:
-        disableAuthFile(newName, True)
+        try:
+            disableAuthFile(newName, True)
+        except Exception as exc:
+            return {
+                'renamed': True,
+                'status': 'renamed_disable_sync_failed',
+                'manual_retry_required': True,
+                'old_name': oldName,
+                'new_name': newName,
+                'error': '重命名成功，但同步禁用状态失败: %s' % exc,
+            }
 
     return {
         'renamed': True,
+        'status': 'renamed',
         'old_name': oldName,
         'new_name': newName,
     }
+
+
+def shouldAdoptRenameTarget(renameResult):
+    if not isinstance(renameResult, dict):
+        return False
+    status = str(renameResult.get('status') or '').strip()
+    newName = str(renameResult.get('new_name') or '').strip()
+    if not newName:
+        return False
+    return status in {
+        'renamed',
+        'partial_delete_old_failed',
+        'renamed_disable_sync_failed',
+    }
+
+
+def updateRowActiveName(row, activeName):
+    if not isinstance(row, dict) or not activeName:
+        return
+    row['name'] = activeName
+    item = row.get('item')
+    if isinstance(item, dict):
+        item['name'] = activeName
+        item['id'] = activeName
 
 
 def getHistoryPath():
@@ -940,18 +981,36 @@ def performRename(row, counts):
 
     try:
         renameResult = renameAuthFile(name, targetName, row.get('disabled', False))
-        row['rename_result'] = (
-            'renamed'
-            if renameResult.get('renamed')
-            else renameResult.get('skip') or 'skipped'
-        )
+        row['rename_result'] = renameResult.get('status') or 'skipped'
         row['rename_response'] = renameResult
+        if shouldAdoptRenameTarget(renameResult):
+            updateRowActiveName(row, renameResult['new_name'])
         if renameResult.get('renamed'):
             counts['已重命名'] += 1
-            row['name'] = targetName
-            row['item']['name'] = targetName
-            row['item']['id'] = targetName
             print('  [rename完成] %s -> %s' % (name, targetName), flush=True)
+            if renameResult.get('manual_retry_required'):
+                print(
+                    '  [rename警告] name=%s status=%s detail=%s'
+                    % (
+                        targetName,
+                        renameResult.get('status'),
+                        renameResult.get('error') or '需要人工重试',
+                    ),
+                    flush=True,
+                )
+        elif renameResult.get('manual_retry_required'):
+            counts['重命名失败'] += 1
+            row['rename_error'] = renameResult.get('error')
+            print(
+                '  [rename部分完成] name=%s active=%s status=%s detail=%s'
+                % (
+                    name,
+                    row.get('name'),
+                    renameResult.get('status'),
+                    renameResult.get('error') or '需要人工重试',
+                ),
+                flush=True,
+            )
     except Exception as exc:
         counts['重命名失败'] += 1
         row['rename_result'] = 'rename_failed'
@@ -1147,8 +1206,11 @@ def runCheck():
 
 
 def main():
+    if not BASE_URL:
+        print('缺少 CLIPROXY_BASE_URL 环境变量', flush=True)
+        return 2
     if not MANAGEMENT_KEY.strip():
-        print('缺少 MANAGEMENT_KEY，请先在脚本顶部填写', flush=True)
+        print('缺少 CLIPROXY_MANAGEMENT_KEY 环境变量', flush=True)
         return 2
 
     print('\n' + '=' * 60, flush=True)
@@ -1174,8 +1236,11 @@ def main():
                 runCheck()
             except Exception as exc:
                 print('[错误] 检测过程中发生异常: %s' % exc, flush=True)
-            print('\n[loop] 等待 %s 秒后继续' % INTERVAL_SECONDS, flush=True)
-            break
+            if INTERVAL_SECONDS > 0:
+                print('\n[loop] 等待 %s 秒后继续' % INTERVAL_SECONDS, flush=True)
+                time.sleep(INTERVAL_SECONDS)
+            else:
+                print('\n[loop] 立即进入下一轮检测', flush=True)
     except KeyboardInterrupt:
         print('\n用户中断程序，共执行 %s 次检测' % loopCount, flush=True)
         return 0
