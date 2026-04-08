@@ -168,23 +168,21 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         var cts = CancellationTokenSource.CreateLinkedTokenSource(coordinatorToken);
         var exitCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         
-        // 先创建任务，但不启动
-        var taskEntry = new RunningTaskEntry
-        {
-            ProjectId = projectId,
-            SessionId = sessionId,
-            Cts = cts,
-            StartedAt = DateTime.UtcNow,
-            Task = null!  // 稍后设置
-        };
-
         // 创建任务（使用 Task.Run 但不会立即等待）
         var task = Task.Run(async () =>
         {
             await RunWithTripleExceptionProtectionAsync(projectId, sessionId, flow, cameraId, cts.Token);
         }, cts.Token);
 
-        taskEntry = taskEntry with { Task = task, ExitCompletion = exitCompletion };
+        var taskEntry = new RunningTaskEntry
+        {
+            ProjectId = projectId,
+            SessionId = sessionId,
+            Cts = cts,
+            StartedAt = DateTime.UtcNow,
+            Task = task,
+            ExitCompletion = exitCompletion
+        };
 
         // 注册到运行任务字典
         if (!_runningTasks.TryAdd(projectId, taskEntry))
@@ -255,10 +253,10 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         try
         {
             // 更新状态为 Running
-            _coordinator.UpdateSessionStatus(projectId, RuntimeStatus.Running);
+            _coordinator.UpdateSessionStatus(projectId, sessionId, RuntimeStatus.Running);
 
             await RunWithScopeAsync(projectId, sessionId, flow, cameraId, ct);
-            EnsureStoppedState(projectId);
+            EnsureStoppedState(projectId, sessionId);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -270,22 +268,8 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                 OldState = "Running",
                 NewState = "Stopped"
             }, CancellationToken.None);
-            _coordinator.MarkAsStopped(projectId);
+            _coordinator.MarkAsStopped(projectId, sessionId);
         }
-#if false
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            _logger.LogInformation("[InspectionWorker] 浠诲姟姝ｅ父鍙栨秷: {ProjectId}", projectId);
-            await _eventBus.PublishAsync(new InspectionStateChangedEvent
-            {
-                ProjectId = projectId,
-                SessionId = sessionId,
-                OldState = "Running",
-                NewState = "Stopped"
-            }, CancellationToken.None);
-            _coordinator.MarkAsStopped(projectId);
-        }
-#endif
         catch (Exception ex)
         {
             _logger.LogError(ex, "[InspectionWorker] 任务异常: {ProjectId}", projectId);
@@ -293,7 +277,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             // 第二层保护：Coordinator 级
             try
             {
-                _coordinator.MarkAsFaulted(projectId, ex.Message);
+                _coordinator.MarkAsFaulted(projectId, sessionId, ex.Message);
             }
             catch (Exception coordEx)
             {
@@ -429,7 +413,8 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                 // 保存结果(异步非阻塞)
                 resultChannelWriter.TryWrite(result);
 
-                // 【架构修复 v2】发布结果事件
+                // sessionId belongs to the realtime event stream. The InspectionResult aggregate itself
+                // only captures the project-scoped inspection payload and does not persist session identifiers.
                 await _eventBus.PublishAsync(new InspectionResultEvent
                 {
                     ProjectId = projectId,
@@ -511,6 +496,8 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         IImageAcquisitionService imageAcquisition,
         CancellationToken ct)
     {
+        // InspectionResult is a project-level domain entity. Session metadata is propagated via events,
+        // not stored on the aggregate itself.
         var result = new InspectionResult(projectId);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -755,7 +742,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
     private async Task CleanupTaskAsync(Guid projectId, RunningTaskEntry entry)
     {
         var removed = _runningTasks.TryRemove(projectId, out _);
-        EnsureStoppedState(projectId);
+        EnsureStoppedState(projectId, entry.SessionId);
         
         try
         {
@@ -776,7 +763,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         entry.ExitCompletion.TrySetResult(true);
     }
 
-    private void EnsureStoppedState(Guid projectId)
+    private void EnsureStoppedState(Guid projectId, Guid sessionId)
     {
         var state = _coordinator.GetState(projectId);
         if (state == null)
@@ -784,9 +771,14 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             return;
         }
 
+        if (state.SessionId != sessionId)
+        {
+            return;
+        }
+
         if (state.Status is RuntimeStatus.Starting or RuntimeStatus.Running or RuntimeStatus.Stopping)
         {
-            _coordinator.MarkAsStopped(projectId);
+            _coordinator.MarkAsStopped(projectId, sessionId);
         }
     }
 

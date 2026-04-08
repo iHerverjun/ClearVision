@@ -47,21 +47,24 @@ public interface IInspectionRuntimeCoordinator
     /// 标记会话为故障状态
     /// </summary>
     /// <param name="projectId">项目ID</param>
+    /// <param name="sessionId">会话ID</param>
     /// <param name="errorMessage">错误信息</param>
-    void MarkAsFaulted(Guid projectId, string errorMessage);
+    void MarkAsFaulted(Guid projectId, Guid sessionId, string errorMessage);
 
     /// <summary>
     /// 标记会话为已停止
     /// </summary>
     /// <param name="projectId">项目ID</param>
-    void MarkAsStopped(Guid projectId);
+    /// <param name="sessionId">会话ID</param>
+    void MarkAsStopped(Guid projectId, Guid sessionId);
 
     /// <summary>
     /// 更新会话状态
     /// </summary>
     /// <param name="projectId">项目ID</param>
+    /// <param name="sessionId">会话ID</param>
     /// <param name="status">新状态</param>
-    void UpdateSessionStatus(Guid projectId, RuntimeStatus status);
+    void UpdateSessionStatus(Guid projectId, Guid sessionId, RuntimeStatus status);
 
     /// <summary>
     /// 状态变更事件

@@ -27,7 +27,7 @@ public class InspectionEventEndpointsTests
         var sessionId = Guid.NewGuid();
 
         await host.Coordinator.TryStartAsync(projectId, sessionId, CancellationToken.None);
-        host.Coordinator.UpdateSessionStatus(projectId, RuntimeStatus.Running);
+        host.Coordinator.UpdateSessionStatus(projectId, sessionId, RuntimeStatus.Running);
 
         using var response = await host.Client.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, $"/api/inspection/realtime/{projectId}/events"),
@@ -92,7 +92,7 @@ public class InspectionEventEndpointsTests
         var sessionId = Guid.NewGuid();
 
         await host.Coordinator.TryStartAsync(projectId, sessionId, CancellationToken.None);
-        host.Coordinator.UpdateSessionStatus(projectId, RuntimeStatus.Running);
+        host.Coordinator.UpdateSessionStatus(projectId, sessionId, RuntimeStatus.Running);
 
         using var response = await host.Client.SendAsync(
             new HttpRequestMessage(

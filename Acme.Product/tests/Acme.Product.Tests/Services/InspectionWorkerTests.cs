@@ -30,6 +30,7 @@ public class InspectionWorkerTests
             .Returns(callInfo => WaitForCancellationAsync(callInfo.ArgAt<CancellationToken>(3)));
 
         var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var resultChannelWriter = Substitute.For<IInspectionResultChannelWriter>();
         var resultRepository = Substitute.For<IInspectionResultRepository>();
         var projectRepository = Substitute.For<IProjectRepository>();
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -38,6 +39,7 @@ public class InspectionWorkerTests
         using var serviceProvider = BuildScopedServices(
             flowExecution,
             imageAcquisition,
+            resultChannelWriter,
             resultRepository,
             projectRepository);
 
@@ -87,6 +89,7 @@ public class InspectionWorkerTests
     private static ServiceProvider BuildScopedServices(
         IFlowExecutionService flowExecution,
         IImageAcquisitionService imageAcquisition,
+        IInspectionResultChannelWriter resultChannelWriter,
         IInspectionResultRepository resultRepository,
         IProjectRepository projectRepository)
     {
@@ -94,6 +97,7 @@ public class InspectionWorkerTests
         services.AddLogging();
         services.AddScoped(_ => flowExecution);
         services.AddScoped(_ => imageAcquisition);
+        services.AddScoped(_ => resultChannelWriter);
         services.AddScoped(_ => resultRepository);
         services.AddScoped(_ => projectRepository);
 

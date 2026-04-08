@@ -83,6 +83,7 @@ public class InspectionServiceRealtimeTests
             .Returns(callInfo => WaitForCancellationAsync(callInfo.ArgAt<CancellationToken>(3)));
 
         var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var resultChannelWriter = Substitute.For<IInspectionResultChannelWriter>();
         var resultRepository = Substitute.For<IInspectionResultRepository>();
         var projectRepository = Substitute.For<IProjectRepository>();
         var configurationService = Substitute.For<IConfigurationService>();
@@ -94,6 +95,7 @@ public class InspectionServiceRealtimeTests
         services.AddLogging();
         services.AddScoped(_ => flowExecution);
         services.AddScoped(_ => imageAcquisition);
+        services.AddScoped(_ => resultChannelWriter);
         services.AddScoped(_ => resultRepository);
         services.AddScoped(_ => projectRepository);
         var provider = services.BuildServiceProvider();
