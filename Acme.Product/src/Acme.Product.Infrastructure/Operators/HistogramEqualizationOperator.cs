@@ -1,33 +1,31 @@
-// HistogramEqualizationOperator.cs
-// 直方图均衡化算子 - 支持全局均衡化和CLAHE自适应均衡化
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 直方图均衡化算子 - 支持全局均衡化和CLAHE自适应均衡化
-/// </summary>
 [OperatorMeta(
     DisplayName = "直方图均衡化",
-    Description = "全局均衡化和CLAHE自适应均衡化",
+    Description = "Supports global histogram equalization and CLAHE.",
     Category = "预处理",
     IconName = "histogram",
-    Keywords = new[] { "直方图", "均衡化", "对比度", "增强", "CLAHE", "Histogram", "Equalize", "Contrast" }
+    Keywords = new[] { "histogram", "equalization", "contrast", "clahe" }
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "输出图像", PortDataType.Image)]
 [OperatorParam("Method", "方法", "enum", DefaultValue = "Global", Options = new[] { "Global|全局均衡化", "CLAHE|CLAHE自适应" })]
 [OperatorParam("ClipLimit", "裁剪限制", "double", DefaultValue = 2.0, Min = 0.0, Max = 100.0)]
 [OperatorParam("TileGridSize", "网格大小", "int", DefaultValue = 8, Min = 1, Max = 64)]
+[OperatorParam("ApplyToEachChannel", "逐通道处理", "bool", DefaultValue = false)]
 public class HistogramEqualizationOperator : OperatorBase
 {
+    private const int DefaultTileGridSize = 8;
+    private const int MinTileGridSize = 1;
+    private const int MaxTileGridSize = 64;
+
     public override OperatorType OperatorType => OperatorType.HistogramEqualization;
 
     public HistogramEqualizationOperator(ILogger<HistogramEqualizationOperator> logger) : base(logger)
@@ -41,146 +39,211 @@ public class HistogramEqualizationOperator : OperatorBase
     {
         if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("No input image provided."));
         }
 
         var method = GetStringParam(@operator, "Method", "Global");
-        var clipLimit = GetDoubleParam(@operator, "ClipLimit", 2.0, min: 0, max: 40);
-        var tileSize = GetIntParam(@operator, "TileSize", 8, min: 2, max: 32);
+        var clipLimit = GetDoubleParam(@operator, "ClipLimit", 2.0, min: 0, max: 100);
+        var tileGridSize = GetTileGridSize(@operator, clampToRange: true);
         var applyToEachChannel = GetBoolParam(@operator, "ApplyToEachChannel", false);
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        var dst = new Mat();
+        var dst = method.Equals("CLAHE", StringComparison.OrdinalIgnoreCase)
+            ? ApplyClahe(src, clipLimit, tileGridSize, applyToEachChannel)
+            : ApplyGlobalEqualization(src, applyToEachChannel);
 
-        if (method.ToLower() == "clahe")
-        {
-            // CLAHE (对比度受限的自适应直方图均衡化)
-            using var clahe = Cv2.CreateCLAHE(clipLimit, new Size(tileSize, tileSize));
-
-            if (applyToEachChannel && src.Channels() == 3)
-            {
-                // 对每个通道单独应用CLAHE
-                Cv2.Split(src, out var channels);
-
-                var equalizedChannels = new Mat[3];
-                for (int i = 0; i < 3; i++)
-                {
-                    equalizedChannels[i] = new Mat();
-                    clahe.Apply(channels[i], equalizedChannels[i]);
-                    channels[i].Dispose();
-                }
-
-                Cv2.Merge(equalizedChannels, dst);
-
-                // 清理临时Mat
-                foreach (var mat in equalizedChannels)
-                {
-                    mat.Dispose();
-                }
-            }
-            else
-            {
-                // 转换为Lab颜色空间，仅对L通道应用CLAHE
-                using var lab = new Mat();
-                Cv2.CvtColor(src, lab, ColorConversionCodes.BGR2Lab);
-
-                Cv2.Split(lab, out var labChannels);
-
-                using var lChannel = new Mat();
-                clahe.Apply(labChannels[0], lChannel);
-
-                // 合并通道
-                using var mergedLab = new Mat();
-                Cv2.Merge(new Mat[] { lChannel, labChannels[1], labChannels[2] }, mergedLab);
-                
-                // 清理通道
-                foreach (var ch in labChannels)
-                {
-                    ch.Dispose();
-                }
-
-                // 转换回BGR
-                Cv2.CvtColor(mergedLab, dst, ColorConversionCodes.Lab2BGR);
-            }
-        }
-        else
-        {
-            // 全局直方图均衡化
-            if (applyToEachChannel && src.Channels() == 3)
-            {
-                // 对每个通道单独处理
-                Cv2.Split(src, out var channels);
-
-                var equalizedChannels = new Mat[3];
-                for (int i = 0; i < 3; i++)
-                {
-                    equalizedChannels[i] = new Mat();
-                    Cv2.EqualizeHist(channels[i], equalizedChannels[i]);
-                    channels[i].Dispose();
-                }
-
-                Cv2.Merge(equalizedChannels, dst);
-
-                // 清理临时Mat
-                foreach (var mat in equalizedChannels)
-                {
-                    mat.Dispose();
-                }
-            }
-            else
-            {
-                // 转换为YUV，仅对Y通道处理
-                using var yuv = new Mat();
-                Cv2.CvtColor(src, yuv, ColorConversionCodes.BGR2YUV);
-
-                Cv2.Split(yuv, out var yuvChannels);
-
-                using var yChannel = new Mat();
-                Cv2.EqualizeHist(yuvChannels[0], yChannel);
-
-                // 合并通道
-                using var mergedYuv = new Mat();
-                Cv2.Merge(new Mat[] { yChannel, yuvChannels[1], yuvChannels[2] }, mergedYuv);
-                
-                // 清理通道
-                foreach (var ch in yuvChannels)
-                {
-                    ch.Dispose();
-                }
-
-                // 转换回BGR
-                Cv2.CvtColor(mergedYuv, dst, ColorConversionCodes.YUV2BGR);
-            }
-        }
-
-        // P0: 使用ImageWrapper实现零拷贝输出
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(dst, new Dictionary<string, object>
         {
             { "Method", method },
+            { "ClipLimit", clipLimit },
+            { "TileGridSize", tileGridSize },
+            { "ApplyToEachChannel", applyToEachChannel },
             { "Channels", dst.Channels() }
         })));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var method = GetStringParam(@operator, "Method", "Global").ToLower();
+        var method = GetStringParam(@operator, "Method", "Global").ToLowerInvariant();
         var validMethods = new[] { "global", "clahe" };
         if (!validMethods.Contains(method))
-            return ValidationResult.Invalid($"不支持的均衡化方法: {method}");
+        {
+            return ValidationResult.Invalid($"Unsupported histogram equalization method: {method}");
+        }
 
         var clipLimit = GetDoubleParam(@operator, "ClipLimit", 2.0);
-        if (clipLimit < 0 || clipLimit > 40)
-            return ValidationResult.Invalid("裁剪限制必须在 0-40 之间");
+        if (clipLimit < 0 || clipLimit > 100)
+        {
+            return ValidationResult.Invalid("ClipLimit must be between 0 and 100.");
+        }
 
-        var tileSize = GetIntParam(@operator, "TileSize", 8);
-        if (tileSize < 2 || tileSize > 32)
-            return ValidationResult.Invalid("网格大小必须在 2-32 之间");
+        var tileGridSize = GetTileGridSize(@operator, clampToRange: false);
+        if (tileGridSize < MinTileGridSize || tileGridSize > MaxTileGridSize)
+        {
+            return ValidationResult.Invalid($"TileGridSize must be between {MinTileGridSize} and {MaxTileGridSize}.");
+        }
 
         return ValidationResult.Valid();
+    }
+
+    private int GetTileGridSize(Operator @operator, bool clampToRange)
+    {
+        var tileGridSize = ResolveRawTileGridSize(@operator);
+        if (!clampToRange)
+        {
+            return tileGridSize;
+        }
+
+        return Math.Clamp(tileGridSize, MinTileGridSize, MaxTileGridSize);
+    }
+
+    private int ResolveRawTileGridSize(Operator @operator)
+    {
+        var hasTileGridSize = @operator.Parameters.Any(parameter =>
+            string.Equals(parameter.Name, "TileGridSize", StringComparison.OrdinalIgnoreCase));
+        var hasLegacyTileSize = @operator.Parameters.Any(parameter =>
+            string.Equals(parameter.Name, "TileSize", StringComparison.OrdinalIgnoreCase));
+
+        if (hasTileGridSize)
+        {
+            var tileGridSize = GetIntParam(@operator, "TileGridSize", DefaultTileGridSize);
+            if (hasLegacyTileSize && tileGridSize == DefaultTileGridSize)
+            {
+                // Old flows can carry only TileSize while a default TileGridSize is seeded from metadata.
+                return GetIntParam(@operator, "TileSize", DefaultTileGridSize);
+            }
+
+            return tileGridSize;
+        }
+
+        if (hasLegacyTileSize)
+        {
+            return GetIntParam(@operator, "TileSize", DefaultTileGridSize);
+        }
+
+        return DefaultTileGridSize;
+    }
+
+    private static Mat ApplyClahe(Mat src, double clipLimit, int tileGridSize, bool applyToEachChannel)
+    {
+        using var clahe = Cv2.CreateCLAHE(clipLimit, new Size(tileGridSize, tileGridSize));
+
+        if (src.Channels() == 1)
+        {
+            var result = new Mat();
+            clahe.Apply(src, result);
+            return result;
+        }
+
+        if (applyToEachChannel)
+        {
+            return ApplyPerChannel(src, channel =>
+            {
+                var result = new Mat();
+                clahe.Apply(channel, result);
+                return result;
+            });
+        }
+
+        return ApplyLumaChannel(src, ColorConversionCodes.BGR2Lab, ColorConversionCodes.Lab2BGR, channel =>
+        {
+            var result = new Mat();
+            clahe.Apply(channel, result);
+            return result;
+        });
+    }
+
+    private static Mat ApplyGlobalEqualization(Mat src, bool applyToEachChannel)
+    {
+        if (src.Channels() == 1)
+        {
+            var result = new Mat();
+            Cv2.EqualizeHist(src, result);
+            return result;
+        }
+
+        if (applyToEachChannel)
+        {
+            return ApplyPerChannel(src, channel =>
+            {
+                var result = new Mat();
+                Cv2.EqualizeHist(channel, result);
+                return result;
+            });
+        }
+
+        return ApplyLumaChannel(src, ColorConversionCodes.BGR2YUV, ColorConversionCodes.YUV2BGR, channel =>
+        {
+            var result = new Mat();
+            Cv2.EqualizeHist(channel, result);
+            return result;
+        });
+    }
+
+    private static Mat ApplyPerChannel(Mat src, Func<Mat, Mat> processor)
+    {
+        Cv2.Split(src, out var channels);
+        var processed = new Mat[channels.Length];
+
+        try
+        {
+            for (var i = 0; i < channels.Length; i++)
+            {
+                processed[i] = processor(channels[i]);
+            }
+
+            var result = new Mat();
+            Cv2.Merge(processed, result);
+            return result;
+        }
+        finally
+        {
+            foreach (var mat in channels)
+            {
+                mat.Dispose();
+            }
+
+            foreach (var mat in processed)
+            {
+                mat?.Dispose();
+            }
+        }
+    }
+
+    private static Mat ApplyLumaChannel(
+        Mat src,
+        ColorConversionCodes toColorSpace,
+        ColorConversionCodes fromColorSpace,
+        Func<Mat, Mat> processor)
+    {
+        using var converted = new Mat();
+        Cv2.CvtColor(src, converted, toColorSpace);
+        Cv2.Split(converted, out var channels);
+
+        try
+        {
+            using var processedLuma = processor(channels[0]);
+            channels[0].Dispose();
+            channels[0] = processedLuma.Clone();
+
+            using var merged = new Mat();
+            Cv2.Merge(channels, merged);
+
+            var result = new Mat();
+            Cv2.CvtColor(merged, result, fromColorSpace);
+            return result;
+        }
+        finally
+        {
+            foreach (var mat in channels)
+            {
+                mat.Dispose();
+            }
+        }
     }
 }

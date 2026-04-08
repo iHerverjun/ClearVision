@@ -513,8 +513,9 @@ public class WebMessageHandler : IDisposable
         {
             foreach (var (name, value) in operatorData.Parameters)
             {
+                var normalizedName = NormalizeParameterName(operatorType, name);
                 var parameter = @operator.Parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(p.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
                 if (parameter != null)
                 {
@@ -607,6 +608,17 @@ public class WebMessageHandler : IDisposable
             JsonValueKind.Undefined => null,
             _ => element.ToString()
         };
+    }
+
+    private static string NormalizeParameterName(OperatorType operatorType, string parameterName)
+    {
+        if (operatorType == OperatorType.HistogramEqualization &&
+            string.Equals(parameterName, "TileSize", StringComparison.OrdinalIgnoreCase))
+        {
+            return "TileGridSize";
+        }
+
+        return parameterName;
     }
 
     /// <summary>

@@ -127,8 +127,9 @@ internal static class FlowEntityMapper
 
             foreach (var (name, value) in EnumerateCanvasParameters(operatorData.Parameters))
             {
+                var normalizedName = NormalizeParameterName(type, name);
                 var existing = @operator.Parameters.FirstOrDefault(parameter =>
-                    string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(parameter.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
                 if (existing != null)
                 {
@@ -138,8 +139,8 @@ internal static class FlowEntityMapper
 
                 @operator.AddParameter(new Parameter(
                     Guid.NewGuid(),
-                    name,
-                    name,
+                    normalizedName,
+                    normalizedName,
                     string.Empty,
                     ResolveDataType(value),
                     value,
@@ -205,8 +206,9 @@ internal static class FlowEntityMapper
 
             foreach (var (name, value) in node.Parameters)
             {
+                var normalizedName = NormalizeParameterName(node.Type, name);
                 var parameter = @operator.Parameters.FirstOrDefault(item =>
-                    string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(item.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
                 if (parameter != null)
                 {
@@ -216,8 +218,8 @@ internal static class FlowEntityMapper
 
                 @operator.AddParameter(new Parameter(
                     Guid.NewGuid(),
-                    name,
-                    name,
+                    normalizedName,
+                    normalizedName,
                     string.Empty,
                     ResolveDataType(value),
                     value,
@@ -314,12 +316,35 @@ internal static class FlowEntityMapper
             if (operatorData.Parameters != null)
             {
                 @operator.Parameters.Clear();
+                var hasCanonicalTileGridSize = operatorData.Parameters.Any(parameter =>
+                    string.Equals(parameter.Name, "TileGridSize", StringComparison.OrdinalIgnoreCase));
+
                 foreach (var parameterData in operatorData.Parameters)
                 {
+                    if (type == OperatorType.HistogramEqualization &&
+                        hasCanonicalTileGridSize &&
+                        string.Equals(parameterData.Name, "TileSize", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var normalizedName = NormalizeParameterName(type, parameterData.Name);
+                    var existing = @operator.Parameters.FirstOrDefault(parameter =>
+                        string.Equals(parameter.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        if (parameterData.Value != null)
+                        {
+                            existing.SetValue(parameterData.Value);
+                        }
+
+                        continue;
+                    }
+
                     var parameter = new Parameter(
                         parameterData.Id == Guid.Empty ? Guid.NewGuid() : parameterData.Id,
-                        parameterData.Name,
-                        string.IsNullOrWhiteSpace(parameterData.DisplayName) ? parameterData.Name : parameterData.DisplayName,
+                        normalizedName,
+                        string.IsNullOrWhiteSpace(parameterData.DisplayName) ? normalizedName : parameterData.DisplayName,
                         parameterData.Description ?? string.Empty,
                         string.IsNullOrWhiteSpace(parameterData.DataType)
                             ? ResolveDataType(parameterData.Value ?? parameterData.DefaultValue)
@@ -797,6 +822,17 @@ internal static class FlowEntityMapper
             JsonValueKind.Null or JsonValueKind.Undefined => null,
             _ => element.GetRawText()
         };
+    }
+
+    private static string NormalizeParameterName(OperatorType operatorType, string parameterName)
+    {
+        if (operatorType == OperatorType.HistogramEqualization &&
+            string.Equals(parameterName, "TileSize", StringComparison.OrdinalIgnoreCase))
+        {
+            return "TileGridSize";
+        }
+
+        return parameterName;
     }
 
     private static void SetId(object entity, Guid id)

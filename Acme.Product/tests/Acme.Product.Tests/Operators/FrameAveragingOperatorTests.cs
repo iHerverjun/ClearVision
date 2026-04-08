@@ -42,6 +42,41 @@ public class FrameAveragingOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldIsolateBufferedFramesByOperatorId()
+    {
+        var sut = CreateSut();
+        var firstOperator = CreateOperator(new Dictionary<string, object>
+        {
+            { "FrameCount", 3 },
+            { "Mode", "Mean" }
+        });
+        var secondOperator = CreateOperator(new Dictionary<string, object>
+        {
+            { "FrameCount", 3 },
+            { "Mode", "Mean" }
+        });
+
+        using var firstFrame = CreateGrayImage(20);
+        using var foreignFrame = CreateGrayImage(200);
+        using var secondFrame = CreateGrayImage(30);
+
+        var first = await sut.ExecuteAsync(firstOperator, TestHelpers.CreateImageInputs(firstFrame));
+        var foreign = await sut.ExecuteAsync(secondOperator, TestHelpers.CreateImageInputs(foreignFrame));
+        var second = await sut.ExecuteAsync(firstOperator, TestHelpers.CreateImageInputs(secondFrame));
+
+        Assert.True(first.IsSuccess);
+        Assert.True(foreign.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.Equal(1, Convert.ToInt32(first.OutputData!["FrameCount"]));
+        Assert.Equal(1, Convert.ToInt32(foreign.OutputData!["FrameCount"]));
+        Assert.Equal(2, Convert.ToInt32(second.OutputData!["FrameCount"]));
+
+        using var output = Assert.IsType<ImageWrapper>(second.OutputData["Image"]);
+        using var resultMat = output.GetMat();
+        Assert.Equal(25, resultMat.At<byte>(0, 0));
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidMode_ShouldReturnInvalid()
     {
         var sut = CreateSut();

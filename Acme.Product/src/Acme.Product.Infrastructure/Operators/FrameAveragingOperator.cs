@@ -7,6 +7,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using System.Collections.Concurrent;
 
 using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
@@ -23,10 +24,14 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("FrameCount", "Frame Count", PortDataType.Integer)]
 [OperatorParam("FrameCount", "Frame Count", "int", DefaultValue = 8, Min = 1, Max = 64)]
 [OperatorParam("Mode", "Mode", "enum", DefaultValue = "Mean", Options = new[] { "Mean|Mean", "Median|Median" })]
-public class FrameAveragingOperator : OperatorBase
+public class FrameAveragingOperator : OperatorBase, IDisposable
 {
-    private readonly object _syncRoot = new();
-    private readonly Queue<Mat> _frames = new();
+    private static readonly TimeSpan StateTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
+
+    private readonly ConcurrentDictionary<Guid, FrameWindowState> _states = new();
+    private readonly object _cleanupSync = new();
+    private DateTime _lastCleanupUtc = DateTime.MinValue;
 
     public override OperatorType OperatorType => OperatorType.FrameAveraging;
 
@@ -52,32 +57,33 @@ public class FrameAveragingOperator : OperatorBase
 
         var frameCount = GetIntParam(@operator, "FrameCount", 8, 1, 64);
         var mode = GetStringParam(@operator, "Mode", "Mean");
+        var nowUtc = DateTime.UtcNow;
+        var state = _states.GetOrAdd(@operator.Id, static _ => new FrameWindowState());
 
         List<Mat> snapshot;
-        lock (_syncRoot)
+        lock (state.SyncRoot)
         {
-            if (_frames.Count > 0)
+            if (state.Frames.Count > 0)
             {
-                var reference = _frames.Peek();
+                var reference = state.Frames.Peek();
                 if (reference.Rows != src.Rows || reference.Cols != src.Cols || reference.Type() != src.Type())
                 {
-                    while (_frames.Count > 0)
-                    {
-                        var stale = _frames.Dequeue();
-                        stale.Dispose();
-                    }
+                    state.Clear();
                 }
             }
 
-            _frames.Enqueue(src.Clone());
-            while (_frames.Count > frameCount)
+            state.Frames.Enqueue(src.Clone());
+            while (state.Frames.Count > frameCount)
             {
-                var old = _frames.Dequeue();
+                var old = state.Frames.Dequeue();
                 old.Dispose();
             }
 
-            snapshot = _frames.Select(f => f.Clone()).ToList();
+            snapshot = state.Frames.Select(f => f.Clone()).ToList();
+            state.LastTouchedUtc = nowUtc;
         }
+
+        TryCleanupStaleStates(nowUtc);
 
         Mat result;
         try
@@ -118,6 +124,74 @@ public class FrameAveragingOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    public void Dispose()
+    {
+        foreach (var state in _states.Values)
+        {
+            lock (state.SyncRoot)
+            {
+                state.Clear();
+            }
+        }
+
+        _states.Clear();
+    }
+
+    private sealed class FrameWindowState
+    {
+        public object SyncRoot { get; } = new();
+        public Queue<Mat> Frames { get; } = new();
+        public DateTime LastTouchedUtc { get; set; } = DateTime.UtcNow;
+
+        public void Clear()
+        {
+            while (Frames.Count > 0)
+            {
+                var stale = Frames.Dequeue();
+                stale.Dispose();
+            }
+        }
+    }
+
+    private void TryCleanupStaleStates(DateTime nowUtc)
+    {
+        if ((nowUtc - _lastCleanupUtc) < CleanupInterval)
+        {
+            return;
+        }
+
+        lock (_cleanupSync)
+        {
+            if ((nowUtc - _lastCleanupUtc) < CleanupInterval)
+            {
+                return;
+            }
+
+            var staleBefore = nowUtc - StateTtl;
+            foreach (var entry in _states)
+            {
+                var shouldRemove = false;
+                var state = entry.Value;
+                lock (state.SyncRoot)
+                {
+                    shouldRemove = state.LastTouchedUtc < staleBefore;
+                }
+
+                if (!shouldRemove || !_states.TryRemove(entry.Key, out var removedState))
+                {
+                    continue;
+                }
+
+                lock (removedState.SyncRoot)
+                {
+                    removedState.Clear();
+                }
+            }
+
+            _lastCleanupUtc = nowUtc;
+        }
     }
 
     private static Mat ComputeMean(IReadOnlyList<Mat> frames)

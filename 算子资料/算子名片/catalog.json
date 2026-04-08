@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T19:13:32.2020980+08:00",
+  "generatedAt": "2026-04-08T22:02:18.9641594+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -4474,7 +4474,7 @@
       "id": "HistogramEqualization",
       "type": 40,
       "displayName": "直方图均衡化",
-      "description": "全局均衡化和CLAHE自适应均衡化",
+      "description": "Supports global histogram equalization and CLAHE.",
       "category": "预处理",
       "version": "1.0.0",
       "tags": [
@@ -4539,6 +4539,17 @@
           "defaultValue": "8",
           "min": "1",
           "max": "64",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ApplyToEachChannel",
+          "displayName": "逐通道处理",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         }
@@ -6763,7 +6774,7 @@
       "id": "ClaheEnhancement",
       "type": 71,
       "displayName": "CLAHE增强",
-      "description": "自适应直方图均衡化，用于局部对比度增强",
+      "description": "Adaptive histogram equalization for local contrast enhancement.",
       "category": "预处理",
       "version": "1.0.0",
       "tags": [
@@ -6793,7 +6804,7 @@
           "name": "ClipLimit",
           "displayName": "裁剪限制",
           "dataType": "double",
-          "description": "对比度限制阈值，防止过度放大噪声",
+          "description": "Limits local contrast amplification to avoid excessive noise boosting.",
           "defaultValue": "2",
           "min": "0",
           "max": "40",
@@ -6854,7 +6865,7 @@
           "name": "Channel",
           "displayName": "目标通道",
           "dataType": "enum",
-          "description": "指定要增强的通道，Auto 根据颜色空间自动选择",
+          "description": "Auto follows ColorSpace. L/V/Y/All explicitly choose the processing branch.",
           "defaultValue": "Auto",
           "min": null,
           "max": null,
@@ -6884,13 +6895,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
+        "totalScore": 84,
+        "level": "B",
         "documentationScore": 60,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ClaheEnhancement.md"
     },
