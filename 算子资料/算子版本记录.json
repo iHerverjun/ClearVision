@@ -3,13 +3,18 @@
   "operators": [
     {
       "id": "AdaptiveThreshold",
-      "displayName": "\u81EA\u9002\u5E94\u9608\u503C",
+      "displayName": "Adaptive Threshold",
       "category": "\u9884\u5904\u7406",
       "records": [
         {
           "version": "1.0.0",
           "sourceHash": "B455F311990410F7F056960F530EB99F7A3EC896B9375786ADAFB5D0D9A5A10F",
           "recordedAt": "2026-04-07T18:58:05.9332569\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "B975CE9070354112D67ABDC69FA9ADF1B92659EBD4A939CA749E787F34425504",
+          "recordedAt": "2026-04-08T19:13:32.2020980\u002B08:00"
         }
       ]
     },
@@ -1712,13 +1717,18 @@
     },
     {
       "id": "Thresholding",
-      "displayName": "\u4E8C\u503C\u5316",
+      "displayName": "Threshold",
       "category": "\u9884\u5904\u7406",
       "records": [
         {
           "version": "1.0.0",
           "sourceHash": "F59A1E561D207B2281DF91B687DDA11996CE88BE96C8F36DDA59A6D763343D3D",
           "recordedAt": "2026-04-07T18:58:05.9332569\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "6EF90355BA3AE3B2D2AA3D43C33E0CFEC9D905386910748FB01A0DD667D06E82",
+          "recordedAt": "2026-04-08T19:13:32.2020980\u002B08:00"
         }
       ]
     },

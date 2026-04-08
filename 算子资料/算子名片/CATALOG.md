@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-08 17:27:35 +08:00`
+> 生成时间 / Generated At: `2026-04-08 19:13:32 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -278,7 +278,7 @@
 ### 预处理 (23)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
-| `OperatorType.AdaptiveThreshold` | 自适应阈值 | 1 | 1 | 5 | 84 (B) | `1.0.0` | - | [AdaptiveThreshold](./AdaptiveThreshold.md) |
+| `OperatorType.AdaptiveThreshold` | Adaptive Threshold | 1 | 1 | 5 | 84 (B) | `1.0.0` | - | [AdaptiveThreshold](./AdaptiveThreshold.md) |
 | `OperatorType.BilateralFilter` | 双边滤波 | 1 | 1 | 3 | 84 (B) | `1.0.0` | - | [BilateralFilter](./BilateralFilter.md) |
 | `OperatorType.ClaheEnhancement` | CLAHE增强 | 1 | 1 | 5 | 66 (C) | `1.0.0` | - | [ClaheEnhancement](./ClaheEnhancement.md) |
 | `OperatorType.ColorConversion` | 颜色空间转换 | 1 | 1 | 2 | 84 (B) | `1.0.0` | - | [ColorConversion](./ColorConversion.md) |
@@ -300,7 +300,7 @@
 | `OperatorType.Morphology` | Morphology (Legacy) | 1 | 1 | 6 | 84 (B) | `1.0.0` | - | [Morphology](./Morphology.md) |
 | `OperatorType.PerspectiveTransform` | 透视变换 | 3 | 1 | 20 | 90 (A) | `1.0.0` | - | [PerspectiveTransform](./PerspectiveTransform.md) |
 | `OperatorType.ShadingCorrection` | 光照校正 | 2 | 1 | 2 | 84 (B) | `1.0.0` | - | [ShadingCorrection](./ShadingCorrection.md) |
-| `OperatorType.Thresholding` | 二值化 | 1 | 1 | 4 | 66 (C) | `1.0.0` | - | [Thresholding](./Thresholding.md) |
+| `OperatorType.Thresholding` | Threshold | 1 | 1 | 4 | 66 (C) | `1.0.0` | - | [Thresholding](./Thresholding.md) |
 
 ### 颜色处理 (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

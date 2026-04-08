@@ -136,7 +136,7 @@
 | `OperatorType.TimerStatistics` | 计时统计 | 逻辑工具 | `1.0.0` |
 | `OperatorType.TriggerModule` | 触发模块 | 逻辑工具 | `1.0.0` |
 | `OperatorType.ImageAcquisition` | 图像采集 | 采集 | `1.0.0` |
-| `OperatorType.AdaptiveThreshold` | 自适应阈值 | 预处理 | `1.0.0` |
+| `OperatorType.AdaptiveThreshold` | Adaptive Threshold | 预处理 | `1.0.0` |
 | `OperatorType.BilateralFilter` | 双边滤波 | 预处理 | `1.0.0` |
 | `OperatorType.ClaheEnhancement` | CLAHE增强 | 预处理 | `1.0.0` |
 | `OperatorType.ColorConversion` | 颜色空间转换 | 预处理 | `1.0.0` |
@@ -158,14 +158,26 @@
 | `OperatorType.Morphology` | Morphology (Legacy) | 预处理 | `1.0.0` |
 | `OperatorType.PerspectiveTransform` | 透视变换 | 预处理 | `1.0.0` |
 | `OperatorType.ShadingCorrection` | 光照校正 | 预处理 | `1.0.0` |
-| `OperatorType.Thresholding` | 二值化 | 预处理 | `1.0.0` |
+| `OperatorType.Thresholding` | Threshold | 预处理 | `1.0.0` |
 | `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `1.0.0` |
 | `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.2` |
 
 ## 历史变更 / Historical Changes
+
+### OperatorType.AdaptiveThreshold / Adaptive Threshold
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-08T19:13:32.2020980+08:00` | `B975CE907035` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `B455F3119904` |
 
 ### OperatorType.RegionSkeleton / Region Skeleton
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
 | `1.0.0` | `2026-04-08T17:27:35.2941737+08:00` | `618A97A0B08E` |
 | `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `0B331757C5AA` |
+
+### OperatorType.Thresholding / Threshold
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-08T19:13:32.2020980+08:00` | `6EF90355BA3A` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `F59A1E561D20` |

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T17:27:35.2941737+08:00",
+  "generatedAt": "2026-04-08T19:13:32.2020980+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -685,8 +685,8 @@
     {
       "id": "Thresholding",
       "type": 4,
-      "displayName": "二值化",
-      "description": "全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离",
+      "displayName": "Threshold",
+      "description": "Global thresholding with optional Otsu or Triangle auto-thresholding.",
       "category": "预处理",
       "version": "1.0.0",
       "tags": [
@@ -698,7 +698,7 @@
       "inputPorts": [
         {
           "name": "Image",
-          "displayName": "图像",
+          "displayName": "Image",
           "dataType": "Image",
           "isRequired": true
         }
@@ -706,7 +706,7 @@
       "outputPorts": [
         {
           "name": "Image",
-          "displayName": "图像",
+          "displayName": "Image",
           "dataType": "Image",
           "isRequired": null
         }
@@ -714,7 +714,7 @@
       "parameters": [
         {
           "name": "Threshold",
-          "displayName": "阈值",
+          "displayName": "Threshold",
           "dataType": "double",
           "description": null,
           "defaultValue": "127",
@@ -725,7 +725,7 @@
         },
         {
           "name": "MaxValue",
-          "displayName": "最大值",
+          "displayName": "Max Value",
           "dataType": "double",
           "description": null,
           "defaultValue": "255",
@@ -736,7 +736,7 @@
         },
         {
           "name": "Type",
-          "displayName": "类型",
+          "displayName": "Type",
           "dataType": "enum",
           "description": null,
           "defaultValue": "0",
@@ -776,7 +776,7 @@
         },
         {
           "name": "UseOtsu",
-          "displayName": "使用Otsu",
+          "displayName": "Use Otsu",
           "dataType": "bool",
           "description": null,
           "defaultValue": "false",
@@ -4358,8 +4358,8 @@
     {
       "id": "AdaptiveThreshold",
       "type": 39,
-      "displayName": "自适应阈值",
-      "description": "Mean和Gaussian自适应阈值",
+      "displayName": "Adaptive Threshold",
+      "description": "Local mean or Gaussian adaptive thresholding.",
       "category": "预处理",
       "version": "1.0.0",
       "tags": [
@@ -4371,7 +4371,7 @@
       "inputPorts": [
         {
           "name": "Image",
-          "displayName": "输入图像",
+          "displayName": "Image",
           "dataType": "Image",
           "isRequired": true
         }
@@ -4379,7 +4379,7 @@
       "outputPorts": [
         {
           "name": "Image",
-          "displayName": "输出图像",
+          "displayName": "Image",
           "dataType": "Image",
           "isRequired": null
         }
@@ -4387,7 +4387,7 @@
       "parameters": [
         {
           "name": "MaxValue",
-          "displayName": "最大值",
+          "displayName": "Max Value",
           "dataType": "double",
           "description": null,
           "defaultValue": "255",
@@ -4398,7 +4398,7 @@
         },
         {
           "name": "AdaptiveMethod",
-          "displayName": "自适应方法",
+          "displayName": "Adaptive Method",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Gaussian",
@@ -4408,17 +4408,17 @@
           "options": [
             {
               "value": "Gaussian",
-              "label": "高斯加权"
+              "label": "Gaussian"
             },
             {
               "value": "Mean",
-              "label": "均值"
+              "label": "Mean"
             }
           ]
         },
         {
           "name": "ThresholdType",
-          "displayName": "阈值类型",
+          "displayName": "Threshold Type",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Binary",
@@ -4428,28 +4428,28 @@
           "options": [
             {
               "value": "Binary",
-              "label": "二值化"
+              "label": "Binary"
             },
             {
               "value": "BinaryInv",
-              "label": "反二值化"
+              "label": "Binary Inv"
             }
           ]
         },
         {
           "name": "BlockSize",
-          "displayName": "块大小",
+          "displayName": "Block Size",
           "dataType": "int",
           "description": null,
           "defaultValue": "11",
           "min": "3",
-          "max": "99",
+          "max": "51",
           "isRequired": true,
           "options": null
         },
         {
           "name": "C",
-          "displayName": "常数C",
+          "displayName": "C",
           "dataType": "double",
           "description": null,
           "defaultValue": "2",
