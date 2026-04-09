@@ -13,10 +13,10 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "旋转尺度模板匹配",
-    Description = "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
+    Description = "Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher.",
     Category = "Matching",
     IconName = "shape-match",
-    Version = "1.1.0"
+    Version = "1.1.2"
 )]
 [InputPort("Image", "Search Image", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "Template Image", PortDataType.Image, IsRequired = false)]
@@ -91,6 +91,11 @@ public class ShapeMatchingOperator : OperatorBase
             {
                 using var srcGray = ToGray(src);
                 using var tmplGray = ToGray(templateMat);
+
+                if (!HasSufficientSignal(tmplGray))
+                {
+                    return CreateNoMatchOutput(src, "Template contains insufficient texture for stable matching.");
+                }
 
                 var (srcPyramid, tmplPyramid) = BuildPyramids(srcGray, tmplGray, numLevels);
                 try
@@ -167,10 +172,19 @@ public class ShapeMatchingOperator : OperatorBase
 
                     var additionalData = new Dictionary<string, object>
                     {
+                        { "IsMatch", matchResults.Count > 0 },
+                        { "Score", matchResults.Count > 0 ? finalMatches[0].Score : 0.0 },
+                        { "Method", "RotationScaleTemplateSearch" },
+                        { "FailureReason", string.Empty },
                         { "Matches", matchResults },
                         { "MatchCount", matchResults.Count },
                         { "NumLevelsUsed", levelsUsed }
                     };
+
+                    if (matchResults.Count == 0)
+                    {
+                        additionalData["FailureReason"] = "No rotation-scale template match satisfied the score threshold.";
+                    }
 
                     return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
                 }
@@ -624,18 +638,33 @@ public class ShapeMatchingOperator : OperatorBase
         return true;
     }
 
-    private static Mat RotateImage(Mat src, double angle)
+    private static Mat RotateImageExpanded(Mat src, double angle)
     {
         var center = new Point2f(src.Width / 2f, src.Height / 2f);
         using var rotMatrix = Cv2.GetRotationMatrix2D(center, angle, 1.0);
+        var cos = Math.Abs(rotMatrix.Get<double>(0, 0));
+        var sin = Math.Abs(rotMatrix.Get<double>(0, 1));
+        var boundWidth = Math.Max(1, (int)Math.Ceiling((src.Height * sin) + (src.Width * cos)));
+        var boundHeight = Math.Max(1, (int)Math.Ceiling((src.Height * cos) + (src.Width * sin)));
+
+        rotMatrix.Set(0, 2, rotMatrix.Get<double>(0, 2) + (boundWidth / 2.0) - center.X);
+        rotMatrix.Set(1, 2, rotMatrix.Get<double>(1, 2) + (boundHeight / 2.0) - center.Y);
+
         var rotated = new Mat();
-        Cv2.WarpAffine(src, rotated, rotMatrix, src.Size(), InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
+        Cv2.WarpAffine(
+            src,
+            rotated,
+            rotMatrix,
+            new Size(boundWidth, boundHeight),
+            InterpolationFlags.Linear,
+            BorderTypes.Constant,
+            Scalar.Black);
         return rotated;
     }
 
     private static Mat TransformTemplate(Mat src, double angle, double scale)
     {
-        using var rotated = RotateImage(src, angle);
+        using var rotated = RotateImageExpanded(src, angle);
         if (Math.Abs(scale - 1.0) < 1e-6)
         {
             return rotated.Clone();
@@ -694,6 +723,46 @@ public class ShapeMatchingOperator : OperatorBase
             0.45,
             new Scalar(255, 0, 0),
             1);
+    }
+
+    private static bool HasSufficientSignal(Mat image)
+    {
+        if (image.Empty())
+        {
+            return false;
+        }
+
+        var indexer = image.GetGenericIndexer<byte>();
+        var firstValue = indexer[0, 0];
+        for (var y = 0; y < image.Rows; y++)
+        {
+            for (var x = 0; x < image.Cols; x++)
+            {
+                if (indexer[y, x] != firstValue)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private OperatorExecutionOutput CreateNoMatchOutput(Mat sourceImage, string failureReason)
+    {
+        var resultImage = sourceImage.Clone();
+        var additionalData = new Dictionary<string, object>
+        {
+            { "IsMatch", false },
+            { "Score", 0.0 },
+            { "Method", "RotationScaleTemplateSearch" },
+            { "FailureReason", failureReason },
+            { "Matches", Array.Empty<object>() },
+            { "MatchCount", 0 },
+            { "NumLevelsUsed", 0 }
+        };
+
+        return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
