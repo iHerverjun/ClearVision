@@ -518,3 +518,70 @@
     border-top: 1px solid #e2e8f0;
     border-radius: 0 0 12px 12px;
 }
+
+html[data-theme="dark"] .settings-view-container,
+html[data-theme="dark"] .settings-content-area {
+    background: var(--workspace-bg);
+}
+
+html[data-theme="dark"] .settings-sidebar,
+html[data-theme="dark"] .settings-header-banner,
+html[data-theme="dark"] .settings-modern-card,
+html[data-theme="dark"] .settings-floating-footer,
+html[data-theme="dark"] .settings-modern-table td,
+html[data-theme="dark"] .camera-preview-panel {
+    background: var(--bg-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+html[data-theme="dark"] .settings-sidebar {
+    box-shadow: var(--theme-shadow-soft);
+}
+
+html[data-theme="dark"] .settings-menu-item:hover,
+html[data-theme="dark"] .settings-modern-table tr:hover td {
+    background: var(--bg-subtle);
+}
+
+html[data-theme="dark"] .settings-fieldset label,
+html[data-theme="dark"] .font-mono,
+html[data-theme="dark"] .settings-modern-table th,
+html[data-theme="dark"] .text-muted {
+    color: var(--text-secondary);
+}
+
+html[data-theme="dark"] .settings-modern-table th {
+    background: var(--bg-subtle);
+    border-bottom-color: var(--border-color);
+}
+
+html[data-theme="dark"] .cv-input,
+html[data-theme="dark"] .input-with-icon,
+html[data-theme="dark"] .settings-modern-table,
+html[data-theme="dark"] .settings-btn-light {
+    background: var(--bg-subtle);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+html[data-theme="dark"] .cv-input:focus,
+html[data-theme="dark"] .settings-btn-light:hover {
+    background: var(--theme-surface-3);
+    border-color: var(--theme-border-strong);
+    color: var(--text-color);
+}
+
+html[data-theme="dark"] .settings-btn-dark {
+    background: var(--cinnabar);
+    color: #fff;
+}
+
+html[data-theme="dark"] .settings-btn-dark:hover {
+    background: var(--cinnabar-dark);
+}
+
+html[data-theme="dark"] .action-icon-btn svg,
+html[data-theme="dark"] .icon-action-btn svg {
+    fill: var(--text-muted);
+}

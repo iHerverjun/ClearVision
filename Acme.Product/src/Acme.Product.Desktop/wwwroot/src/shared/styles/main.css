@@ -15,8 +15,8 @@
 body {
     font-family: var(--font-display);
     font-size: var(--font-size-base);
-    background: #f1f5f9;
-    color: #0f172a;
+    background: var(--workspace-bg);
+    color: var(--text-color);
     line-height: 1.6;
     overflow: hidden;
 }
@@ -25,7 +25,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background: #ffffff; 
+    background: var(--bg-color);
 }
 
 /* ==========================================================================
@@ -38,8 +38,8 @@ body {
     height: var(--header-height);
     margin: 0;
     padding: 0 24px;
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
     z-index: var(--z-header);
     transition: all var(--duration-fast);
 }
@@ -75,7 +75,7 @@ body {
     align-items: center;
     background: transparent;
     border: none;
-    color: #64748b;
+    color: var(--text-secondary);
     cursor: pointer;
     font-weight: 500;
     font-size: var(--font-size-sm);
@@ -83,7 +83,7 @@ body {
 }
 
 .nav-btn:hover {
-    color: #0f172a;
+    color: var(--text-color);
 }
 
 .nav-btn.active {
@@ -627,9 +627,9 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     padding: 6px 14px;
     font-size: var(--font-size-sm);
     font-weight: 500;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    color: #475569;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -639,9 +639,9 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .btn:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
-    color: #0f172a;
+    background: var(--bg-subtle);
+    border-color: var(--theme-border-strong);
+    color: var(--text-color);
 }
 
 /* Primary Button - Cinnabar Solid */
@@ -660,15 +660,15 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 
 /* Secondary Button - Subtle Grey Outline or Text */
 .btn-secondary {
-    background: #f8fafc;
-    color: #64748b;
+    background: var(--bg-subtle);
+    color: var(--text-secondary);
     border: 1px solid transparent;
     box-shadow: none;
 }
 
 .btn-secondary:hover {
-    background: #f1f5f9;
-    color: #334155;
+    background: var(--hover-color);
+    color: var(--text-color);
 }
 
 /* Success Button */
@@ -703,7 +703,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .btn-icon {
     padding: 6px;
     background: transparent;
-    color: #64748b;
+    color: var(--text-secondary);
     border: none;
     box-shadow: none;
     width: auto;
@@ -712,8 +712,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .btn-icon:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+    background: var(--hover-color);
+    color: var(--text-color);
 }
 
 /* ==========================================================================
@@ -835,10 +835,10 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .project-search input {
     width: 280px;
     padding: 10px 14px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
-    color: #0f172a;
+    color: var(--text-color);
     font-size: var(--font-size-sm);
     transition: all 0.2s ease;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
@@ -857,10 +857,10 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 
 .tab-btn {
     padding: 8px 16px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    color: #64748b;
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: var(--font-size-sm);
@@ -868,8 +868,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .tab-btn:hover {
-    color: #0f172a;
-    background: #f8fafc;
+    color: var(--text-color);
+    background: var(--bg-subtle);
 }
 
 .tab-btn.active {
@@ -890,8 +890,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 
 /* Project Card - Clean White */
 .project-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -909,14 +909,14 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .project-card-title {
     font-size: var(--font-size-lg);
     font-weight: 600;
-    color: #0f172a;
+    color: var(--text-color);
     margin-bottom: 8px;
     letter-spacing: 0.5px;
 }
 
 .project-card-desc {
     font-size: var(--font-size-sm);
-    color: #475569;
+    color: var(--text-secondary);
     margin-bottom: 16px;
     line-height: 1.5;
     display: -webkit-box;
@@ -929,9 +929,9 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     display: flex;
     justify-content: space-between;
     font-size: var(--font-size-xs);
-    color: #64748b;
+    color: var(--text-secondary);
     padding-top: 12px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border-color);
 }
 
 .project-card-actions {
@@ -970,8 +970,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .results-statistics {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-xl);
     padding: var(--card-padding);
     margin-bottom: var(--card-padding);
@@ -996,8 +996,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     flex-direction: column;
     align-items: center;
     padding: 20px 16px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     transition: all 0.2s ease;
     position: relative;
@@ -1019,7 +1019,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     margin-bottom: 4px;
 }
 
-.kpi-value.total, .stat-value.stat-total { color: #0f172a; }
+.kpi-value.total, .stat-value.stat-total { color: var(--text-color); }
 .kpi-value.ok, .stat-value.stat-ok { color: #10b981; }
 .kpi-value.ng, .stat-value.stat-ng { color: #ef4444; }
 .kpi-value.yield, .stat-value.stat-rate { color: var(--cinnabar); }
@@ -1028,7 +1028,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .kpi-label,
 .stat-label {
     font-size: var(--font-size-sm);
-    color: #64748b;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -1041,8 +1041,8 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .result-item {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 16px;
     cursor: pointer;
@@ -1090,13 +1090,13 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 
 .result-time {
     font-size: var(--font-size-xs);
-    color: #64748b;
+    color: var(--text-secondary);
 }
 
 .result-defects {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border-color);
 }
 
 .defect-item {
@@ -1108,7 +1108,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .defect-type {
-    color: #475569;
+    color: var(--text-secondary);
 }
 
 .defect-confidence {
@@ -1119,7 +1119,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .result-meta {
     margin-top: 8px;
     font-size: var(--font-size-xs);
-    color: #64748b;
+    color: var(--text-secondary);
 }
 
 /* Empty State - Elegant */
@@ -1140,9 +1140,9 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     height: var(--footer-height);
     margin: 0;
     padding: 0 24px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    color: #475569;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     z-index: var(--z-header);
@@ -1164,18 +1164,18 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #475569;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
 .status-user .metric-icon {
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .status-divider {
     width: 1px;
     height: 14px;
-    background: #cbd5e1;
+    background: var(--border-color);
 }
 
 .status-metric {
@@ -1185,7 +1185,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .status-metric .metric-icon {
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 #status-text {
@@ -1193,7 +1193,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 #project-name {
-    color: #0f172a;
+    color: var(--text-color);
     font-weight: 500;
 }
 

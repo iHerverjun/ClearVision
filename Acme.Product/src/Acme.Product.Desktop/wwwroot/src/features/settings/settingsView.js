@@ -1,5 +1,6 @@
 ﻿import httpClient from '../../core/messaging/httpClient.js';
 import { showToast, createModal, closeModal } from '../../shared/components/uiComponents.js';
+import { applyTheme, getAppliedTheme, normalizeTheme } from '../../core/theme/theme.js';
 import {
     applyFeatureToButton,
     getFeatureButtonLabel,
@@ -185,7 +186,11 @@ class SettingsView {
         return {
             ...defaults,
             ...config,
-            general: { ...defaults.general, ...(config?.general || {}) },
+            general: {
+                ...defaults.general,
+                ...(config?.general || {}),
+                theme: normalizeTheme(config?.general?.theme, defaults.general.theme)
+            },
             communication: this.normalizeCommunicationConfig(config?.communication),
             storage: { ...defaults.storage, ...(config?.storage || {}) },
             runtime: { ...defaults.runtime, ...(config?.runtime || {}) },
@@ -1897,7 +1902,7 @@ class SettingsView {
     renderGeneralTab() {
         const general = this.config?.general || this.getDefaultConfig().general;
         const security = this.config?.security || this.getDefaultConfig().security;
-        const runtimeTheme = localStorage.getItem('cv_theme') || general.theme || 'light';
+        const runtimeTheme = normalizeTheme(general.theme, getAppliedTheme());
         const settingsResetFeature = getFeatureMeta('settings.reset');
         return `
             <div class="settings-section-title">
@@ -2892,6 +2897,10 @@ class SettingsView {
             const message = result?.message
                 || result?.Message
                 || `${getFeatureButtonLabel('settings.reset', '恢复默认设置')}已执行`;
+            applyTheme(
+                normalizeTheme(result?.config?.general?.theme, this.getDefaultConfig().general.theme),
+                { persist: true }
+            );
             showToast(message, 'success');
             await this.refresh();
         } catch (error) {
@@ -2906,10 +2915,8 @@ class SettingsView {
         console.log('[SettingsView] Saving config...');
 
         const themeSelect = this.container?.querySelector('#cfg-theme');
-        const selectedTheme = themeSelect?.value;
-        const currentTheme = this.config?.general?.theme
-            || document.documentElement.dataset.theme
-            || 'light';
+        const selectedTheme = normalizeTheme(themeSelect?.value, null);
+        const currentTheme = normalizeTheme(this.config?.general?.theme, getAppliedTheme());
         const effectiveTheme = selectedTheme || currentTheme;
         const defaultConfig = this.getDefaultConfig();
         const parsedHeartbeatIntervalMs = Number.parseInt(`${this.config?.communication?.heartbeatIntervalMs ?? ''}`, 10);
@@ -3032,11 +3039,7 @@ class SettingsView {
             }
             await this.loadDiskUsage();
             
-            // 仅在用户显式设置主题时才应用，避免“保存所有更改”意外切换深色模式。
-            if (themeSelect && selectedTheme) {
-                document.documentElement.dataset.theme = selectedTheme;
-                localStorage.setItem('cv_theme', selectedTheme);
-            }
+            applyTheme(effectiveTheme, { persist: true });
         } catch (error) {
             console.error('[SettingsView] Failed to save config:', error);
             showToast('保存设置通讯错误: ' + error.message, 'error');

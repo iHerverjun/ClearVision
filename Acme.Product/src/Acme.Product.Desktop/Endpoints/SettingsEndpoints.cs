@@ -45,6 +45,29 @@ public static class SettingsEndpoints
             }
         });
 
+        // 更新主题配置（避免回写整份配置造成并发覆盖）
+        app.MapPut("/api/settings/theme", async (ThemeUpdateRequest request, IConfigurationService configService) =>
+        {
+            try
+            {
+                var config = await configService.LoadAsync();
+                config.General ??= new GeneralConfig();
+                config.General.Theme = GeneralConfig.NormalizeTheme(request.Theme);
+
+                await configService.SaveAsync(config);
+
+                return Results.Ok(new
+                {
+                    Message = "主题已保存",
+                    theme = config.General.Theme
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
         // 重置配置为默认值
         app.MapPost("/api/settings/reset", async (IConfigurationService configService, AiConfigStore aiConfigStore) =>
         {
@@ -631,4 +654,9 @@ public class AiReasoningSupportRequest
 public class CameraSoftTriggerCaptureRequest
 {
     public string CameraBindingId { get; set; } = string.Empty;
+}
+
+public sealed class ThemeUpdateRequest
+{
+    public string? Theme { get; set; }
 }

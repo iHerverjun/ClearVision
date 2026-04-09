@@ -40,6 +40,7 @@ public class SettingsResetEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await host.ConfigurationService.Received(1).SaveAsync(Arg.Is<AppConfig>(config =>
             config.General != null &&
+            config.General.Theme == GeneralConfig.ThemeDark &&
             config.Runtime != null &&
             config.Security != null));
 
@@ -55,6 +56,7 @@ public class SettingsResetEndpointTests
         resetScope.Should().Contain(new[] { "appConfig", "aiModels" });
         document.RootElement.GetProperty("aiModels").GetArrayLength().Should().Be(1);
         document.RootElement.GetProperty("config").ValueKind.Should().Be(JsonValueKind.Object);
+        document.RootElement.GetProperty("config").GetProperty("general").GetProperty("theme").GetString().Should().Be(GeneralConfig.ThemeDark);
     }
 
     private sealed class SettingsResetTestHost : IAsyncDisposable

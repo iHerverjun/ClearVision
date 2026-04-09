@@ -609,3 +609,10 @@
     font-size: 11px;
     color: var(--text-secondary);
 }
+
+html[data-theme="dark"] .ac-badge-ok,
+html[data-theme="dark"] .ac-badge-ng,
+html[data-theme="dark"] .ac-diagnostic-chip {
+    background: var(--bg-subtle);
+    border-color: var(--border-color);
+}

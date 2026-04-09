@@ -37,7 +37,7 @@
     border: 1px solid var(--border-color, #e2e8f0);
 }
 
-.dark-mode .calib-wizard-modal {
+html[data-theme="dark"] .calib-wizard-modal {
     background: #1e293b;
     border-color: #334155;
 }
@@ -56,7 +56,7 @@
     background: var(--bg-surface, #ffffff);
 }
 
-.dark-mode .calib-wizard-header {
+html[data-theme="dark"] .calib-wizard-header {
     background: #1e293b;
     border-color: #334155;
 }
@@ -91,7 +91,7 @@
     border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
-.dark-mode .calib-stepper {
+html[data-theme="dark"] .calib-stepper {
     background: #0f172a;
     border-color: #334155;
 }
@@ -120,7 +120,7 @@
     z-index: 1;
 }
 
-.dark-mode .calib-step:not(:last-child)::after {
+html[data-theme="dark"] .calib-step:not(:last-child)::after {
     background: #334155;
 }
 
@@ -145,7 +145,7 @@
     transition: all 0.3s;
 }
 
-.dark-mode .calib-step-circle {
+html[data-theme="dark"] .calib-step-circle {
     background: #1e293b;
 }
 
@@ -177,7 +177,7 @@
     position: relative;
 }
 
-.dark-mode .calib-wizard-body {
+html[data-theme="dark"] .calib-wizard-body {
     background: #1e293b;
 }
 
@@ -260,7 +260,7 @@
     flex-direction: column;
 }
 
-.dark-mode .calib-input-group {
+html[data-theme="dark"] .calib-input-group {
     background: #0f172a;
     border-color: #334155;
 }
@@ -287,7 +287,7 @@
     font-size: 14px;
 }
 
-.dark-mode .calib-input-row input {
+html[data-theme="dark"] .calib-input-row input {
     background: #1e293b;
     border-color: #475569;
     color: #f1f5f9;
@@ -314,7 +314,7 @@
     cursor: not-allowed;
 }
 
-.dark-mode .calib-btn-add:disabled {
+html[data-theme="dark"] .calib-btn-add:disabled {
     background: #475569;
     color: #94a3b8;
 }
@@ -342,7 +342,7 @@
     border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
-.dark-mode .calib-table th {
+html[data-theme="dark"] .calib-table th {
     background: #0f172a;
     border-color: #334155;
 }
@@ -353,7 +353,7 @@
     color: var(--text-primary, #0f172a);
 }
 
-.dark-mode .calib-table td {
+html[data-theme="dark"] .calib-table td {
     border-color: #1e293b;
 }
 
@@ -405,7 +405,7 @@
     display: none;
 }
 
-.dark-mode .calib-solve-result {
+html[data-theme="dark"] .calib-solve-result {
     background: #0f172a;
     border-color: #334155;
 }
@@ -429,7 +429,7 @@
     border: 1px solid var(--border-color, #e2e8f0);
 }
 
-.dark-mode .calib-metric {
+html[data-theme="dark"] .calib-metric {
     background: #1e293b;
     border-color: #475569;
 }
@@ -483,7 +483,7 @@
     font-size: 32px;
 }
 
-.dark-mode .calib-save-icon {
+html[data-theme="dark"] .calib-save-icon {
     background: rgba(16, 185, 129, 0.1);
 }
 
@@ -512,7 +512,7 @@
     color: var(--text-primary, #0f172a);
 }
 
-.dark-mode .calib-save-input-group input {
+html[data-theme="dark"] .calib-save-input-group input {
     background: #1e293b;
     border-color: #475569;
     color: #f1f5f9;
@@ -528,7 +528,7 @@
     background: var(--bg-subtle, #f8fafc);
 }
 
-.dark-mode .calib-wizard-footer {
+html[data-theme="dark"] .calib-wizard-footer {
     background: #0f172a;
     border-color: #334155;
 }
@@ -548,7 +548,7 @@
     color: var(--text-primary, #0f172a);
 }
 
-.dark-mode .calib-btn-prev {
+html[data-theme="dark"] .calib-btn-prev {
     background: #1e293b;
     border-color: #475569;
     color: #f1f5f9;
@@ -558,7 +558,7 @@
     background: var(--bg-subtle, #f1f5f9);
 }
 
-.dark-mode .calib-btn-prev:hover {
+html[data-theme="dark"] .calib-btn-prev:hover {
     background: #334155;
 }
 
@@ -578,7 +578,7 @@
     cursor: not-allowed;
 }
 
-.dark-mode .calib-btn-next:disabled {
+html[data-theme="dark"] .calib-btn-next:disabled {
     background: #475569;
     border-color: #475569;
     color: #94a3b8;

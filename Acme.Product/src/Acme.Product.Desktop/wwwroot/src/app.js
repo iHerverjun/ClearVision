@@ -59,6 +59,12 @@ import { ImageViewerComponent } from './features/image-viewer/imageViewer.js';
 import { OperatorLibraryPanel } from './features/operator-library/operatorLibrary.js';
 import inspectionController from './features/inspection/inspectionController.js';
 import { showToast, createModal, closeModal, createInput, createLabeledInput, createButton } from './shared/components/uiComponents.js';
+import {
+    applyTheme,
+    bindThemeToggle,
+    bootstrapTheme,
+    syncThemeWithSettings
+} from './core/theme/theme.js';
 import { PropertyPanel } from './features/flow-editor/propertyPanel.js';
 import PropertySidebarController from './features/flow-editor/propertySidebarController.mjs';
 import { NodePreviewCoordinator, resolvePreviewInputImageBase64 } from './features/flow-editor/previewCoordinator.js';
@@ -98,6 +104,7 @@ let appInitialized = false;
 let appBootstrapPromise = null;
 let statusBarStarted = false;
 let fpsAnimationFrameId = null;
+let themeUpdateInFlight = false;
 
 let projectViewModulePromise = null;
 let resultPanelModulePromise = null;
@@ -1497,28 +1504,62 @@ async function createProject(name, description = '', preserveCanvas = false) {
  */
 function initializeTheme() {
     // 读取保存的主题
-    const savedTheme = localStorage.getItem('cv_theme') || 'light';
-    document.documentElement.dataset.theme = savedTheme;
+    const initialTheme = bootstrapTheme();
 
     // 绑定切换按钮
     const themeToggle = document.getElementById('btn-theme-toggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', toggleTheme);
-    }
+    bindThemeToggle(themeToggle, handleThemeChanged);
+
+    void syncThemeWithSettings(
+        () => httpClient.get('/settings'),
+        { expectedTheme: initialTheme }
+    );
+}
+
+async function persistThemePreference(theme) {
+    const result = await httpClient.put('/settings/theme', { theme });
+    return result?.theme || theme;
 }
 
 /**
  * 切换主题
  */
-function toggleTheme() {
-    const current = document.documentElement.dataset.theme;
-    const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem('cv_theme', next);
+async function handleThemeChanged({ previousTheme, nextTheme }) {
+    if (themeUpdateInFlight) {
+        return;
+    }
+
+    themeUpdateInFlight = true;
+    const themeToggle = document.getElementById('btn-theme-toggle');
+    if (themeToggle) {
+        themeToggle.disabled = true;
+    }
+
+    applyTheme(nextTheme, { persist: true });
+
+    let persistedTheme = nextTheme;
+    try {
+        persistedTheme = await persistThemePreference(nextTheme);
+        applyTheme(persistedTheme, { persist: true });
+    } catch (error) {
+        applyTheme(previousTheme, { persist: true });
+        showToast(`主题保存失败: ${error.message}`, 'error');
+        themeUpdateInFlight = false;
+        if (themeToggle) {
+            themeToggle.disabled = false;
+        }
+        return;
+    }
+
+    const next = persistedTheme;
 
     // 显示提示
     const message = next === 'dark' ? '已切换到暗色模式' : '已切换到亮色模式';
     showToast(message, 'info');
+    themeUpdateInFlight = false;
+    if (themeToggle) {
+        themeToggle.disabled = false;
+    }
 }
 
 /**

@@ -138,6 +138,77 @@
     --z-tooltip: 400;
 }
 
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --ink-primary: #152331;
+    --ink-secondary: #0f2435;
+    --ink-tertiary: #243b4d;
+    --ink-deep: #08131d;
+
+    --paper-white: #f3f4f6;
+    --paper-dim: #cbd5e1;
+    --ink-gray: #8ba0b3;
+    --mist-gray: rgba(148, 163, 184, 0.16);
+
+    --gradient-ink: linear-gradient(
+        180deg,
+        rgba(21, 35, 49, 0.98) 0%,
+        rgba(8, 19, 29, 1) 100%
+    );
+
+    --gradient-card: linear-gradient(
+        145deg,
+        rgba(36, 59, 77, 0.64) 0%,
+        rgba(15, 36, 53, 0.38) 100%
+    );
+
+    --glass-panel: rgba(15, 36, 53, 0.72);
+    --glass-card: rgba(36, 59, 77, 0.42);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-light: rgba(255, 255, 255, 0.04);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.35);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    --neon-cinnabar: 0 0 10px rgba(231, 76, 60, 0.5);
+    --neon-cinnabar-strong: 0 0 20px rgba(231, 76, 60, 0.6), 0 0 40px rgba(231, 76, 60, 0.3);
+    --neon-gold: 0 0 10px rgba(212, 175, 55, 0.4);
+    --neon-gold-strong: 0 0 20px rgba(212, 175, 55, 0.5);
+    --neon-jade: 0 0 15px rgba(46, 204, 113, 0.4);
+
+    --theme-surface-0: #08131d;
+    --theme-surface-1: #0f2435;
+    --theme-surface-2: #152331;
+    --theme-surface-3: #243b4d;
+    --theme-surface-overlay: rgba(15, 36, 53, 0.82);
+    --theme-workspace: #0b1824;
+    --theme-text-primary: #f3f4f6;
+    --theme-text-secondary: #cbd5e1;
+    --theme-text-muted: #8ba0b3;
+    --theme-border: rgba(148, 163, 184, 0.22);
+    --theme-border-strong: rgba(148, 163, 184, 0.36);
+    --theme-hover: rgba(255, 255, 255, 0.06);
+    --theme-hover-strong: rgba(255, 255, 255, 0.1);
+    --theme-backdrop: rgba(8, 19, 29, 0.9);
+    --theme-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.24);
+
+    --bg-color: var(--theme-surface-1);
+    --bg-surface: var(--theme-surface-1);
+    --bg-subtle: var(--theme-surface-2);
+    --workspace-bg: var(--theme-workspace);
+    --text-color: var(--theme-text-primary);
+    --text-primary: var(--theme-text-primary);
+    --text-secondary: var(--theme-text-secondary);
+    --text-muted: var(--theme-text-muted);
+    --border-color: var(--theme-border);
+    --primary-color: var(--cinnabar);
+    --hover-color: var(--theme-hover);
+}
+
 /* ==========================================================================
    Animations - Ink & Neon Effects
    ========================================================================== */
@@ -219,7 +290,9 @@
    Light Theme - 亮色模式
    ========================================================================== */
 
-[data-theme="light"] {
+html[data-theme="light"] {
+    color-scheme: light;
+
     /* Primary Palette - Light Mode (Bright & Clean) */
     --ink-primary: #f8fafc;        /* Very light slate - clean background */
     --ink-secondary: #ffffff;      /* Pure white - content areas */
@@ -265,4 +338,32 @@
     --neon-gold: 0 2px 8px rgba(234, 179, 8, 0.25);
     --neon-gold-strong: 0 4px 12px rgba(234, 179, 8, 0.35);
     --neon-jade: 0 2px 8px rgba(16, 185, 129, 0.25);
+
+    --theme-surface-0: #eef2f7;
+    --theme-surface-1: #ffffff;
+    --theme-surface-2: #f8fafc;
+    --theme-surface-3: #eef2ff;
+    --theme-surface-overlay: rgba(255, 255, 255, 0.9);
+    --theme-workspace: #f1f5f9;
+    --theme-text-primary: #0f172a;
+    --theme-text-secondary: #475569;
+    --theme-text-muted: #94a3b8;
+    --theme-border: #e2e8f0;
+    --theme-border-strong: #cbd5e1;
+    --theme-hover: rgba(15, 23, 42, 0.04);
+    --theme-hover-strong: rgba(15, 23, 42, 0.08);
+    --theme-backdrop: rgba(241, 245, 249, 0.86);
+    --theme-shadow-soft: 0 14px 28px rgba(148, 163, 184, 0.12);
+
+    --bg-color: var(--theme-surface-1);
+    --bg-surface: var(--theme-surface-1);
+    --bg-subtle: var(--theme-surface-2);
+    --workspace-bg: var(--theme-workspace);
+    --text-color: var(--theme-text-primary);
+    --text-primary: var(--theme-text-primary);
+    --text-secondary: var(--theme-text-secondary);
+    --text-muted: var(--theme-text-muted);
+    --border-color: var(--theme-border);
+    --primary-color: var(--cinnabar);
+    --hover-color: var(--theme-hover);
 }

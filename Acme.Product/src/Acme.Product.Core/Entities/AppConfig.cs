@@ -21,6 +21,7 @@ public class AppConfig
     public void Normalize()
     {
         General ??= new GeneralConfig();
+        General.Normalize();
         Communication ??= new CommunicationConfig();
         Communication.Normalize();
         Storage ??= new StorageConfig();
@@ -33,11 +34,30 @@ public class AppConfig
 
 public class GeneralConfig
 {
+    public const string ThemeDark = "dark";
+    public const string ThemeLight = "light";
+
     public string SoftwareTitle { get; set; } = "ClearVision 检测站";
 
-    public string Theme { get; set; } = "dark";
+    public string Theme { get; set; } = ThemeDark;
 
     public bool AutoStart { get; set; }
+
+    public void Normalize()
+    {
+        Theme = NormalizeTheme(Theme);
+    }
+
+    public static string NormalizeTheme(string? theme)
+    {
+        var candidate = (theme ?? string.Empty).Trim().ToLowerInvariant();
+        return candidate switch
+        {
+            ThemeLight => ThemeLight,
+            ThemeDark => ThemeDark,
+            _ => ThemeDark
+        };
+    }
 }
 
 public class CommunicationConfig
