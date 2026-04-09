@@ -15,10 +15,11 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "点位对齐",
-    Description = "Computes offset and distance between current and reference points.",
+    Description = "Pixel-space alignment helper for offsets and repeatability checks. Physical-world interpretation requires calibration.",
     Category = "数据处理",
     IconName = "align-point",
-    Keywords = new[] { "alignment", "offset", "reference point", "distance" }
+    Keywords = new[] { "alignment", "offset", "reference point", "distance" },
+    Version = "1.0.1"
 )]
 [InputPort("CurrentPoint", "Current Point", PortDataType.Point, IsRequired = true)]
 [InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]

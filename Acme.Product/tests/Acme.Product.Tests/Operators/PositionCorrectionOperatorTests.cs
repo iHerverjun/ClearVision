@@ -2,6 +2,7 @@
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using Acme.Product.Core.Attributes;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -79,6 +80,14 @@ public class PositionCorrectionOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public void Metadata_ShouldDescribePixelSpaceUsage()
+    {
+        var meta = (OperatorMetaAttribute)Attribute.GetCustomAttribute(typeof(PositionCorrectionOperator), typeof(OperatorMetaAttribute))!;
+        Assert.Contains("Pixel-space", meta.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("calibration", meta.Description, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

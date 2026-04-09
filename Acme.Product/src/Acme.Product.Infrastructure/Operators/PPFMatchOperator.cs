@@ -11,15 +11,25 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "PPF表面匹配",
-    Description = "Simplified PPF-based 3D surface matching (model -> scene pose).",
+    Description = "Simplified PPF-based 3D coarse surface matching (model -> scene pose). Intended for coarse pose alignment diagnostics.",
     Category = "3D",
     IconName = "match3d",
     Keywords = new[] { "PointCloud", "PPF", "Match", "Pose", "3D" },
-    Version = "1.0.1"
+    Version = "1.0.4"
 )]
 [InputPort("ModelPointCloud", "Model Point Cloud", PortDataType.Any, IsRequired = true)]
 [InputPort("ScenePointCloud", "Scene Point Cloud", PortDataType.Any, IsRequired = true)]
+[OutputPort("IsMatch", "Is Match", PortDataType.Boolean)]
 [OutputPort("IsMatched", "Is Matched", PortDataType.Boolean)]
+[OutputPort("Score", "Score", PortDataType.Float)]
+[OutputPort("MatchCount", "Match Count", PortDataType.Integer)]
+[OutputPort("Method", "Method", PortDataType.String)]
+[OutputPort("FailureReason", "Failure Reason", PortDataType.String)]
+[OutputPort("VerificationPassed", "Verification Passed", PortDataType.Boolean)]
+[OutputPort("AmbiguityDetected", "Ambiguity Detected", PortDataType.Boolean)]
+[OutputPort("AmbiguityScore", "Ambiguity Score", PortDataType.Float)]
+[OutputPort("StabilityScore", "Stability Score", PortDataType.Float)]
+[OutputPort("NormalConsistency", "Normal Consistency", PortDataType.Float)]
 [OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
 [OutputPort("InlierCount", "Inlier Count", PortDataType.Integer)]
 [OutputPort("InlierRatio", "Inlier Ratio", PortDataType.Float)]
@@ -110,10 +120,30 @@ public sealed class PPFMatchOperator : OperatorBase
         }
 
         var ratio = (double)result.InlierCount / Math.Max(1, model.Count);
+        var verificationPassed = result.IsMatched && !result.IsAmbiguous;
+        var failureReason = result.IsAmbiguous
+            ? "Ambiguous coarse pose solution."
+            : result.InlierCount >= minInliers && result.StabilityScore < PPFMatcher.MinimumRecommendedStabilityScore
+                ? "PPF coarse pose stability verification failed."
+            : result.InlierCount >= minInliers && result.NormalConsistency < PPFMatcher.MinimumRecommendedNormalConsistency
+                ? "PPF coarse pose normal-consistency verification failed."
+            : result.IsMatched
+                ? string.Empty
+                : "PPF coarse pose verification failed.";
 
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
+            ["IsMatch"] = verificationPassed,
             ["IsMatched"] = result.IsMatched,
+            ["Score"] = verificationPassed ? ratio : 0.0,
+            ["MatchCount"] = verificationPassed ? 1 : 0,
+            ["Method"] = "PPF-CoarsePose",
+            ["FailureReason"] = failureReason,
+            ["VerificationPassed"] = verificationPassed,
+            ["AmbiguityDetected"] = result.IsAmbiguous,
+            ["AmbiguityScore"] = result.AmbiguityScore,
+            ["StabilityScore"] = result.StabilityScore,
+            ["NormalConsistency"] = result.NormalConsistency,
             ["TransformMatrix"] = result.TransformModelToScene,
             ["InlierCount"] = result.InlierCount,
             ["InlierRatio"] = ratio,

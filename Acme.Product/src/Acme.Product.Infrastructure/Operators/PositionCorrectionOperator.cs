@@ -15,10 +15,11 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "位置修正",
-    Description = "Corrects downstream ROI coordinates using reference/base offsets.",
+    Description = "Pixel-space ROI offset tool. Use calibration operators before treating the result as physical-world compensation.",
     Category = "定位",
     IconName = "position",
-    Keywords = new[] { "position correction", "roi offset", "translation", "rotation" }
+    Keywords = new[] { "position correction", "roi offset", "translation", "rotation" },
+    Version = "1.0.1"
 )]
 [InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
 [InputPort("BasePoint", "Base Point", PortDataType.Point, IsRequired = true)]

@@ -118,7 +118,7 @@ public class PromptBuilder
         | "裁剪/ROI" | ImageCrop 或 RoiManager |
         | "颜色/偏色/色差" | ColorDetection |
         | "标定/畸变校正" | CameraCalibration → Undistort |
-        | "模板定位/找图" | TemplateMatching 或 ShapeMatching（需要旋转不变时用ShapeMatching） |
+        | "模板定位/找图" | TemplateMatching 或 ShapeMatching（需要旋转/尺度鲁棒时优先用 ShapeMatching；亮度波动大时优先 TemplateMatching 的 Edge/Gradient 域） |
         | "对比度增强/直方图" | HistogramEqualization |
 
         ## 反面模式（必须避免的错误设计）
@@ -127,8 +127,8 @@ public class PromptBuilder
            AI 模型已输出检测结果和置信度，再做二值化没有意义
         2. **测量算子不要直接连图像源**
            CircleMeasurement/LineMeasurement 需要先经过 EdgeDetection 预处理才能得到清晰边缘
-        3. **需要物理尺寸的场景不要忘记 CoordinateTransform**
-           如果用户提到"毫米""微米"等物理单位，最终必须经过坐标转换
+        3. **需要物理尺寸或机器人补偿的场景不要跳过标定链**
+           如果用户提到"毫米""微米"、机械臂补偿或物理坐标，最终必须经过 PixelToWorldTransform / CoordinateTransform / 标定结果
         4. **通信算子不要串联使用**
            如果需要同时发 OK/NG 信号，应该从 ConditionalBranch 的 True/False 各连一个通信算子（并联），不要串联
         5. **缺陷检测流程不要遗漏 ResultOutput**
@@ -162,7 +162,7 @@ public class PromptBuilder
         3. Image quality gate:
            ImageAcquisition -> SharpnessEvaluation -> ConditionalBranch -> (continue or reject)
         4. Position-first inspection:
-           ImageAcquisition -> ShapeMatching -> PositionCorrection -> follow-up inspection
+           ImageAcquisition -> ShapeMatching -> PositionCorrection(pixel-space ROI follow-up only) -> follow-up inspection
         5. Calibration-assisted metrology:
            CalibrationLoader or NPointCalibration -> measurement operators -> UnitConvert -> ResultOutput
         ## Phrase mapping additions
@@ -174,7 +174,7 @@ public class PromptBuilder
         - "filter detections by class/area/score" => BoxFilter
         - "wire sequence / terminal order / connector order" => DetectionSequenceJudge
         - "is image sharp / focus check / blur" => SharpnessEvaluation
-        - "correct ROI position / offset compensation" => PositionCorrection
+        - "correct ROI position / offset compensation" => PositionCorrection（仅像素空间 ROI 跟随，不代表物理补偿）
         - "N-point calibration / affine calibration" => NPointCalibration
         - "load calibration file" => CalibrationLoader
         - "pixel to mm / unit conversion" => UnitConvert
@@ -185,7 +185,7 @@ public class PromptBuilder
         # Phase 2 Operator Extensions
         ## New workflow patterns
         12. Robot vision guidance:
-            ImageAcquisition -> ShapeMatching -> PointAlignment/PointCorrection -> UnitConvert -> PlcCommunication -> ResultOutput
+            ImageAcquisition -> ShapeMatching -> PixelToWorldTransform/CoordinateTransform -> PointAlignment/PointCorrection -> PlcCommunication -> ResultOutput
         13. Annular part defect inspection:
             ImageAcquisition -> CircleMeasurement(center) -> PolarUnwrap -> ShadingCorrection -> SurfaceDefectDetection -> ResultOutput
         14. Traditional surface defect detection (non-AI):
@@ -193,8 +193,8 @@ public class PromptBuilder
         ## Phrase mapping additions
         - "script / custom code / formula" => ScriptOperator
         - "trigger / start / timer trigger" => TriggerModule
-        - "alignment / reference point offset" => PointAlignment
-        - "correction / compensation / send to robot" => PointCorrection
+        - "alignment / reference point offset" => PointAlignment（像素空间对齐）
+        - "correction / compensation / send to robot" => PointCorrection（需要前置标定/像素到世界坐标转换）
         - "gap / pitch / lead spacing" => GapMeasurement
         - "unwrap ring / bottle cap / bearing ring" => PolarUnwrap
         - "uneven illumination / shading / flat field" => ShadingCorrection

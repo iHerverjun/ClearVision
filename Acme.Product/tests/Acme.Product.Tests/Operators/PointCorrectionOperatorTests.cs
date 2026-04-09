@@ -1,4 +1,5 @@
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
@@ -69,6 +70,42 @@ public class PointCorrectionOperatorTests
         var validation = sut.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TranslationRotationWithMillimeterOutput_ShouldScaleTranslationOnly()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "CorrectionMode", "TranslationRotation" },
+            { "OutputUnit", "mm" },
+            { "PixelSize", 0.2 },
+            { "DetectedAngle", 10.0 },
+            { "ReferenceAngle", 20.0 }
+        });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            { "DetectedPoint", new Position(10, 0) },
+            { "ReferencePoint", new Position(20, 10) }
+        });
+
+        Assert.True(result.IsSuccess);
+        var matrix = Assert.IsType<double[][]>(result.OutputData!["TransformMatrix"]);
+        Assert.Equal(10.0, Convert.ToDouble(result.OutputData["CorrectionAngle"]), 6);
+        Assert.Equal(0.2 * (20 - ((Math.Cos(Math.PI / 18) * 10) - (Math.Sin(Math.PI / 18) * 0))), matrix[0][2], 6);
+        Assert.Equal(0.2 * (10 - ((Math.Sin(Math.PI / 18) * 10) + (Math.Cos(Math.PI / 18) * 0))), matrix[1][2], 6);
+        Assert.Equal(Math.Cos(Math.PI / 18), matrix[0][0], 6);
+        Assert.Equal(Math.Cos(Math.PI / 18), matrix[1][1], 6);
+    }
+
+    [Fact]
+    public void Metadata_ShouldDescribeCalibrationRequirement()
+    {
+        var meta = (OperatorMetaAttribute)Attribute.GetCustomAttribute(typeof(PointCorrectionOperator), typeof(OperatorMetaAttribute))!;
+        Assert.Contains("Pixel-space", meta.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("calibration", meta.Description, StringComparison.OrdinalIgnoreCase);
     }
 
     private static PointCorrectionOperator CreateSut()

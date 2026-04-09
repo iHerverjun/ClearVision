@@ -1,4 +1,5 @@
 using Acme.Product.Core.Entities;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
@@ -64,6 +65,14 @@ public class PointAlignmentOperatorTests
         var validation = sut.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public void Metadata_ShouldDescribeCalibrationRequirement()
+    {
+        var meta = (OperatorMetaAttribute)Attribute.GetCustomAttribute(typeof(PointAlignmentOperator), typeof(OperatorMetaAttribute))!;
+        Assert.Contains("Pixel-space", meta.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("calibration", meta.Description, StringComparison.OrdinalIgnoreCase);
     }
 
     private static PointAlignmentOperator CreateSut()

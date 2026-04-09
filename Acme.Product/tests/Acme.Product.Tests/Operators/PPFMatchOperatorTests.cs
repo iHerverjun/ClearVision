@@ -4,6 +4,7 @@ using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using Acme.Product.Infrastructure.PointCloud;
+using Acme.Product.Infrastructure.PointCloud.Matching;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -48,12 +49,142 @@ public sealed class PPFMatchOperatorTests
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         result.OutputData.Should().ContainKey("IsMatched");
+        result.OutputData.Should().ContainKey("IsMatch");
         result.OutputData.Should().ContainKey("TransformMatrix");
         result.OutputData.Should().ContainKey("InlierCount");
+        result.OutputData.Should().ContainKey("AmbiguityDetected");
+        result.OutputData.Should().ContainKey("Method");
+        result.OutputData.Should().ContainKey("FailureReason");
+        result.OutputData.Should().ContainKey("VerificationPassed");
+        result.OutputData.Should().ContainKey("StabilityScore");
+        result.OutputData.Should().ContainKey("NormalConsistency");
 
         Convert.ToBoolean(result.OutputData!["IsMatched"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["IsMatch"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["AmbiguityDetected"]).Should().BeFalse();
+        Convert.ToBoolean(result.OutputData["VerificationPassed"]).Should().BeTrue();
+        result.OutputData["Method"].Should().Be("PPF-CoarsePose");
+        result.OutputData["FailureReason"].Should().Be(string.Empty);
+        Convert.ToInt32(result.OutputData["MatchCount"]).Should().Be(1);
+        Convert.ToDouble(result.OutputData["Score"]).Should().BeApproximately(Convert.ToDouble(result.OutputData["InlierRatio"]), 1e-9);
+        Convert.ToInt32(result.OutputData["CorrespondenceCount"]).Should().BeGreaterThan(0);
+        Convert.ToDouble(result.OutputData["RmsError"]).Should().BeGreaterThanOrEqualTo(0.0);
+        Convert.ToDouble(result.OutputData["StabilityScore"]).Should().BeGreaterThan(0.15);
+        Convert.ToDouble(result.OutputData["NormalConsistency"]).Should().BeGreaterThan(PPFMatcher.MinimumRecommendedNormalConsistency);
         Convert.ToInt32(result.OutputData["InlierCount"]).Should().BeGreaterThan(50);
         result.OutputData["TransformMatrix"].Should().BeOfType<Matrix4x4>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SymmetricSphere_ShouldExposeAmbiguity()
+    {
+        var sut = new PPFMatchOperator(Substitute.For<ILogger<PPFMatchOperator>>());
+
+        var op = new Operator("ppf_match_sphere", OperatorType.PPFMatch, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NormalRadius", "NormalRadius", string.Empty, "double", 0.05));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "FeatureRadius", "FeatureRadius", string.Empty, "double", 0.10));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NumSamples", "NumSamples", string.Empty, "int", 160));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "ModelRefStride", "ModelRefStride", string.Empty, "int", 2));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "RansacIterations", "RansacIterations", string.Empty, "int", 1200));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "InlierThreshold", "InlierThreshold", string.Empty, "double", 0.01));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "MinInliers", "MinInliers", string.Empty, "int", 120));
+
+        var gen = new SyntheticPointCloudGenerator(seed: 311);
+        using var model = gen.GenerateSphere(Vector3.Zero, radius: 0.20f, numPoints: 2600, noise: 0.0004f, includeColors: false, includeNormals: true);
+        var gt = Matrix4x4.CreateFromYawPitchRoll(0.5f, 0.2f, -0.4f) * Matrix4x4.CreateTranslation(0.08f, -0.06f, 0.03f);
+        using var scene = model.Transform(gt);
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["ModelPointCloud"] = model,
+            ["ScenePointCloud"] = scene
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToBoolean(result.OutputData!["IsMatched"]).Should().BeFalse();
+        Convert.ToBoolean(result.OutputData["IsMatch"]).Should().BeFalse();
+        Convert.ToBoolean(result.OutputData["AmbiguityDetected"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["VerificationPassed"]).Should().BeFalse();
+        Convert.ToDouble(result.OutputData["Score"]).Should().Be(0.0);
+        Convert.ToInt32(result.OutputData["MatchCount"]).Should().Be(0);
+        Convert.ToInt32(result.OutputData["CorrespondenceCount"]).Should().BeGreaterThan(0);
+        Convert.ToDouble(result.OutputData["InlierRatio"]).Should().BeGreaterThan(0.0);
+        Convert.ToDouble(result.OutputData["StabilityScore"]).Should().BeLessThan(0.35);
+        result.OutputData["FailureReason"].Should().Be("Ambiguous coarse pose solution.");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AxiallySymmetricCylinder_ShouldExposeAmbiguityDiagnostics()
+    {
+        var sut = new PPFMatchOperator(Substitute.For<ILogger<PPFMatchOperator>>());
+
+        var op = new Operator("ppf_match_cylinder", OperatorType.PPFMatch, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NormalRadius", "NormalRadius", string.Empty, "double", 0.05));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "FeatureRadius", "FeatureRadius", string.Empty, "double", 0.11));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NumSamples", "NumSamples", string.Empty, "int", 180));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "ModelRefStride", "ModelRefStride", string.Empty, "int", 2));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "RansacIterations", "RansacIterations", string.Empty, "int", 1400));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "InlierThreshold", "InlierThreshold", string.Empty, "double", 0.01));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "MinInliers", "MinInliers", string.Empty, "int", 150));
+
+        var gen = new SyntheticPointCloudGenerator(seed: 321);
+        using var model = gen.GenerateCylinder(
+            center: Vector3.Zero,
+            axis: Vector3.UnitZ,
+            radius: 0.12f,
+            height: 0.45f,
+            numPoints: 2800,
+            noise: 0.0004f,
+            includeColors: false,
+            includeNormals: true);
+        var gt = Matrix4x4.CreateFromYawPitchRoll(0.35f, -0.24f, 1.10f) * Matrix4x4.CreateTranslation(0.05f, -0.03f, 0.02f);
+        using var scene = model.Transform(gt);
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["ModelPointCloud"] = model,
+            ["ScenePointCloud"] = scene
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToBoolean(result.OutputData!["AmbiguityDetected"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["VerificationPassed"]).Should().BeFalse();
+        Convert.ToDouble(result.OutputData["AmbiguityScore"]).Should().BeGreaterThan(0.85);
+        Convert.ToDouble(result.OutputData["NormalConsistency"]).Should().BeGreaterThan(PPFMatcher.MinimumRecommendedNormalConsistency);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NearSymmetricCylinderWithKeyFeature_ShouldStayMatched()
+    {
+        var sut = new PPFMatchOperator(Substitute.For<ILogger<PPFMatchOperator>>());
+
+        var op = new Operator("ppf_match_near_symmetric", OperatorType.PPFMatch, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NormalRadius", "NormalRadius", string.Empty, "double", 0.05));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "FeatureRadius", "FeatureRadius", string.Empty, "double", 0.11));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "NumSamples", "NumSamples", string.Empty, "int", 180));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "ModelRefStride", "ModelRefStride", string.Empty, "int", 2));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "RansacIterations", "RansacIterations", string.Empty, "int", 1400));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "InlierThreshold", "InlierThreshold", string.Empty, "double", 0.01));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "MinInliers", "MinInliers", string.Empty, "int", 150));
+
+        var gen = new SyntheticPointCloudGenerator(seed: 331);
+        using var model = BuildNearSymmetricCylinderWithKey(gen);
+        var gt = Matrix4x4.CreateFromYawPitchRoll(0.31f, -0.19f, 0.92f) * Matrix4x4.CreateTranslation(0.07f, -0.02f, 0.04f);
+        using var scene = model.Transform(gt);
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["ModelPointCloud"] = model,
+            ["ScenePointCloud"] = scene
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToBoolean(result.OutputData!["IsMatched"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["IsMatch"]).Should().BeTrue();
+        Convert.ToBoolean(result.OutputData["AmbiguityDetected"]).Should().BeFalse();
+        Convert.ToBoolean(result.OutputData["VerificationPassed"]).Should().BeTrue();
+        result.OutputData["FailureReason"].Should().Be(string.Empty);
+        Convert.ToDouble(result.OutputData["StabilityScore"]).Should().BeGreaterThan(PPFMatcher.MinimumRecommendedStabilityScore);
     }
 
     private static PointCloudModel BuildAsymmetricModel(SyntheticPointCloudGenerator gen)
@@ -77,6 +208,30 @@ public sealed class PPFMatchOperatorTests
             outlierRatio: 0.0f);
 
         return MergeTwo(sphere, cube);
+    }
+
+    private static PointCloudModel BuildNearSymmetricCylinderWithKey(SyntheticPointCloudGenerator gen)
+    {
+        using var cylinder = gen.GenerateCylinder(
+            center: Vector3.Zero,
+            axis: Vector3.UnitZ,
+            radius: 0.12f,
+            height: 0.45f,
+            numPoints: 2400,
+            noise: 0.0004f,
+            includeColors: true,
+            includeNormals: false);
+
+        using var cube = gen.GenerateCube(
+            center: new Vector3(0.13f, 0.01f, 0.10f),
+            edgeLength: 0.08f,
+            numPoints: 650,
+            noise: 0.0004f,
+            includeColors: true,
+            includeNormals: false,
+            outlierRatio: 0.0f);
+
+        return MergeTwo(cylinder, cube);
     }
 
     private static PointCloudModel MergeTwo(PointCloudModel a, PointCloudModel b)

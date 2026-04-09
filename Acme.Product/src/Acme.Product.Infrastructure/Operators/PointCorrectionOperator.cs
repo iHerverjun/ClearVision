@@ -15,10 +15,11 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "点位修正",
-    Description = "Computes translation/rotation correction from detected to reference point.",
+    Description = "Pixel-space rigid correction helper. Do not use it as a physical-world conversion substitute without calibration.",
     Category = "数据处理",
     IconName = "point-correction",
-    Keywords = new[] { "correction", "compensation", "robot", "pick place" }
+    Keywords = new[] { "correction", "compensation", "robot", "pick place" },
+    Version = "1.0.1"
 )]
 [InputPort("DetectedPoint", "Detected Point", PortDataType.Point, IsRequired = true)]
 [InputPort("DetectedAngle", "Detected Angle", PortDataType.Float, IsRequired = false)]
