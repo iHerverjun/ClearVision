@@ -10,7 +10,11 @@ public readonly record struct PPFMatchResult(
     Matrix4x4 TransformModelToScene,
     int InlierCount,
     int CorrespondenceCount,
-    double RmsError);
+    double RmsError,
+    bool IsAmbiguous = false,
+    double AmbiguityScore = 0.0,
+    double StabilityScore = 0.0,
+    double NormalConsistency = 0.0);
 
 /// <summary>
 /// Simplified PPF-based surface matching:
@@ -20,6 +24,9 @@ public readonly record struct PPFMatchResult(
 /// </summary>
 public sealed class PPFMatcher
 {
+    public const double MinimumRecommendedNormalConsistency = 0.70;
+    public const double MinimumRecommendedStabilityScore = 0.12;
+
     private readonly MatPool _pool;
     private readonly Random _rng;
 
@@ -71,6 +78,7 @@ public sealed class PPFMatcher
         var modelNormals = modelWithNormals.Normals!.GetGenericIndexer<float>();
         var scenePoints = sceneWithNormals.Points.GetGenericIndexer<float>();
         var sceneNormals = sceneWithNormals.Normals!.GetGenericIndexer<float>();
+        var symmetry = ComputeSymmetryDescriptor(modelPoints, modelWithNormals.Count, modelWithNormals.GetAABB());
 
         var modelHash = BuildModelHash(
             modelPoints,
@@ -102,7 +110,7 @@ public sealed class PPFMatcher
         var nnGrid = SpatialHashGrid.Build(scenePoints, sceneWithNormals.Count, cellSize: inlierThreshold);
         var evalIndices = BuildEvaluationIndices(modelWithNormals.Count, targetCount: 1500);
 
-        var (bestT, bestInliers, bestRms) = RansacRigidTransform(
+        var (bestT, bestInliers, bestRms, bestSupport, secondaryT, secondarySupport, secondaryRms, hypothesisLandscape) = RansacRigidTransform(
             correspondences,
             modelPoints,
             scenePoints,
@@ -120,38 +128,104 @@ public sealed class PPFMatcher
         // Refine using a larger subset of model points with nearest-neighbor correspondences (ICP-like).
         // We do a coarse stage with a larger capture range, then a fine stage at inlierThreshold.
         var refineIndices = BuildEvaluationIndices(modelWithNormals.Count, targetCount: 7000);
-
         var coarseThreshold = MathF.Min(0.10f, MathF.Max(inlierThreshold * 4f, 0.03f));
         var coarseGrid = SpatialHashGrid.Build(scenePoints, sceneWithNormals.Count, cellSize: coarseThreshold);
-        var (coarseT, coarseInliers, coarseRms) = RefineTransform(
+        var (refined, refinedInliers, refinedRms, normalConsistency) = RefineHypothesis(
             modelPoints,
+            modelNormals,
             scenePoints,
+            sceneNormals,
             coarseGrid,
-            refineIndices,
-            bestT,
-            threshold2: (double)coarseThreshold * coarseThreshold,
-            iterations: 6,
-            minInliers: minInliers);
-
-        var (refined, refinedInliers, refinedRms) = RefineTransform(
-            modelPoints,
-            scenePoints,
             nnGrid,
             refineIndices,
-            coarseT,
-            threshold2: (double)inlierThreshold * inlierThreshold,
-            iterations: 4,
-            minInliers: minInliers);
+            bestT,
+            coarseThreshold,
+            inlierThreshold,
+            minInliers);
 
         if (refinedInliers.Length < minInliers)
         {
-            // Provide the best available refinement RMS for diagnostics.
-            var rr = double.IsFinite(refinedRms) ? refinedRms : coarseRms;
-            var cc = refinedInliers.Length > 0 ? refinedInliers.Length : coarseInliers.Length;
-            return new PPFMatchResult(false, Matrix4x4.Identity, cc, correspondences.Count, rr);
+            return new PPFMatchResult(false, Matrix4x4.Identity, refinedInliers.Length, correspondences.Count, refinedRms);
         }
 
-        return new PPFMatchResult(true, refined, refinedInliers.Length, correspondences.Count, refinedRms);
+        Matrix4x4 refinedSecondary = Matrix4x4.Identity;
+        Correspondence[] refinedSecondaryInliers = Array.Empty<Correspondence>();
+        var refinedSecondaryRms = double.PositiveInfinity;
+        var secondaryNormalConsistency = 0.0;
+
+        if (secondarySupport >= minInliers)
+        {
+            (refinedSecondary, refinedSecondaryInliers, refinedSecondaryRms, secondaryNormalConsistency) = RefineHypothesis(
+                modelPoints,
+                modelNormals,
+                scenePoints,
+                sceneNormals,
+                coarseGrid,
+                nnGrid,
+                refineIndices,
+                secondaryT,
+                coarseThreshold,
+                inlierThreshold,
+                minInliers);
+        }
+
+        var ambiguityScore = ComputeAmbiguityScore(
+            refinedInliers.Length,
+            refinedRms,
+            normalConsistency,
+            refinedSecondaryInliers.Length,
+            refinedSecondaryRms,
+            secondaryNormalConsistency,
+            symmetry,
+            hypothesisLandscape);
+        var stabilityScore = ComputeStabilityScore(
+            refinedInliers.Length,
+            refinedRms,
+            normalConsistency,
+            refinedSecondaryInliers.Length,
+            refinedSecondaryRms,
+            secondaryNormalConsistency,
+            symmetry,
+            hypothesisLandscape);
+        var ambiguous = IsAmbiguousPose(
+            refinedInliers.Length,
+            refinedSecondaryInliers.Length,
+            refined,
+            refinedSecondary,
+            inlierThreshold,
+            ambiguityScore,
+            symmetry,
+            refinedRms,
+            refinedSecondaryRms,
+            normalConsistency,
+            secondaryNormalConsistency,
+            hypothesisLandscape);
+
+        if (!ambiguous && ShouldForceSphericalAmbiguity(
+                refinedInliers.Length,
+                refinedSecondaryInliers.Length,
+                normalConsistency,
+                symmetry,
+                hypothesisLandscape))
+        {
+            ambiguous = true;
+            ambiguityScore = Math.Max(ambiguityScore, symmetry.SphericalScore);
+            stabilityScore = Math.Min(stabilityScore, 1.0 - symmetry.SphericalScore);
+        }
+
+        var passedNormalConsistency = normalConsistency >= MinimumRecommendedNormalConsistency;
+        var passedStability = stabilityScore >= MinimumRecommendedStabilityScore;
+        var isMatched = !ambiguous && passedNormalConsistency && passedStability;
+        return new PPFMatchResult(
+            isMatched,
+            refined,
+            refinedInliers.Length,
+            correspondences.Count,
+            refinedRms,
+            ambiguous,
+            ambiguityScore,
+            stabilityScore,
+            normalConsistency);
     }
 
     private PointCloud EnsureNormals(PointCloud input, float normalRadius)
@@ -268,6 +342,14 @@ public sealed class PPFMatcher
     private readonly record struct ModelPair(int RefIndex, int NeighborIndex);
     private readonly record struct PairCorrespondence(int ModelRefIndex, int ModelNeighborIndex, int SceneRefIndex, int SceneNeighborIndex);
     private readonly record struct Correspondence(int ModelIndex, int SceneIndex);
+    private readonly record struct Hypothesis(Matrix4x4 Transform, int Support, double Rms, int VoteCount, double SupportSum);
+    private readonly record struct HypothesisLandscape(
+        double DominantVoteRatio,
+        double CompetitiveSupportRatio,
+        double CompetitiveVoteRatio,
+        int CompetitiveClusterCount,
+        double PoseSpreadScore);
+    private readonly record struct SymmetryDescriptor(double SphericalScore, double AxialScore, double ExtentScore);
 
     private ModelHash BuildModelHash(
         MatIndexer<float> modelPoints,
@@ -696,7 +778,7 @@ public sealed class PPFMatcher
         return true;
     }
 
-    private (Matrix4x4 Transform, Correspondence[] Inliers, double BestRms) RansacRigidTransform(
+    private (Matrix4x4 Transform, Correspondence[] Inliers, double BestRms, int BestSupport, Matrix4x4 SecondaryTransform, int SecondarySupport, double SecondaryRms, HypothesisLandscape Landscape) RansacRigidTransform(
         List<Correspondence> pool,
         MatIndexer<float> modelPoints,
         MatIndexer<float> scenePoints,
@@ -707,11 +789,9 @@ public sealed class PPFMatcher
         int minInliers)
     {
         var threshold2 = (double)inlierThreshold * inlierThreshold;
-
-        Matrix4x4 bestT = Matrix4x4.Identity;
-        int bestCount = 0;
-        double bestRms = double.PositiveInfinity;
-        Correspondence[] bestInliers = Array.Empty<Correspondence>();
+        var translationMergeTolerance = Math.Max(inlierThreshold * 4f, 0.006f);
+        const double rotationMergeToleranceDeg = 4.0;
+        var hypotheses = new List<Hypothesis>(capacity: 6);
 
         var earlyStop = Math.Max(minInliers, (int)(evalModelIndices.Length * 0.85));
         Span<Correspondence> sample = stackalloc Correspondence[3];
@@ -743,39 +823,536 @@ public sealed class PPFMatcher
             }
 
             var rms = Math.Sqrt(sum2 / count);
-            if (count > bestCount || (count == bestCount && rms < bestRms))
+            UpsertHypothesis(hypotheses, new Hypothesis(tform, count, rms, 1, count), translationMergeTolerance, rotationMergeToleranceDeg);
+            if (hypotheses.Count > 0 && hypotheses[0].Support >= earlyStop)
             {
-                bestCount = count;
-                bestRms = rms;
-                bestT = tform;
-
-                if (bestCount >= earlyStop)
-                {
-                    break;
-                }
+                break;
             }
         }
+
+        hypotheses.Sort(CompareHypotheses);
+        if (hypotheses.Count == 0)
+        {
+            return (Matrix4x4.Identity, Array.Empty<Correspondence>(), double.PositiveInfinity, 0, Matrix4x4.Identity, 0, double.PositiveInfinity, new HypothesisLandscape(0.0, 0.0, 0.0, 0, 0.0));
+        }
+
+        var best = hypotheses[0];
+        var landscape = AnalyzeHypothesisLandscape(hypotheses, best, inlierThreshold);
+        var secondary = hypotheses.Count > 1
+            ? hypotheses[1]
+            : new Hypothesis(Matrix4x4.Identity, 0, double.PositiveInfinity, 0, 0.0);
+
+        var bestT = best.Transform;
+        var bestCount = best.Support;
+        var bestRms = best.Rms;
+        var secondT = secondary.Transform;
+        var secondCount = secondary.Support;
+        var secondRms = secondary.Rms;
 
         if (bestCount < minInliers)
         {
-            return (bestT, Array.Empty<Correspondence>(), bestRms);
+            return (bestT, Array.Empty<Correspondence>(), bestRms, bestCount, secondT, secondCount, secondRms, landscape);
         }
 
-        // Build inlier correspondences for refinement.
-        var inliers = new List<Correspondence>(capacity: bestCount);
-        for (int i = 0; i < evalModelIndices.Length; i++)
+        var inliers = CollectInliers(modelPoints, scenePoints, sceneGrid, evalModelIndices, bestT, threshold2);
+        return (bestT, inliers, bestRms, bestCount, secondT, secondCount, secondRms, landscape);
+    }
+
+    private static void UpsertHypothesis(List<Hypothesis> hypotheses, Hypothesis candidate, double translationTolerance, double rotationToleranceDeg)
+    {
+        for (int i = 0; i < hypotheses.Count; i++)
         {
-            var mi = evalModelIndices[i];
-            var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
-            var tp = Vector3.Transform(mp, bestT);
-
-            if (TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out var sj, out _))
+            if (!AreTransformsSimilar(hypotheses[i].Transform, candidate.Transform, translationTolerance, rotationToleranceDeg))
             {
-                inliers.Add(new Correspondence(mi, sj));
+                continue;
             }
+
+            var existing = hypotheses[i];
+            var representative = CompareHypotheses(candidate, existing) < 0 ? candidate : existing;
+            hypotheses[i] = representative with
+            {
+                VoteCount = existing.VoteCount + candidate.VoteCount,
+                SupportSum = existing.SupportSum + candidate.SupportSum
+            };
+
+            hypotheses.Sort(CompareHypotheses);
+            return;
         }
 
-        return (bestT, inliers.ToArray(), bestRms);
+        hypotheses.Add(candidate);
+        hypotheses.Sort(CompareHypotheses);
+        if (hypotheses.Count > 6)
+        {
+            hypotheses.RemoveAt(hypotheses.Count - 1);
+        }
+    }
+
+    private static int CompareHypotheses(Hypothesis x, Hypothesis y)
+    {
+        var supportCompare = y.Support.CompareTo(x.Support);
+        if (supportCompare != 0)
+        {
+            return supportCompare;
+        }
+
+        var voteCompare = y.VoteCount.CompareTo(x.VoteCount);
+        return voteCompare != 0 ? voteCompare : x.Rms.CompareTo(y.Rms);
+    }
+
+    private static HypothesisLandscape AnalyzeHypothesisLandscape(IReadOnlyList<Hypothesis> hypotheses, Hypothesis best, float inlierThreshold)
+    {
+        if (hypotheses.Count == 0 || best.Support <= 0)
+        {
+            return new HypothesisLandscape(0.0, 0.0, 0.0, 0, 0.0);
+        }
+
+        var totalVotes = Math.Max(1, hypotheses.Sum(h => h.VoteCount));
+        var bestVotes = Math.Max(1, best.VoteCount);
+        var bestSupport = Math.Max(1, best.Support);
+        var poseTranslationScale = Math.Max(inlierThreshold * 6f, 0.01f);
+        const double poseRotationScaleDeg = 15.0;
+
+        double maxSupportRatio = 0.0;
+        double maxVoteRatio = 0.0;
+        double maxPoseSpread = 0.0;
+        var competitiveClusters = 0;
+
+        for (int i = 1; i < hypotheses.Count; i++)
+        {
+            var alt = hypotheses[i];
+            var supportRatio = Math.Clamp(alt.Support / (double)bestSupport, 0.0, 1.0);
+            var voteRatio = Math.Clamp(alt.VoteCount / (double)bestVotes, 0.0, 1.0);
+            if (supportRatio < 0.70 && voteRatio < 0.45)
+            {
+                continue;
+            }
+
+            competitiveClusters++;
+            maxSupportRatio = Math.Max(maxSupportRatio, supportRatio);
+            maxVoteRatio = Math.Max(maxVoteRatio, voteRatio);
+
+            var translationSpread = TranslationDistance(best.Transform, alt.Transform) / poseTranslationScale;
+            var rotationSpread = RotationDifferenceDegrees(best.Transform, alt.Transform) / poseRotationScaleDeg;
+            maxPoseSpread = Math.Max(maxPoseSpread, Math.Clamp(Math.Max(translationSpread, rotationSpread), 0.0, 1.0));
+        }
+
+        return new HypothesisLandscape(
+            DominantVoteRatio: Math.Clamp(bestVotes / (double)totalVotes, 0.0, 1.0),
+            CompetitiveSupportRatio: maxSupportRatio,
+            CompetitiveVoteRatio: maxVoteRatio,
+            CompetitiveClusterCount: competitiveClusters,
+            PoseSpreadScore: maxPoseSpread);
+    }
+
+    private static double ComputeDominantEvidenceScore(
+        int bestSupport,
+        int secondarySupport,
+        double bestNormalConsistency,
+        HypothesisLandscape landscape)
+    {
+        if (bestSupport <= 0)
+        {
+            return 0;
+        }
+
+        var directSupportMargin = secondarySupport <= 0
+            ? 1.0
+            : Math.Clamp(1.0 - (secondarySupport / (double)bestSupport), 0.0, 1.0);
+        var voteDominance = Math.Clamp((landscape.DominantVoteRatio - 0.45) / 0.30, 0.0, 1.0);
+        var voteSeparation = 1.0 - Math.Clamp(landscape.CompetitiveVoteRatio, 0.0, 1.0);
+        var supportSeparation = 1.0 - Math.Clamp(landscape.CompetitiveSupportRatio, 0.0, 1.0);
+        var clusterIsolation = 1.0 - Math.Clamp(landscape.CompetitiveClusterCount / 2.0, 0.0, 1.0);
+        var poseConcentration = 1.0 - Math.Clamp(landscape.PoseSpreadScore, 0.0, 1.0);
+        var normalConfidence = Math.Clamp(
+            (bestNormalConsistency - MinimumRecommendedNormalConsistency) / 0.18,
+            0.0,
+            1.0);
+
+        return Math.Clamp(
+            (voteDominance * 0.28) +
+            (voteSeparation * 0.20) +
+            (supportSeparation * 0.16) +
+            (directSupportMargin * 0.14) +
+            (clusterIsolation * 0.10) +
+            (poseConcentration * 0.06) +
+            (normalConfidence * 0.06),
+            0.0,
+            1.0);
+    }
+
+    private static double ComputeIsotropicSymmetryPrior(SymmetryDescriptor symmetry, double dominantEvidenceScore)
+    {
+        return Math.Clamp(symmetry.SphericalScore * (1.0 - (dominantEvidenceScore * 0.90)), 0.0, 1.0);
+    }
+
+    private static bool ShouldForceSphericalAmbiguity(
+        int bestSupport,
+        int secondarySupport,
+        double bestNormalConsistency,
+        SymmetryDescriptor symmetry,
+        HypothesisLandscape landscape)
+    {
+        if (symmetry.SphericalScore < 0.985)
+        {
+            return false;
+        }
+
+        var dominantEvidence = ComputeDominantEvidenceScore(bestSupport, secondarySupport, bestNormalConsistency, landscape);
+        var hasClearDominantMode =
+            landscape.DominantVoteRatio >= 0.50 &&
+            landscape.CompetitiveVoteRatio <= 0.50 &&
+            landscape.CompetitiveSupportRatio <= 0.88 &&
+            landscape.CompetitiveClusterCount <= 2;
+        var highConfidenceDominantMode =
+            bestNormalConsistency >= 0.90 &&
+            landscape.DominantVoteRatio >= 0.48 &&
+            landscape.CompetitiveVoteRatio <= 0.58 &&
+            landscape.CompetitiveSupportRatio <= 0.90 &&
+            landscape.PoseSpreadScore <= 0.40;
+        if (dominantEvidence >= 0.50 || hasClearDominantMode)
+        {
+            return false;
+        }
+
+        if (highConfidenceDominantMode)
+        {
+            return false;
+        }
+
+        return (landscape.CompetitiveClusterCount >= 1 && landscape.CompetitiveVoteRatio >= 0.45) ||
+               (landscape.CompetitiveClusterCount >= 1 && landscape.CompetitiveSupportRatio >= 0.80 && landscape.PoseSpreadScore >= 0.25) ||
+               landscape.CompetitiveClusterCount >= 2;
+    }
+
+    private static double ComputeAmbiguityScore(
+        int bestSupport,
+        double bestRms,
+        double bestNormalConsistency,
+        int secondarySupport,
+        double secondaryRms,
+        double secondaryNormalConsistency,
+        SymmetryDescriptor symmetry,
+        HypothesisLandscape landscape)
+    {
+        if (bestSupport <= 0)
+        {
+            return 0;
+        }
+
+        var supportCompetition = secondarySupport <= 0
+            ? 0.0
+            : Math.Clamp(secondarySupport / (double)bestSupport, 0.0, 1.0);
+        supportCompetition = Math.Max(supportCompetition, landscape.CompetitiveSupportRatio);
+        var rmsCompetition = (!double.IsFinite(bestRms) || !double.IsFinite(secondaryRms) || secondarySupport <= 0)
+            ? 0.0
+            : Math.Clamp(1.0 - ((secondaryRms - bestRms) / Math.Max(bestRms, 1e-6)), 0.0, 1.0);
+        var normalCompetition = secondarySupport <= 0
+            ? 0.0
+            : Math.Clamp(1.0 - Math.Max(0.0, bestNormalConsistency - secondaryNormalConsistency), 0.0, 1.0);
+        var clusterCompetition = Math.Clamp(landscape.CompetitiveClusterCount / 3.0, 0.0, 1.0);
+        var dominantEvidence = ComputeDominantEvidenceScore(bestSupport, secondarySupport, bestNormalConsistency, landscape);
+        var symmetryPrior = Math.Max(
+            ComputeIsotropicSymmetryPrior(symmetry, dominantEvidence),
+            symmetry.AxialScore * 0.95);
+
+        return Math.Clamp(
+            (supportCompetition * 0.28) +
+            (rmsCompetition * 0.16) +
+            (normalCompetition * 0.10) +
+            (landscape.CompetitiveVoteRatio * 0.14) +
+            (clusterCompetition * 0.10) +
+            (landscape.PoseSpreadScore * 0.07) +
+            (symmetryPrior * 0.15) -
+            (dominantEvidence * 0.22),
+            0.0,
+            1.0);
+    }
+
+    private static double ComputeStabilityScore(
+        int bestSupport,
+        double bestRms,
+        double bestNormalConsistency,
+        int secondarySupport,
+        double secondaryRms,
+        double secondaryNormalConsistency,
+        SymmetryDescriptor symmetry,
+        HypothesisLandscape landscape)
+    {
+        if (bestSupport <= 0)
+        {
+            return 0;
+        }
+
+        var ambiguityScore = ComputeAmbiguityScore(
+            bestSupport,
+            bestRms,
+            bestNormalConsistency,
+            secondarySupport,
+            secondaryRms,
+            secondaryNormalConsistency,
+            symmetry,
+            landscape);
+        var supportMargin = secondarySupport <= 0
+            ? 1.0
+            : Math.Clamp(1.0 - (secondarySupport / (double)bestSupport), 0.0, 1.0);
+        supportMargin = Math.Min(supportMargin, 1.0 - landscape.CompetitiveSupportRatio);
+        var clusterPenalty = Math.Clamp(landscape.CompetitiveClusterCount / 3.0, 0.0, 1.0);
+        var dominantEvidence = ComputeDominantEvidenceScore(bestSupport, secondarySupport, bestNormalConsistency, landscape);
+        var symmetryPenalty = Math.Max(
+            ComputeIsotropicSymmetryPrior(symmetry, dominantEvidence),
+            symmetry.AxialScore * 0.60);
+
+        return Math.Clamp(
+            ((1.0 - ambiguityScore) * 0.42) +
+            (Math.Clamp(bestNormalConsistency, 0.0, 1.0) * 0.20) +
+            (Math.Clamp(landscape.DominantVoteRatio, 0.0, 1.0) * 0.18) +
+            (supportMargin * 0.15) -
+            (symmetryPenalty * 0.08) -
+            (clusterPenalty * 0.05) +
+            (dominantEvidence * 0.12),
+            0.0,
+            1.0);
+    }
+
+    private static bool IsAmbiguousPose(
+        int bestSupport,
+        int secondarySupport,
+        Matrix4x4 bestTransform,
+        Matrix4x4 secondaryTransform,
+        float inlierThreshold,
+        double ambiguityScore,
+        SymmetryDescriptor symmetry,
+        double bestRms,
+        double secondaryRms,
+        double bestNormalConsistency,
+        double secondaryNormalConsistency,
+        HypothesisLandscape landscape)
+    {
+        var dominantEvidence = ComputeDominantEvidenceScore(bestSupport, secondarySupport, bestNormalConsistency, landscape);
+
+        if (bestSupport <= 0 || secondarySupport <= 0)
+        {
+            return ShouldForceSphericalAmbiguity(bestSupport, secondarySupport, bestNormalConsistency, symmetry, landscape) ||
+                   (symmetry.AxialScore >= 0.90 &&
+                    landscape.CompetitiveClusterCount >= 1 &&
+                    landscape.CompetitiveVoteRatio >= 0.60 &&
+                    landscape.PoseSpreadScore >= 0.45);
+        }
+
+        var translationDelta = TranslationDistance(bestTransform, secondaryTransform);
+        var rotationDeltaDeg = RotationDifferenceDegrees(bestTransform, secondaryTransform);
+        var translationTolerance = Math.Max(inlierThreshold * 6f, 0.01f);
+        var supportRatio = secondarySupport / (double)bestSupport;
+        var rmsComparable = double.IsFinite(bestRms) &&
+                            double.IsFinite(secondaryRms) &&
+                            secondaryRms <= (bestRms + Math.Max(inlierThreshold * 1.5f, bestRms * 0.25));
+        var normalComparable = secondaryNormalConsistency >= Math.Max(0.55, bestNormalConsistency - 0.12);
+        var distinctPose = translationDelta >= translationTolerance || rotationDeltaDeg >= 8.0;
+        var symmetrySensitiveSupportThreshold = symmetry.AxialScore >= 0.75 ? 0.90 : 0.93;
+
+        var primaryAmbiguity = ambiguityScore >= 0.86 &&
+                               supportRatio >= symmetrySensitiveSupportThreshold &&
+                               rmsComparable &&
+                               normalComparable &&
+                               distinctPose;
+        var symmetryDominatedAmbiguity =
+            symmetry.SphericalScore >= 0.97 &&
+            dominantEvidence < 0.45 &&
+            landscape.CompetitiveClusterCount >= 2 &&
+            landscape.CompetitiveVoteRatio >= 0.50 &&
+            landscape.PoseSpreadScore >= 0.30;
+        var axialCompetitionAmbiguity =
+            symmetry.AxialScore >= 0.85 &&
+            landscape.CompetitiveClusterCount >= 2 &&
+            landscape.CompetitiveSupportRatio >= 0.82 &&
+            landscape.PoseSpreadScore >= 0.45;
+
+        return primaryAmbiguity || symmetryDominatedAmbiguity || axialCompetitionAmbiguity;
+    }
+
+    private static SymmetryDescriptor ComputeSymmetryDescriptor(MatIndexer<float> points, int count, AxisAlignedBoundingBox box)
+    {
+        if (count < 3)
+        {
+            return new SymmetryDescriptor(0.0, 0.0, 0.0);
+        }
+
+        double cx = 0;
+        double cy = 0;
+        double cz = 0;
+        for (int i = 0; i < count; i++)
+        {
+            cx += points[i, 0];
+            cy += points[i, 1];
+            cz += points[i, 2];
+        }
+
+        var inv = 1.0 / count;
+        cx *= inv;
+        cy *= inv;
+        cz *= inv;
+
+        double c00 = 0, c01 = 0, c02 = 0;
+        double c11 = 0, c12 = 0, c22 = 0;
+        for (int i = 0; i < count; i++)
+        {
+            var x = points[i, 0] - cx;
+            var y = points[i, 1] - cy;
+            var z = points[i, 2] - cz;
+            c00 += x * x;
+            c01 += x * y;
+            c02 += x * z;
+            c11 += y * y;
+            c12 += y * z;
+            c22 += z * z;
+        }
+
+        using var covariance = new Mat(3, 3, MatType.CV_64FC1);
+        covariance.Set(0, 0, c00 * inv); covariance.Set(0, 1, c01 * inv); covariance.Set(0, 2, c02 * inv);
+        covariance.Set(1, 0, c01 * inv); covariance.Set(1, 1, c11 * inv); covariance.Set(1, 2, c12 * inv);
+        covariance.Set(2, 0, c02 * inv); covariance.Set(2, 1, c12 * inv); covariance.Set(2, 2, c22 * inv);
+
+        using var eigenValues = new Mat();
+        using var eigenVectors = new Mat();
+        if (!Cv2.Eigen(covariance, eigenValues, eigenVectors))
+        {
+            return new SymmetryDescriptor(0.0, 0.0, ComputeExtentSymmetryScore(box));
+        }
+
+        var eig = eigenValues.GetGenericIndexer<double>();
+        var lambda0 = Math.Max(eig[0], 1e-12);
+        var lambda1 = Math.Max(eig[1], 1e-12);
+        var lambda2 = Math.Max(eig[2], 1e-12);
+
+        var spherical = Math.Clamp(lambda2 / lambda0, 0.0, 1.0);
+        var radialPair = Math.Clamp(lambda2 / lambda1, 0.0, 1.0);
+        var axisAnisotropy = 1.0 - Math.Clamp(lambda1 / lambda0, 0.0, 1.0);
+        var axial = Math.Clamp(radialPair * axisAnisotropy, 0.0, 1.0);
+        return new SymmetryDescriptor(spherical, axial, ComputeExtentSymmetryScore(box));
+    }
+
+    private static double ComputeExtentSymmetryScore(AxisAlignedBoundingBox box)
+    {
+        var extents = new[] { Math.Abs(box.Extent.X), Math.Abs(box.Extent.Y), Math.Abs(box.Extent.Z) }
+            .Where(value => value > 1e-6f)
+            .OrderBy(value => value)
+            .ToArray();
+
+        if (extents.Length < 2)
+        {
+            return 0;
+        }
+
+        var min = extents.First();
+        var max = extents.Last();
+        return max <= 1e-6 ? 0 : Math.Clamp(min / max, 0, 1);
+    }
+
+    private static double TranslationDistance(Matrix4x4 a, Matrix4x4 b)
+    {
+        var dx = a.M41 - b.M41;
+        var dy = a.M42 - b.M42;
+        var dz = a.M43 - b.M43;
+        return Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+    }
+
+    private static double RotationDifferenceDegrees(Matrix4x4 a, Matrix4x4 b)
+    {
+        if (!Matrix4x4.Decompose(a, out _, out var rotA, out _) ||
+            !Matrix4x4.Decompose(b, out _, out var rotB, out _))
+        {
+            return 0;
+        }
+
+        rotA = Quaternion.Normalize(rotA);
+        rotB = Quaternion.Normalize(rotB);
+        var delta = Quaternion.Normalize(rotB * Quaternion.Conjugate(rotA));
+        var clampedW = Math.Clamp(Math.Abs(delta.W), -1.0f, 1.0f);
+        return 2.0 * Math.Acos(clampedW) * 180.0 / Math.PI;
+    }
+
+    private static bool AreTransformsSimilar(Matrix4x4 a, Matrix4x4 b, double translationTolerance, double rotationToleranceDeg)
+    {
+        return TranslationDistance(a, b) <= translationTolerance &&
+               RotationDifferenceDegrees(a, b) <= rotationToleranceDeg;
+    }
+
+    private static (Matrix4x4 Transform, Correspondence[] Inliers, double Rms, double NormalConsistency) RefineHypothesis(
+        MatIndexer<float> modelPoints,
+        MatIndexer<float> modelNormals,
+        MatIndexer<float> scenePoints,
+        MatIndexer<float> sceneNormals,
+        SpatialHashGridIndex coarseGrid,
+        SpatialHashGridIndex fineGrid,
+        int[] refineIndices,
+        Matrix4x4 initialTransform,
+        float coarseThreshold,
+        float fineThreshold,
+        int minInliers)
+    {
+        var (coarseTransform, coarseInliers, coarseRms) = RefineTransform(
+            modelPoints,
+            scenePoints,
+            coarseGrid,
+            refineIndices,
+            initialTransform,
+            threshold2: (double)coarseThreshold * coarseThreshold,
+            iterations: 6,
+            minInliers: minInliers);
+
+        var (refinedTransform, refinedInliers, refinedRms) = RefineTransform(
+            modelPoints,
+            scenePoints,
+            fineGrid,
+            refineIndices,
+            coarseTransform,
+            threshold2: (double)fineThreshold * fineThreshold,
+            iterations: 4,
+            minInliers: minInliers);
+
+        if (refinedInliers.Length >= minInliers)
+        {
+            return (refinedTransform, refinedInliers, refinedRms, ComputeNormalConsistency(modelNormals, sceneNormals, refinedInliers, refinedTransform));
+        }
+
+        if (coarseInliers.Length >= minInliers)
+        {
+            return (coarseTransform, coarseInliers, coarseRms, ComputeNormalConsistency(modelNormals, sceneNormals, coarseInliers, coarseTransform));
+        }
+
+        return (Matrix4x4.Identity, Array.Empty<Correspondence>(), double.IsFinite(refinedRms) ? refinedRms : coarseRms, 0.0);
+    }
+
+    private static double ComputeNormalConsistency(
+        MatIndexer<float> modelNormals,
+        MatIndexer<float> sceneNormals,
+        Correspondence[] inliers,
+        Matrix4x4 transform)
+    {
+        if (inliers.Length == 0)
+        {
+            return 0;
+        }
+
+        double sum = 0;
+        var counted = 0;
+        for (int i = 0; i < inliers.Length; i++)
+        {
+            var c = inliers[i];
+            var modelNormal = new Vector3(modelNormals[c.ModelIndex, 0], modelNormals[c.ModelIndex, 1], modelNormals[c.ModelIndex, 2]);
+            var sceneNormal = new Vector3(sceneNormals[c.SceneIndex, 0], sceneNormals[c.SceneIndex, 1], sceneNormals[c.SceneIndex, 2]);
+            modelNormal = Vector3.TransformNormal(modelNormal, transform);
+
+            if (!TryNormalize(modelNormal, out modelNormal) || !TryNormalize(sceneNormal, out sceneNormal))
+            {
+                continue;
+            }
+
+            sum += Math.Max(0.0f, Vector3.Dot(modelNormal, sceneNormal));
+            counted++;
+        }
+
+        return counted == 0 ? 0.0 : Math.Clamp(sum / counted, 0.0, 1.0);
     }
 
     private static double ComputeRms(MatIndexer<float> modelPoints, MatIndexer<float> scenePoints, Correspondence[] inliers, Matrix4x4 t)
