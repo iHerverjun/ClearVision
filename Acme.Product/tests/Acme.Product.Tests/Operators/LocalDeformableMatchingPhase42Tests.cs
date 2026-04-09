@@ -12,7 +12,7 @@ namespace Acme.Product.Tests.Operators;
 public class LocalDeformableMatchingPhase42Tests
 {
     [Fact]
-    public async Task ExecuteAsync_WithRepeatedTemplate_ShouldReturnMultipleMatches()
+    public async Task ExecuteAsync_WithRepeatedTemplate_ShouldNotEmitUnsafeFallbackMatches()
     {
         var sut = new LocalDeformableMatchingOperator(Substitute.For<ILogger<LocalDeformableMatchingOperator>>());
         var op = new Operator("LocalDeformableMatching_Multi", OperatorType.LocalDeformableMatching, 0, 0);
@@ -21,6 +21,7 @@ public class LocalDeformableMatchingPhase42Tests
         op.Parameters.Add(TestHelpers.CreateParameter("MaxIterations", 2, "int"));
         op.Parameters.Add(TestHelpers.CreateParameter("MaxMatches", 4, "int"));
         op.Parameters.Add(TestHelpers.CreateParameter("CandidateThreshold", 0.55, "double"));
+        op.Parameters.Add(TestHelpers.CreateParameter("EnableFallback", true, "bool"));
         op.Parameters.Add(TestHelpers.CreateParameter("EnableNms", true, "bool"));
         op.Parameters.Add(TestHelpers.CreateParameter("ParallelCandidates", true, "bool"));
 
@@ -36,7 +37,9 @@ public class LocalDeformableMatchingPhase42Tests
         result.IsSuccess.Should().BeTrue();
         result.OutputData.Should().ContainKey("Matches");
         result.OutputData.Should().ContainKey("MatchCount");
-        Convert.ToInt32(result.OutputData!["MatchCount"]).Should().BeGreaterOrEqualTo(2);
+        Convert.ToInt32(result.OutputData!["MatchCount"]).Should().Be(0);
+        result.OutputData["IsMatch"].Should().Be(false);
+        result.OutputData["FailureReason"].Should().NotBeNull();
     }
 
     private static ImageWrapper CreateFeatureTemplate()
