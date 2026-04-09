@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T22:02:18.9641594+08:00",
+  "generatedAt": "2026-04-09T23:22:12.6079040+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -1174,9 +1174,9 @@
       "id": "TemplateMatching",
       "type": 7,
       "displayName": "模板匹配",
-      "description": "基于 OpenCV MatchTemplate 的模板匹配，支持单目标与多目标输出。",
+      "description": "Classic grayscale template matching for fixed-scale, low-rotation scenes. Multi-match outputs are filtered by IoU-based NMS.",
       "category": "匹配定位",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -1195,6 +1195,12 @@
           "displayName": "模板图像",
           "dataType": "Image",
           "isRequired": true
+        },
+        {
+          "name": "Mask",
+          "displayName": "搜索掩膜",
+          "dataType": "Image",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -1273,6 +1279,30 @@
           ]
         },
         {
+          "name": "Domain",
+          "displayName": "匹配域",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Gray",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Gray",
+              "label": "Gray"
+            },
+            {
+              "value": "Edge",
+              "label": "Edge"
+            },
+            {
+              "value": "Gradient",
+              "label": "Gradient"
+            }
+          ]
+        },
+        {
           "name": "Threshold",
           "displayName": "匹配分数阈值",
           "dataType": "double",
@@ -1291,6 +1321,61 @@
           "defaultValue": "1",
           "min": "1",
           "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseRoi",
+          "displayName": "使用 ROI",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiX",
+          "displayName": "ROI X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiY",
+          "displayName": "ROI Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiWidth",
+          "displayName": "ROI Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiHeight",
+          "displayName": "ROI Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": null,
           "isRequired": true,
           "options": null
         }
@@ -4920,9 +5005,9 @@
       "id": "ShapeMatching",
       "type": 43,
       "displayName": "旋转尺度模板匹配",
-      "description": "Rotation- and scale-robust template matching with pyramid coarse-to-fine search.",
+      "description": "Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher.",
       "category": "匹配定位",
-      "version": "1.1.0",
+      "version": "1.1.2",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -11293,9 +11378,9 @@
       "id": "PositionCorrection",
       "type": 143,
       "displayName": "位置修正",
-      "description": "Corrects downstream ROI coordinates using reference/base offsets.",
+      "description": "Pixel-space ROI offset tool. Use calibration operators before treating the result as physical-world compensation.",
       "category": "定位",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
@@ -12034,9 +12119,9 @@
       "id": "PointAlignment",
       "type": 162,
       "displayName": "点位对齐",
-      "description": "Computes offset and distance between current and reference points.",
+      "description": "Pixel-space alignment helper for offsets and repeatability checks. Physical-world interpretation requires calibration.",
       "category": "数据处理",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
@@ -12125,9 +12210,9 @@
       "id": "PointCorrection",
       "type": 163,
       "displayName": "点位修正",
-      "description": "Computes translation/rotation correction from detected to reference point.",
+      "description": "Pixel-space rigid correction helper. Do not use it as a physical-world conversion substitute without calibration.",
       "category": "数据处理",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
@@ -15885,9 +15970,9 @@
       "id": "PPFMatch",
       "type": 222,
       "displayName": "PPF表面匹配",
-      "description": "Simplified PPF-based 3D surface matching (model -> scene pose).",
+      "description": "Simplified PPF-based 3D coarse surface matching (model -> scene pose). Intended for coarse pose alignment diagnostics.",
       "category": "3D",
-      "version": "1.0.1",
+      "version": "1.0.4",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -15910,9 +15995,69 @@
       ],
       "outputPorts": [
         {
+          "name": "IsMatch",
+          "displayName": "Is Match",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
           "name": "IsMatched",
           "displayName": "Is Matched",
           "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "Score",
+          "displayName": "Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MatchCount",
+          "displayName": "Match Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "Method",
+          "displayName": "Method",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "FailureReason",
+          "displayName": "Failure Reason",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "VerificationPassed",
+          "displayName": "Verification Passed",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "AmbiguityDetected",
+          "displayName": "Ambiguity Detected",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "AmbiguityScore",
+          "displayName": "Ambiguity Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "StabilityScore",
+          "displayName": "Stability Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "NormalConsistency",
+          "displayName": "Normal Consistency",
+          "dataType": "Float",
           "isRequired": null
         },
         {
@@ -17732,9 +17877,9 @@
       "id": "PlanarMatching",
       "type": 233,
       "displayName": "Planar Matching",
-      "description": "Detects planar objects using feature matching and homography estimation. Supports perspective deformation.",
+      "description": "Feature-based planar matching with homography verification. Suitable for textured planar targets under perspective change.",
       "category": "匹配定位",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -17760,6 +17905,60 @@
           "name": "Image",
           "displayName": "Result Image",
           "dataType": "Image",
+          "isRequired": null
+        },
+        {
+          "name": "IsMatch",
+          "displayName": "Is Match",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "Score",
+          "displayName": "Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MatchCount",
+          "displayName": "Match Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "Method",
+          "displayName": "Method",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "FailureReason",
+          "displayName": "Failure Reason",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "CandidateScore",
+          "displayName": "Candidate Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "InlierCount",
+          "displayName": "Inlier Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "InlierRatio",
+          "displayName": "Inlier Ratio",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "VerificationPassed",
+          "displayName": "Verification Passed",
+          "dataType": "Boolean",
           "isRequired": null
         },
         {
@@ -17810,10 +18009,6 @@
             {
               "value": "AKAZE",
               "label": "AKAZE"
-            },
-            {
-              "value": "SIFT",
-              "label": "SIFT"
             },
             {
               "value": "BRISK",
@@ -17882,6 +18077,17 @@
           "dataType": "int",
           "description": null,
           "defaultValue": "10",
+          "min": "4",
+          "max": "100",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinInliers",
+          "displayName": "Min Inliers",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "8",
           "min": "4",
           "max": "100",
           "isRequired": true,
@@ -17991,7 +18197,7 @@
           "displayName": "Enable Early Exit",
           "dataType": "bool",
           "description": null,
-          "defaultValue": "true",
+          "defaultValue": "false",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -18013,9 +18219,9 @@
       "id": "LocalDeformableMatching",
       "type": 234,
       "displayName": "Local Deformable Matching",
-      "description": "Local deformable matching with TPS deformation field estimation, multi-candidate search and NMS-based multi-target output.",
+      "description": "Experimental local deformable matching with verified rigid fallback and multi-candidate suppression.",
       "category": "匹配定位",
-      "version": "1.0.0",
+      "version": "1.0.4",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -18157,7 +18363,7 @@
           "displayName": "Enable Fallback to Rigid",
           "dataType": "bool",
           "description": null,
-          "defaultValue": "true",
+          "defaultValue": "false",
           "min": null,
           "max": null,
           "isRequired": true,

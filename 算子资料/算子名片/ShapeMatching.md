@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Rotation- and scale-robust template matching with pyramid coarse-to-fine search.。
-> English: Rotation- and scale-robust template matching with pyramid coarse-to-fine search..
+> 中文：Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher.。
+> English: Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -64,4 +64,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.1.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.1.2 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

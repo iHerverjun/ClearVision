@@ -66,4 +66,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

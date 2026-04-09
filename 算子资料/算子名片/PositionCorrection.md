@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Corrects downstream ROI coordinates using reference/base offsets.。
-> English: Corrects downstream ROI coordinates using reference/base offsets..
+> 中文：Pixel-space ROI offset tool. Use calibration operators before treating the result as physical-world compensation.。
+> English: Pixel-space ROI offset tool. Use calibration operators before treating the result as physical-world compensation..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -62,4 +62,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.1 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

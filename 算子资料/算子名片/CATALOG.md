@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-08 22:02:18 +08:00`
+> 生成时间 / Generated At: `2026-04-09 23:22:12 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -50,7 +50,7 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 1 | 3 | 3 | 90 (A) | `1.0.0` | - | [EuclideanClusterExtraction](./EuclideanClusterExtraction.md) |
 | `OperatorType.PPFEstimation` | PPF点对特征 | 1 | 3 | 3 | 85 (A) | `1.0.0` | - | [PPFEstimation](./PPFEstimation.md) |
-| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 6 | 10 | 85 (A) | `1.0.1` | - | [PPFMatch](./PPFMatch.md) |
+| `OperatorType.PPFMatch` | PPF表面匹配 | 2 | 16 | 10 | 85 (A) | `1.0.4` | - | [PPFMatch](./PPFMatch.md) |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 1 | 8 | 3 | 85 (A) | `1.0.0` | - | [RansacPlaneSegmentation](./RansacPlaneSegmentation.md) |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 1 | 3 | 2 | 85 (A) | `1.0.0` | - | [StatisticalOutlierRemoval](./StatisticalOutlierRemoval.md) |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 1 | 2 | 1 | 85 (A) | `1.0.0` | - | [VoxelDownsample](./VoxelDownsample.md) |
@@ -110,12 +110,12 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 2 | 5 | 5 | 63 (C) | `1.0.0` | - | [AkazeFeatureMatch](./AkazeFeatureMatch.md) |
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 6 | 73 (B) | `1.0.0` | - | [GradientShapeMatch](./GradientShapeMatch.md) |
-| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 2 | 6 | 15 | 90 (A) | `1.0.0` | - | [LocalDeformableMatching](./LocalDeformableMatching.md) |
+| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 2 | 6 | 15 | 90 (A) | `1.0.4` | - | [LocalDeformableMatching](./LocalDeformableMatching.md) |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 5 | 7 | 63 (C) | `1.0.0` | - | [OrbFeatureMatch](./OrbFeatureMatch.md) |
-| `OperatorType.PlanarMatching` | Planar Matching | 2 | 4 | 18 | 90 (A) | `1.0.0` | - | [PlanarMatching](./PlanarMatching.md) |
+| `OperatorType.PlanarMatching` | Planar Matching | 2 | 13 | 19 | 90 (A) | `1.1.1` | - | [PlanarMatching](./PlanarMatching.md) |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 2 | 5 | 15 | 73 (B) | `1.0.0` | - | [PyramidShapeMatch](./PyramidShapeMatch.md) |
-| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 90 (A) | `1.1.0` | - | [ShapeMatching](./ShapeMatching.md) |
-| `OperatorType.TemplateMatching` | 模板匹配 | 2 | 6 | 3 | 86 (A) | `1.0.0` | - | [TemplateMatching](./TemplateMatching.md) |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 90 (A) | `1.1.2` | - | [ShapeMatching](./ShapeMatching.md) |
+| `OperatorType.TemplateMatching` | 模板匹配 | 3 | 6 | 9 | 86 (A) | `1.1.1` | - | [TemplateMatching](./TemplateMatching.md) |
 
 ### 变量 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -140,7 +140,7 @@
 | `OperatorType.CornerDetection` | 角点检测 | 1 | 3 | 5 | 84 (B) | `1.0.0` | - | [CornerDetection](./CornerDetection.md) |
 | `OperatorType.EdgeIntersection` | 边线交点 | 2 | 3 | 0 | 79 (B) | `1.0.0` | - | [EdgeIntersection](./EdgeIntersection.md) |
 | `OperatorType.ParallelLineFind` | 平行线查找 | 1 | 6 | 4 | 84 (B) | `1.0.0` | - | [ParallelLineFind](./ParallelLineFind.md) |
-| `OperatorType.PositionCorrection` | 位置修正 | 4 | 5 | 3 | 84 (B) | `1.0.0` | - | [PositionCorrection](./PositionCorrection.md) |
+| `OperatorType.PositionCorrection` | 位置修正 | 4 | 5 | 3 | 84 (B) | `1.0.1` | - | [PositionCorrection](./PositionCorrection.md) |
 | `OperatorType.QuadrilateralFind` | 四边形查找 | 1 | 5 | 4 | 84 (B) | `1.0.0` | - | [QuadrilateralFind](./QuadrilateralFind.md) |
 | `OperatorType.RectangleDetection` | 矩形检测 | 1 | 7 | 4 | 84 (B) | `1.0.0` | - | [RectangleDetection](./RectangleDetection.md) |
 
@@ -160,8 +160,8 @@
 | `OperatorType.DatabaseWrite` | 数据库写入 | 1 | 2 | 3 | 90 (A) | `1.0.0` | - | [DatabaseWrite](./DatabaseWrite.md) |
 | `OperatorType.JsonExtractor` | JSON 提取器 | 1 | 2 | 1 | 73 (B) | `1.0.0` | - | [JsonExtractor](./JsonExtractor.md) |
 | `OperatorType.MathOperation` | 数值计算 | 2 | 2 | 1 | 73 (B) | `1.0.0` | - | [MathOperation](./MathOperation.md) |
-| `OperatorType.PointAlignment` | 点位对齐 | 2 | 3 | 2 | 84 (B) | `1.0.0` | - | [PointAlignment](./PointAlignment.md) |
-| `OperatorType.PointCorrection` | 点位修正 | 4 | 4 | 3 | 84 (B) | `1.0.0` | - | [PointCorrection](./PointCorrection.md) |
+| `OperatorType.PointAlignment` | 点位对齐 | 2 | 3 | 2 | 84 (B) | `1.0.1` | - | [PointAlignment](./PointAlignment.md) |
+| `OperatorType.PointCorrection` | 点位修正 | 4 | 4 | 3 | 84 (B) | `1.0.1` | - | [PointCorrection](./PointCorrection.md) |
 | `OperatorType.UnitConvert` | 单位换算 | 2 | 2 | 4 | 86 (A) | `1.0.0` | - | [UnitConvert](./UnitConvert.md) |
 
 ### 标定 (12)

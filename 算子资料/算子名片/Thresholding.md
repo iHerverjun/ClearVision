@@ -1,4 +1,4 @@
-# 二值化 / Threshold
+# Threshold / Threshold
 
 ## 基本信息 / Basic Info
 | 项目 (Field) | 值 (Value) |
@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离。
-> English: 全局/自适应/Otsu 二值化分割，将图像转为前景/背景二值图，用于缺陷区域分离.
+> 中文：Global thresholding with optional Otsu or Triangle auto-thresholding.。
+> English: Global thresholding with optional Otsu or Triangle auto-thresholding..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -32,12 +32,12 @@
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Image` | 图像 | `Image` | Yes | - |
+| `Image` | Image | `Image` | Yes | - |
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Image` | 图像 | `Image` | - |
+| `Image` | Image | `Image` | - |
 
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
@@ -56,4 +56,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

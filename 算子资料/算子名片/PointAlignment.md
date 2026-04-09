@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Computes offset and distance between current and reference points.。
-> English: Computes offset and distance between current and reference points..
+> 中文：Pixel-space alignment helper for offsets and repeatability checks. Physical-world interpretation requires calibration.。
+> English: Pixel-space alignment helper for offsets and repeatability checks. Physical-world interpretation requires calibration..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -57,4 +57,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.1 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：自适应直方图均衡化，用于局部对比度增强。
-> English: 自适应直方图均衡化，用于局部对比度增强.
+> 中文：Adaptive histogram equalization for local contrast enhancement.。
+> English: Adaptive histogram equalization for local contrast enhancement..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -23,11 +23,11 @@
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
-| `ClipLimit` | `double` | 2 | [0, 40] | 对比度限制阈值，防止过度放大噪声 |
+| `ClipLimit` | `double` | 2 | [0, 40] | Limits local contrast amplification to avoid excessive noise boosting. |
 | `TileWidth` | `int` | 8 | [2, 64] | - |
 | `TileHeight` | `int` | 8 | [2, 64] | - |
 | `ColorSpace` | `enum` | Lab | - | - |
-| `Channel` | `enum` | Auto | - | 指定要增强的通道，Auto 根据颜色空间自动选择 |
+| `Channel` | `enum` | Auto | - | Auto follows ColorSpace. L/V/Y/All explicitly choose the processing branch. |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
@@ -57,4 +57,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

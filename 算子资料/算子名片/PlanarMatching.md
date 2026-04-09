@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Detects planar objects using feature matching and homography estimation. Supports perspective deformation.。
-> English: Detects planar objects using feature matching and homography estimation. Supports perspective deformation..
+> 中文：Feature-based planar matching with homography verification. Suitable for textured planar targets under perspective change.。
+> English: Feature-based planar matching with homography verification. Suitable for textured planar targets under perspective change..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -31,6 +31,7 @@
 | `MatchRatio` | `double` | 0.75 | [0.5, 0.95] | - |
 | `RansacThreshold` | `double` | 3 | [0.5, 10] | - |
 | `MinMatchCount` | `int` | 10 | [4, 100] | - |
+| `MinInliers` | `int` | 8 | [4, 100] | - |
 | `MinInlierRatio` | `double` | 0.25 | [0.1, 1] | - |
 | `ScoreThreshold` | `double` | 0.5 | [0, 1] | - |
 | `UseRoi` | `bool` | false | - | - |
@@ -40,7 +41,7 @@
 | `RoiHeight` | `int` | 0 | - | - |
 | `EnableMultiScale` | `bool` | true | - | - |
 | `ScaleRange` | `double` | 0.2 | [0, 1] | - |
-| `EnableEarlyExit` | `bool` | true | - | - |
+| `EnableEarlyExit` | `bool` | false | - | - |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
@@ -53,6 +54,15 @@
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
 | `Image` | Result Image | `Image` | - |
+| `IsMatch` | Is Match | `Boolean` | - |
+| `Score` | Score | `Float` | - |
+| `MatchCount` | Match Count | `Integer` | - |
+| `Method` | Method | `String` | - |
+| `FailureReason` | Failure Reason | `String` | - |
+| `CandidateScore` | Candidate Score | `Float` | - |
+| `InlierCount` | Inlier Count | `Integer` | - |
+| `InlierRatio` | Inlier Ratio | `Float` | - |
+| `VerificationPassed` | Verification Passed | `Boolean` | - |
 | `MatchResult` | Match Result | `Any` | - |
 | `Homography` | Homography Matrix | `Any` | - |
 | `Corners` | Detected Corners | `PointList` | - |
@@ -74,4 +84,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.1.1 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

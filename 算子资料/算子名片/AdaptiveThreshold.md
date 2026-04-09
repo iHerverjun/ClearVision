@@ -1,4 +1,4 @@
-# 自适应阈值 / AdaptiveThreshold
+# Adaptive Threshold / AdaptiveThreshold
 
 ## 基本信息 / Basic Info
 | 项目 (Field) | 值 (Value) |
@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Mean和Gaussian自适应阈值。
-> English: Mean和Gaussian自适应阈值.
+> 中文：Local mean or Gaussian adaptive thresholding.。
+> English: Local mean or Gaussian adaptive thresholding..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -26,19 +26,19 @@
 | `MaxValue` | `double` | 255 | [0, 255] | - |
 | `AdaptiveMethod` | `enum` | Gaussian | - | - |
 | `ThresholdType` | `enum` | Binary | - | - |
-| `BlockSize` | `int` | 11 | [3, 99] | - |
+| `BlockSize` | `int` | 11 | [3, 51] | - |
 | `C` | `double` | 2 | [-100, 100] | - |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Image` | 输入图像 | `Image` | Yes | - |
+| `Image` | Image | `Image` | Yes | - |
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Image` | 输出图像 | `Image` | - |
+| `Image` | Image | `Image` | - |
 
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
@@ -57,4 +57,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |

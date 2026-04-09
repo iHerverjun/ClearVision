@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Simplified PPF-based 3D surface matching (model -> scene pose).。
-> English: Simplified PPF-based 3D surface matching (model -> scene pose)..
+> 中文：Simplified PPF-based 3D coarse surface matching (model -> scene pose). Intended for coarse pose alignment diagnostics.。
+> English: Simplified PPF-based 3D coarse surface matching (model -> scene pose). Intended for coarse pose alignment diagnostics..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -44,7 +44,17 @@
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
+| `IsMatch` | Is Match | `Boolean` | - |
 | `IsMatched` | Is Matched | `Boolean` | - |
+| `Score` | Score | `Float` | - |
+| `MatchCount` | Match Count | `Integer` | - |
+| `Method` | Method | `String` | - |
+| `FailureReason` | Failure Reason | `String` | - |
+| `VerificationPassed` | Verification Passed | `Boolean` | - |
+| `AmbiguityDetected` | Ambiguity Detected | `Boolean` | - |
+| `AmbiguityScore` | Ambiguity Score | `Float` | - |
+| `StabilityScore` | Stability Score | `Float` | - |
+| `NormalConsistency` | Normal Consistency | `Float` | - |
 | `TransformMatrix` | Transform Matrix | `Any` | - |
 | `InlierCount` | Inlier Count | `Integer` | - |
 | `InlierRatio` | Inlier Ratio | `Float` | - |
@@ -68,4 +78,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.1 | 2026-04-07 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.4 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
