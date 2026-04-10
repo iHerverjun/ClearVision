@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T23:47:31.0679812+08:00",
+  "generatedAt": "2026-04-10T17:42:49.0767787+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -5173,6 +5173,9 @@
       "category": "特征提取",
       "version": "1.0.0",
       "tags": [
+        "experimental",
+        "industrial-remediation",
+        "subpixel-edge",
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
@@ -5285,10 +5288,13 @@
       "id": "ColorDetection",
       "type": 45,
       "displayName": "颜色检测",
-      "description": "基于 HSV/Lab 空间的颜色分析与分级",
+      "description": "Supports compatibility color analysis plus HSV inspection and Lab DeltaE inspection.",
       "category": "颜色处理",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "tags": [
+        "color-inspection",
+        "experimental",
+        "industrial-remediation",
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
@@ -5300,6 +5306,12 @@
           "displayName": "输入图像",
           "dataType": "Image",
           "isRequired": true
+        },
+        {
+          "name": "ReferenceColor",
+          "displayName": "Reference Color",
+          "dataType": "Any",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -5325,6 +5337,42 @@
           "name": "ColorSpace",
           "displayName": "颜色空间",
           "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "DeltaE",
+          "displayName": "DeltaE",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Coverage",
+          "displayName": "Coverage",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "WhiteBalanceStatus",
+          "displayName": "White Balance Status",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "MeanColor",
+          "displayName": "Mean Color",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "DominantColors",
+          "displayName": "Dominant Colors",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "Diagnostics",
+          "displayName": "Diagnostics",
+          "dataType": "Any",
           "isRequired": null
         }
       ],
@@ -5361,15 +5409,23 @@
           "options": [
             {
               "value": "Average",
-              "label": "平均色"
+              "label": "Legacy Average"
             },
             {
               "value": "Dominant",
-              "label": "主色提取"
+              "label": "Legacy Dominant"
             },
             {
               "value": "Range",
-              "label": "颜色范围检测"
+              "label": "Legacy Range"
+            },
+            {
+              "value": "HsvInspection",
+              "label": "HSV Inspection"
+            },
+            {
+              "value": "LabDeltaE",
+              "label": "Lab DeltaE"
             }
           ]
         },
@@ -5449,16 +5505,124 @@
           "max": "10",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "DeltaEMethod",
+          "displayName": "DeltaE Method",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "CIEDE2000",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "CIE76",
+              "label": "CIE76"
+            },
+            {
+              "value": "CIEDE2000",
+              "label": "CIEDE2000"
+            }
+          ]
+        },
+        {
+          "name": "RefL",
+          "displayName": "Ref L",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RefA",
+          "displayName": "Ref A",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RefB",
+          "displayName": "Ref B",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiX",
+          "displayName": "ROI X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiY",
+          "displayName": "ROI Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiW",
+          "displayName": "ROI W",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiH",
+          "displayName": "ROI H",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "WhiteBalanceTolerance",
+          "displayName": "White Balance Tolerance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "12",
+          "min": "0",
+          "max": "255",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
-        "testCoverageScore": 30,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ColorDetection.md"
     },
@@ -6656,6 +6820,9 @@
       "category": "AI Inspection",
       "version": "1.0.0",
       "tags": [
+        "experimental",
+        "industrial-remediation",
+        "sequence-judge",
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
@@ -6667,6 +6834,24 @@
           "displayName": "Detections",
           "dataType": "DetectionList",
           "isRequired": true
+        },
+        {
+          "name": "SlotPoints",
+          "displayName": "Slot Points",
+          "dataType": "PointList",
+          "isRequired": false
+        },
+        {
+          "name": "PerspectiveSrcPoints",
+          "displayName": "Perspective Source Points",
+          "dataType": "PointList",
+          "isRequired": false
+        },
+        {
+          "name": "PerspectiveDstPoints",
+          "displayName": "Perspective Destination Points",
+          "dataType": "PointList",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -6704,6 +6889,36 @@
           "name": "SortedDetections",
           "displayName": "Sorted Detections",
           "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
+          "name": "Assignment",
+          "displayName": "Assignment",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "UnassignedDetections",
+          "displayName": "Unassigned Detections",
+          "dataType": "DetectionList",
+          "isRequired": null
+        },
+        {
+          "name": "SlotDistances",
+          "displayName": "Slot Distances",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "RowCount",
+          "displayName": "Row Count",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "PerspectiveApplied",
+          "displayName": "Perspective Applied",
+          "dataType": "Boolean",
           "isRequired": null
         },
         {
@@ -6842,16 +7057,99 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "GroupingMode",
+          "displayName": "Grouping Mode",
+          "dataType": "enum",
+          "description": "SingleRow keeps legacy sorting, RowCluster groups detections into rows, SlotAssignment assigns detections to expected slot points, Auto prefers slots when provided.",
+          "defaultValue": "SingleRow",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "SingleRow",
+              "label": "Single Row"
+            },
+            {
+              "value": "RowCluster",
+              "label": "Row Cluster"
+            },
+            {
+              "value": "SlotAssignment",
+              "label": "Slot Assignment"
+            },
+            {
+              "value": "Auto",
+              "label": "Auto"
+            }
+          ]
+        },
+        {
+          "name": "ExpectedSlots",
+          "displayName": "Expected Slots",
+          "dataType": "string",
+          "description": "JSON array or shorthand x:y;x:y list of expected slot centers.",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RowTolerance",
+          "displayName": "Row Tolerance",
+          "dataType": "double",
+          "description": "Maximum Y delta for row clustering. Use 0 for auto.",
+          "defaultValue": "0",
+          "min": "0",
+          "max": "5000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "SlotTolerance",
+          "displayName": "Slot Tolerance",
+          "dataType": "double",
+          "description": "Maximum assignment distance to an expected slot. Use 0 for auto.",
+          "defaultValue": "0",
+          "min": "0",
+          "max": "5000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PerspectiveSrcPointsJson",
+          "displayName": "Perspective Source Points JSON",
+          "dataType": "string",
+          "description": "Optional 4-point JSON array for perspective source points.",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "PerspectiveDstPointsJson",
+          "displayName": "Perspective Destination Points JSON",
+          "dataType": "string",
+          "description": "Optional 4-point JSON array for perspective destination points.",
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/DetectionSequenceJudge.md"
     },
@@ -13135,10 +13433,13 @@
       "id": "SurfaceDefectDetection",
       "type": 180,
       "displayName": "表面缺陷检测",
-      "description": "Detects surface defects using gradient, reference diff, or local contrast.",
+      "description": "Detects surface defects using gradient, aligned reference diff, or local contrast.",
       "category": "AI检测",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "tags": [
+        "experimental",
+        "industrial-remediation",
+        "surface-defect",
         "功能域:AI",
         "成熟度:稳定",
         "算法类型:自研"
@@ -13172,6 +13473,12 @@
           "isRequired": null
         },
         {
+          "name": "ResponseImage",
+          "displayName": "Response Image",
+          "dataType": "Image",
+          "isRequired": null
+        },
+        {
           "name": "DefectCount",
           "displayName": "Defect Count",
           "dataType": "Integer",
@@ -13181,6 +13488,24 @@
           "name": "DefectArea",
           "displayName": "Defect Area",
           "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "AlignmentScore",
+          "displayName": "Alignment Score",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "RejectedReason",
+          "displayName": "Rejected Reason",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "Diagnostics",
+          "displayName": "Diagnostics",
+          "dataType": "Any",
           "isRequired": null
         }
       ],
@@ -13252,16 +13577,106 @@
           "max": "301",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "AlignmentMode",
+          "displayName": "Alignment Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "PhaseCorrelation",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "None",
+              "label": "None"
+            },
+            {
+              "value": "PhaseCorrelation",
+              "label": "PhaseCorrelation"
+            }
+          ]
+        },
+        {
+          "name": "NormalizationMode",
+          "displayName": "Normalization Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "LocalMean",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "None",
+              "label": "None"
+            },
+            {
+              "value": "LocalMean",
+              "label": "LocalMean"
+            }
+          ]
+        },
+        {
+          "name": "ThresholdMode",
+          "displayName": "Threshold Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Auto",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Auto",
+              "label": "Auto"
+            },
+            {
+              "value": "Manual",
+              "label": "Manual"
+            },
+            {
+              "value": "Otsu",
+              "label": "Otsu"
+            },
+            {
+              "value": "ReferenceStats",
+              "label": "ReferenceStats"
+            }
+          ]
+        },
+        {
+          "name": "BackgroundKernelSize",
+          "displayName": "Background Kernel Size",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "31",
+          "min": "3",
+          "max": "301",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "ReferenceStatsSigma",
+          "displayName": "Reference Stats Sigma",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "2.5",
+          "min": "0.1",
+          "max": "10",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 100,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 100,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/SurfaceDefectDetection.md"
     },
@@ -16720,6 +17135,9 @@
       "category": "AI检测",
       "version": "1.0.0",
       "tags": [
+        "anomaly-detection",
+        "experimental",
+        "industrial-remediation",
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:基于OpenCV"
@@ -16775,6 +17193,18 @@
           "displayName": "Patch Count",
           "dataType": "Integer",
           "isRequired": null
+        },
+        {
+          "name": "ThresholdUsed",
+          "displayName": "Threshold Used",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "Diagnostics",
+          "displayName": "Diagnostics",
+          "dataType": "Any",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -16806,7 +17236,7 @@
           "defaultValue": "",
           "min": null,
           "max": null,
-          "isRequired": true,
+          "isRequired": false,
           "options": null
         },
         {
@@ -16817,7 +17247,7 @@
           "defaultValue": "",
           "min": null,
           "max": null,
-          "isRequired": true,
+          "isRequired": false,
           "options": null
         },
         {
@@ -16828,7 +17258,7 @@
           "defaultValue": "",
           "min": null,
           "max": null,
-          "isRequired": true,
+          "isRequired": false,
           "options": null
         },
         {
@@ -16839,7 +17269,7 @@
           "defaultValue": "",
           "min": null,
           "max": null,
-          "isRequired": true,
+          "isRequired": false,
           "options": null
         },
         {
@@ -16850,7 +17280,40 @@
           "defaultValue": "simple_patchcore",
           "min": null,
           "max": null,
-          "isRequired": true,
+          "isRequired": false,
+          "options": null
+        },
+        {
+          "name": "FeatureExtractorId",
+          "displayName": "Feature Extractor Id",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "lab_gradient_stats",
+          "min": null,
+          "max": null,
+          "isRequired": false,
+          "options": null
+        },
+        {
+          "name": "EmbeddingModelId",
+          "displayName": "Embedding Model Id",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": false,
+          "options": null
+        },
+        {
+          "name": "EmbeddingModelPath",
+          "displayName": "Embedding Model Path",
+          "dataType": "file",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": false,
           "options": null
         },
         {
@@ -16899,13 +17362,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/AnomalyDetection.md"
     },

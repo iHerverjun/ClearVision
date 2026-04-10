@@ -14,7 +14,8 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "AI检测",
     IconName = "anomaly-detection",
     Keywords = new[] { "anomaly", "patchcore", "feature bank", "异常检测" },
-    Version = "1.0.0"
+    Version = "1.0.0",
+    Tags = new[] { "experimental", "industrial-remediation", "anomaly-detection" }
 )]
 [AlgorithmInfo(
     Name = "Simplified PatchCore",
@@ -31,12 +32,17 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("AnomalyMask", "Anomaly Mask", PortDataType.Image)]
 [OutputPort("FeatureBankPath", "Feature Bank Path", PortDataType.String)]
 [OutputPort("PatchCount", "Patch Count", PortDataType.Integer)]
+[OutputPort("ThresholdUsed", "Threshold Used", PortDataType.Float)]
+[OutputPort("Diagnostics", "Diagnostics", PortDataType.Any)]
 [OperatorParam("Mode", "Mode", "enum", DefaultValue = "inference", Options = new[] { "inference|Inference", "train|Train" })]
-[OperatorParam("FeatureBankPath", "Feature Bank Path", "file", DefaultValue = "")]
-[OperatorParam("SaveFeatureBankPath", "Save Feature Bank Path", "file", DefaultValue = "")]
-[OperatorParam("ModelId", "Model Id", "string", DefaultValue = "")]
-[OperatorParam("ModelCatalogPath", "Model Catalog Path", "file", DefaultValue = "")]
-[OperatorParam("Backbone", "Backbone", "string", DefaultValue = "simple_patchcore")]
+[OperatorParam("FeatureBankPath", "Feature Bank Path", "file", DefaultValue = "", IsRequired = false)]
+[OperatorParam("SaveFeatureBankPath", "Save Feature Bank Path", "file", DefaultValue = "", IsRequired = false)]
+[OperatorParam("ModelId", "Model Id", "string", DefaultValue = "", IsRequired = false)]
+[OperatorParam("ModelCatalogPath", "Model Catalog Path", "file", DefaultValue = "", IsRequired = false)]
+[OperatorParam("Backbone", "Backbone", "string", DefaultValue = "simple_patchcore", IsRequired = false)]
+[OperatorParam("FeatureExtractorId", "Feature Extractor Id", "string", DefaultValue = "lab_gradient_stats", IsRequired = false)]
+[OperatorParam("EmbeddingModelId", "Embedding Model Id", "string", DefaultValue = "", IsRequired = false)]
+[OperatorParam("EmbeddingModelPath", "Embedding Model Path", "file", DefaultValue = "", IsRequired = false)]
 [OperatorParam("PatchSize", "Patch Size", "int", DefaultValue = 32, Min = 4, Max = 256)]
 [OperatorParam("PatchStride", "Patch Stride", "int", DefaultValue = 16, Min = 1, Max = 256)]
 [OperatorParam("CoresetRatio", "Coreset Ratio", "double", DefaultValue = 0.2, Min = 0.01, Max = 1.0)]
@@ -44,6 +50,7 @@ namespace Acme.Product.Infrastructure.Operators;
 public sealed class AnomalyDetectionOperator : OperatorBase
 {
     private static readonly string[] SupportedCatalogTypes = ["anomaly_detection", "anomaly_feature_bank", "feature_bank"];
+    private static readonly string[] SupportedEmbeddingCatalogTypes = ["anomaly_embedding", "embedding"];
 
     public AnomalyDetectionOperator(ILogger<AnomalyDetectionOperator> logger)
         : base(logger)
@@ -63,14 +70,34 @@ public sealed class AnomalyDetectionOperator : OperatorBase
         {
             PatchSize = GetIntParam(@operator, "PatchSize", 32, 4, 256),
             PatchStride = GetIntParam(@operator, "PatchStride", 16, 1, 256),
-            CoresetRatio = GetDoubleParam(@operator, "CoresetRatio", 0.2, 0.01, 1.0)
+            CoresetRatio = GetDoubleParam(@operator, "CoresetRatio", 0.2, 0.01, 1.0),
+            Backbone = GetStringParam(@operator, "Backbone", "simple_patchcore"),
+            FeatureExtractorId = GetStringParam(@operator, "FeatureExtractorId", "lab_gradient_stats"),
+            EmbeddingModelId = GetStringParam(@operator, "EmbeddingModelId", string.Empty),
+            EmbeddingModelPath = GetStringParam(@operator, "EmbeddingModelPath", string.Empty)
         };
+        var configuredFeatureExtractor = TryGetConfiguredStringParam(@operator, "FeatureExtractorId");
 
         if (mode == "train")
         {
             if (!TryGetNormalImages(inputs, out var normalImages, out var normalImagesError))
             {
                 return OperatorExecutionOutput.Failure(normalImagesError);
+            }
+
+            var embeddingTarget = ResolveEmbeddingModelTarget(@operator, null, options.FeatureExtractorId);
+            if (RequiresOnnxEmbedding(options.FeatureExtractorId) && string.IsNullOrWhiteSpace(embeddingTarget.Path))
+            {
+                return OperatorExecutionOutput.Failure("Embedding model is required when FeatureExtractorId is 'onnx_embedding'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(embeddingTarget.Path))
+            {
+                options = CloneOptions(
+                    options,
+                    featureExtractorId: "onnx_embedding",
+                    embeddingModelId: embeddingTarget.ModelId,
+                    embeddingModelPath: embeddingTarget.Path);
             }
 
             SimplePatchCoreFeatureBank bank;
@@ -86,12 +113,12 @@ public sealed class AnomalyDetectionOperator : OperatorBase
                 return OperatorExecutionOutput.Failure($"Anomaly training failed: {ex.Message}");
             }
 
-            var savePath = ResolveFeatureBankSavePath(@operator);
-            if (!string.IsNullOrWhiteSpace(savePath))
+            var saveTarget = ResolveFeatureBankSaveTarget(@operator);
+            if (!string.IsNullOrWhiteSpace(saveTarget.Path))
             {
                 try
                 {
-                    SimplePatchCoreDetector.Save(savePath, bank);
+                    SimplePatchCoreDetector.Save(saveTarget.Path, bank);
                 }
                 catch (Exception ex)
                 {
@@ -105,7 +132,7 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             try
             {
                 analysisResult = await RunCpuBoundWork(
-                    () => SimplePatchCoreDetector.Analyze(previewImage.GetMat(), bank, threshold),
+                    () => SimplePatchCoreDetector.Analyze(previewImage.GetMat(), bank, threshold, options),
                     cancellationToken);
             }
             catch (Exception ex)
@@ -114,7 +141,7 @@ public sealed class AnomalyDetectionOperator : OperatorBase
                 return OperatorExecutionOutput.Failure($"Anomaly preview failed: {ex.Message}");
             }
 
-            return OperatorExecutionOutput.Success(CreateOutputs(analysisResult, savePath));
+            return OperatorExecutionOutput.Success(CreateOutputs(analysisResult, bank, saveTarget, embeddingTarget, "train", options, threshold));
         }
 
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
@@ -122,10 +149,10 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             return OperatorExecutionOutput.Failure("Input image is required for anomaly inference.");
         }
 
-        string featureBankPath;
+        FeatureBankResolution featureBankTarget;
         try
         {
-            featureBankPath = ResolveFeatureBankInputPath(@operator);
+            featureBankTarget = ResolveFeatureBankInputTarget(@operator);
         }
         catch (Exception ex)
         {
@@ -135,7 +162,7 @@ public sealed class AnomalyDetectionOperator : OperatorBase
         SimplePatchCoreFeatureBank loadedBank;
         try
         {
-            loadedBank = SimplePatchCoreDetector.Load(featureBankPath);
+            loadedBank = SimplePatchCoreDetector.Load(featureBankTarget.Path);
         }
         catch (Exception ex)
         {
@@ -143,12 +170,35 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             return OperatorExecutionOutput.Failure($"Failed to load feature bank: {ex.Message}");
         }
 
+        var effectiveFeatureExtractor = !string.IsNullOrWhiteSpace(configuredFeatureExtractor)
+            ? configuredFeatureExtractor
+            : loadedBank.FeatureExtractorId;
+        var inferenceOptions = CloneOptions(
+            options,
+            featureExtractorId: effectiveFeatureExtractor,
+            embeddingModelId: loadedBank.EmbeddingModelId,
+            embeddingModelPath: loadedBank.EmbeddingModelPath);
+        var resolvedEmbeddingTarget = ResolveEmbeddingModelTarget(@operator, loadedBank, inferenceOptions.FeatureExtractorId);
+        if (RequiresOnnxEmbedding(inferenceOptions.FeatureExtractorId) && string.IsNullOrWhiteSpace(resolvedEmbeddingTarget.Path))
+        {
+            return OperatorExecutionOutput.Failure("Embedding model is required for ONNX anomaly inference.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolvedEmbeddingTarget.Path))
+        {
+            inferenceOptions = CloneOptions(
+                inferenceOptions,
+                featureExtractorId: "onnx_embedding",
+                embeddingModelId: resolvedEmbeddingTarget.ModelId,
+                embeddingModelPath: resolvedEmbeddingTarget.Path);
+        }
+
         try
         {
             var result = await RunCpuBoundWork(
-                () => SimplePatchCoreDetector.Analyze(imageWrapper.GetMat(), loadedBank, threshold),
+                () => SimplePatchCoreDetector.Analyze(imageWrapper.GetMat(), loadedBank, threshold, inferenceOptions),
                 cancellationToken);
-            return OperatorExecutionOutput.Success(CreateOutputs(result, featureBankPath));
+            return OperatorExecutionOutput.Success(CreateOutputs(result, loadedBank, featureBankTarget, resolvedEmbeddingTarget, "inference", inferenceOptions, threshold));
         }
         catch (Exception ex)
         {
@@ -173,6 +223,14 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             return ValidationResult.Invalid("Backbone currently supports 'simple_patchcore' only.");
         }
 
+        var featureExtractorId = GetStringParam(@operator, "FeatureExtractorId", "lab_gradient_stats").Trim();
+        if (!string.IsNullOrWhiteSpace(featureExtractorId) &&
+            !string.Equals(featureExtractorId, "lab_gradient_stats", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(featureExtractorId, "onnx_embedding", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("FeatureExtractorId currently supports 'lab_gradient_stats' or 'onnx_embedding' only.");
+        }
+
         _ = GetIntParam(@operator, "PatchSize", 32, 4, 256);
         _ = GetIntParam(@operator, "PatchStride", 16, 1, 256);
         _ = GetDoubleParam(@operator, "CoresetRatio", 0.2, 0.01, 1.0);
@@ -182,7 +240,7 @@ public sealed class AnomalyDetectionOperator : OperatorBase
         {
             try
             {
-                _ = ResolveFeatureBankInputPath(@operator);
+                _ = ResolveFeatureBankInputTarget(@operator);
             }
             catch (Exception ex)
             {
@@ -190,23 +248,149 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             }
         }
 
+        if (mode == "train" && RequiresOnnxEmbedding(featureExtractorId))
+        {
+            try
+            {
+                _ = ResolveEmbeddingModelTarget(@operator, null, featureExtractorId);
+            }
+            catch (Exception ex)
+            {
+                return ValidationResult.Invalid(ex.Message);
+            }
+        }
+
+        if (mode == "inference" && RequiresOnnxEmbedding(featureExtractorId))
+        {
+            var hasExplicitEmbedding =
+                !string.IsNullOrWhiteSpace(GetStringParam(@operator, "EmbeddingModelPath", string.Empty)) ||
+                !string.IsNullOrWhiteSpace(GetStringParam(@operator, "EmbeddingModelId", string.Empty));
+            if (hasExplicitEmbedding)
+            {
+                try
+                {
+                    _ = ResolveEmbeddingModelTarget(@operator, null, featureExtractorId);
+                }
+                catch (Exception ex)
+                {
+                    return ValidationResult.Invalid(ex.Message);
+                }
+            }
+        }
+
         return ValidationResult.Valid();
     }
 
-    private static Dictionary<string, object> CreateOutputs(SimplePatchCoreAnalysisResult result, string? featureBankPath)
+    private static Dictionary<string, object> CreateOutputs(
+        SimplePatchCoreAnalysisResult result,
+        SimplePatchCoreFeatureBank bank,
+        FeatureBankResolution featureBank,
+        EmbeddingModelResolution embeddingTarget,
+        string mode,
+        SimplePatchCoreOptions options,
+        double requestedThreshold)
     {
+        var diagnostics = new Dictionary<string, object>
+        {
+            ["Mode"] = mode,
+            ["ResolvedFeatureBankPath"] = featureBank.Path,
+            ["FeatureBankSource"] = featureBank.Source,
+            ["FeatureBankModelId"] = featureBank.ModelId,
+            ["FeatureBankCatalogPath"] = featureBank.CatalogPath,
+            ["Backbone"] = bank.Backbone,
+            ["FeatureExtractorId"] = bank.FeatureExtractorId,
+            ["FeatureSchemaVersion"] = bank.FeatureSchemaVersion,
+            ["EmbeddingModelId"] = bank.EmbeddingModelId,
+            ["EmbeddingModelPath"] = bank.EmbeddingModelPath,
+            ["ResolvedEmbeddingPath"] = embeddingTarget.Path,
+            ["EmbeddingSource"] = embeddingTarget.Source,
+            ["TrainingImageCount"] = bank.TrainingImageCount,
+            ["PatchSize"] = bank.PatchSize,
+            ["PatchStride"] = bank.PatchStride,
+            ["RequestedThreshold"] = requestedThreshold,
+            ["ThresholdUsed"] = result.ThresholdUsed,
+            ["MeanNearestDistance"] = bank.MeanNearestDistance,
+            ["StdNearestDistance"] = bank.StdNearestDistance
+        };
+
         return new Dictionary<string, object>
         {
             ["AnomalyScore"] = result.Score,
             ["IsAnomaly"] = result.IsAnomaly,
             ["AnomalyMap"] = new ImageWrapper(result.Heatmap),
             ["AnomalyMask"] = new ImageWrapper(result.Mask),
-            ["FeatureBankPath"] = featureBankPath ?? string.Empty,
-            ["PatchCount"] = result.PatchCount
+            ["FeatureBankPath"] = featureBank.Path,
+            ["PatchCount"] = result.PatchCount,
+            ["ThresholdUsed"] = result.ThresholdUsed,
+            ["Diagnostics"] = diagnostics
         };
     }
 
-    private string ResolveFeatureBankInputPath(Operator @operator)
+    private EmbeddingModelResolution ResolveEmbeddingModelTarget(Operator @operator, SimplePatchCoreFeatureBank? bank, string featureExtractorId)
+    {
+        if (!RequiresOnnxEmbedding(featureExtractorId))
+        {
+            return EmbeddingModelResolution.Empty;
+        }
+
+        var explicitPath = GetStringParam(@operator, "EmbeddingModelPath", string.Empty);
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            var resolvedExplicitPath = Path.GetFullPath(explicitPath);
+            if (!File.Exists(resolvedExplicitPath))
+            {
+                throw new InvalidOperationException($"Embedding model file not found: {resolvedExplicitPath}");
+            }
+
+            return new EmbeddingModelResolution(resolvedExplicitPath, "ExplicitPath", string.Empty, GetStringParam(@operator, "ModelCatalogPath", string.Empty));
+        }
+
+        var embeddingModelId = GetStringParam(@operator, "EmbeddingModelId", string.Empty);
+        var catalogPath = GetStringParam(@operator, "ModelCatalogPath", string.Empty);
+        if (!string.IsNullOrWhiteSpace(embeddingModelId))
+        {
+            var resolvedCatalogPath = ModelCatalog.ResolveExplicitOrCatalogPath(
+                explicitPath: null,
+                embeddingModelId,
+                catalogPath,
+                SupportedEmbeddingCatalogTypes,
+                out _);
+
+            if (!File.Exists(resolvedCatalogPath))
+            {
+                throw new InvalidOperationException($"Embedding model file not found: {resolvedCatalogPath}");
+            }
+
+            return new EmbeddingModelResolution(Path.GetFullPath(resolvedCatalogPath), "ModelCatalog", embeddingModelId, catalogPath);
+        }
+
+        if (bank != null)
+        {
+            if (!string.IsNullOrWhiteSpace(bank.EmbeddingModelPath) && File.Exists(bank.EmbeddingModelPath))
+            {
+                return new EmbeddingModelResolution(Path.GetFullPath(bank.EmbeddingModelPath), "FeatureBankMetadataPath", bank.EmbeddingModelId, catalogPath);
+            }
+
+            if (!string.IsNullOrWhiteSpace(bank.EmbeddingModelId))
+            {
+                var resolvedCatalogPath = ModelCatalog.ResolveExplicitOrCatalogPath(
+                    explicitPath: null,
+                    bank.EmbeddingModelId,
+                    catalogPath,
+                    SupportedEmbeddingCatalogTypes,
+                    out _);
+
+                if (File.Exists(resolvedCatalogPath))
+                {
+                    return new EmbeddingModelResolution(Path.GetFullPath(resolvedCatalogPath), "FeatureBankMetadataModelId", bank.EmbeddingModelId, catalogPath);
+                }
+            }
+        }
+
+        return EmbeddingModelResolution.Empty;
+    }
+
+    private FeatureBankResolution ResolveFeatureBankInputTarget(Operator @operator)
     {
         var explicitPath = GetStringParam(@operator, "FeatureBankPath", string.Empty);
         if (!string.IsNullOrWhiteSpace(explicitPath))
@@ -217,7 +401,7 @@ public sealed class AnomalyDetectionOperator : OperatorBase
                 throw new InvalidOperationException($"Feature bank file not found: {resolvedExplicitPath}");
             }
 
-            return resolvedExplicitPath;
+            return new FeatureBankResolution(resolvedExplicitPath, "ExplicitPath", string.Empty, string.Empty);
         }
 
         var modelId = GetStringParam(@operator, "ModelId", string.Empty);
@@ -234,35 +418,36 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             throw new InvalidOperationException($"Feature bank file not found: {resolved}");
         }
 
-        return resolved;
+        return new FeatureBankResolution(Path.GetFullPath(resolved), "ModelCatalog", modelId, catalogPath);
     }
 
-    private string ResolveFeatureBankSavePath(Operator @operator)
+    private FeatureBankResolution ResolveFeatureBankSaveTarget(Operator @operator)
     {
         var explicitSavePath = GetStringParam(@operator, "SaveFeatureBankPath", string.Empty);
         if (!string.IsNullOrWhiteSpace(explicitSavePath))
         {
-            return Path.GetFullPath(explicitSavePath);
+            return new FeatureBankResolution(Path.GetFullPath(explicitSavePath), "ExplicitSavePath", string.Empty, string.Empty);
         }
 
         var featureBankPath = GetStringParam(@operator, "FeatureBankPath", string.Empty);
         if (!string.IsNullOrWhiteSpace(featureBankPath))
         {
-            return Path.GetFullPath(featureBankPath);
+            return new FeatureBankResolution(Path.GetFullPath(featureBankPath), "FeatureBankPath", string.Empty, string.Empty);
         }
 
         var modelId = GetStringParam(@operator, "ModelId", string.Empty);
         if (string.IsNullOrWhiteSpace(modelId))
         {
-            return string.Empty;
+            return new FeatureBankResolution(string.Empty, "Unspecified", string.Empty, string.Empty);
         }
 
-        return ModelCatalog.ResolveExplicitOrCatalogPath(
+        var resolved = ModelCatalog.ResolveExplicitOrCatalogPath(
             explicitPath: null,
             modelId,
             GetStringParam(@operator, "ModelCatalogPath", string.Empty),
             SupportedCatalogTypes,
             out _);
+        return new FeatureBankResolution(Path.GetFullPath(resolved), "ModelCatalog", modelId, GetStringParam(@operator, "ModelCatalogPath", string.Empty));
     }
 
     private static ImageWrapper ResolvePreviewImage(Dictionary<string, object>? inputs, IReadOnlyList<ImageWrapper> normalImages)
@@ -320,5 +505,46 @@ public sealed class AnomalyDetectionOperator : OperatorBase
         return string.IsNullOrWhiteSpace(raw)
             ? "inference"
             : raw.Trim().ToLowerInvariant();
+    }
+
+    private sealed record FeatureBankResolution(string Path, string Source, string ModelId, string CatalogPath);
+    private sealed record EmbeddingModelResolution(string Path, string Source, string ModelId, string CatalogPath)
+    {
+        public static EmbeddingModelResolution Empty => new(string.Empty, "None", string.Empty, string.Empty);
+    }
+
+    private static bool RequiresOnnxEmbedding(string featureExtractorId)
+    {
+        return string.Equals(featureExtractorId?.Trim(), "onnx_embedding", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetConfiguredStringParam(Operator @operator, string name)
+    {
+        var parameter = @operator.Parameters.FirstOrDefault(p => p.Name == name);
+        if (parameter?.Value == null)
+        {
+            return null;
+        }
+
+        var value = parameter.Value.ToString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static SimplePatchCoreOptions CloneOptions(
+        SimplePatchCoreOptions source,
+        string? featureExtractorId = null,
+        string? embeddingModelId = null,
+        string? embeddingModelPath = null)
+    {
+        return new SimplePatchCoreOptions
+        {
+            PatchSize = source.PatchSize,
+            PatchStride = source.PatchStride,
+            CoresetRatio = source.CoresetRatio,
+            Backbone = source.Backbone,
+            FeatureExtractorId = featureExtractorId ?? source.FeatureExtractorId,
+            EmbeddingModelId = embeddingModelId ?? source.EmbeddingModelId,
+            EmbeddingModelPath = embeddingModelPath ?? source.EmbeddingModelPath
+        };
     }
 }

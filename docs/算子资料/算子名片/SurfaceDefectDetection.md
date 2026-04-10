@@ -1,90 +1,66 @@
 # 表面缺陷检测 / SurfaceDefectDetection
 
 ## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
+| 项目 | 值 |
 |------|------|
-| 类名 (Class) | `SurfaceDefectDetectionOperator` |
-| 枚举值 (Enum) | `OperatorType.SurfaceDefectDetection` |
-| 分类 (Category) | AI检测 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+| 类名 | `SurfaceDefectDetectionOperator` |
+| 枚举值 | `OperatorType.SurfaceDefectDetection` |
+| 分类 | `AI检测` |
+| 版本 | `2.0.0` |
+| 成熟度 | `Experimental` |
+| 标签 | `experimental`, `industrial-remediation`, `surface-defect` |
 
-## 算法原理 / Algorithm Principle
-该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。
+## 算法说明 / Algorithm
+该算子面向传统表面缺陷检测，当前实现支持三条路径：
 
-> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
+1. `GradientMagnitude`
+   先做局部背景归一化，再计算梯度响应图，适合划痕、边缘类缺陷增强。
+2. `ReferenceDiff`
+   对参考图做尺寸对齐和可选相位相关平移配准，再与当前图像做差分，适合有稳定基准图的缺陷比对。
+3. `LocalContrast`
+   通过局部均值背景扣除得到局部对比度响应，适合弱纹理表面上的局部异常。
 
-## 实现策略 / Implementation Strategy
-- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
-- 先校验输入图像与参数，再进入核心处理，避免空输入或非法格式直接进入底层 API。
-- 结果通过 `CreateImageOutput(...)` 封装，运行时通常附带 `Width` / `Height` 等基础字段。
+本轮整改后，算子新增了配准、归一化、自适应阈值和诊断输出，目的是让阈值更稳定、现场更容易调试。
 
-## 核心 API 调用链 / Core API Call Chain
-1. `TryGetInputImage(...)`
-2. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
-3. `Cv2.CvtColor`
-4. `Cv2.Threshold`
-5. `Cv2.GetStructuringElement`
-6. `Cv2.MorphologyEx`
-7. `Cv2.FindContours`
-8. `Cv2.ContourArea`
-9. `Cv2.DrawContours`
-10. `Cv2.BoundingRect`
-11. `CreateImageOutput(...)`
+## 参数 / Parameters
+| 名称 | 类型 | 默认值 | 说明 |
+|------|------|------|------|
+| `Method` | `enum` | `GradientMagnitude` | 缺陷响应模式 |
+| `Threshold` | `double` | `35.0` | 手动阈值下限 |
+| `MinArea` | `int` | `20` | 最小缺陷面积 |
+| `MaxArea` | `int` | `1000000` | 最大缺陷面积 |
+| `MorphCleanSize` | `int` | `3` | 形态学清理尺寸 |
+| `AlignmentMode` | `enum` | `PhaseCorrelation` | 参考图配准模式，当前支持 `None` / `PhaseCorrelation` |
+| `NormalizationMode` | `enum` | `LocalMean` | 响应前归一化模式，当前支持 `None` / `LocalMean` |
+| `ThresholdMode` | `enum` | `Auto` | 阈值模式，当前支持 `Auto` / `Manual` / `Otsu` / `ReferenceStats` |
+| `BackgroundKernelSize` | `int` | `31` | 局部背景核大小 |
+| `ReferenceStatsSigma` | `double` | `2.5` | `ReferenceStats` 阈值的均值加权倍数 |
 
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `Method` | `enum` | `"GradientMagnitude"` | GradientMagnitude/GradientMagnitude；ReferenceDiff/ReferenceDiff；LocalContrast/LocalContrast | 算法方法选择。 |
-| `Threshold` | `double` | `35.0` | [0.0, 255.0] | 用于判定、分割或筛选的阈值。 |
-| `MinArea` | `int` | `20` | [0, 10000000] | 最小数量或下限约束。 |
-| `MaxArea` | `int` | `1000000` | [0, 10000000] | 最大数量或上限约束。 |
-| `MorphCleanSize` | `int` | `3` | [1, 301] | 控制“MorphCleanSize”这一实现参数，建议结合现场样本调节。 |
-
-## 输入/输出端口 / Input/Output Ports
+## 输入 / Outputs
 ### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | Image | `Image` | Yes | 输入待处理图像。 |
-| `Reference` | Reference | `Image` | No | 输入待处理图像。 |
+| 名称 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `Image` | `Image` | 是 | 当前待检图像 |
+| `Reference` | `Image` | 否 | 参考图，仅 `ReferenceDiff` 路径使用 |
 
 ### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `Image` | Image | `Image` | 输出处理后的结果图像。 |
-| `DefectMask` | Defect Mask | `Image` | 输出处理后的结果图像。 |
-| `DefectCount` | Defect Count | `Integer` | 输出本算子的处理结果。 |
-| `DefectArea` | Defect Area | `Float` | 输出本算子的处理结果。 |
-### 运行时附加输出 / Runtime Additional Outputs
-| 名称 (Name) | 数据类型 (DataType) | 说明 (Description) |
+| 名称 | 类型 | 说明 |
 |------|------|------|
-| `Width` | `Integer` | 输出图像宽度。 |
-| `Height` | `Integer` | 输出图像高度。 |
-| `DefectMask` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `DefectCount` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `DefectArea` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `GradientMagnitude` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | 通常与图像像素数线性相关，并叠加候选结构数量带来的统计成本。 |
-| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
-| 内存特征 (Memory Profile) | 通常需要为中间图像、结果图和输出封装分配额外内存；峰值随图像尺寸和中间副本数量增长。 |
+| `Image` | `Image` | 标注后的结果图 |
+| `DefectMask` | `Image` | 通过面积筛选后的缺陷掩膜 |
+| `ResponseImage` | `Image` | 阈值前响应图，便于调参 |
+| `DefectCount` | `Integer` | 缺陷数量 |
+| `DefectArea` | `Float` | 缺陷总面积 |
+| `AlignmentScore` | `Float` | 配准响应分数 |
+| `RejectedReason` | `String` | 当前帧配准或筛选异常原因 |
+| `Diagnostics` | `Any` | 方法、阈值、配准偏移、候选数等诊断信息 |
 
 ## 适用场景 / Use Cases
-- 适合尺寸、角度、间距和几何位置测量。
-- 适合同时输出数值结果和可视化结果图。
-- 不适合在边缘模糊或对比度不足时直接追求高精度。
-- 不适合忽略标定比例和亚像素能力对精度的影响。
+- 有稳定背景或参考图的表面差异检测
+- 划痕、污点、异物、局部亮暗异常的初筛
+- 作为传统检测链路中的可解释诊断节点
 
 ## 已知限制 / Known Limitations
-1. 当前实现通常以图像作为主要输出载体；若下游只关心数值，还需要同步读取附加字段。
-2. 源码若在内部自动转换颜色空间，下游拿到的图像语义可能与原始输入不同。
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
-| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
-| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
+1. 当前配准只做平移级别补偿，不适合明显旋转、透视变形或尺度漂移场景。
+2. `GradientMagnitude` 和 `LocalContrast` 仍属于启发式方法，现场效果高度依赖光照、成像和 ROI 质量。
+3. 要达到工业级误检/漏检控制，仍需要配套真实样本阈值验证，而不是仅依赖单帧调参。

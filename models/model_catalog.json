@@ -11,6 +11,15 @@
       "version": "1.0.0",
       "execution_provider": "cpu",
       "source": "repo-testdata"
+    },
+    {
+      "id": "anomaly_embedding_identity_2x2",
+      "name": "Anomaly Embedding Identity 2x2",
+      "type": "anomaly_embedding",
+      "path": "Acme.Product/tests/TestData/model_test_suite/identity_2x2/identity_2x2.onnx",
+      "version": "1.0.0",
+      "execution_provider": "cpu",
+      "source": "repo-testdata"
     }
   ]
 }

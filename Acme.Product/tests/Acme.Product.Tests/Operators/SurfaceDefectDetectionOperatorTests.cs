@@ -29,7 +29,9 @@ public class SurfaceDefectDetectionOperatorTests
             { "Threshold", 10.0 },
             { "MinArea", 20 },
             { "MaxArea", 100000 },
-            { "MorphCleanSize", 3 }
+            { "MorphCleanSize", 3 },
+            { "ThresholdMode", "Auto" },
+            { "AlignmentMode", "PhaseCorrelation" }
         });
 
         using var source = CreateSourceWithDefect();
@@ -43,6 +45,37 @@ public class SurfaceDefectDetectionOperatorTests
         Assert.NotNull(result.OutputData);
         Assert.True(Convert.ToInt32(result.OutputData!["DefectCount"]) >= 1);
         Assert.True(result.OutputData.ContainsKey("DefectMask"));
+        Assert.True(result.OutputData.ContainsKey("ResponseImage"));
+        Assert.True(result.OutputData.ContainsKey("AlignmentScore"));
+        Assert.True(result.OutputData.ContainsKey("Diagnostics"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithShiftedReference_ShouldExposeAlignmentDiagnostics()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Method", "ReferenceDiff" },
+            { "Threshold", 20.0 },
+            { "ThresholdMode", "ReferenceStats" },
+            { "AlignmentMode", "PhaseCorrelation" },
+            { "NormalizationMode", "LocalMean" },
+            { "MinArea", 10 },
+            { "MaxArea", 200000 }
+        });
+
+        using var reference = CreateStructuredReference();
+        using var source = CreateShiftedSourceWithDefect();
+        var inputs = TestHelpers.CreateImageInputs(source);
+        inputs["Reference"] = reference;
+
+        var result = await sut.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.NotNull(result.OutputData);
+        Assert.True(result.OutputData!.ContainsKey("Diagnostics"));
+        Assert.True(Convert.ToDouble(result.OutputData["AlignmentScore"]) >= 0.0);
     }
 
     [Fact]
@@ -87,5 +120,27 @@ public class SurfaceDefectDetectionOperatorTests
     {
         var mat = new Mat(120, 120, MatType.CV_8UC3, Scalar.Black);
         return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateStructuredReference()
+    {
+        var mat = new Mat(160, 160, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(40, 40, 50, 30), Scalar.White, -1);
+        Cv2.Circle(mat, new Point(110, 100), 14, new Scalar(180, 180, 180), -1);
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateShiftedSourceWithDefect()
+    {
+        using var reference = CreateStructuredReference();
+        var source = new Mat();
+        using var transform = new Mat(2, 3, MatType.CV_64FC1, Scalar.All(0));
+        transform.Set(0, 0, 1.0);
+        transform.Set(1, 1, 1.0);
+        transform.Set(0, 2, 4.0);
+        transform.Set(1, 2, -3.0);
+        Cv2.WarpAffine(reference.MatReadOnly, source, transform, reference.MatReadOnly.Size(), InterpolationFlags.Linear, BorderTypes.Constant);
+        Cv2.Rectangle(source, new Rect(120, 30, 12, 12), Scalar.White, -1);
+        return new ImageWrapper(source);
     }
 }

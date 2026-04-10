@@ -1,80 +1,66 @@
 # 异常检测 / AnomalyDetection
 
 ## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
+| 项目 | 值 |
 |------|------|
-| 类名 (Class) | `AnomalyDetectionOperator` |
-| 枚举值 (Enum) | `OperatorType.AnomalyDetection` |
-| 分类 (Category) | AI检测 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+| 类名 | `AnomalyDetectionOperator` |
+| 枚举值 | `OperatorType.AnomalyDetection` |
+| 分类 | `AI检测` |
+| 版本 | `1.0.0` |
+| 成熟度 | `Experimental` |
+| 标签 | `experimental`, `industrial-remediation`, `anomaly-detection` |
 
-## 算法原理 / Algorithm Principle
-> 中文：Runs a simplified PatchCore-style anomaly detector with train/inference modes and feature-bank persistence.。
-> English: Runs a simplified PatchCore-style anomaly detector with train/inference modes and feature-bank persistence..
+## 算法说明 / Algorithm
+当前实现是简化版 PatchCore 思路：
 
-## 实现策略 / Implementation Strategy
-- 中文：
-  - 采用“简化 PatchCore”思路：先从正常样本提取局部 patch 特征，再用特征库最近邻距离做异常评分。
-  - 训练模式从 `NormalImages` 构建特征库，并可保存到 `FeatureBankPath/SaveFeatureBankPath`。
-  - 推理模式支持直接读取特征库，也支持通过 `ModelId + ModelCatalogPath` 从模型仓库解析特征库路径。
-  - 输出热力图与二值掩码，便于与阈值判定、结果存档和前端叠加显示联动。
-- English:
-  - Uses a simplified PatchCore pipeline: extract local patch features from normal samples, then score by nearest-neighbor distance against a feature bank.
-  - Training mode builds and optionally persists a feature bank from `NormalImages`.
-  - Inference mode supports both direct bank path loading and repository-driven lookup through `ModelId + ModelCatalogPath`.
-  - Produces both heatmap and binary mask for downstream visualization and logic gates.
+1. 在训练模式下，从 `NormalImages` 提取局部 patch 特征并构建 feature bank；
+2. 在推理模式下，计算待测图像 patch 与 feature bank 的最近邻距离；
+3. 输出异常分数、热力图和二值掩膜。
 
-## 核心 API 调用链 / Core API Call Chain
-- `OpenCvSharp + memory-bank nearest-neighbor`
+本轮整改后，算子补上了结构化诊断输出，并为后续真实 embedding 路线预留了参数入口，但当前默认特征提取仍是轻量级 `lab_gradient_stats`。
 
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `Mode` | `enum` | inference | - | - |
-| `FeatureBankPath` | `file` | "" | - | - |
-| `SaveFeatureBankPath` | `file` | "" | - | - |
-| `ModelId` | `string` | "" | - | - |
-| `ModelCatalogPath` | `file` | "" | - | - |
-| `Backbone` | `string` | simple_patchcore | - | - |
-| `PatchSize` | `int` | 32 | [4, 256] | - |
-| `PatchStride` | `int` | 16 | [1, 256] | - |
-| `CoresetRatio` | `double` | 0.2 | [0.01, 1] | - |
-| `Threshold` | `double` | 0.35 | [0, 1] | - |
+## 参数 / Parameters
+| 名称 | 类型 | 默认值 | 说明 |
+|------|------|------|------|
+| `Mode` | `enum` | `inference` | `train` 或 `inference` |
+| `FeatureBankPath` | `file` | `""` | 推理时显式特征库路径 |
+| `SaveFeatureBankPath` | `file` | `""` | 训练后特征库存储路径 |
+| `ModelId` | `string` | `""` | 通过模型目录解析特征库 |
+| `ModelCatalogPath` | `file` | `""` | 模型目录路径 |
+| `Backbone` | `string` | `simple_patchcore` | 当前仅支持 `simple_patchcore` |
+| `FeatureExtractorId` | `string` | `lab_gradient_stats` | 当前特征提取器标识 |
+| `EmbeddingModelId` | `string` | `""` | 后续 embedding 模型入口 |
+| `EmbeddingModelPath` | `file` | `""` | 后续 embedding 模型路径 |
+| `PatchSize` | `int` | `32` | patch 大小 |
+| `PatchStride` | `int` | `16` | patch 步长 |
+| `CoresetRatio` | `double` | `0.2` | 特征库采样比例 |
+| `Threshold` | `double` | `0.35` | 异常判定阈值 |
 
-## 输入/输出端口 / Input/Output Ports
+## 输入 / 输出 / Inputs & Outputs
 ### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | Image | `Image` | No | - |
-| `NormalImages` | Normal Images | `Any` | No | - |
+| 名称 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `Image` | `Image` | 否 | 推理图像，训练模式下也可作为预览图 |
+| `NormalImages` | `Any` | 否 | 训练模式下的正常样本集合 |
 
 ### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `AnomalyScore` | Anomaly Score | `Float` | - |
-| `IsAnomaly` | Is Anomaly | `Boolean` | - |
-| `AnomalyMap` | Anomaly Map | `Image` | - |
-| `AnomalyMask` | Anomaly Mask | `Image` | - |
-| `FeatureBankPath` | Feature Bank Path | `String` | - |
-| `PatchCount` | Patch Count | `Integer` | - |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | O(P * B) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | O(B) |
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `AnomalyScore` | `Float` | 最大异常分数 |
+| `IsAnomaly` | `Boolean` | 是否判为异常 |
+| `AnomalyMap` | `Image` | 热力图 |
+| `AnomalyMask` | `Image` | 二值掩膜 |
+| `FeatureBankPath` | `String` | 实际使用的特征库路径 |
+| `PatchCount` | `Integer` | patch 数量 |
+| `ThresholdUsed` | `Float` | 实际阈值 |
+| `Diagnostics` | `Any` | 特征库来源、特征 schema、训练样本数等诊断信息 |
 
 ## 适用场景 / Use Cases
-- 适合 (Suitable)：缺陷样本稀缺、但正常样本容易采集的工业表面检测、异物检测、区域异常提示。
-- 不适合 (Not Suitable)：需要明确缺陷类别、多类别监督分类或强几何先验的任务。
+- 缺陷样本很少、正常样本较容易采集的表面异常检测
+- 需要热力图辅助人工分析的异常筛查链路
+- 作为后续 embedding anomaly 的兼容基线实现
 
 ## 已知限制 / Known Limitations
-1. 当前为轻量级 C# 记忆库实现，未接入真实 ResNet/ViT backbone 与大规模 MVTec 资产基准。
-1. 推理复杂度与特征库规模相关，若特征库过大应通过 `CoresetRatio` 控制采样规模。
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.0 | 2026-03-17 | 自动生成文档骨架 / Generated skeleton |
+1. 当前默认特征仍是统计型 patch 特征，不是深度 embedding，能力上限有限。
+2. 推理复杂度随 feature bank 规模增长，适合中小规模样本库。
+3. 若要达到更高精度或跨批次鲁棒性，建议后续切换到真正的 ONNX embedding 路线。

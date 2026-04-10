@@ -18,7 +18,7 @@
 | `OperatorType.DualModalVoting` | 双模态投票 | AI检测 | `1.0.0` |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | AI检测 | `1.0.0` |
 | `OperatorType.SemanticSegmentation` | 语义分割 | AI检测 | `1.0.0` |
-| `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `1.0.0` |
+| `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `2.0.0` |
 | `OperatorType.DistanceTransform` | Distance Transform | Analysis | `1.0.0` |
 | `OperatorType.FFT1D` | FFT 1D | Frequency | `1.0.0` |
 | `OperatorType.FrequencyFilter` | Frequency Filter | Frequency | `1.0.0` |
@@ -159,7 +159,7 @@
 | `OperatorType.PerspectiveTransform` | 透视变换 | 预处理 | `1.0.0` |
 | `OperatorType.ShadingCorrection` | 光照校正 | 预处理 | `1.0.0` |
 | `OperatorType.Thresholding` | Threshold | 预处理 | `1.0.0` |
-| `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `1.0.0` |
+| `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `2.0.0` |
 | `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.2` |
 
 ## 历史变更 / Historical Changes
@@ -170,11 +170,29 @@
 | `1.0.0` | `2026-04-08T19:13:32.2020980+08:00` | `B975CE907035` |
 | `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `B455F3119904` |
 
+### OperatorType.AnomalyDetection / 异常检测
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-10T17:42:49.0767787+08:00` | `AAEA9F498173` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `C16C20BC74A9` |
+
 ### OperatorType.ClaheEnhancement / CLAHE增强
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
 | `1.0.0` | `2026-04-08T22:02:18.9641594+08:00` | `5F3BBC85B0F4` |
 | `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `69E533C1A735` |
+
+### OperatorType.ColorDetection / 颜色检测
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `2.0.0` | `2026-04-10T17:42:49.0767787+08:00` | `7D2667DA625B` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `424C14C47E4B` |
+
+### OperatorType.DetectionSequenceJudge / Detection Sequence Judge
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-10T17:42:49.0767787+08:00` | `CFD9D2384786` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `304650035DC9` |
 
 ### OperatorType.FrameAveraging / 帧平均
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -252,6 +270,18 @@
 | `1.1.1` | `2026-04-09T18:53:22.7806483+08:00` | `FB1ED97E88A9` |
 | `1.1.1` | `2026-04-09T13:47:03.4893006+08:00` | `5FDA78DADC35` |
 | `1.1.0` | `2026-04-07T18:58:05.9332569+08:00` | `1A5E244A6349` |
+
+### OperatorType.SubpixelEdgeDetection / Subpixel Edge Detection
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-10T17:42:49.0767787+08:00` | `482F884A9448` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `3AB12925E1E0` |
+
+### OperatorType.SurfaceDefectDetection / 表面缺陷检测
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `2.0.0` | `2026-04-10T17:42:49.0767787+08:00` | `3A7A4EC68BD2` |
+| `1.0.0` | `2026-04-07T18:58:05.9332569+08:00` | `90D11B72CA9C` |
 
 ### OperatorType.TemplateMatching / 模板匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |

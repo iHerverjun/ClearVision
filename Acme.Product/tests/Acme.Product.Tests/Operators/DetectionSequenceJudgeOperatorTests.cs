@@ -5,6 +5,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -170,11 +171,105 @@ public class DetectionSequenceJudgeOperatorTests
         result.OutputData["IsMatch"].Should().Be(true);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithRowCluster_ShouldOrderRowsBeforeColumns()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_TL,Wire_TR,Wire_BL,Wire_BR",
+            groupingMode: "RowCluster",
+            direction: "LeftToRight",
+            rowTolerance: 10.0);
+        var detections = CreateDetections(
+            ("Wire_TL", 0.98f, 10f, 10f, 8f, 8f),
+            ("Wire_BL", 0.96f, 12f, 40f, 8f, 8f),
+            ("Wire_TR", 0.97f, 42f, 12f, 8f, 8f),
+            ("Wire_BR", 0.95f, 44f, 42f, 8f, 8f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_TL", "Wire_TR", "Wire_BL", "Wire_BR" });
+        result.OutputData["RowCount"].Should().Be(2);
+        var diagnostics = result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>().Subject;
+        diagnostics["GroupingModeResolved"].Should().Be("RowCluster");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithSlotAssignment_ShouldUseSlotLayoutOrder()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_A,Wire_B,Wire_C,Wire_D",
+            groupingMode: "SlotAssignment",
+            direction: "LeftToRight",
+            expectedSlots: "10:10;30:10;10:30;30:30",
+            rowTolerance: 8.0,
+            slotTolerance: 12.0);
+        var detections = CreateDetections(
+            ("Wire_A", 0.98f, 10f, 10f, 8f, 8f),
+            ("Wire_C", 0.96f, 10f, 30f, 8f, 8f),
+            ("Wire_B", 0.97f, 30f, 10f, 8f, 8f),
+            ("Wire_D", 0.95f, 30f, 30f, 8f, 8f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_A", "Wire_B", "Wire_C", "Wire_D" });
+        result.OutputData["IsMatch"].Should().Be(true);
+        result.OutputData["Assignment"].Should().BeAssignableTo<List<Dictionary<string, object>>>().Which.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithPerspectivePoints_ShouldApplyRectifiedOrdering()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_1,Wire_2,Wire_3",
+            groupingMode: "SlotAssignment",
+            direction: "LeftToRight",
+            expectedSlots: "20:50;50:50;80:50",
+            rowTolerance: 10.0,
+            slotTolerance: 12.0);
+        op.AddParameter(TestHelpers.CreateParameter("PerspectiveSrcPointsJson", "[[0,0],[100,0],[90,100],[10,100]]", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("PerspectiveDstPointsJson", "[[0,0],[100,0],[100,100],[0,100]]", "string"));
+
+        using var inverseTransform = Cv2.GetPerspectiveTransform(
+            new[] { new Point2f(0, 0), new Point2f(100, 0), new Point2f(100, 100), new Point2f(0, 100) },
+            new[] { new Point2f(0, 0), new Point2f(100, 0), new Point2f(90, 100), new Point2f(10, 100) });
+
+        var detections = new[]
+        {
+            CreateDetection("Wire_2", TransformPoint(inverseTransform, 50, 50)),
+            CreateDetection("Wire_3", TransformPoint(inverseTransform, 80, 50)),
+            CreateDetection("Wire_1", TransformPoint(inverseTransform, 20, 50))
+        };
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_1", "Wire_2", "Wire_3" });
+        result.OutputData["PerspectiveApplied"].Should().Be(true);
+    }
+
     private static Operator CreateOperator(
         string expectedLabels,
         double minConfidence = 0.0,
         string sortBy = "CenterX",
-        string direction = "Ascending")
+        string direction = "Ascending",
+        string groupingMode = "SingleRow",
+        string expectedSlots = "",
+        double rowTolerance = 0.0,
+        double slotTolerance = 0.0)
     {
         var op = new Operator("judge", OperatorType.DetectionSequenceJudge, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("ExpectedLabels", expectedLabels, "string"));
@@ -184,6 +279,10 @@ public class DetectionSequenceJudgeOperatorTests
         op.AddParameter(TestHelpers.CreateParameter("MinConfidence", minConfidence, "double"));
         op.AddParameter(TestHelpers.CreateParameter("AllowMissing", false, "bool"));
         op.AddParameter(TestHelpers.CreateParameter("AllowDuplicate", false, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("GroupingMode", groupingMode, "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ExpectedSlots", expectedSlots, "string"));
+        op.AddParameter(TestHelpers.CreateParameter("RowTolerance", rowTolerance, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("SlotTolerance", slotTolerance, "double"));
         return op;
     }
 
@@ -207,5 +306,27 @@ public class DetectionSequenceJudgeOperatorTests
             item.Y,
             item.Width,
             item.Height));
+    }
+
+    private static DetectionResult CreateDetection(string label, Point2f center)
+    {
+        return new DetectionResult(label, 0.95f, center.X - 4, center.Y - 4, 8, 8);
+    }
+
+    private static Point2f TransformPoint(Mat transform, float x, float y)
+    {
+        var m00 = transform.At<double>(0, 0);
+        var m01 = transform.At<double>(0, 1);
+        var m02 = transform.At<double>(0, 2);
+        var m10 = transform.At<double>(1, 0);
+        var m11 = transform.At<double>(1, 1);
+        var m12 = transform.At<double>(1, 2);
+        var m20 = transform.At<double>(2, 0);
+        var m21 = transform.At<double>(2, 1);
+        var m22 = transform.At<double>(2, 2);
+        var denominator = (m20 * x) + (m21 * y) + m22;
+        return new Point2f(
+            (float)(((m00 * x) + (m01 * y) + m02) / denominator),
+            (float)(((m10 * x) + (m11 * y) + m12) / denominator));
     }
 }

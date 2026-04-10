@@ -16,7 +16,8 @@ namespace Acme.Product.Infrastructure.Operators;
     DisplayName = "Subpixel Edge Detection",
     Description = "Extracts subpixel edges using Steger or interpolation-based methods.",
     Category = "Feature Extraction",
-    IconName = "edge-subpixel"
+    IconName = "edge-subpixel",
+    Tags = new[] { "experimental", "industrial-remediation", "subpixel-edge" }
 )]
 [InputPort("Image", "Input Image", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "Result Image", PortDataType.Image)]

@@ -11,6 +11,14 @@ public sealed class SimplePatchCoreOptions
     public int PatchStride { get; init; } = 16;
 
     public double CoresetRatio { get; init; } = 0.2;
+
+    public string Backbone { get; init; } = "simple_patchcore";
+
+    public string FeatureExtractorId { get; init; } = "lab_gradient_stats";
+
+    public string EmbeddingModelId { get; init; } = string.Empty;
+
+    public string EmbeddingModelPath { get; init; } = string.Empty;
 }
 
 public sealed class SimplePatchCoreFeatureBank
@@ -26,6 +34,24 @@ public sealed class SimplePatchCoreFeatureBank
 
     [JsonPropertyName("features")]
     public List<float[]> Features { get; init; } = [];
+
+    [JsonPropertyName("feature_schema_version")]
+    public string FeatureSchemaVersion { get; init; } = "simple_patchcore:v3";
+
+    [JsonPropertyName("backbone")]
+    public string Backbone { get; init; } = "simple_patchcore";
+
+    [JsonPropertyName("feature_extractor_id")]
+    public string FeatureExtractorId { get; init; } = "lab_gradient_stats";
+
+    [JsonPropertyName("embedding_model_id")]
+    public string EmbeddingModelId { get; init; } = string.Empty;
+
+    [JsonPropertyName("embedding_model_path")]
+    public string EmbeddingModelPath { get; init; } = string.Empty;
+
+    [JsonPropertyName("training_image_count")]
+    public int TrainingImageCount { get; init; }
 
     [JsonPropertyName("mean_nearest_distance")]
     public double MeanNearestDistance { get; init; }
@@ -48,6 +74,8 @@ public sealed class SimplePatchCoreAnalysisResult
     public required Mat Mask { get; init; }
 
     public required int PatchCount { get; init; }
+
+    public required float ThresholdUsed { get; init; }
 }
 
 public static class SimplePatchCoreDetector
@@ -64,6 +92,7 @@ public static class SimplePatchCoreDetector
         ArgumentNullException.ThrowIfNull(options);
 
         var allFeatures = new List<float[]>();
+        var trainingImageCount = 0;
         foreach (var image in normalImages)
         {
             if (image == null || image.Empty())
@@ -71,6 +100,7 @@ public static class SimplePatchCoreDetector
                 continue;
             }
 
+            trainingImageCount++;
             allFeatures.AddRange(ExtractFeatures(image, options).Select(x => x.Feature));
         }
 
@@ -90,12 +120,27 @@ public static class SimplePatchCoreDetector
             PatchStride = options.PatchStride,
             FeatureLength = selected[0].Length,
             Features = selected,
+            FeatureSchemaVersion = GetFeatureSchemaVersion(options),
+            Backbone = options.Backbone,
+            FeatureExtractorId = options.FeatureExtractorId,
+            EmbeddingModelId = options.EmbeddingModelId,
+            EmbeddingModelPath = options.EmbeddingModelPath,
+            TrainingImageCount = trainingImageCount,
             MeanNearestDistance = mean,
             StdNearestDistance = Math.Sqrt(variance)
         };
     }
 
     public static SimplePatchCoreAnalysisResult Analyze(Mat image, SimplePatchCoreFeatureBank bank, double threshold)
+    {
+        return Analyze(image, bank, threshold, null);
+    }
+
+    public static SimplePatchCoreAnalysisResult Analyze(
+        Mat image,
+        SimplePatchCoreFeatureBank bank,
+        double threshold,
+        SimplePatchCoreOptions? overrideOptions)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(bank);
@@ -110,17 +155,18 @@ public static class SimplePatchCoreDetector
             throw new InvalidOperationException("Feature bank is empty.");
         }
 
-        var options = new SimplePatchCoreOptions
-        {
-            PatchSize = bank.PatchSize,
-            PatchStride = bank.PatchStride,
-            CoresetRatio = 1.0
-        };
+        var options = CreateAnalysisOptions(bank, overrideOptions);
 
         var patches = ExtractFeatures(image, options);
         if (patches.Count == 0)
         {
             throw new InvalidOperationException("Failed to extract image patches for anomaly analysis.");
+        }
+
+        if (bank.FeatureLength > 0 && patches.Any(patch => patch.Feature.Length != bank.FeatureLength))
+        {
+            throw new InvalidOperationException(
+                $"Feature length mismatch between input patches and feature bank. Expected {bank.FeatureLength}, got {patches.First().Feature.Length}.");
         }
 
         using var patchScoreMap = new Mat(image.Rows, image.Cols, MatType.CV_32FC1, Scalar.All(0));
@@ -154,7 +200,8 @@ public static class SimplePatchCoreDetector
             IsAnomaly = maxScore >= threshold,
             Heatmap = heatmap,
             Mask = mask,
-            PatchCount = patches.Count
+            PatchCount = patches.Count,
+            ThresholdUsed = (float)Math.Clamp(threshold, 0d, 1d)
         };
     }
 
@@ -195,6 +242,87 @@ public static class SimplePatchCoreDetector
     }
 
     private static List<PatchFeature> ExtractFeatures(Mat image, SimplePatchCoreOptions options)
+    {
+        var extractorId = string.IsNullOrWhiteSpace(options.FeatureExtractorId)
+            ? "lab_gradient_stats"
+            : options.FeatureExtractorId.Trim().ToLowerInvariant();
+
+        return extractorId switch
+        {
+            "lab_gradient_stats" => ExtractLabGradientStatsFeatures(image, options),
+            "onnx_embedding" => ExtractOnnxEmbeddingFeatures(image, options),
+            _ => throw new InvalidOperationException($"Unsupported feature extractor: {options.FeatureExtractorId}")
+        };
+    }
+
+    private static List<PatchFeature> ExtractOnnxEmbeddingFeatures(Mat image, SimplePatchCoreOptions options)
+    {
+        var patchSize = Math.Min(Math.Min(options.PatchSize, image.Rows), image.Cols);
+        var stride = Math.Max(1, options.PatchStride);
+        var positionsY = EnumeratePatchPositions(image.Rows, patchSize, stride);
+        var positionsX = EnumeratePatchPositions(image.Cols, patchSize, stride);
+
+        var regions = new List<Rect>();
+        foreach (var y in positionsY)
+        {
+            foreach (var x in positionsX)
+            {
+                regions.Add(new Rect(x, y, patchSize, patchSize));
+            }
+        }
+
+        if (regions.Count == 0)
+        {
+            return [];
+        }
+
+        var patches = new List<Mat>(regions.Count);
+        try
+        {
+            foreach (var region in regions)
+            {
+                using var roi = new Mat(image, region);
+                patches.Add(roi.Clone());
+            }
+
+            var embeddings = OnnxPatchEmbeddingExtractor.ExtractEmbeddings(patches, options);
+            if (embeddings.Count != regions.Count)
+            {
+                throw new InvalidOperationException(
+                    $"Embedding extractor returned {embeddings.Count} features for {regions.Count} patches.");
+            }
+
+            var features = new List<PatchFeature>(regions.Count);
+            for (var i = 0; i < regions.Count; i++)
+            {
+                features.Add(new PatchFeature(regions[i], embeddings[i]));
+            }
+
+            return features;
+        }
+        finally
+        {
+            foreach (var patch in patches)
+            {
+                patch.Dispose();
+            }
+        }
+    }
+
+    private static string GetFeatureSchemaVersion(SimplePatchCoreOptions options)
+    {
+        var extractorId = string.IsNullOrWhiteSpace(options.FeatureExtractorId)
+            ? "lab_gradient_stats"
+            : options.FeatureExtractorId.Trim().ToLowerInvariant();
+
+        return extractorId switch
+        {
+            "onnx_embedding" => "simple_patchcore:onnx_embedding:v1",
+            _ => "simple_patchcore:v3"
+        };
+    }
+
+    private static List<PatchFeature> ExtractLabGradientStatsFeatures(Mat image, SimplePatchCoreOptions options)
     {
         using var lab = new Mat();
         using var gray = new Mat();
@@ -263,6 +391,20 @@ public static class SimplePatchCoreDetector
         }
 
         return positions;
+    }
+
+    private static SimplePatchCoreOptions CreateAnalysisOptions(SimplePatchCoreFeatureBank bank, SimplePatchCoreOptions? overrideOptions)
+    {
+        return new SimplePatchCoreOptions
+        {
+            PatchSize = overrideOptions?.PatchSize ?? bank.PatchSize,
+            PatchStride = overrideOptions?.PatchStride ?? bank.PatchStride,
+            CoresetRatio = 1.0,
+            Backbone = !string.IsNullOrWhiteSpace(overrideOptions?.Backbone) ? overrideOptions.Backbone : bank.Backbone,
+            FeatureExtractorId = !string.IsNullOrWhiteSpace(overrideOptions?.FeatureExtractorId) ? overrideOptions.FeatureExtractorId : bank.FeatureExtractorId,
+            EmbeddingModelId = !string.IsNullOrWhiteSpace(overrideOptions?.EmbeddingModelId) ? overrideOptions.EmbeddingModelId : bank.EmbeddingModelId,
+            EmbeddingModelPath = !string.IsNullOrWhiteSpace(overrideOptions?.EmbeddingModelPath) ? overrideOptions.EmbeddingModelPath : bank.EmbeddingModelPath
+        };
     }
 
     private static List<float[]> SelectCoreset(IReadOnlyList<float[]> features, double ratio)

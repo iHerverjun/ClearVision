@@ -32,6 +32,8 @@ public sealed class AnomalyDetectionOperatorTests
         File.Exists(featureBankPath).Should().BeTrue();
         result.OutputData!["FeatureBankPath"].Should().Be(featureBankPath);
         result.OutputData["PatchCount"].Should().BeOfType<int>();
+        result.OutputData["ThresholdUsed"].Should().BeOfType<float>();
+        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["Mode"].Should().Be("train");
 
         DisposeOutputs(result.OutputData);
         File.Delete(featureBankPath);
@@ -61,6 +63,7 @@ public sealed class AnomalyDetectionOperatorTests
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         Convert.ToBoolean(result.OutputData!["IsAnomaly"]).Should().BeTrue();
         Convert.ToSingle(result.OutputData["AnomalyScore"]).Should().BeGreaterThan(0.15f);
+        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["FeatureBankSource"].Should().Be("ExplicitPath");
 
         var mask = result.OutputData["AnomalyMask"].Should().BeOfType<ImageWrapper>().Subject;
         Cv2.CountNonZero(mask.MatReadOnly).Should().BeGreaterThan(0);
@@ -115,9 +118,111 @@ public sealed class AnomalyDetectionOperatorTests
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         Convert.ToBoolean(result.OutputData!["IsAnomaly"]).Should().BeTrue();
+        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["FeatureBankSource"].Should().Be("ModelCatalog");
 
         DisposeOutputs(result.OutputData);
         Directory.Delete(tempDirectory.FullName, recursive: true);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithOnnxEmbeddingAndExplicitModelPath_ShouldTrainAndInfer()
+    {
+        var sut = new AnomalyDetectionOperator(Substitute.For<ILogger<AnomalyDetectionOperator>>());
+        var featureBankPath = Path.Combine(Path.GetTempPath(), $"anomaly-onnx-bank-{Guid.NewGuid():N}.json");
+        var embeddingModelPath = ResolveEmbeddingModelPath();
+
+        var trainOp = CreateTrainOperator(featureBankPath);
+        trainOp.AddParameter(TestHelpers.CreateParameter("FeatureExtractorId", "onnx_embedding", "string"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("EmbeddingModelPath", embeddingModelPath, "file"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("PatchSize", 16, "int"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("PatchStride", 16, "int"));
+
+        using var normalA = CreateUniformImage(new Scalar(90, 90, 90));
+        using var normalB = CreateUniformImage(new Scalar(92, 92, 92));
+        using var preview = CreateUniformImage(new Scalar(90, 90, 90));
+
+        var trainResult = await sut.ExecuteAsync(trainOp, new Dictionary<string, object>
+        {
+            ["Image"] = preview,
+            ["NormalImages"] = new[] { normalA, normalB }
+        });
+
+        trainResult.IsSuccess.Should().BeTrue(trainResult.ErrorMessage);
+        trainResult.OutputData!["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["FeatureExtractorId"].Should().Be("onnx_embedding");
+
+        var inferenceOp = CreateInferenceOperator(featureBankPath);
+        inferenceOp.AddParameter(TestHelpers.CreateParameter("FeatureExtractorId", "onnx_embedding", "string"));
+
+        using var defect = CreateUniformImage(new Scalar(90, 90, 90));
+        var writable = defect.GetWritableMat();
+        Cv2.Rectangle(writable, new Rect(32, 32, 32, 32), new Scalar(255, 255, 255), -1);
+
+        var inferenceResult = await sut.ExecuteAsync(inferenceOp, TestHelpers.CreateImageInputs(defect));
+
+        inferenceResult.IsSuccess.Should().BeTrue(inferenceResult.ErrorMessage);
+        Convert.ToBoolean(inferenceResult.OutputData!["IsAnomaly"]).Should().BeTrue();
+        inferenceResult.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["EmbeddingSource"].Should().Be("FeatureBankMetadataPath");
+
+        DisposeOutputs(trainResult.OutputData);
+        DisposeOutputs(inferenceResult.OutputData);
+        File.Delete(featureBankPath);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithOnnxEmbeddingModelId_ShouldResolveEmbeddingFromCatalog()
+    {
+        var sut = new AnomalyDetectionOperator(Substitute.For<ILogger<AnomalyDetectionOperator>>());
+        var featureBankPath = Path.Combine(Path.GetTempPath(), $"anomaly-onnx-catalog-bank-{Guid.NewGuid():N}.json");
+
+        var trainOp = CreateTrainOperator(featureBankPath);
+        trainOp.AddParameter(TestHelpers.CreateParameter("FeatureExtractorId", "onnx_embedding", "string"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("EmbeddingModelId", "anomaly_embedding_identity_2x2", "string"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("ModelCatalogPath", ResolveRepoPath("models/model_catalog.json"), "file"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("PatchSize", 16, "int"));
+        trainOp.AddParameter(TestHelpers.CreateParameter("PatchStride", 16, "int"));
+
+        using var normalA = CreateUniformImage(new Scalar(80, 80, 80));
+        using var normalB = CreateUniformImage(new Scalar(82, 82, 82));
+        using var preview = CreateUniformImage(new Scalar(81, 81, 81));
+
+        var trainResult = await sut.ExecuteAsync(trainOp, new Dictionary<string, object>
+        {
+            ["Image"] = preview,
+            ["NormalImages"] = new[] { normalA, normalB }
+        });
+
+        trainResult.IsSuccess.Should().BeTrue(trainResult.ErrorMessage);
+
+        var inferenceOp = CreateInferenceOperator(featureBankPath);
+        inferenceOp.AddParameter(TestHelpers.CreateParameter("FeatureExtractorId", "onnx_embedding", "string"));
+        inferenceOp.AddParameter(TestHelpers.CreateParameter("EmbeddingModelId", "anomaly_embedding_identity_2x2", "string"));
+        inferenceOp.AddParameter(TestHelpers.CreateParameter("ModelCatalogPath", ResolveRepoPath("models/model_catalog.json"), "file"));
+
+        using var defect = CreateUniformImage(new Scalar(80, 80, 80));
+        var writable = defect.GetWritableMat();
+        Cv2.Circle(writable, new Point(64, 64), 18, new Scalar(240, 240, 240), -1);
+
+        var result = await sut.ExecuteAsync(inferenceOp, TestHelpers.CreateImageInputs(defect));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToBoolean(result.OutputData!["IsAnomaly"]).Should().BeTrue();
+        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["EmbeddingSource"].Should().Be("ModelCatalog");
+
+        DisposeOutputs(trainResult.OutputData);
+        DisposeOutputs(result.OutputData);
+        File.Delete(featureBankPath);
+    }
+
+    [Fact]
+    public void ValidateParameters_WithUnsupportedFeatureExtractor_ShouldReturnInvalid()
+    {
+        var sut = new AnomalyDetectionOperator(Substitute.For<ILogger<AnomalyDetectionOperator>>());
+        var op = CreateTrainOperator("C:\\temp\\unused-bank.json");
+        op.AddParameter(TestHelpers.CreateParameter("FeatureExtractorId", "clip_embedding", "string"));
+
+        var validation = sut.ValidateParameters(op);
+
+        validation.IsValid.Should().BeFalse();
     }
 
     private static Operator CreateTrainOperator(string featureBankPath)
@@ -149,6 +254,27 @@ public sealed class AnomalyDetectionOperatorTests
     private static ImageWrapper CreateUniformImage(Scalar color)
     {
         return new ImageWrapper(new Mat(128, 128, MatType.CV_8UC3, color));
+    }
+
+    private static string ResolveEmbeddingModelPath()
+    {
+        return ResolveRepoPath("Acme.Product/tests/TestData/model_test_suite/identity_2x2/identity_2x2.onnx");
+    }
+
+    private static string ResolveRepoPath(string relativePath)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !dir.Name.Equals("ClearVision", StringComparison.OrdinalIgnoreCase))
+        {
+            dir = dir.Parent;
+        }
+
+        if (dir == null)
+        {
+            throw new DirectoryNotFoundException("Failed to resolve repository root.");
+        }
+
+        return Path.Combine(dir.FullName, relativePath.Replace('/', Path.DirectorySeparatorChar));
     }
 
     private static void DisposeOutputs(Dictionary<string, object>? outputData)
