@@ -62,7 +62,14 @@ public class LineMeasurementOperator : OperatorBase
 
         var resultImage = src.Clone();
         using var gray = new Mat();
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
 
         using var edges = new Mat();
         Cv2.Canny(gray, edges, 50, 150);
@@ -152,14 +159,27 @@ public class LineMeasurementOperator : OperatorBase
             }
         }
 
+        var hasFeature = lineResults.Count > 0;
+        additionalData["StatusCode"] = hasFeature ? "OK" : "NoFeature";
+        additionalData["StatusMessage"] = hasFeature ? "Success" : "No line found";
+        additionalData["Confidence"] = hasFeature ? 1.0 : 0.0;
+        additionalData["UncertaintyPx"] = hasFeature ? 0.2 : double.NaN;
+
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
+        var method = GetStringParam(@operator, "Method", "HoughLine");
         var threshold = GetIntParam(@operator, "Threshold", 100);
         var minLength = GetDoubleParam(@operator, "MinLength", 50.0);
         var maxGap = GetDoubleParam(@operator, "MaxGap", 10.0);
+
+        if (!method.Equals("HoughLine", StringComparison.OrdinalIgnoreCase) &&
+            !method.Equals("FitLine", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("检测方法必须是 HoughLine 或 FitLine");
+        }
 
         if (threshold < 1)
             return ValidationResult.Invalid("累加阈值必须大于等于1");

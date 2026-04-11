@@ -38,11 +38,12 @@ public class CircleMeasurementOperatorTests
     public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
     {
         var op = new Operator("测试", OperatorType.CircleMeasurement, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateShapeTestImage();
         var inputs = TestHelpers.CreateImageInputs(image);
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
         result.OutputData.Should().ContainKey("Image");
+        result.OutputData.Should().ContainKey("StatusCode");
     }
 
     [Fact]
@@ -50,5 +51,29 @@ public class CircleMeasurementOperatorTests
     {
         var op = new Operator("测试", OperatorType.CircleMeasurement, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithGrayShapeImage_ShouldReturnSuccess()
+    {
+        var op = new Operator("测试", OperatorType.CircleMeasurement, 0, 0);
+        using var image = TestHelpers.CreateGrayShapeTestImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("Image");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithFitEllipseAndNoFeature_ShouldReturnFailure()
+    {
+        var op = new Operator("测试", OperatorType.CircleMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "FitEllipse", "enum"));
+
+        using var image = TestHelpers.CreateGrayTestImage(200, 200, 0);
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("[NoFeature]");
     }
 }

@@ -38,6 +38,7 @@ public class PointLineDistanceOperatorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.OutputData);
         Assert.Equal(4.0, Convert.ToDouble(result.OutputData!["Distance"]), 3);
+        Assert.Equal("OK", result.OutputData["StatusCode"]);
 
         var footPoint = Assert.IsType<Position>(result.OutputData["FootPoint"]);
         Assert.Equal(3.0, footPoint.X, 3);
@@ -56,5 +57,21 @@ public class PointLineDistanceOperatorTests
         var result = await _operator.ExecuteAsync(op, inputs);
 
         Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDegenerateLine_ShouldReturnFailure()
+    {
+        var op = new Operator("P2L", OperatorType.PointLineDistance, 0, 0);
+        var inputs = new Dictionary<string, object>
+        {
+            { "Point", new Position(3, 4) },
+            { "Line", new LineData(0, 0, 0, 0) }
+        };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("DegenerateGeometry", result.ErrorMessage ?? string.Empty);
     }
 }

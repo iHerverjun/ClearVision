@@ -150,7 +150,11 @@ public class CaliperToolOperator : OperatorBase
             { "PairCount", pairCount },
             { "PairDistances", pairDistances },
             { "AverageDistance", averageDistance },
-            { "DistanceStdDev", distanceStdDev }
+            { "DistanceStdDev", distanceStdDev },
+            { "StatusCode", pairCount > 0 ? "OK" : "NoFeature" },
+            { "StatusMessage", pairCount > 0 ? "Success" : "No edge pair found" },
+            { "Confidence", pairCount > 0 ? 1.0 : 0.0 },
+            { "UncertaintyPx", pairCount > 0 ? distanceStdDev : double.NaN }
         });
         // Override image width key with measured width to match operator output contract.
         output["Width"] = widthValue;

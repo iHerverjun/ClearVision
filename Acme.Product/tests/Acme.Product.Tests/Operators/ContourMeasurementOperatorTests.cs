@@ -46,6 +46,17 @@ public class ContourMeasurementOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithGrayImage_ShouldReturnSuccess()
+    {
+        var op = new Operator("测试", OperatorType.ContourMeasurement, 0, 0);
+        using var image = TestHelpers.CreateGrayShapeTestImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("ContourCount");
+    }
+
+    [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
         var op = new Operator("测试", OperatorType.ContourMeasurement, 0, 0);

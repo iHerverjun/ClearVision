@@ -39,6 +39,7 @@ public class LineLineDistanceOperatorTests
         Assert.NotNull(result.OutputData);
         Assert.True((bool)result.OutputData!["IsParallel"]);
         Assert.False((bool)result.OutputData["HasIntersection"]);
+        Assert.Equal("OK", result.OutputData["StatusCode"]);
 
         var intersection = Assert.IsType<Position>(result.OutputData["Intersection"]);
         Assert.True(double.IsNaN(intersection.X));
@@ -63,6 +64,7 @@ public class LineLineDistanceOperatorTests
         Assert.NotNull(result.OutputData);
         Assert.False((bool)result.OutputData!["IsParallel"]);
         Assert.True((bool)result.OutputData["HasIntersection"]);
+        Assert.Equal("OK", result.OutputData["StatusCode"]);
 
         var intersection = Assert.IsType<Position>(result.OutputData["Intersection"]);
         Assert.Equal(5.0, intersection.X, 3);
@@ -78,6 +80,22 @@ public class LineLineDistanceOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDegenerateLine_ShouldReturnFailure()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "ParallelThreshold", 2.0 } });
+        var inputs = new Dictionary<string, object>
+        {
+            { "Line1", new LineData(0, 0, 0, 0) },
+            { "Line2", new LineData(0, 10, 10, 10) }
+        };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("DegenerateGeometry", result.ErrorMessage ?? string.Empty);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

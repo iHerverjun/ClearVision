@@ -105,7 +105,11 @@ public class GeometricToleranceOperator : OperatorBase
             { "LinearBand", evaluation.LinearBand },
             { "MeasureType", measureType },
             { "MeasurementModel", AngleOnlyModel },
-            { "Result", evaluation.ResultText }
+            { "Result", evaluation.ResultText },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));

@@ -64,7 +64,14 @@ public class ContourMeasurementOperator : OperatorBase
 
             // 转换为灰度图
             using var gray = new Mat();
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+            if (src.Channels() == 1)
+            {
+                src.CopyTo(gray);
+            }
+            else
+            {
+                Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+            }
 
             // 二值化
             using var binary = new Mat();
@@ -88,9 +95,13 @@ public class ContourMeasurementOperator : OperatorBase
                 var boundingRect = Cv2.BoundingRect(contour);
                 var moments = Cv2.Moments(contour);
 
-                // 计算中心点
-                double centerX = moments.M10 / moments.M00;
-                double centerY = moments.M01 / moments.M00;
+                // 计算中心点（退化轮廓时回退到包围框中心）
+                var centerX = Math.Abs(moments.M00) > 1e-9
+                    ? moments.M10 / moments.M00
+                    : boundingRect.X + boundingRect.Width / 2.0;
+                var centerY = Math.Abs(moments.M00) > 1e-9
+                    ? moments.M01 / moments.M00
+                    : boundingRect.Y + boundingRect.Height / 2.0;
 
                 // 计算圆度
                 double circularity = 0;
@@ -149,6 +160,12 @@ public class ContourMeasurementOperator : OperatorBase
                         additionalData[kvp.Key] = kvp.Value;
                 }
             }
+
+            var hasFeature = contourResults.Count > 0;
+            additionalData["StatusCode"] = hasFeature ? "OK" : "NoFeature";
+            additionalData["StatusMessage"] = hasFeature ? "Success" : "No contour found";
+            additionalData["Confidence"] = hasFeature ? 1.0 : 0.0;
+            additionalData["UncertaintyPx"] = hasFeature ? 0.2 : double.NaN;
 
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
         }

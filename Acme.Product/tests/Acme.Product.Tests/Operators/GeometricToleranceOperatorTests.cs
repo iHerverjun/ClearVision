@@ -67,6 +67,8 @@ public class GeometricToleranceOperatorTests
         result.OutputData!["MeasurementModel"].Should().Be("AngleOnly");
         result.OutputData.Should().ContainKey("AngularDeviationDeg");
         result.OutputData.Should().ContainKey("LinearBand");
+        result.OutputData.Should().ContainKey("StatusCode");
+        result.OutputData["StatusCode"].Should().Be("OK");
 
         Convert.ToDouble(result.OutputData["Tolerance"]).Should().BeApproximately(0.0, 1e-6);
         Convert.ToDouble(result.OutputData["AngularDeviationDeg"]).Should().BeApproximately(0.0, 1e-6);

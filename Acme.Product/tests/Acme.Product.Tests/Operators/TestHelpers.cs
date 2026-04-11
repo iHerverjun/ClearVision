@@ -33,11 +33,31 @@ public static class TestHelpers
     }
 
     /// <summary>
+    /// 创建单通道灰度测试图像。
+    /// </summary>
+    public static ImageWrapper CreateGrayTestImage(int width = 200, int height = 200, byte value = 128)
+    {
+        var mat = new Mat(height, width, MatType.CV_8UC1, new Scalar(value));
+        return new ImageWrapper(mat);
+    }
+
+    /// <summary>
     /// 创建包含简单几何形状的测试图像（用于边缘检测、轮廓检测等）
     /// </summary>
     public static ImageWrapper CreateShapeTestImage()
     {
         var mat = new Mat(400, 400, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(50, 50, 100, 100), Scalar.White, -1);
+        Cv2.Circle(mat, new Point(300, 200), 60, Scalar.White, -1);
+        return new ImageWrapper(mat);
+    }
+
+    /// <summary>
+    /// 创建单通道灰度几何图形测试图像。
+    /// </summary>
+    public static ImageWrapper CreateGrayShapeTestImage()
+    {
+        var mat = new Mat(400, 400, MatType.CV_8UC1, Scalar.Black);
         Cv2.Rectangle(mat, new Rect(50, 50, 100, 100), Scalar.White, -1);
         Cv2.Circle(mat, new Point(300, 200), 60, Scalar.White, -1);
         return new ImageWrapper(mat);

@@ -45,6 +45,7 @@ public class CaliperToolOperatorTests
         Assert.NotNull(result.OutputData);
         Assert.True(result.OutputData!.ContainsKey("Width"));
         Assert.True(result.OutputData.ContainsKey("PairCount"));
+        Assert.True(result.OutputData.ContainsKey("StatusCode"));
     }
 
     [Fact]

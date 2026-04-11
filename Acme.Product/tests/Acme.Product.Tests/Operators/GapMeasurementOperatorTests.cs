@@ -44,6 +44,7 @@ public class GapMeasurementOperatorTests
         Assert.Equal(15.0, gaps[2], 6);
         Assert.Equal(13.333333, Convert.ToDouble(result.OutputData["MeanGap"]), 3);
         Assert.Equal(3, Convert.ToInt32(result.OutputData["Count"]));
+        Assert.Equal("OK", result.OutputData["StatusCode"]);
     }
 
     [Fact]
@@ -66,6 +67,20 @@ public class GapMeasurementOperatorTests
         {
             { "MinGap", 20.0 },
             { "MaxGap", 10.0 }
+        });
+
+        var validation = sut.ValidateParameters(op);
+
+        Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidOutlierSigma_ShouldReturnInvalid()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "OutlierSigmaK", 0.1 }
         });
 
         var validation = sut.ValidateParameters(op);
@@ -103,6 +118,27 @@ public class GapMeasurementOperatorTests
         Assert.Equal(2, gaps.Count);
         Assert.InRange(gaps[0], 35.0, 45.0);
         Assert.InRange(gaps[1], 35.0, 45.0);
+        Assert.True(result.OutputData.ContainsKey("P95Gap"));
+        Assert.True(result.OutputData.ContainsKey("StdDev"));
+        Assert.True(result.OutputData.ContainsKey("ValidSampleRate"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithLowContrastImage_ShouldReturnLowContrastFailure()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "RobustMode", true }
+        });
+
+        using var lowContrast = new Mat(120, 200, MatType.CV_8UC1, new Scalar(120));
+        using var image = new ImageWrapper(lowContrast.Clone());
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { { "Image", image } });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("LowContrast", result.ErrorMessage ?? string.Empty);
     }
 
     private static GapMeasurementOperator CreateSut()

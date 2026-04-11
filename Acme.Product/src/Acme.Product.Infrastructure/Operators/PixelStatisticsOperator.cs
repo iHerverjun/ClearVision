@@ -89,7 +89,11 @@ public class PixelStatisticsOperator : OperatorBase
             { "Min", minValue },
             { "Max", maxValue },
             { "Median", median },
-            { "NonZeroCount", nonZeroCount }
+            { "NonZeroCount", nonZeroCount },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));

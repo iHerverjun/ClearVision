@@ -46,6 +46,7 @@ public class SharpnessEvaluationOperatorTests
         var blurScore = Convert.ToDouble(blurResult.OutputData!["Score"]);
 
         Assert.True(sharpScore > blurScore);
+        Assert.True(sharpResult.OutputData.ContainsKey("StatusCode"));
     }
 
     [Fact]

@@ -36,6 +36,7 @@ public class PixelStatisticsOperatorTests
         Assert.Equal(100.0, Convert.ToDouble(result.OutputData!["Mean"]), 3);
         Assert.Equal(100.0, Convert.ToDouble(result.OutputData["Min"]), 3);
         Assert.Equal(100.0, Convert.ToDouble(result.OutputData["Max"]), 3);
+        Assert.True(result.OutputData.ContainsKey("StatusCode"));
     }
 
     [Fact]
@@ -71,4 +72,3 @@ public class PixelStatisticsOperatorTests
         return new ImageWrapper(mat);
     }
 }
-

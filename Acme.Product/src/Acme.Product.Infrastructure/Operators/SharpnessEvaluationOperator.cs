@@ -90,7 +90,11 @@ public class SharpnessEvaluationOperator : OperatorBase
         {
             { "Score", score },
             { "IsSharp", isSharp },
-            { "Method", method }
+            { "Method", method },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         });
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));

@@ -46,9 +46,28 @@ public class LineMeasurementOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithGrayImage_ShouldReturnSuccess()
+    {
+        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
+        using var image = TestHelpers.CreateGrayShapeTestImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("LineCount");
+    }
+
+    [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
         var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidMethod_ShouldBeInvalid()
+    {
+        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "Ransac", "enum"));
+        _operator.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 }

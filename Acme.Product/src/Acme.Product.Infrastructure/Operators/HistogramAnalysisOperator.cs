@@ -98,7 +98,11 @@ public class HistogramAnalysisOperator : OperatorBase
             { "Mode", mode },
             { "Median", median },
             { "Peak", peak },
-            { "Valley", valley }
+            { "Valley", valley },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(chart, output)));

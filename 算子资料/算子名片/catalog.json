@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-11T16:55:26.5329457+08:00",
+  "generatedAt": "2026-04-11T22:20:20.1405211+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -1395,7 +1395,7 @@
       "id": "Measurement",
       "type": 8,
       "displayName": "测量",
-      "description": "两点/水平/垂直距离测量，支持图像坐标和 Point 输入两种模式，用于尺寸检测",
+      "description": "两点/水平/垂直距离测量，支持参数坐标与 PointA/PointB 输入。",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -1509,13 +1509,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
+        "totalScore": 86,
+        "level": "A",
         "documentationScore": 60,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/Measurement.md"
     },
@@ -3241,7 +3241,7 @@
       "id": "AngleMeasurement",
       "type": 22,
       "displayName": "角度测量",
-      "description": "基于三点计算角度",
+      "description": "基于三点计算夹角。",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -11002,6 +11002,12 @@
           "isRequired": null
         },
         {
+          "name": "MeanWidth",
+          "displayName": "Mean Width",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
           "name": "MinWidth",
           "displayName": "Min Width",
           "dataType": "Float",
@@ -11010,6 +11016,24 @@
         {
           "name": "MaxWidth",
           "displayName": "Max Width",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "P95Width",
+          "displayName": "P95 Width",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "StdDev",
+          "displayName": "StdDev",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ValidSampleRate",
+          "displayName": "Valid Sample Rate",
           "dataType": "Float",
           "isRequired": null
         }
@@ -11074,6 +11098,50 @@
           "defaultValue": "0",
           "min": "-180",
           "max": "180",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RobustMode",
+          "displayName": "Robust Mode",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutlierSigmaK",
+          "displayName": "Outlier Sigma K",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "3",
+          "min": "0.5",
+          "max": "10",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinValidSamples",
+          "displayName": "Min Valid Samples",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MultiScanCount",
+          "displayName": "Multi Scan Count",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "24",
+          "min": "10",
+          "max": "256",
           "isRequired": true,
           "options": null
         }
@@ -12692,6 +12760,24 @@
           "isRequired": null
         },
         {
+          "name": "P95Gap",
+          "displayName": "P95 Gap",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "StdDev",
+          "displayName": "StdDev",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ValidSampleRate",
+          "displayName": "Valid Sample Rate",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
           "name": "Count",
           "displayName": "Count",
           "dataType": "Integer",
@@ -12755,16 +12841,60 @@
           "max": "10000",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "RobustMode",
+          "displayName": "Robust Mode",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "true",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutlierSigmaK",
+          "displayName": "Outlier Sigma K",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "3",
+          "min": "0.5",
+          "max": "10",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MinValidSamples",
+          "displayName": "Min Valid Samples",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "256",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "MultiScanCount",
+          "displayName": "Multi Scan Count",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "8",
+          "min": "1",
+          "max": "64",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
+        "totalScore": 86,
+        "level": "A",
         "documentationScore": 60,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/GapMeasurement.md"
     },
@@ -14541,16 +14671,36 @@
               "label": "Circle"
             }
           ]
+        },
+        {
+          "name": "DistanceModel",
+          "displayName": "Distance Model",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "InfiniteLine",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "InfiniteLine",
+              "label": "Infinite line"
+            },
+            {
+              "value": "Segment",
+              "label": "Segment"
+            }
+          ]
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
+        "totalScore": 86,
+        "level": "A",
         "documentationScore": 60,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/GeoMeasurement.md"
     },

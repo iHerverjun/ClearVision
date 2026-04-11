@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-11 16:55:26 +08:00`
+> 生成时间 / Generated At: `2026-04-11 22:20:20 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -35,11 +35,11 @@
 | 颜色处理 | 2 | 1.3% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **79.0**
+- 平均分 / Average: **79.1**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 53 |
-| B | 64 |
+| A | 56 |
+| B | 61 |
 | C | 35 |
 | D | 3 |
 
@@ -189,20 +189,20 @@
 | `OperatorType.CircleMeasurement` | 圆测量 | 1 | 7 | 7 | 90 (A) | `1.0.0` | - | [CircleMeasurement](./CircleMeasurement.md) |
 | `OperatorType.ContourExtrema` | Contour Extrema | 3 | 6 | 0 | 58 (C) | `1.0.0` | - | [ContourExtrema](./ContourExtrema.md) |
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 84 (B) | `1.0.0` | - | [ContourMeasurement](./ContourMeasurement.md) |
-| `OperatorType.GapMeasurement` | 间隙测量 | 2 | 6 | 4 | 84 (B) | `1.0.0` | - | [GapMeasurement](./GapMeasurement.md) |
-| `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 2 | 84 (B) | `1.0.0` | - | [GeoMeasurement](./GeoMeasurement.md) |
+| `OperatorType.GapMeasurement` | 间隙测量 | 2 | 9 | 8 | 86 (A) | `1.0.0` | - | [GapMeasurement](./GapMeasurement.md) |
+| `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 3 | 86 (A) | `1.0.0` | - | [GeoMeasurement](./GeoMeasurement.md) |
 | `OperatorType.GeometricFitting` | Geometric Fitting | 1 | 2 | 8 | 90 (A) | `1.0.0` | - | [GeometricFitting](./GeometricFitting.md) |
 | `OperatorType.GeometricTolerance` | 几何公差 | 1 | 5 | 9 | 84 (B) | `1.0.0` | - | [GeometricTolerance](./GeometricTolerance.md) |
 | `OperatorType.HistogramAnalysis` | 直方图分析 | 1 | 7 | 6 | 84 (B) | `1.0.0` | - | [HistogramAnalysis](./HistogramAnalysis.md) |
 | `OperatorType.LineLineDistance` | 线线距离 | 2 | 5 | 1 | 86 (A) | `1.0.0` | - | [LineLineDistance](./LineLineDistance.md) |
 | `OperatorType.LineMeasurement` | 直线测量 | 1 | 5 | 4 | 84 (B) | `1.0.0` | - | [LineMeasurement](./LineMeasurement.md) |
-| `OperatorType.Measurement` | 测量 | 3 | 2 | 5 | 84 (B) | `1.0.0` | - | [Measurement](./Measurement.md) |
+| `OperatorType.Measurement` | 测量 | 3 | 2 | 5 | 86 (A) | `1.0.0` | - | [Measurement](./Measurement.md) |
 | `OperatorType.MinEnclosingGeometry` | Min Enclosing Geometry | 1 | 2 | 10 | 90 (A) | `1.0.0` | - | [MinEnclosingGeometry](./MinEnclosingGeometry.md) |
 | `OperatorType.PhaseClosure` | Phase Closure | 4 | 4 | 0 | 58 (C) | `1.0.0` | - | [PhaseClosure](./PhaseClosure.md) |
 | `OperatorType.PixelStatistics` | 像素统计 | 2 | 6 | 5 | 84 (B) | `1.0.0` | - | [PixelStatistics](./PixelStatistics.md) |
 | `OperatorType.PointLineDistance` | 点线距离 | 2 | 2 | 0 | 81 (B) | `1.0.0` | - | [PointLineDistance](./PointLineDistance.md) |
 | `OperatorType.SharpnessEvaluation` | 清晰度评估 | 1 | 3 | 6 | 84 (B) | `1.0.0` | - | [SharpnessEvaluation](./SharpnessEvaluation.md) |
-| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 4 | 4 | 86 (A) | `1.0.0` | - | [WidthMeasurement](./WidthMeasurement.md) |
+| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 8 | 8 | 86 (A) | `1.0.0` | - | [WidthMeasurement](./WidthMeasurement.md) |
 
 ### 流程控制 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

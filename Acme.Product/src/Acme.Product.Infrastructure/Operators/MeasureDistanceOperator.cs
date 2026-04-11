@@ -1,25 +1,18 @@
-// MeasureDistanceOperator.cs
-// 距离测量算子 - 测量两点之间或点到轮廓的距离
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 距离测量算子 - 测量两点之间或点到轮廓的距离
-/// </summary>
 [OperatorMeta(
     DisplayName = "测量",
-    Description = "两点/水平/垂直距离测量，支持图像坐标和 Point 输入两种模式，用于尺寸检测",
+    Description = "两点/水平/垂直距离测量，支持参数坐标与 PointA/PointB 输入。",
     Category = "检测",
     IconName = "measure",
-    Keywords = new[] { "测量", "距离", "长度", "卡尺", "尺寸", "两点间距", "Measure", "Distance", "Length", "Size" }
+    Keywords = new[] { "测量", "距离", "长度", "Measure", "Distance", "Length" }
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = false)]
 [InputPort("PointA", "起点", PortDataType.Point, IsRequired = false)]
@@ -35,7 +28,9 @@ public class MeasureDistanceOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Measurement;
 
-    public MeasureDistanceOperator(ILogger<MeasureDistanceOperator> logger) : base(logger) { }
+    public MeasureDistanceOperator(ILogger<MeasureDistanceOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
@@ -43,148 +38,190 @@ public class MeasureDistanceOperator : OperatorBase
         CancellationToken cancellationToken)
     {
         var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint");
+        var normalizedType = measureType.Trim().ToLowerInvariant();
 
-        // 优先使用 PointA/PointB 输入端口（无图测距模式）
         if (inputs != null &&
-            inputs.TryGetValue("PointA", out var ptAObj) && ptAObj != null &&
-            inputs.TryGetValue("PointB", out var ptBObj) && ptBObj != null)
+            inputs.TryGetValue("PointA", out var pointAObj) &&
+            inputs.TryGetValue("PointB", out var pointBObj) &&
+            TryParsePoint(pointAObj, out var pointA) &&
+            TryParsePoint(pointBObj, out var pointB))
         {
-            if (TryParsePoint(ptAObj, out var pA) && TryParsePoint(ptBObj, out var pB))
-            {
-                var dist = Math.Sqrt(Math.Pow(pB.X - pA.X, 2) + Math.Pow(pB.Y - pA.Y, 2));
-                return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
-                {
-                    { "Distance", dist },
-                    { "X1", pA.X }, { "Y1", pA.Y },
-                    { "X2", pB.X }, { "Y2", pB.Y },
-                    { "MeasureType", measureType },
-                    { "DeltaX", pB.X - pA.X },
-                    { "DeltaY", pB.Y - pA.Y }
-                }));
-            }
+            return Task.FromResult(BuildPointInputResult(pointA, pointB, measureType));
         }
 
-        // 回退到 Image + 参数坐标模式
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像或 PointA/PointB"));
         }
 
-        // 获取参数
+        var src = imageWrapper.GetMat();
+        if (src.Empty())
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("输入图像无效"));
+        }
+
         var x1 = GetIntParam(@operator, "X1", 0);
         var y1 = GetIntParam(@operator, "Y1", 0);
         var x2 = GetIntParam(@operator, "X2", 100);
         var y2 = GetIntParam(@operator, "Y2", 100);
 
-        var src = imageWrapper.GetMat();
-        if (src.Empty())
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
-        }
+        var p1 = new Point(x1, y1);
+        var p2 = new Point(x2, y2);
+        var resultImage = src.Clone();
 
-        double distance = 0;
-        var resultImg = src.Clone();
-        Point pt1 = new Point(x1, y1);
-        Point pt2 = new Point(x2, y2);
-
-        switch (measureType.ToLower())
+        double distance;
+        switch (normalizedType)
         {
             case "pointtopoint":
-                // 点到点距离
-                distance = Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
+                if (x1 == x2 && y1 == y2)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Start and end points are identical"));
+                }
 
-                // 绘制测量线
-                Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
-                Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
-                Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-
-                // 显示距离
-                var midPoint = new Point((x1 + x2) / 2, (y1 + y2) / 2);
-                Cv2.PutText(resultImg, $"{distance:F2}px", midPoint,
-                    HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
+                distance = Distance(p1, p2);
+                DrawLineDistance(resultImage, p1, p2, $"{distance:F2}px");
                 break;
 
             case "horizontal":
-                // 水平距离
                 distance = Math.Abs(x2 - x1);
-                pt2.Y = y1; // 保持水平
+                if (distance < 1e-9)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Horizontal distance is zero"));
+                }
 
-                Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
-                Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
-                Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-
-                var hMidPoint = new Point((x1 + x2) / 2, y1 - 10);
-                Cv2.PutText(resultImg, $"H: {distance:F2}px", hMidPoint,
-                    HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
+                p2 = new Point(x2, y1);
+                DrawLineDistance(resultImage, p1, p2, $"H: {distance:F2}px");
                 break;
 
             case "vertical":
-                // 垂直距离
                 distance = Math.Abs(y2 - y1);
-                pt2.X = x1; // 保持垂直
+                if (distance < 1e-9)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Vertical distance is zero"));
+                }
 
-                Cv2.Line(resultImg, pt1, pt2, new Scalar(0, 255, 0), 2);
-                Cv2.Circle(resultImg, pt1, 5, new Scalar(255, 0, 0), -1);
-                Cv2.Circle(resultImg, pt2, 5, new Scalar(255, 0, 0), -1);
-
-                var vMidPoint = new Point(x1 + 10, (y1 + y2) / 2);
-                Cv2.PutText(resultImg, $"V: {distance:F2}px", vMidPoint,
-                    HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
+                p2 = new Point(x1, y2);
+                DrawLineDistance(resultImage, p1, p2, $"V: {distance:F2}px");
                 break;
 
             default:
-                return Task.FromResult(OperatorExecutionOutput.Failure($"不支持的测量类型: {measureType}"));
+                return Task.FromResult(OperatorExecutionOutput.Failure($"Unsupported measure type: {measureType}"));
         }
 
-        // P0: 使用ImageWrapper实现零拷贝输出
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImg, new Dictionary<string, object>
+        var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "Distance", distance },
             { "X1", x1 },
             { "Y1", y1 },
-            { "X2", x2 },
-            { "Y2", y2 },
+            { "X2", p2.X },
+            { "Y2", p2.Y },
             { "MeasureType", measureType },
-            { "DeltaX", x2 - x1 },
-            { "DeltaY", y2 - y1 }
-        })));
-    }
+            { "DeltaX", p2.X - x1 },
+            { "DeltaY", p2.Y - y1 },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
+        });
 
-    /// <summary>
-    /// 尝试从输入对象中解析 Point 坐标（支持 "(x,y)" 字符串和 OpenCvSharp.Point）
-    /// </summary>
-    private static bool TryParsePoint(object obj, out Point point)
-    {
-        point = default;
-        if (obj is Point p)
-        {
-            point = p;
-            return true;
-        }
-        var str = obj.ToString()?.Trim('(', ')', ' ');
-        if (str == null)
-            return false;
-        var parts = str.Split(',');
-        if (parts.Length == 2 &&
-            int.TryParse(parts[0].Trim(), out var x) &&
-            int.TryParse(parts[1].Trim(), out var y))
-        {
-            point = new Point(x, y);
-            return true;
-        }
-        return false;
+        return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint").ToLower();
-        var validTypes = new[] { "pointtopoint", "horizontal", "vertical" };
-
-        if (!validTypes.Contains(measureType))
+        var measureType = GetStringParam(@operator, "MeasureType", "PointToPoint").Trim();
+        var validTypes = new[] { "PointToPoint", "Horizontal", "Vertical" };
+        if (!validTypes.Contains(measureType, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid($"不支持的测量类型: {measureType}");
+            return ValidationResult.Invalid($"Unsupported measure type: {measureType}");
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static OperatorExecutionOutput BuildPointInputResult(Point pointA, Point pointB, string measureType)
+    {
+        if (pointA.X == pointB.X && pointA.Y == pointB.Y)
+        {
+            return OperatorExecutionOutput.Failure("[DegenerateGeometry] PointA and PointB are identical");
+        }
+
+        var distance = Distance(pointA, pointB);
+        return OperatorExecutionOutput.Success(new Dictionary<string, object>
+        {
+            { "Distance", distance },
+            { "X1", pointA.X },
+            { "Y1", pointA.Y },
+            { "X2", pointB.X },
+            { "Y2", pointB.Y },
+            { "MeasureType", measureType },
+            { "DeltaX", pointB.X - pointA.X },
+            { "DeltaY", pointB.Y - pointA.Y },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
+        });
+    }
+
+    private static void DrawLineDistance(Mat image, Point p1, Point p2, string label)
+    {
+        Cv2.Line(image, p1, p2, new Scalar(0, 255, 0), 2);
+        Cv2.Circle(image, p1, 5, new Scalar(255, 0, 0), -1);
+        Cv2.Circle(image, p2, 5, new Scalar(255, 0, 0), -1);
+        var textPoint = new Point((p1.X + p2.X) / 2 + 6, (p1.Y + p2.Y) / 2 - 6);
+        Cv2.PutText(image, label, textPoint, HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
+    }
+
+    private static double Distance(Point p1, Point p2)
+    {
+        var dx = p2.X - p1.X;
+        var dy = p2.Y - p1.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static bool TryParsePoint(object? obj, out Point point)
+    {
+        point = default;
+        if (obj == null)
+        {
+            return false;
+        }
+
+        switch (obj)
+        {
+            case Point p:
+                point = p;
+                return true;
+            case Point2f p2f:
+                point = new Point((int)Math.Round(p2f.X), (int)Math.Round(p2f.Y));
+                return true;
+            case Point2d p2d:
+                point = new Point((int)Math.Round(p2d.X), (int)Math.Round(p2d.Y));
+                return true;
+            case Acme.Product.Core.ValueObjects.Position pos:
+                point = new Point((int)Math.Round(pos.X), (int)Math.Round(pos.Y));
+                return true;
+        }
+
+        var str = obj.ToString()?.Trim('(', ')', '[', ']', ' ');
+        if (string.IsNullOrWhiteSpace(str))
+        {
+            return false;
+        }
+
+        var parts = str.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2)
+        {
+            return false;
+        }
+
+        if (!double.TryParse(parts[0], out var x) || !double.TryParse(parts[1], out var y))
+        {
+            return false;
+        }
+
+        point = new Point((int)Math.Round(x), (int)Math.Round(y));
+        return true;
     }
 }

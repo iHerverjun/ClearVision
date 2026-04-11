@@ -36,6 +36,7 @@ public class HistogramAnalysisOperatorTests
         Assert.NotNull(result.OutputData);
         Assert.True(result.OutputData!.ContainsKey("Mean"));
         Assert.True(result.OutputData.ContainsKey("Median"));
+        Assert.True(result.OutputData.ContainsKey("StatusCode"));
     }
 
     [Fact]
@@ -80,4 +81,3 @@ public class HistogramAnalysisOperatorTests
         return new ImageWrapper(mat);
     }
 }
-

@@ -30,7 +30,11 @@ public class WidthMeasurementOperatorTests
         var op = CreateOperator(new Dictionary<string, object>
         {
             { "MeasureMode", "ManualLines" },
-            { "NumSamples", 20 }
+            { "NumSamples", 20 },
+            { "MultiScanCount", 20 },
+            { "RobustMode", true },
+            { "OutlierSigmaK", 3.0 },
+            { "MinValidSamples", 0 }
         });
 
         using var image = TestHelpers.CreateTestImage();
@@ -44,6 +48,11 @@ public class WidthMeasurementOperatorTests
         Assert.NotNull(result.OutputData);
         var width = Convert.ToDouble(result.OutputData!["Width"]);
         Assert.InRange(width, 19.0, 21.0);
+        Assert.True(result.OutputData.ContainsKey("MeanWidth"));
+        Assert.True(result.OutputData.ContainsKey("P95Width"));
+        Assert.True(result.OutputData.ContainsKey("StdDev"));
+        Assert.True(result.OutputData.ContainsKey("ValidSampleRate"));
+        Assert.Equal("OK", result.OutputData["StatusCode"]);
     }
 
     [Fact]
@@ -54,6 +63,37 @@ public class WidthMeasurementOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidOutlierSigma_ShouldReturnInvalid()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "OutlierSigmaK", 0.1 } });
+
+        var validation = _operator.ValidateParameters(op);
+
+        Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithTooHighMinValidSamples_ShouldReturnFailure()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "MeasureMode", "ManualLines" },
+            { "MinValidSamples", 200 },
+            { "MultiScanCount", 24 }
+        });
+
+        using var image = TestHelpers.CreateTestImage();
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["Line1"] = new LineData(20, 20, 20, 120);
+        inputs["Line2"] = new LineData(40, 20, 40, 120);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("MinValidSamples", result.ErrorMessage ?? string.Empty);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

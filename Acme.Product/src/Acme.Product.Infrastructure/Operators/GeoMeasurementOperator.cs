@@ -28,6 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("MeasureType", "Measure Type", PortDataType.String)]
 [OperatorParam("Element1Type", "Element1 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
 [OperatorParam("Element2Type", "Element2 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
+[OperatorParam("DistanceModel", "Distance Model", "enum", DefaultValue = "InfiniteLine", Options = new[] { "InfiniteLine|Infinite line", "Segment|Segment" })]
 public class GeoMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeoMeasurement;
@@ -54,6 +55,12 @@ public class GeoMeasurementOperator : OperatorBase
         if (type1 == GeoElementType.Unknown || type2 == GeoElementType.Unknown)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Failed to resolve element types"));
+        }
+
+        var distanceModelText = GetStringParam(@operator, "DistanceModel", "InfiniteLine");
+        if (!TryParseDistanceModel(distanceModelText, out var distanceModel))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("DistanceModel must be InfiniteLine or Segment"));
         }
 
         var distance = 0.0;
@@ -100,12 +107,19 @@ public class GeoMeasurementOperator : OperatorBase
                  TryParseLine(element1Obj, out var line1) &&
                  TryParseLine(element2Obj, out var line2))
         {
-            distance = DistancePointToLine(line1.MidX, line1.MidY, line2);
             angle = AngleBetweenLines(line1, line2);
-            if (TryGetLineIntersection(line1, line2, out var cross))
+            var hasIntersection = TryGetLineIntersection(line1, line2, out var cross);
+            if (hasIntersection)
             {
                 intersection1 = cross;
             }
+
+            distance = distanceModel switch
+            {
+                DistanceModel.InfiniteLine => DistanceLineToLineInfinite(line1, line2, hasIntersection),
+                DistanceModel.Segment => DistanceSegmentToSegment(line1, line2),
+                _ => 0
+            };
         }
         else if (type1 == GeoElementType.Line && type2 == GeoElementType.Circle &&
                  TryParseLine(element1Obj, out line1) &&
@@ -172,7 +186,12 @@ public class GeoMeasurementOperator : OperatorBase
             { "Angle", angle },
             { "Intersection1", intersection1 },
             { "Intersection2", intersection2 },
-            { "MeasureType", measureType }
+            { "MeasureType", measureType },
+            { "DistanceModel", distanceModel.ToString() },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -194,7 +213,31 @@ public class GeoMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("Element2Type must be Auto, Point, Line, or Circle");
         }
 
+        var distanceModel = GetStringParam(@operator, "DistanceModel", "InfiniteLine");
+        if (!TryParseDistanceModel(distanceModel, out _))
+        {
+            return ValidationResult.Invalid("DistanceModel must be InfiniteLine or Segment");
+        }
+
         return ValidationResult.Valid();
+    }
+
+    private static bool TryParseDistanceModel(string model, out DistanceModel parsed)
+    {
+        parsed = DistanceModel.InfiniteLine;
+        if (string.Equals(model, "InfiniteLine", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = DistanceModel.InfiniteLine;
+            return true;
+        }
+
+        if (string.Equals(model, "Segment", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = DistanceModel.Segment;
+            return true;
+        }
+
+        return false;
     }
 
     private static GeoElementType ResolveType(object raw, string preferred)
@@ -235,6 +278,75 @@ public class GeoMeasurementOperator : OperatorBase
         }
 
         return Math.Abs(a * px + b * py + c) / denominator;
+    }
+
+    private static double DistanceLineToLineInfinite(LineData line1, LineData line2, bool hasIntersection)
+    {
+        if (hasIntersection)
+        {
+            return 0.0;
+        }
+
+        return DistancePointToLine(line1.StartX, line1.StartY, line2);
+    }
+
+    private static double DistanceSegmentToSegment(LineData line1, LineData line2)
+    {
+        if (TryGetSegmentIntersection(line1, line2, out _))
+        {
+            return 0.0;
+        }
+
+        var d1 = DistancePointToSegment(line1.StartX, line1.StartY, line2);
+        var d2 = DistancePointToSegment(line1.EndX, line1.EndY, line2);
+        var d3 = DistancePointToSegment(line2.StartX, line2.StartY, line1);
+        var d4 = DistancePointToSegment(line2.EndX, line2.EndY, line1);
+        return Math.Min(Math.Min(d1, d2), Math.Min(d3, d4));
+    }
+
+    private static double DistancePointToSegment(double px, double py, LineData line)
+    {
+        var dx = line.EndX - line.StartX;
+        var dy = line.EndY - line.StartY;
+        var norm2 = dx * dx + dy * dy;
+        if (norm2 < 1e-9)
+        {
+            return Math.Sqrt((px - line.StartX) * (px - line.StartX) + (py - line.StartY) * (py - line.StartY));
+        }
+
+        var t = ((px - line.StartX) * dx + (py - line.StartY) * dy) / norm2;
+        t = Math.Clamp(t, 0.0, 1.0);
+        var projX = line.StartX + t * dx;
+        var projY = line.StartY + t * dy;
+        var ex = px - projX;
+        var ey = py - projY;
+        return Math.Sqrt(ex * ex + ey * ey);
+    }
+
+    private static bool TryGetSegmentIntersection(LineData l1, LineData l2, out Position intersection)
+    {
+        intersection = new Position(0, 0);
+        if (!TryGetLineIntersection(l1, l2, out var cross))
+        {
+            return false;
+        }
+
+        if (IsPointOnSegment(cross, l1) && IsPointOnSegment(cross, l2))
+        {
+            intersection = cross;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPointOnSegment(Position p, LineData line)
+    {
+        var minX = Math.Min(line.StartX, line.EndX) - 1e-6;
+        var maxX = Math.Max(line.StartX, line.EndX) + 1e-6;
+        var minY = Math.Min(line.StartY, line.EndY) - 1e-6;
+        var maxY = Math.Max(line.StartY, line.EndY) + 1e-6;
+        return p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY;
     }
 
     private static double AngleBetweenLines(LineData l1, LineData l2)
@@ -497,6 +609,12 @@ public class GeoMeasurementOperator : OperatorBase
         Point,
         Line,
         Circle
+    }
+
+    private enum DistanceModel
+    {
+        InfiniteLine = 0,
+        Segment = 1
     }
 
     private sealed record CircleSpec(double CenterX, double CenterY, double Radius);

@@ -42,10 +42,66 @@ public class GeoMeasurementOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_LineLine_InfiniteLineModel_ShouldReturnZero_WhenInfiniteLinesIntersect()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Element1Type", "Line" },
+            { "Element2Type", "Line" },
+            { "DistanceModel", "InfiniteLine" }
+        });
+
+        var inputs = new Dictionary<string, object>
+        {
+            { "Element1", new LineData(0, 0, 10, 0) },
+            { "Element2", new LineData(20, 5, 20, 15) }
+        };
+
+        var result = await sut.ExecuteAsync(op, inputs);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.Equal(0.0, Convert.ToDouble(result.OutputData!["Distance"]), 6);
+        Assert.Equal("InfiniteLine", result.OutputData["DistanceModel"]);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LineLine_SegmentModel_ShouldReturnSegmentShortestDistance()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Element1Type", "Line" },
+            { "Element2Type", "Line" },
+            { "DistanceModel", "Segment" }
+        });
+
+        var inputs = new Dictionary<string, object>
+        {
+            { "Element1", new LineData(0, 0, 10, 0) },
+            { "Element2", new LineData(20, 5, 20, 15) }
+        };
+
+        var result = await sut.ExecuteAsync(op, inputs);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.Equal(Math.Sqrt(125.0), Convert.ToDouble(result.OutputData!["Distance"]), 3);
+        Assert.Equal("Segment", result.OutputData["DistanceModel"]);
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidType_ShouldReturnInvalid()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object> { { "Element1Type", "Ellipse" } });
+        Assert.False(sut.ValidateParameters(op).IsValid);
+    }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidDistanceModel_ShouldReturnInvalid()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object> { { "DistanceModel", "Ray" } });
         Assert.False(sut.ValidateParameters(op).IsValid);
     }
 
@@ -68,4 +124,3 @@ public class GeoMeasurementOperatorTests
         return op;
     }
 }
-

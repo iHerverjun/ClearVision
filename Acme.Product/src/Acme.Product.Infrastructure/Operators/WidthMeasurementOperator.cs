@@ -28,12 +28,20 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = false)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OutputPort("Width", "Width", PortDataType.Float)]
+[OutputPort("MeanWidth", "Mean Width", PortDataType.Float)]
 [OutputPort("MinWidth", "Min Width", PortDataType.Float)]
 [OutputPort("MaxWidth", "Max Width", PortDataType.Float)]
+[OutputPort("P95Width", "P95 Width", PortDataType.Float)]
+[OutputPort("StdDev", "StdDev", PortDataType.Float)]
+[OutputPort("ValidSampleRate", "Valid Sample Rate", PortDataType.Float)]
 [OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "AutoEdge", Options = new[] { "AutoEdge|AutoEdge", "ManualLines|ManualLines" })]
 [OperatorParam("NumSamples", "Sample Count", "int", DefaultValue = 24, Min = 10, Max = 100)]
 [OperatorParam("Direction", "Direction", "enum", DefaultValue = "Perpendicular", Options = new[] { "Perpendicular|Perpendicular", "Custom|Custom" })]
 [OperatorParam("CustomAngle", "Custom Angle", "double", DefaultValue = 0.0, Min = -180.0, Max = 180.0)]
+[OperatorParam("RobustMode", "Robust Mode", "bool", DefaultValue = true)]
+[OperatorParam("OutlierSigmaK", "Outlier Sigma K", "double", DefaultValue = 3.0, Min = 0.5, Max = 10.0)]
+[OperatorParam("MinValidSamples", "Min Valid Samples", "int", DefaultValue = 0, Min = 0, Max = 256)]
+[OperatorParam("MultiScanCount", "Multi Scan Count", "int", DefaultValue = 24, Min = 10, Max = 256)]
 public class WidthMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.WidthMeasurement;
@@ -62,6 +70,10 @@ public class WidthMeasurementOperator : OperatorBase
         var numSamples = GetIntParam(@operator, "NumSamples", 24, 10, 100);
         var direction = GetStringParam(@operator, "Direction", "Perpendicular");
         var customAngle = GetDoubleParam(@operator, "CustomAngle", 0.0, -180.0, 180.0);
+        var robustMode = GetBoolParam(@operator, "RobustMode", true);
+        var outlierSigmaK = GetDoubleParam(@operator, "OutlierSigmaK", 3.0, 0.5, 10.0);
+        var minValidSamples = GetIntParam(@operator, "MinValidSamples", 0, 0, 256);
+        var multiScanCount = GetIntParam(@operator, "MultiScanCount", numSamples, 10, 256);
 
         LineData line1;
         LineData line2;
@@ -93,18 +105,45 @@ public class WidthMeasurementOperator : OperatorBase
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         }
 
-        var measurements = BuildMeasurementSamples(gray, line1, line2, numSamples, direction, customAngle);
+        var measurements = BuildMeasurementSamples(gray, line1, line2, multiScanCount, direction, customAngle);
         if (measurements.Count == 0)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("No valid width samples generated"));
         }
 
-        var widths = measurements.Select(m => m.Width).ToList();
-
-        var minWidth = widths.Min();
-        var maxWidth = widths.Max();
-        var meanWidth = widths.Average();
+        var allWidths = measurements.Select(m => m.Width).ToList();
         var refinedSampleCount = measurements.Count(m => m.UsedSubpixel);
+        var preferredWidths = refinedSampleCount > 0
+            ? measurements.Where(m => m.UsedSubpixel).Select(m => m.Width).ToList()
+            : allWidths;
+
+        if (minValidSamples > 0 && preferredWidths.Count < minValidSamples)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"[NoFeature] Valid sample count {preferredWidths.Count} is below MinValidSamples {minValidSamples}"));
+        }
+
+        var usedWidths = robustMode ? ApplyMadOutlierFilter(preferredWidths, outlierSigmaK) : preferredWidths;
+        if (usedWidths.Count == 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("[NoFeature] No width samples remained after robust filtering"));
+        }
+
+        if (minValidSamples > 0 && usedWidths.Count < minValidSamples)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"[NoFeature] Robust valid sample count {usedWidths.Count} is below MinValidSamples {minValidSamples}"));
+        }
+
+        var minWidth = usedWidths.Min();
+        var maxWidth = usedWidths.Max();
+        var meanWidth = usedWidths.Average();
+        var p95Width = ComputePercentile(usedWidths, 0.95);
+        var stdDev = ComputeStandardDeviation(usedWidths, meanWidth);
+        var validSampleRate = measurements.Count > 0
+            ? preferredWidths.Count / (double)measurements.Count
+            : 0.0;
+        var confidence = Math.Clamp(validSampleRate, 0.0, 1.0);
 
         var resultImage = src.Clone();
         DrawMeasurementOverlay(resultImage, line1, line2, measurements, meanWidth, minWidth, maxWidth);
@@ -112,11 +151,22 @@ public class WidthMeasurementOperator : OperatorBase
         var output = CreateImageOutput(resultImage, "ImageWidth", "ImageHeight", new Dictionary<string, object>
         {
             { "Width", meanWidth },
+            { "MeanWidth", meanWidth },
             { "MinWidth", minWidth },
             { "MaxWidth", maxWidth },
+            { "P95Width", p95Width },
+            { "StdDev", stdDev },
+            { "ValidSampleRate", validSampleRate },
             { "Direction", direction },
             { "RefinedSampleCount", refinedSampleCount },
-            { "SampleCount", measurements.Count }
+            { "SampleCount", measurements.Count },
+            { "ValidSampleCount", usedWidths.Count },
+            { "RobustMode", robustMode },
+            { "OutlierSigmaK", outlierSigmaK },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", confidence },
+            { "UncertaintyPx", stdDev }
         });
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -137,6 +187,12 @@ public class WidthMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("NumSamples must be within [10, 100]");
         }
 
+        var multiScanCount = GetIntParam(@operator, "MultiScanCount", samples);
+        if (multiScanCount < 10 || multiScanCount > 256)
+        {
+            return ValidationResult.Invalid("MultiScanCount must be within [10, 256]");
+        }
+
         var direction = GetStringParam(@operator, "Direction", "Perpendicular");
         var validDirections = new[] { "Perpendicular", "Custom" };
         if (!validDirections.Contains(direction, StringComparer.OrdinalIgnoreCase))
@@ -144,7 +200,76 @@ public class WidthMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("Direction must be Perpendicular or Custom");
         }
 
+        var outlierSigmaK = GetDoubleParam(@operator, "OutlierSigmaK", 3.0);
+        if (outlierSigmaK < 0.5 || outlierSigmaK > 10.0)
+        {
+            return ValidationResult.Invalid("OutlierSigmaK must be within [0.5, 10.0]");
+        }
+
+        var minValidSamples = GetIntParam(@operator, "MinValidSamples", 0);
+        if (minValidSamples < 0 || minValidSamples > 256)
+        {
+            return ValidationResult.Invalid("MinValidSamples must be within [0, 256]");
+        }
+
         return ValidationResult.Valid();
+    }
+
+    private static List<double> ApplyMadOutlierFilter(IReadOnlyList<double> values, double sigmaK)
+    {
+        if (values.Count <= 2)
+        {
+            return values.ToList();
+        }
+
+        var median = ComputePercentile(values, 0.5);
+        var absDeviation = values.Select(v => Math.Abs(v - median)).ToList();
+        var mad = ComputePercentile(absDeviation, 0.5);
+        var robustSigma = mad * 1.4826;
+        if (robustSigma < 1e-6)
+        {
+            return values.ToList();
+        }
+
+        var threshold = robustSigma * sigmaK;
+        return values.Where(v => Math.Abs(v - median) <= threshold).ToList();
+    }
+
+    private static double ComputeStandardDeviation(IReadOnlyList<double> values, double mean)
+    {
+        if (values.Count <= 1)
+        {
+            return 0.0;
+        }
+
+        var variance = values.Select(v => (v - mean) * (v - mean)).Sum() / (values.Count - 1);
+        return Math.Sqrt(Math.Max(0.0, variance));
+    }
+
+    private static double ComputePercentile(IReadOnlyList<double> values, double percentile)
+    {
+        if (values.Count == 0)
+        {
+            return 0.0;
+        }
+
+        var ordered = values.OrderBy(v => v).ToList();
+        if (ordered.Count == 1)
+        {
+            return ordered[0];
+        }
+
+        var p = Math.Clamp(percentile, 0.0, 1.0);
+        var pos = p * (ordered.Count - 1);
+        var lower = (int)Math.Floor(pos);
+        var upper = (int)Math.Ceiling(pos);
+        if (lower == upper)
+        {
+            return ordered[lower];
+        }
+
+        var ratio = pos - lower;
+        return ordered[lower] * (1.0 - ratio) + ordered[upper] * ratio;
     }
 
     private static List<MeasurementSample> BuildMeasurementSamples(Mat gray, LineData line1, LineData line2, int numSamples, string direction, double customAngle)

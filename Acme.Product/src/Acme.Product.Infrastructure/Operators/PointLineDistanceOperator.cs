@@ -55,12 +55,17 @@ public class PointLineDistanceOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input 'Line' is missing or invalid"));
         }
 
+        if (!IsFinitePoint(point) || !IsFiniteLine(line))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Point/Line coordinates must be finite numbers"));
+        }
+
         var dx = line.EndX - line.StartX;
         var dy = line.EndY - line.StartY;
         var norm2 = dx * dx + dy * dy;
         if (norm2 < 1e-9)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Line is degenerate (zero length)"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Line is zero length"));
         }
 
         var t = ((point.X - line.StartX) * dx + (point.Y - line.StartY) * dy) / norm2;
@@ -76,7 +81,11 @@ public class PointLineDistanceOperator : OperatorBase
             { "Distance", distance },
             { "FootPoint", new Position(footX, footY) },
             { "FootPointX", footX },
-            { "FootPointY", footY }
+            { "FootPointY", footY },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -217,6 +226,19 @@ public class PointLineDistanceOperator : OperatorBase
         }
 
         return double.TryParse(raw.ToString(), out value);
+    }
+
+    private static bool IsFinitePoint(Position point)
+    {
+        return double.IsFinite(point.X) && double.IsFinite(point.Y);
+    }
+
+    private static bool IsFiniteLine(LineData line)
+    {
+        return double.IsFinite(line.StartX) &&
+               double.IsFinite(line.StartY) &&
+               double.IsFinite(line.EndX) &&
+               double.IsFinite(line.EndY);
     }
 }
 

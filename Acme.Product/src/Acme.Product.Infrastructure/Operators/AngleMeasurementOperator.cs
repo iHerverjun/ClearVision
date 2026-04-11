@@ -1,25 +1,18 @@
-// AngleMeasurementOperator.cs
-// 角度测量算子 - 基于三点计算角度
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 角度测量算子 - 基于三点计算角度
-/// </summary>
 [OperatorMeta(
     DisplayName = "角度测量",
-    Description = "基于三点计算角度",
+    Description = "基于三点计算夹角。",
     Category = "检测",
     IconName = "angle-measure",
-    Keywords = new[] { "角度", "三点", "弧度", "夹角", "Angle", "Degree", "Radian" }
+    Keywords = new[] { "角度", "三点", "夹角", "Angle", "Degree", "Radian" }
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "结果图像", PortDataType.Image)]
@@ -49,77 +42,83 @@ public class AngleMeasurementOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
         }
 
-        var point1X = GetIntParam(@operator, "Point1X", 0);
-        var point1Y = GetIntParam(@operator, "Point1Y", 0);
-        var point2X = GetIntParam(@operator, "Point2X", 100);
-        var point2Y = GetIntParam(@operator, "Point2Y", 100);
-        var point3X = GetIntParam(@operator, "Point3X", 200);
-        var point3Y = GetIntParam(@operator, "Point3Y", 0);
         var unit = GetStringParam(@operator, "Unit", "Degree");
+        var p1 = new Point(GetIntParam(@operator, "Point1X", 0), GetIntParam(@operator, "Point1Y", 0));
+        var p2 = new Point(GetIntParam(@operator, "Point2X", 100), GetIntParam(@operator, "Point2Y", 100));
+        var p3 = new Point(GetIntParam(@operator, "Point3X", 200), GetIntParam(@operator, "Point3Y", 0));
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("输入图像无效"));
         }
+
+        var v1x = p1.X - p2.X;
+        var v1y = p1.Y - p2.Y;
+        var v2x = p3.X - p2.X;
+        var v2y = p3.Y - p2.Y;
+        var len1 = Math.Sqrt(v1x * v1x + v1y * v1y);
+        var len2 = Math.Sqrt(v2x * v2x + v2y * v2y);
+        if (len1 < 1e-9 || len2 < 1e-9)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Angle vertex has zero-length arm"));
+        }
+
+        var angleRad = ComputeAngleRadians(v1x, v1y, v2x, v2y, len1, len2);
+        var angle = unit.Equals("Radian", StringComparison.OrdinalIgnoreCase)
+            ? angleRad
+            : angleRad * 180.0 / Math.PI;
 
         var resultImage = src.Clone();
+        DrawGeometry(resultImage, p1, p2, p3, angle, unit);
 
-        var p1 = new Point(point1X, point1Y);
-        var p2 = new Point(point2X, point2Y);
-        var p3 = new Point(point3X, point3Y);
-
-        Cv2.Circle(resultImage, p1, 5, new Scalar(0, 0, 255), -1);
-        Cv2.Circle(resultImage, p2, 5, new Scalar(0, 255, 0), -1);
-        Cv2.Circle(resultImage, p3, 5, new Scalar(255, 0, 0), -1);
-        Cv2.Line(resultImage, p1, p2, new Scalar(0, 255, 255), 2);
-        Cv2.Line(resultImage, p2, p3, new Scalar(0, 255, 255), 2);
-
-        double angle = CalculateAngle(p1, p2, p3, unit);
-
-        var text = $"Angle: {angle:F2} {unit}";
-        Cv2.PutText(resultImage, text, new Point(p2.X + 10, p2.Y - 10), HersheyFonts.HersheySimplex, 0.7, new Scalar(255, 255, 255), 2);
-
-        // P0: 使用ImageWrapper实现零拷贝输出
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, new Dictionary<string, object>
+        var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "Angle", angle },
-            { "Unit", unit }
-        })));
-    }
+            { "Unit", unit },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", 0.0 }
+        });
 
-    private double CalculateAngle(Point p1, Point p2, Point p3, string unit)
-    {
-        double v1x = p1.X - p2.X;
-        double v1y = p1.Y - p2.Y;
-        double v2x = p3.X - p2.X;
-        double v2y = p3.Y - p2.Y;
-
-        double angle1 = Math.Atan2(v1y, v1x);
-        double angle2 = Math.Atan2(v2y, v2x);
-
-        double angle = angle2 - angle1;
-
-        if (angle < 0) angle += 2 * Math.PI;
-        if (angle > 2 * Math.PI) angle -= 2 * Math.PI;
-
-        if (angle > Math.PI) angle = 2 * Math.PI - angle;
-
-        if (unit.ToLower() == "degree")
-        {
-            angle = angle * 180 / Math.PI;
-        }
-
-        return angle;
+        return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var unit = GetStringParam(@operator, "Unit", "Degree");
-        if (unit.ToLower() != "degree" && unit.ToLower() != "radian")
+        if (!unit.Equals("Degree", StringComparison.OrdinalIgnoreCase) &&
+            !unit.Equals("Radian", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("角度单位必须是 Degree 或 Radian");
         }
+
         return ValidationResult.Valid();
+    }
+
+    private static double ComputeAngleRadians(double v1x, double v1y, double v2x, double v2y, double len1, double len2)
+    {
+        var dot = v1x * v2x + v1y * v2y;
+        var cosTheta = Math.Clamp(dot / (len1 * len2), -1.0, 1.0);
+        return Math.Acos(cosTheta);
+    }
+
+    private static void DrawGeometry(Mat image, Point p1, Point p2, Point p3, double angle, string unit)
+    {
+        Cv2.Circle(image, p1, 5, new Scalar(0, 0, 255), -1);
+        Cv2.Circle(image, p2, 5, new Scalar(0, 255, 0), -1);
+        Cv2.Circle(image, p3, 5, new Scalar(255, 0, 0), -1);
+        Cv2.Line(image, p1, p2, new Scalar(0, 255, 255), 2);
+        Cv2.Line(image, p2, p3, new Scalar(0, 255, 255), 2);
+
+        Cv2.PutText(
+            image,
+            $"Angle: {angle:F2} {unit}",
+            new Point(p2.X + 8, p2.Y - 8),
+            HersheyFonts.HersheySimplex,
+            0.7,
+            new Scalar(255, 255, 255),
+            2);
     }
 }

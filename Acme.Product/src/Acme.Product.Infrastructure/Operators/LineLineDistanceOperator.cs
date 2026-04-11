@@ -70,9 +70,14 @@ public class LineLineDistanceOperator : OperatorBase
         var len1 = Math.Sqrt(v1x * v1x + v1y * v1y);
         var len2 = Math.Sqrt(v2x * v2x + v2y * v2y);
 
+        if (!IsFiniteLine(line1) || !IsFiniteLine(line2))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Line coordinates must be finite numbers"));
+        }
+
         if (len1 < 1e-9 || len2 < 1e-9)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input line is degenerate"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Input line is zero length"));
         }
 
         var dot = v1x * v2x + v1y * v2y;
@@ -102,7 +107,11 @@ public class LineLineDistanceOperator : OperatorBase
             { "Angle", angleDeg },
             { "Intersection", intersection },
             { "HasIntersection", hasIntersection },
-            { "IsParallel", isParallel }
+            { "IsParallel", isParallel },
+            { "StatusCode", "OK" },
+            { "StatusMessage", "Success" },
+            { "Confidence", 1.0 },
+            { "UncertaintyPx", isParallel ? 0.01 : 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -221,6 +230,14 @@ public class LineLineDistanceOperator : OperatorBase
             long l => (value = l) == l,
             _ => double.TryParse(raw.ToString(), out value)
         };
+    }
+
+    private static bool IsFiniteLine(LineData line)
+    {
+        return double.IsFinite(line.StartX) &&
+               double.IsFinite(line.StartY) &&
+               double.IsFinite(line.EndX) &&
+               double.IsFinite(line.EndY);
     }
 }
 
