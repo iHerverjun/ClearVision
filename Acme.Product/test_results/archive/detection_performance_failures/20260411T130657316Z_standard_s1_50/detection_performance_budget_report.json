@@ -1,0 +1,174 @@
+{
+  "GeneratedAtUtc": "2026-04-11T13:06:57.3168634Z",
+  "GateProfile": "standard",
+  "WarmupIterations": 5,
+  "MeasuredIterations": 24,
+  "BudgetScale": 1.5,
+  "Entries": [
+    {
+      "Name": "AngleMeasurement",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "CaliperTool",
+      "BudgetMs": 50,
+      "Scale": 1.5,
+      "AllowedMs": 75,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "CircleMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "ContourMeasurement",
+      "BudgetMs": 40,
+      "Scale": 1.5,
+      "AllowedMs": 60,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "GapMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "GeoMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.005237499999999999,
+      "P95Ms": 0.0109,
+      "P99Ms": 0.0113,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeometricTolerance",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "HistogramAnalysis",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "LineLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.0026333333333333326,
+      "P95Ms": 0.0028,
+      "P99Ms": 0.0073,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "LineMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "MeasureDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "PixelStatistics",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "PointLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.0020166666666666666,
+      "P95Ms": 0.0053,
+      "P99Ms": 0.0078,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "SharpnessEvaluation",
+      "BudgetMs": 15,
+      "Scale": 1.5,
+      "AllowedMs": 22.5,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    },
+    {
+      "Name": "WidthMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: Cannot access a disposed object.\r\nObject name: \u0027Acme.Product.Infrastructure.Operators.ImageWrapper\u0027."
+    }
+  ]
+}

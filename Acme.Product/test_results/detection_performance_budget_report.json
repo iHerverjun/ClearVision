@@ -1,0 +1,174 @@
+{
+  "GeneratedAtUtc": "2026-04-11T14:00:44.9659402Z",
+  "GateProfile": "standard",
+  "WarmupIterations": 5,
+  "MeasuredIterations": 24,
+  "BudgetScale": 1.5,
+  "Entries": [
+    {
+      "Name": "AngleMeasurement",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.3798250000000001,
+      "P95Ms": 0.8293,
+      "P99Ms": 0.8686,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "CaliperTool",
+      "BudgetMs": 50,
+      "Scale": 1.5,
+      "AllowedMs": 75,
+      "MeanMs": 0.23405416666666667,
+      "P95Ms": 0.3874,
+      "P99Ms": 0.3954,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "CircleMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 6.190866666666666,
+      "P95Ms": 6.8546,
+      "P99Ms": 6.9193,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "ContourMeasurement",
+      "BudgetMs": 40,
+      "Scale": 1.5,
+      "AllowedMs": 60,
+      "MeanMs": 0.5759708333333333,
+      "P95Ms": 0.7197,
+      "P99Ms": 0.7347,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GapMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0.9694208333333331,
+      "P95Ms": 1.1648,
+      "P99Ms": 1.2065,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeoMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.007175000000000002,
+      "P95Ms": 0.008,
+      "P99Ms": 0.0139,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeometricTolerance",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.22314583333333335,
+      "P95Ms": 0.2633,
+      "P99Ms": 0.5408,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "HistogramAnalysis",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.7844791666666665,
+      "P95Ms": 0.9447,
+      "P99Ms": 0.9605,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "LineLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.0044375,
+      "P95Ms": 0.0047,
+      "P99Ms": 0.0102,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "LineMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 1.8064500000000001,
+      "P95Ms": 2.0738,
+      "P99Ms": 2.1302,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "MeasureDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.6459999999999999,
+      "P95Ms": 0.8103,
+      "P99Ms": 0.8637,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "PixelStatistics",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.5970458333333334,
+      "P95Ms": 0.7344,
+      "P99Ms": 0.8408,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "PointLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.003437500000000001,
+      "P95Ms": 0.0041,
+      "P99Ms": 0.0072,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "SharpnessEvaluation",
+      "BudgetMs": 15,
+      "Scale": 1.5,
+      "AllowedMs": 22.5,
+      "MeanMs": 1.4215874999999996,
+      "P95Ms": 1.764,
+      "P99Ms": 1.8341,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "WidthMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 1.058716666666667,
+      "P95Ms": 1.4614,
+      "P99Ms": 1.6456,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    }
+  ]
+}

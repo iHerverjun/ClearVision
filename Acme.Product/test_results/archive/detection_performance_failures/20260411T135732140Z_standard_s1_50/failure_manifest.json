@@ -1,0 +1,145 @@
+{
+  "GeneratedAtUtc": "2026-04-11T13:57:32.1406973Z",
+  "ArchivedAtUtc": "2026-04-11T13:57:32.1556766Z",
+  "GateProfile": "standard",
+  "WarmupIterations": 5,
+  "MeasuredIterations": 24,
+  "BudgetScale": 1.5,
+  "ArchiveDirectory": "C:\\Users\\A\\Desktop\\ClearVision\\Acme.Product\\test_results\\archive\\detection_performance_failures\\20260411T135732140Z_standard_s1_50",
+  "MachineName": "\u8605\u829C\u541B\u7684PC",
+  "RuntimeVersion": "8.0.22",
+  "FailedEntries": [
+    {
+      "Name": "AngleMeasurement",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "CaliperTool",
+      "BudgetMs": 50,
+      "Scale": 1.5,
+      "AllowedMs": 75,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "CircleMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "ContourMeasurement",
+      "BudgetMs": 40,
+      "Scale": 1.5,
+      "AllowedMs": 60,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "GapMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "GeometricTolerance",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "HistogramAnalysis",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "LineMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "MeasureDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "PixelStatistics",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "SharpnessEvaluation",
+      "BudgetMs": 15,
+      "Scale": 1.5,
+      "AllowedMs": 22.5,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    },
+    {
+      "Name": "WidthMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0,
+      "P95Ms": 0,
+      "P99Ms": 0,
+      "Status": "ERROR",
+      "Notes": "Execution failed: [ImageWrapper] \u5F15\u7528\u8BA1\u6570\u4E3A\u8D1F\uFF0C\u68C0\u6D4B\u5230\u53CC\u91CD\u91CA\u653E Bug"
+    }
+  ]
+}
