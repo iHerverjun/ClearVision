@@ -65,6 +65,8 @@ public sealed class SimplePatchCoreFeatureBank
 
 public sealed class SimplePatchCoreAnalysisResult
 {
+    public const string NormalizedDistance01Domain = "normalized_distance_0_to_1";
+
     public required float Score { get; init; }
 
     public required bool IsAnomaly { get; init; }
@@ -76,6 +78,8 @@ public sealed class SimplePatchCoreAnalysisResult
     public required int PatchCount { get; init; }
 
     public required float ThresholdUsed { get; init; }
+
+    public required string ThresholdScoreDomain { get; init; }
 }
 
 public static class SimplePatchCoreDetector
@@ -182,26 +186,29 @@ public static class SimplePatchCoreDetector
             roi.SetTo(Math.Max(normalized, (float)roi.Mean().Val0));
         }
 
+        var clampedThreshold = (float)Math.Clamp(threshold, 0d, 1d);
+
         using var blurred = new Mat();
         Cv2.GaussianBlur(patchScoreMap, blurred, new Size(0, 0), 3.0);
 
-        using var normalizedMap = new Mat();
-        Cv2.Normalize(blurred, normalizedMap, 0, 255, NormTypes.MinMax, MatType.CV_8UC1);
+        using var heatmapInput = new Mat();
+        blurred.ConvertTo(heatmapInput, MatType.CV_8UC1, 255.0);
 
         var mask = new Mat();
-        Cv2.Threshold(normalizedMap, mask, Math.Clamp(threshold, 0d, 1d) * 255d, 255, ThresholdTypes.Binary);
+        Cv2.Compare(patchScoreMap, new Scalar(clampedThreshold), mask, CmpType.GE);
 
         var heatmap = new Mat();
-        Cv2.ApplyColorMap(normalizedMap, heatmap, ColormapTypes.Turbo);
+        Cv2.ApplyColorMap(heatmapInput, heatmap, ColormapTypes.Turbo);
 
         return new SimplePatchCoreAnalysisResult
         {
             Score = maxScore,
-            IsAnomaly = maxScore >= threshold,
+            IsAnomaly = maxScore >= clampedThreshold,
             Heatmap = heatmap,
             Mask = mask,
             PatchCount = patches.Count,
-            ThresholdUsed = (float)Math.Clamp(threshold, 0d, 1d)
+            ThresholdUsed = clampedThreshold,
+            ThresholdScoreDomain = SimplePatchCoreAnalysisResult.NormalizedDistance01Domain
         };
     }
 

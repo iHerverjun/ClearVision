@@ -413,9 +413,12 @@ public class DeepLearningOperator : OperatorBase
 
         var lockObj = _modelLocks.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
 
-        lockObj.Wait(cancellationToken);
+        var lockAcquired = false;
         try
         {
+            lockObj.WaitAsync(cancellationToken).ConfigureAwait(false).GetAwaiter().GetResult();
+            lockAcquired = true;
+
             if (_modelCache.TryGetValue(cacheKey, out cachedSessionEntry))
             {
                 if (cachedSessionEntry.TryAcquire(out var cachedLease))
@@ -487,6 +490,10 @@ public class DeepLearningOperator : OperatorBase
 
             return createdLease;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "[DeepLearning] Failed to load model with verified execution provider");
@@ -494,7 +501,10 @@ public class DeepLearningOperator : OperatorBase
         }
         finally
         {
-            lockObj.Release();
+            if (lockAcquired)
+            {
+                lockObj.Release();
+            }
         }
     }
 

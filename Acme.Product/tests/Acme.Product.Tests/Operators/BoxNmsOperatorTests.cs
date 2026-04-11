@@ -53,6 +53,36 @@ public class BoxNmsOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithCaseVariantLabels_ShouldSuppressAsSameClass()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "IouThreshold", 0.5 },
+            { "ScoreThreshold", 0.1 },
+            { "MaxDetections", 10 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("Defect", 0.95f, 10, 10, 40, 40),
+            new DetectionResult("defect", 0.85f, 12, 12, 40, 40),
+            new DetectionResult("DEFECT", 0.75f, 80, 80, 30, 30)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(2);
+        result.OutputData["SuppressedCount"].Should().Be(1);
+
+        var keptDetections = result.OutputData["Detections"].Should().BeOfType<DetectionList>().Subject;
+        keptDetections.Detections.Should().ContainSingle(d => d.Confidence == 0.95f);
+        keptDetections.Detections.Should().ContainSingle(d => d.Confidence == 0.75f);
+        keptDetections.Detections.Should().NotContain(d => d.Confidence == 0.85f);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenMaxDetectionsTrimsResults_ShouldCountTrimmedBoxesAsSuppressed()
     {
         var op = CreateOperator(new Dictionary<string, object>

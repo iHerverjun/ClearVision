@@ -60,13 +60,15 @@ public class EdgePairDefectOperator : OperatorBase
         var sampleCount = GetIntParam(@operator, "NumSamples", 100, 5, 5000);
         var edgeMethod = GetStringParam(@operator, "EdgeMethod", "Canny");
 
-        if (!TryResolveLines(src, inputs, edgeMethod, out var line1, out var line2))
+        if (!TryResolveLines(src, inputs, edgeMethod, expectedWidth, tolerance, out var line1, out var line2))
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Failed to resolve Line1/Line2 for edge-pair inspection"));
         }
 
         var deviations = new List<double>(sampleCount);
         var defectPoints = new List<Point>();
+        var defectSegmentCount = 0;
+        var inDefectSegment = false;
         var maxDeviation = 0.0;
 
         for (var i = 0; i < sampleCount; i++)
@@ -88,6 +90,15 @@ public class EdgePairDefectOperator : OperatorBase
             if (abs > tolerance)
             {
                 defectPoints.Add(new Point((int)Math.Round(x), (int)Math.Round(y)));
+                if (!inDefectSegment)
+                {
+                    defectSegmentCount++;
+                    inDefectSegment = true;
+                }
+            }
+            else
+            {
+                inDefectSegment = false;
             }
         }
 
@@ -102,7 +113,7 @@ public class EdgePairDefectOperator : OperatorBase
 
         Cv2.PutText(
             result,
-            $"Defects:{defectPoints.Count} MaxDev:{maxDeviation:F2}",
+            $"Defects:{defectSegmentCount} MaxDev:{maxDeviation:F2}",
             new Point(8, 24),
             HersheyFonts.HersheySimplex,
             0.6,
@@ -111,7 +122,7 @@ public class EdgePairDefectOperator : OperatorBase
 
         var output = new Dictionary<string, object>
         {
-            { "DefectCount", defectPoints.Count },
+            { "DefectCount", defectSegmentCount },
             { "MaxDeviation", maxDeviation },
             { "Deviations", deviations }
         };
@@ -143,7 +154,14 @@ public class EdgePairDefectOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static bool TryResolveLines(Mat src, Dictionary<string, object>? inputs, string edgeMethod, out LineData line1, out LineData line2)
+    private static bool TryResolveLines(
+        Mat src,
+        Dictionary<string, object>? inputs,
+        string edgeMethod,
+        double expectedWidth,
+        double tolerance,
+        out LineData line1,
+        out LineData line2)
     {
         line1 = new LineData();
         line2 = new LineData();
@@ -157,10 +175,16 @@ public class EdgePairDefectOperator : OperatorBase
             return true;
         }
 
-        return TryDetectLinesFromImage(src, edgeMethod, out line1, out line2);
+        return TryDetectLinesFromImage(src, edgeMethod, expectedWidth, tolerance, out line1, out line2);
     }
 
-    private static bool TryDetectLinesFromImage(Mat src, string edgeMethod, out LineData line1, out LineData line2)
+    private static bool TryDetectLinesFromImage(
+        Mat src,
+        string edgeMethod,
+        double expectedWidth,
+        double tolerance,
+        out LineData line1,
+        out LineData line2)
     {
         line1 = new LineData();
         line2 = new LineData();
@@ -227,7 +251,10 @@ public class EdgePairDefectOperator : OperatorBase
                     continue;
                 }
 
-                var score = a.Length + b.Length + separation;
+                var widthDelta = Math.Abs(separation - expectedWidth);
+                var widthPenalty = widthDelta * (10.0 / (tolerance + 1.0));
+                var withinToleranceBonus = widthDelta <= tolerance ? 60.0 : 0.0;
+                var score = a.Length + b.Length - widthPenalty + withinToleranceBonus;
                 if (score > bestScore)
                 {
                     bestScore = score;

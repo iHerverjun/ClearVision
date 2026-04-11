@@ -597,9 +597,14 @@ public class ColorDetectionOperator : OperatorBase
             return false;
         }
 
-        refL = l ?? 0;
-        refA = a ?? 0;
-        refB = b ?? 0;
+        if (l == null || a == null || b == null)
+        {
+            return false;
+        }
+
+        refL = l.Value;
+        refA = a.Value;
+        refB = b.Value;
         return true;
     }
 
@@ -677,7 +682,7 @@ public class ColorDetectionOperator : OperatorBase
             var hasL = TryGetDouble(dict, "L", out refL);
             var hasA = TryGetDouble(dict, "A", out refA);
             var hasB = TryGetDouble(dict, "B", out refB);
-            return hasL || hasA || hasB;
+            return hasL && hasA && hasB;
         }
 
         return false;

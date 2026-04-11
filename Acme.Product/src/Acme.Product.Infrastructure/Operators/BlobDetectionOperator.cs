@@ -231,7 +231,7 @@ public class BlobDetectionOperator : OperatorBase
             }
 
             using var binary = new Mat();
-            Cv2.Threshold(gray, binary, 0, 255, ThresholdTypes.Binary);
+            ApplyAutomaticThreshold(gray, binary);
 
             if (color.Equals("Black", StringComparison.OrdinalIgnoreCase))
             {
@@ -532,6 +532,20 @@ public class BlobDetectionOperator : OperatorBase
         }
 
         return -1;
+    }
+
+    private static void ApplyAutomaticThreshold(Mat gray, Mat binary)
+    {
+        Cv2.MinMaxLoc(gray, out double minVal, out double maxVal);
+        if (maxVal <= minVal)
+        {
+            // Low-dynamic frames are effectively uniform; keep output stable and avoid full-foreground masks.
+            binary.Create(gray.Rows, gray.Cols, MatType.CV_8UC1);
+            binary.SetTo(Scalar.Black);
+            return;
+        }
+
+        Cv2.Threshold(gray, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
     }
 
     private static int CountHoles(HierarchyIndex[] hierarchy, int externalIndex)

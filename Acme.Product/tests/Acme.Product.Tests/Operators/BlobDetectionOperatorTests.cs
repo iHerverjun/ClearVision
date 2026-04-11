@@ -1,7 +1,3 @@
-// BlobDetectionOperatorTests.cs
-// BlobDetectionOperatorTests测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
@@ -107,5 +103,26 @@ public class BlobDetectionOperatorTests
 
         var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
         Convert.ToDouble(blobs[0]["Rectangularity"]).Should().BeGreaterThan(0.95);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithLowIntensityBackground_ShouldNotTreatAllNonZeroPixelsAsForeground()
+    {
+        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinArea", 100, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("MaxArea", 10000, "int"));
+
+        using var mat = new Mat(256, 256, MatType.CV_8UC1, new Scalar(10));
+        Cv2.Circle(mat, new Point(128, 128), 30, new Scalar(220), -1);
+
+        var inputs = TestHelpers.CreateImageInputs(new ImageWrapper(mat));
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue();
+        Convert.ToInt32(result.OutputData!["BlobCount"]).Should().Be(1);
+
+        var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
+        blobs.Should().HaveCount(1);
+        Convert.ToDouble(blobs[0]["Area"]).Should().BeLessThan(10000);
     }
 }

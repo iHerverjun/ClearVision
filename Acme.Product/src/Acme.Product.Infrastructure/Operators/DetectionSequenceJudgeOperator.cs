@@ -224,11 +224,21 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
             .Select((detection, index) => SequenceDetection.Create(CloneDetection(detection), index))
             .ToList();
 
-        var slotPoints = ResolveSlotPoints(inputs, @operator);
-        var perspective = ResolvePerspectiveContext(inputs, @operator);
+        if (!TryResolveSlotPoints(inputs, @operator, out var slotPoints, out var slotError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(slotError ?? "Failed to parse slot points."));
+        }
+
+        var perspective = ResolvePerspectiveContext(inputs, @operator, out var perspectiveError);
+        if (!string.IsNullOrWhiteSpace(perspectiveError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(perspectiveError));
+        }
+
         if (perspective.IsValid)
         {
             ApplyPerspective(filteredDetections, perspective);
+            ApplyPerspective(slotPoints, perspective);
         }
 
         var resolvedGroupingMode = ResolveGroupingMode(groupingMode, slotPoints.Count, filteredDetections.Count, rowTolerance);
@@ -591,33 +601,92 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
     {
         assignment = new List<AssignmentRecord>(slotOrder.Count);
         orderedDetections = new List<SequenceDetection>();
-        var remaining = detections.ToList();
+        if (slotOrder.Count == 0)
+        {
+            unassignedDetections = detections.ToList();
+            return;
+        }
 
-        for (var slotIndex = 0; slotIndex < slotOrder.Count; slotIndex++)
+        if (detections.Count == 0)
+        {
+            for (var slotIndex = 0; slotIndex < slotOrder.Count; slotIndex++)
+            {
+                var slot = slotOrder[slotIndex];
+                assignment.Add(new AssignmentRecord(slotIndex, expectedLabels.ElementAtOrDefault(slotIndex) ?? string.Empty, null, slot.X, slot.Y, -1));
+            }
+
+            unassignedDetections = new List<SequenceDetection>();
+            return;
+        }
+
+        const double unassignedPenalty = 1_000_000_000.0;
+        const double impossiblePenalty = 1_000_000_000_000.0;
+        const double confidenceTieBreakerScale = 1e-6;
+
+        var slotCount = slotOrder.Count;
+        var detectionCount = detections.Count;
+        var columnCount = detectionCount + slotCount;
+        var costMatrix = new double[slotCount][];
+
+        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
         {
             var slot = slotOrder[slotIndex];
-            var best = remaining
-                .Select(candidate => new
-                {
-                    Candidate = candidate,
-                    Distance = ComputeDistance(candidate.EvalX, candidate.EvalY, slot.X, slot.Y)
-                })
-                .OrderBy(item => item.Distance)
-                .ThenByDescending(item => item.Candidate.Detection.Confidence)
-                .FirstOrDefault();
+            var row = new double[columnCount];
 
-            if (best == null || best.Distance > slotTolerance)
+            for (var detectionIndex = 0; detectionIndex < detectionCount; detectionIndex++)
             {
-                assignment.Add(new AssignmentRecord(slotIndex, expectedLabels.ElementAtOrDefault(slotIndex) ?? string.Empty, null, slot.X, slot.Y, -1));
+                var detection = detections[detectionIndex];
+                var distance = ComputeDistance(detection.EvalX, detection.EvalY, slot.X, slot.Y);
+                if (distance > slotTolerance)
+                {
+                    row[detectionIndex] = impossiblePenalty;
+                    continue;
+                }
+
+                var confidence = Math.Clamp((double)detection.Detection.Confidence, 0.0, 1.0);
+                row[detectionIndex] = distance + ((1.0 - confidence) * confidenceTieBreakerScale);
+            }
+
+            for (var dummyIndex = 0; dummyIndex < slotCount; dummyIndex++)
+            {
+                var columnIndex = detectionCount + dummyIndex;
+                row[columnIndex] = dummyIndex == slotIndex ? unassignedPenalty : impossiblePenalty;
+            }
+
+            costMatrix[slotIndex] = row;
+        }
+
+        var matchedColumns = SolveHungarian(costMatrix);
+        var assignedDetectionIndexes = new HashSet<int>();
+
+        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        {
+            var slot = slotOrder[slotIndex];
+            var column = matchedColumns[slotIndex];
+            var expectedLabel = expectedLabels.ElementAtOrDefault(slotIndex) ?? string.Empty;
+
+            if (column < 0 || column >= detectionCount)
+            {
+                assignment.Add(new AssignmentRecord(slotIndex, expectedLabel, null, slot.X, slot.Y, -1));
                 continue;
             }
 
-            remaining.Remove(best.Candidate);
-            orderedDetections.Add(best.Candidate);
-            assignment.Add(new AssignmentRecord(slotIndex, expectedLabels.ElementAtOrDefault(slotIndex) ?? string.Empty, best.Candidate, slot.X, slot.Y, best.Distance));
+            var matchedDetection = detections[column];
+            var distance = ComputeDistance(matchedDetection.EvalX, matchedDetection.EvalY, slot.X, slot.Y);
+            if (distance > slotTolerance)
+            {
+                assignment.Add(new AssignmentRecord(slotIndex, expectedLabel, null, slot.X, slot.Y, -1));
+                continue;
+            }
+
+            assignedDetectionIndexes.Add(column);
+            orderedDetections.Add(matchedDetection);
+            assignment.Add(new AssignmentRecord(slotIndex, expectedLabel, matchedDetection, slot.X, slot.Y, distance));
         }
 
-        unassignedDetections = remaining;
+        unassignedDetections = detections
+            .Where((_, index) => !assignedDetectionIndexes.Contains(index))
+            .ToList();
     }
 
     private static string ResolveGroupingMode(string groupingMode, int slotCount, int detectionCount, double rowTolerance)
@@ -756,26 +825,198 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
-    private List<Point2f> ResolveSlotPoints(Dictionary<string, object>? inputs, Operator @operator)
+    private static int[] SolveHungarian(IReadOnlyList<double[]> costMatrix)
     {
-        if (inputs != null &&
-            inputs.TryGetValue("SlotPoints", out var rawInput) &&
-            TryParsePointCollection(rawInput, out var inputPoints))
+        var rowCount = costMatrix.Count;
+        if (rowCount == 0)
         {
-            return inputPoints;
+            return Array.Empty<int>();
+        }
+
+        var columnCount = costMatrix[0].Length;
+        if (columnCount == 0 || rowCount > columnCount)
+        {
+            throw new InvalidOperationException("Hungarian matching requires a non-empty cost matrix with columns >= rows.");
+        }
+
+        var u = new double[rowCount + 1];
+        var v = new double[columnCount + 1];
+        var p = new int[columnCount + 1];
+        var way = new int[columnCount + 1];
+
+        for (var row = 1; row <= rowCount; row++)
+        {
+            p[0] = row;
+            var minv = Enumerable.Repeat(double.PositiveInfinity, columnCount + 1).ToArray();
+            var used = new bool[columnCount + 1];
+            var column0 = 0;
+
+            do
+            {
+                used[column0] = true;
+                var row0 = p[column0];
+                var delta = double.PositiveInfinity;
+                var column1 = 0;
+
+                for (var column = 1; column <= columnCount; column++)
+                {
+                    if (used[column])
+                    {
+                        continue;
+                    }
+
+                    var current = costMatrix[row0 - 1][column - 1] - u[row0] - v[column];
+                    if (current < minv[column])
+                    {
+                        minv[column] = current;
+                        way[column] = column0;
+                    }
+
+                    if (minv[column] < delta)
+                    {
+                        delta = minv[column];
+                        column1 = column;
+                    }
+                }
+
+                for (var column = 0; column <= columnCount; column++)
+                {
+                    if (used[column])
+                    {
+                        u[p[column]] += delta;
+                        v[column] -= delta;
+                    }
+                    else
+                    {
+                        minv[column] -= delta;
+                    }
+                }
+
+                column0 = column1;
+            }
+            while (p[column0] != 0);
+
+            do
+            {
+                var column1 = way[column0];
+                p[column0] = p[column1];
+                column0 = column1;
+            }
+            while (column0 != 0);
+        }
+
+        var assignment = Enumerable.Repeat(-1, rowCount).ToArray();
+        for (var column = 1; column <= columnCount; column++)
+        {
+            if (p[column] > 0)
+            {
+                assignment[p[column] - 1] = column - 1;
+            }
+        }
+
+        return assignment;
+    }
+
+    private bool TryResolveSlotPoints(
+        Dictionary<string, object>? inputs,
+        Operator @operator,
+        out List<Point2f> points,
+        out string? error)
+    {
+        points = new List<Point2f>();
+        error = null;
+
+        if (inputs != null &&
+            inputs.TryGetValue("SlotPoints", out var rawInput))
+        {
+            if (!TryParsePointCollection(rawInput, out var inputPoints))
+            {
+                if (IsExplicitlyEmptyPointCollection(rawInput))
+                {
+                    return true;
+                }
+
+                error = "SlotPoints input contains invalid point data; each point must provide numeric x and y.";
+                return false;
+            }
+
+            points = inputPoints;
+            return true;
         }
 
         var expectedSlots = GetStringParam(@operator, "ExpectedSlots", string.Empty);
-        return TryParsePointCollection(expectedSlots, out var parameterPoints)
-            ? parameterPoints
-            : new List<Point2f>();
+        if (string.IsNullOrWhiteSpace(expectedSlots))
+        {
+            return true;
+        }
+
+        if (!TryParsePointCollection(expectedSlots, out var parameterPoints))
+        {
+            error = "ExpectedSlots must be a valid point list; each point must provide numeric x and y.";
+            return false;
+        }
+
+        points = parameterPoints;
+        return true;
     }
 
-    private PerspectiveContext ResolvePerspectiveContext(Dictionary<string, object>? inputs, Operator @operator)
+    private static bool IsExplicitlyEmptyPointCollection(object? raw)
     {
-        var hasSrc = TryResolvePointSet(inputs, @operator, "PerspectiveSrcPoints", "PerspectiveSrcPointsJson", out var srcPoints);
-        var hasDst = TryResolvePointSet(inputs, @operator, "PerspectiveDstPoints", "PerspectiveDstPointsJson", out var dstPoints);
-        if (!hasSrc || !hasDst || srcPoints.Count < 4 || dstPoints.Count < 4)
+        if (raw == null)
+        {
+            return true;
+        }
+
+        if (raw is string text)
+        {
+            return text.Trim().Equals("[]", StringComparison.Ordinal);
+        }
+
+        if (raw is JsonElement element &&
+            element.ValueKind == JsonValueKind.Array &&
+            element.GetArrayLength() == 0)
+        {
+            return true;
+        }
+
+        if (raw is IEnumerable enumerable &&
+            raw is not string &&
+            raw is not IDictionary)
+        {
+            foreach (var _ in enumerable)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private PerspectiveContext ResolvePerspectiveContext(Dictionary<string, object>? inputs, Operator @operator, out string? error)
+    {
+        error = null;
+
+        if (!TryResolvePointSet(inputs, @operator, "PerspectiveSrcPoints", "PerspectiveSrcPointsJson", out var srcPoints, out var srcProvided, out var srcError))
+        {
+            error = srcError;
+            return PerspectiveContext.Empty;
+        }
+
+        if (!TryResolvePointSet(inputs, @operator, "PerspectiveDstPoints", "PerspectiveDstPointsJson", out var dstPoints, out var dstProvided, out var dstError))
+        {
+            error = dstError;
+            return PerspectiveContext.Empty;
+        }
+
+        if (srcProvided ^ dstProvided)
+        {
+            error = "Perspective source/destination points must be provided in pairs and contain at least 4 points.";
+            return PerspectiveContext.Empty;
+        }
+
+        if (!srcProvided)
         {
             return PerspectiveContext.Empty;
         }
@@ -791,6 +1032,15 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
             var corrected = TransformPoint(new Point2d(detection.EvalX, detection.EvalY), perspective.Matrix);
             detection.EvalX = corrected.X;
             detection.EvalY = corrected.Y;
+        }
+    }
+
+    private static void ApplyPerspective(IList<Point2f> points, PerspectiveContext perspective)
+    {
+        for (var i = 0; i < points.Count; i++)
+        {
+            var corrected = TransformPoint(new Point2d(points[i].X, points[i].Y), perspective.Matrix);
+            points[i] = new Point2f((float)corrected.X, (float)corrected.Y);
         }
     }
 
@@ -829,15 +1079,30 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         Operator @operator,
         string inputPort,
         string jsonParamName,
-        out List<Point2f> points)
+        out List<Point2f> points,
+        out bool provided,
+        out string? error)
     {
         points = new List<Point2f>();
+        provided = false;
+        error = null;
 
-        if (inputs != null &&
-            inputs.TryGetValue(inputPort, out var rawInput) &&
-            TryParsePointCollection(rawInput, out var parsedInput) &&
-            parsedInput.Count >= 4)
+        if (inputs != null && inputs.TryGetValue(inputPort, out var rawInput))
         {
+            provided = true;
+
+            if (!TryParsePointCollection(rawInput, out var parsedInput))
+            {
+                error = $"{inputPort} contains invalid point data; each point must provide numeric x and y.";
+                return false;
+            }
+
+            if (parsedInput.Count < 4)
+            {
+                error = $"{inputPort} must contain at least 4 points.";
+                return false;
+            }
+
             points = parsedInput;
             return true;
         }
@@ -845,11 +1110,19 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         var json = GetStringParam(@operator, jsonParamName, string.Empty);
         if (string.IsNullOrWhiteSpace(json))
         {
+            return true;
+        }
+
+        provided = true;
+        if (!TryParsePointCollection(json, out var parsedJson))
+        {
+            error = $"{jsonParamName} contains invalid point data; each point must provide numeric x and y.";
             return false;
         }
 
-        if (!TryParsePointCollection(json, out var parsedJson) || parsedJson.Count < 4)
+        if (parsedJson.Count < 4)
         {
+            error = $"{jsonParamName} must contain at least 4 points.";
             return false;
         }
 
@@ -878,10 +1151,12 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
             case IEnumerable<object> list:
                 foreach (var item in list)
                 {
-                    if (TryParsePoint(item, out var point))
+                    if (!TryParsePoint(item, out var point))
                     {
-                        points.Add(point);
+                        return false;
                     }
+
+                    points.Add(point);
                 }
 
                 return points.Count > 0;
@@ -911,10 +1186,12 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    if (TryParsePoint(element, out var point))
+                    if (!TryParsePoint(element, out var point))
                     {
-                        points.Add(point);
+                        return false;
                     }
+
+                    points.Add(point);
                 }
 
                 return points.Count > 0;
@@ -981,42 +1258,58 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         point = default;
         if (element.ValueKind == JsonValueKind.Array && element.GetArrayLength() >= 2)
         {
-            point = new Point2f(ParseElementAsFloat(element[0]), ParseElementAsFloat(element[1]));
+            if (!TryParseElementAsFloat(element[0], out var x) || !TryParseElementAsFloat(element[1], out var y))
+            {
+                return false;
+            }
+
+            point = new Point2f(x, y);
             return true;
         }
 
         if (element.ValueKind == JsonValueKind.Object)
         {
-            point = new Point2f(
-                GetPropertyAsFloat(element, "x", "X"),
-                GetPropertyAsFloat(element, "y", "Y"));
+            if (!TryGetPropertyAsFloat(element, out var x, "x", "X") ||
+                !TryGetPropertyAsFloat(element, out var y, "y", "Y"))
+            {
+                return false;
+            }
+
+            point = new Point2f(x, y);
             return true;
         }
 
         return false;
     }
 
-    private static float ParseElementAsFloat(JsonElement element)
+    private static bool TryParseElementAsFloat(JsonElement element, out float value)
     {
-        return element.ValueKind switch
+        switch (element.ValueKind)
         {
-            JsonValueKind.Number => element.GetSingle(),
-            JsonValueKind.String => float.TryParse(element.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ? value : 0f,
-            _ => 0f
-        };
+            case JsonValueKind.Number:
+                value = element.GetSingle();
+                return true;
+            case JsonValueKind.String:
+                return float.TryParse(element.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+            default:
+                value = 0f;
+                return false;
+        }
     }
 
-    private static float GetPropertyAsFloat(JsonElement element, params string[] names)
+    private static bool TryGetPropertyAsFloat(JsonElement element, out float value, params string[] names)
     {
+        value = 0f;
         foreach (var name in names)
         {
-            if (element.TryGetProperty(name, out var value))
+            if (element.TryGetProperty(name, out var propertyValue) &&
+                TryParseElementAsFloat(propertyValue, out value))
             {
-                return ParseElementAsFloat(value);
+                return true;
             }
         }
 
-        return 0f;
+        return false;
     }
 
     private static bool TryGetFloat(IDictionary<string, object> dict, string key, out float value)

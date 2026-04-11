@@ -71,6 +71,63 @@ public class ColorDetectionOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceInput_ShouldIgnoreIncompleteReference()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "AnalysisMode", "LabDeltaE" },
+            { "DeltaEMethod", "CIEDE2000" },
+            { "RoiW", 40 },
+            { "RoiH", 40 }
+        });
+
+        using var image = CreateSolidColorImage(new Scalar(255, 0, 0));
+        var lab = CieLabConverter.BgrToLab(255, 0, 0);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["ReferenceColor"] = new Dictionary<string, object>
+        {
+            { "L", lab.L },
+            { "A", lab.A }
+        };
+
+        var result = await sut.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.NotNull(result.OutputData);
+        Assert.True(Convert.ToDouble(result.OutputData!["DeltaE"]) < 0.1);
+
+        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
+        Assert.False(Convert.ToBoolean(diagnostics["ReferenceProvided"]));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceParameters_ShouldIgnoreIncompleteReference()
+    {
+        var sut = CreateSut();
+        using var image = CreateSolidColorImage(new Scalar(255, 0, 0));
+        var lab = CieLabConverter.BgrToLab(255, 0, 0);
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "AnalysisMode", "LabDeltaE" },
+            { "DeltaEMethod", "CIEDE2000" },
+            { "RefL", lab.L },
+            { "RefA", lab.A },
+            { "RoiW", 40 },
+            { "RoiH", 40 }
+        });
+
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.NotNull(result.OutputData);
+        Assert.True(Convert.ToDouble(result.OutputData!["DeltaE"]) < 0.1);
+
+        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
+        Assert.False(Convert.ToBoolean(diagnostics["ReferenceProvided"]));
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidAnalysisMode_ShouldReturnInvalid()
     {
         var sut = CreateSut();

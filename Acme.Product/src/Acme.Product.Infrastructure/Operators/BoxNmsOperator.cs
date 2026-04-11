@@ -71,7 +71,7 @@ public class BoxNmsOperator : OperatorBase
         var kept = new List<DetectionResultValue>();
         var suppressed = new HashSet<DetectionResultValue>();
 
-        foreach (var group in candidates.GroupBy(d => d.Label ?? string.Empty))
+        foreach (var group in candidates.GroupBy(d => d.Label ?? string.Empty, StringComparer.OrdinalIgnoreCase))
         {
             var groupCandidates = group.OrderByDescending(d => d.Confidence).ToList();
             var removed = new bool[groupCandidates.Count];

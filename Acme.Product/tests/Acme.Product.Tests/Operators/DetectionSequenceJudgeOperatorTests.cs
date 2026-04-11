@@ -227,21 +227,133 @@ public class DetectionSequenceJudgeOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithPerspectivePoints_ShouldApplyRectifiedOrdering()
+    public async Task ExecuteAsync_WithSlotAssignment_ShouldUseGlobalMinimumCostMatching()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_B,Wire_A",
+            groupingMode: "SlotAssignment",
+            direction: "LeftToRight",
+            expectedSlots: "0:0;10:0",
+            rowTolerance: 5.0,
+            slotTolerance: 8.0);
+
+        var detections = new[]
+        {
+            CreateDetection("Wire_A", new Point2f(3, 0)),
+            CreateDetection("Wire_B", new Point2f(4, 6))
+        };
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["ActualOrder"].Should().BeEquivalentTo(new[] { "Wire_B", "Wire_A" });
+
+        var assignments = result.OutputData["Assignment"].Should().BeAssignableTo<List<Dictionary<string, object>>>().Subject;
+        assignments.Should().HaveCount(2);
+        assignments.Select(item => item["ActualLabel"]).Should().Equal("Wire_B", "Wire_A");
+        assignments.Select(item => Convert.ToBoolean(item["Assigned"])).Should().OnlyContain(v => v);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEqualDistance_ShouldPreferHigherConfidenceAsTieBreaker()
+    {
+        var op = CreateOperator(
+            expectedLabels: "HighConf",
+            groupingMode: "SlotAssignment",
+            direction: "LeftToRight",
+            expectedSlots: "10:10",
+            slotTolerance: 10.0);
+
+        var detections = CreateDetections(
+            ("LowConf", 0.50f, 4f, 6f, 8f, 8f),
+            ("HighConf", 0.99f, 8f, 6f, 8f, 8f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["ActualOrder"].Should().BeEquivalentTo(new[] { "HighConf" });
+        result.OutputData["IsMatch"].Should().Be(true);
+    }
+
+    [Fact]
+    public void ValidateParameters_WithMissingPointCoordinateInJson_ShouldBeInvalid()
+    {
+        var op = CreateOperator(
+            expectedLabels: "",
+            groupingMode: "SlotAssignment",
+            expectedSlots: "[{\"x\":10,\"y\":10},{\"x\":20}]");
+
+        var validation = _sut.ValidateParameters(op);
+
+        validation.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidSlotPointsJsonInput_ShouldFail()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_1",
+            groupingMode: "SlotAssignment");
+        var detections = new[] { CreateDetection("Wire_1", new Point2f(10, 10)) };
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections),
+            ["SlotPoints"] = "[{\"x\":10}]"
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("SlotPoints input contains invalid point data");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEmptySlotPointsInput_ShouldNotFail()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_1",
+            groupingMode: "SlotAssignment");
+        var detections = new[] { CreateDetection("Wire_1", new Point2f(10, 10)) };
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections),
+            ["SlotPoints"] = Array.Empty<Point2f>()
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithPerspectivePoints_ShouldTransformDetectionsAndSlotsTogether()
     {
         var op = CreateOperator(
             expectedLabels: "Wire_1,Wire_2,Wire_3",
             groupingMode: "SlotAssignment",
             direction: "LeftToRight",
-            expectedSlots: "20:50;50:50;80:50",
             rowTolerance: 10.0,
-            slotTolerance: 12.0);
-        op.AddParameter(TestHelpers.CreateParameter("PerspectiveSrcPointsJson", "[[0,0],[100,0],[90,100],[10,100]]", "string"));
+            slotTolerance: 8.0);
+        op.AddParameter(TestHelpers.CreateParameter("PerspectiveSrcPointsJson", "[[0,0],[100,0],[60,100],[40,100]]", "string"));
         op.AddParameter(TestHelpers.CreateParameter("PerspectiveDstPointsJson", "[[0,0],[100,0],[100,100],[0,100]]", "string"));
 
         using var inverseTransform = Cv2.GetPerspectiveTransform(
             new[] { new Point2f(0, 0), new Point2f(100, 0), new Point2f(100, 100), new Point2f(0, 100) },
-            new[] { new Point2f(0, 0), new Point2f(100, 0), new Point2f(90, 100), new Point2f(10, 100) });
+            new[] { new Point2f(0, 0), new Point2f(100, 0), new Point2f(60, 100), new Point2f(40, 100) });
+
+        var slotPoints = new[]
+        {
+            TransformPoint(inverseTransform, 20, 50),
+            TransformPoint(inverseTransform, 50, 50),
+            TransformPoint(inverseTransform, 80, 50)
+        };
 
         var detections = new[]
         {
@@ -252,7 +364,8 @@ public class DetectionSequenceJudgeOperatorTests
 
         var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
         {
-            ["Detections"] = new DetectionList(detections)
+            ["Detections"] = new DetectionList(detections),
+            ["SlotPoints"] = slotPoints
         });
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);

@@ -45,6 +45,68 @@ public class EdgePairDefectOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithoutInputLines_ShouldPreferPairNearExpectedWidth()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "ExpectedWidth", 24.0 },
+            { "Tolerance", 4.0 },
+            { "NumSamples", 40 },
+            { "EdgeMethod", "Canny" }
+        });
+
+        using var image = CreateAutoDetectPreferenceImage();
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.OutputData);
+        Assert.InRange(Convert.ToDouble(result.OutputData!["MaxDeviation"]), 0.0, 15.0);
+
+        var deviations = Assert.IsAssignableFrom<IReadOnlyList<double>>(result.OutputData["Deviations"]);
+        Assert.Equal(40, deviations.Count);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDifferentSampleCounts_ShouldKeepDefectSegmentCountStable()
+    {
+        var sut = CreateSut();
+
+        async Task<(int DefectCount, int DeviationCount)> RunOnceAsync(int sampleCount)
+        {
+            var op = CreateOperator(new Dictionary<string, object>
+            {
+                { "ExpectedWidth", 22.0 },
+                { "Tolerance", 2.0 },
+                { "NumSamples", sampleCount },
+                { "EdgeMethod", "Canny" }
+            });
+
+            using var image = CreateBlankImage();
+            var inputs = TestHelpers.CreateImageInputs(image);
+            inputs["Line1"] = new LineData(10, 20, 110, 20);
+            inputs["Line2"] = new LineData(10, 46, 110, 46);
+
+            var result = await sut.ExecuteAsync(op, inputs);
+
+            Assert.True(result.IsSuccess);
+            Assert.NotNull(result.OutputData);
+            var deviations = Assert.IsAssignableFrom<IReadOnlyList<double>>(result.OutputData!["Deviations"]);
+
+            return (Convert.ToInt32(result.OutputData["DefectCount"]), deviations.Count);
+        }
+
+        var lowSample = await RunOnceAsync(25);
+        var highSample = await RunOnceAsync(250);
+
+        Assert.True(lowSample.DefectCount >= 1);
+        Assert.True(highSample.DefectCount >= 1);
+        Assert.InRange(Math.Abs(highSample.DefectCount - lowSample.DefectCount), 0, 1);
+        Assert.Equal(25, lowSample.DeviationCount);
+        Assert.Equal(250, highSample.DeviationCount);
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidEdgeMethod_ShouldReturnInvalid()
     {
         var sut = CreateSut();
@@ -78,6 +140,15 @@ public class EdgePairDefectOperatorTests
     private static ImageWrapper CreateBlankImage()
     {
         var mat = new Mat(120, 140, MatType.CV_8UC3, Scalar.Black);
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateAutoDetectPreferenceImage()
+    {
+        var mat = new Mat(160, 240, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Line(mat, new Point(20, 30), new Point(220, 30), Scalar.White, 2);
+        Cv2.Line(mat, new Point(20, 54), new Point(220, 54), Scalar.White, 2);
+        Cv2.Line(mat, new Point(20, 118), new Point(220, 118), Scalar.White, 2);
         return new ImageWrapper(mat);
     }
 }

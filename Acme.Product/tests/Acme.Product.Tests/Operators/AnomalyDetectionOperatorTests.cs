@@ -73,6 +73,39 @@ public sealed class AnomalyDetectionOperatorTests
     }
 
     [Fact]
+    public void Analyze_ShouldKeepMaskAndIsAnomalyConsistentWithinSameThresholdDomain()
+    {
+        using var image = new Mat(128, 128, MatType.CV_8UC3, new Scalar(90, 90, 90));
+        Cv2.Rectangle(image, new Rect(20, 20, 52, 52), new Scalar(120, 120, 120), -1);
+        Cv2.Circle(image, new Point(96, 96), 20, new Scalar(70, 70, 70), -1);
+
+        var bank = new SimplePatchCoreFeatureBank
+        {
+            PatchSize = 24,
+            PatchStride = 12,
+            FeatureLength = 7,
+            Features = [new float[7]],
+            MeanNearestDistance = 0d,
+            StdNearestDistance = 1000d
+        };
+
+        var result = SimplePatchCoreDetector.Analyze(image, bank, threshold: 0.15);
+
+        try
+        {
+            result.Score.Should().BeLessThan(0.15f);
+            result.IsAnomaly.Should().BeFalse();
+            Cv2.CountNonZero(result.Mask).Should().Be(0);
+            result.ThresholdScoreDomain.Should().Be(SimplePatchCoreAnalysisResult.NormalizedDistance01Domain);
+        }
+        finally
+        {
+            result.Mask.Dispose();
+            result.Heatmap.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_InferenceModeWithModelId_ShouldResolveFeatureBankFromCatalog()
     {
         var sut = new AnomalyDetectionOperator(Substitute.For<ILogger<AnomalyDetectionOperator>>());
