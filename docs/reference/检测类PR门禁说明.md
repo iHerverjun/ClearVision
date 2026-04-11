@@ -35,15 +35,27 @@ updated: "2026-04-11"
 
 ## 必过门禁
 
-1. 检测专项回归必须通过：
+1. 检测专项回归（兼容历史门禁）必须通过：
 ```powershell
-& "./scripts/run-tests-detection-regression.ps1" -NoBuild -NoRestore -Verbosity minimal
+& "./scripts/run-tests-detection-regression.ps1" -Gate regression -NoBuild -NoRestore -Verbosity minimal
 ```
 
-2. 检测性能预算门禁必须通过：
+2. 检测精度门禁（`detection-accuracy`）必须通过：
+```powershell
+& "./scripts/run-tests-detection-regression.ps1" -Gate detection-accuracy -NoBuild -NoRestore -Verbosity minimal
+```
+
+3. 检测稳定性门禁（`detection-stability`）必须通过：
+```powershell
+& "./scripts/run-tests-detection-regression.ps1" -Gate detection-stability -NoBuild -NoRestore -Verbosity minimal
+```
+
+4. 检测性能预算门禁必须通过：
 ```powershell
 & "./scripts/run-tests-detection-performance.ps1" -GateProfile auto -NoBuild -NoRestore -Verbosity minimal
 ```
+
+> 说明：当前 `detection-accuracy` / `detection-stability` 先复用现有测试集合入口，后续可按专项测试覆盖率逐步拆分。
 
 ## 性能阈值档位策略（1.5 -> 1.2）
 
@@ -73,6 +85,8 @@ updated: "2026-04-11"
 CI 会执行：
 
 - `Run Detection Regression Gate`
+- `Run Detection Accuracy Gate`
+- `Run Detection Stability Gate`
 - `Run Detection Performance Gate`
 
 并上传：
@@ -87,6 +101,8 @@ CI 会执行：
 
 - 影响算子范围（至少列出算子名）
 - 回归门禁结果（通过/失败）
+- 精度门禁结果（`detection-accuracy`）
+- 稳定性门禁结果（`detection-stability`）
 - 性能门禁结果（含 `GateProfile` 与 `Budget Scale`）
 - 四报告状态（已更新模板/已产出正式报告）
 - 若存在未达项：遗留清单与风险说明
@@ -96,4 +112,3 @@ CI 会执行：
 - 任一门禁失败：PR 不得合入。
 - 仅允许修复后重跑，不允许通过“降标准”绕过门禁。
 - 若需临时豁免，必须记录审批人与到期时间，并在后续 PR 补回。
-

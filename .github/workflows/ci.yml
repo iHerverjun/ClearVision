@@ -67,6 +67,25 @@ jobs:
         shell: pwsh
         run: |
           & "./scripts/run-tests-detection-regression.ps1" `
+            -Gate regression `
+            -NoBuild `
+            -NoRestore `
+            -Verbosity minimal
+
+      - name: Run Detection Accuracy Gate
+        shell: pwsh
+        run: |
+          & "./scripts/run-tests-detection-regression.ps1" `
+            -Gate detection-accuracy `
+            -NoBuild `
+            -NoRestore `
+            -Verbosity minimal
+
+      - name: Run Detection Stability Gate
+        shell: pwsh
+        run: |
+          & "./scripts/run-tests-detection-regression.ps1" `
+            -Gate detection-stability `
             -NoBuild `
             -NoRestore `
             -Verbosity minimal
