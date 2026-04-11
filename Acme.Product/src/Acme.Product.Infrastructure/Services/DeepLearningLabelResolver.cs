@@ -22,18 +22,18 @@ internal static class DeepLearningLabelResolver
         }
 
         var requiredLabels = ParseNamedTargetClasses(targetClassesStr);
+        if (TryLoadMetadataLabels(modelPath, out var metadataLabels))
+        {
+            resolvedPath = null;
+            return requiredLabels.Length == 0 ||
+                requiredLabels.All(requiredLabel =>
+                    metadataLabels.Any(label => string.Equals(label, requiredLabel, StringComparison.OrdinalIgnoreCase)));
+        }
+
         if (requiredLabels.Length == 0)
         {
             resolvedPath = null;
-            return true;
-        }
-
-        if (TryLoadMetadataLabels(modelPath, out var metadataLabels) &&
-            requiredLabels.All(requiredLabel =>
-                metadataLabels.Any(label => string.Equals(label, requiredLabel, StringComparison.OrdinalIgnoreCase))))
-        {
-            resolvedPath = null;
-            return true;
+            return false;
         }
 
         resolvedPath = TryResolveBundledLabelsPath(requiredLabels);
@@ -52,16 +52,16 @@ internal static class DeepLearningLabelResolver
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        if (required.Length == 0)
+        {
+            return null;
+        }
+
         foreach (var candidate in EnumerateBundledLabelCandidates())
         {
             if (!File.Exists(candidate))
             {
                 continue;
-            }
-
-            if (required.Length == 0)
-            {
-                return candidate;
             }
 
             var labels = ReadLabelsFromFile(candidate);
