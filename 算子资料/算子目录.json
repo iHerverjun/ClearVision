@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-10T17:42:49.0767787+08:00",
+  "generatedAt": "2026-04-11T16:55:26.5329457+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -1794,7 +1794,7 @@
           "name": "LabelsPath",
           "displayName": "标签文件路径",
           "dataType": "file",
-          "description": "自定义标签文件路径（每行一个标签），为空则使用COCO 80类或自动查找模型目录下的labels.txt",
+          "description": "自定义标签文件路径（每行一个标签），为空则优先使用模型 metadata names 或自动查找模型目录下的 labels.txt；仍不可用时执行失败",
           "defaultValue": "",
           "min": null,
           "max": null,

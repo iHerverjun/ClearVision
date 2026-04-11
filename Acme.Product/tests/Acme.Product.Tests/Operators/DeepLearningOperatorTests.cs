@@ -98,6 +98,71 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
+    public void TryResolveBundledLabelsPath_WithoutNamedTargetClasses_ShouldNotReturnBundledLabels()
+    {
+        var resolverType = typeof(DeepLearningOperator).Assembly.GetType("Acme.Product.Infrastructure.Services.DeepLearningLabelResolver");
+        resolverType.Should().NotBeNull();
+
+        var method = resolverType!.GetMethod("TryResolveBundledLabelsPath", BindingFlags.Static | BindingFlags.Public, new[] { typeof(string) });
+        method.Should().NotBeNull();
+
+        var result = method!.Invoke(null, new object?[] { string.Empty });
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void AreLabelsResolvable_WithoutTargetClassesAndWithoutMetadataOrFiles_ShouldReturnFalse()
+    {
+        var isResolvable = InvokeAreLabelsResolvable(
+            explicitLabelPath: string.Empty,
+            modelPath: string.Empty,
+            targetClassesStr: string.Empty,
+            out var resolvedPath);
+
+        isResolvable.Should().BeFalse();
+        resolvedPath.Should().BeNull();
+    }
+
+    [Fact]
+    public void AreLabelsResolvable_WithExplicitLabelsFile_ShouldReturnTrue()
+    {
+        var labelsPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(labelsPath, new[] { "class_a", "class_b" });
+
+            var isResolvable = InvokeAreLabelsResolvable(
+                explicitLabelPath: labelsPath,
+                modelPath: string.Empty,
+                targetClassesStr: string.Empty,
+                out var resolvedPath);
+
+            isResolvable.Should().BeTrue();
+            resolvedPath.Should().Be(labelsPath);
+        }
+        finally
+        {
+            if (File.Exists(labelsPath))
+            {
+                File.Delete(labelsPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void AreLabelsResolvable_WithNamedTargetClassesAndBundledLabels_ShouldReturnTrue()
+    {
+        var isResolvable = InvokeAreLabelsResolvable(
+            explicitLabelPath: string.Empty,
+            modelPath: string.Empty,
+            targetClassesStr: "Wire_Black,Wire_Blue",
+            out var resolvedPath);
+
+        isResolvable.Should().BeTrue();
+        resolvedPath.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public void ParseMetadataNames_ShouldSupportUltralyticsMetadataFormat()
     {
         var labels = InvokeParseMetadataNames("{0: 'Wire_Blue', 1: 'Wire_Black'}");
@@ -155,6 +220,25 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
+    public void BuildLabelContract_WithoutMetadataOrExternalLabels_ShouldFailFast()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "BuildLabelContract",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var sourceInfo = CreateLabelSourceInfo(Array.Empty<string>(), "Unavailable", string.Empty, isFileBacked: false);
+
+        var result = method!.Invoke(_operator, new object?[] { "model.onnx", Array.Empty<string>(), sourceInfo });
+
+        result.Should().NotBeNull();
+        GetPropertyValue<bool>(result!, "IsValid").Should().BeFalse();
+        GetPropertyValue<string>(result!, "ValidationStatus").Should().Be("MissingLabelContract");
+        GetPropertyValue<string>(result!, "ValidationMessage").Should().Contain("Label contract missing");
+    }
+
+    [Fact]
     public void BuildVisualizationDetections_ShouldApplyVisualOnlyNms_WhenInternalNmsIsDisabled()
     {
         var method = typeof(DeepLearningOperator).GetMethod(
@@ -193,6 +277,143 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
+    public void GetClassName_WithoutResolvedLabels_ShouldNotFallbackToCoco()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "GetClassName",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var label = method!.Invoke(_operator, new object?[] { 0, Array.Empty<string>() });
+        label.Should().Be("class_0");
+    }
+
+    [Fact]
+    public void PreprocessImage_WithGrayscaleInput_ShouldProduceThreeChannelTensor()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var grayscale = new OpenCvSharp.Mat(32, 24, OpenCvSharp.MatType.CV_8UC1, new OpenCvSharp.Scalar(128));
+
+        var tensor = method!.Invoke(_operator, new object?[] { grayscale, 64 });
+
+        tensor.Should().BeAssignableTo<DenseTensor<float>>();
+        tensor.As<DenseTensor<float>>().Dimensions.ToArray().Should().Equal(1, 3, 64, 64);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithFourChannelInput_ShouldProduceThreeChannelTensor()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var bgra = new OpenCvSharp.Mat(20, 18, OpenCvSharp.MatType.CV_8UC4, new OpenCvSharp.Scalar(10, 20, 30, 255));
+
+        var tensor = method!.Invoke(_operator, new object?[] { bgra, 64 });
+
+        tensor.Should().BeAssignableTo<DenseTensor<float>>();
+        tensor.As<DenseTensor<float>>().Dimensions.ToArray().Should().Equal(1, 3, 64, 64);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithSixteenBitGrayscaleInput_ShouldProduceThreeChannelTensor()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var grayscale16 = new OpenCvSharp.Mat(32, 24, OpenCvSharp.MatType.CV_16UC1, new OpenCvSharp.Scalar(4096));
+
+        var tensor = method!.Invoke(_operator, new object?[] { grayscale16, 64 });
+
+        tensor.Should().BeAssignableTo<DenseTensor<float>>();
+        tensor.As<DenseTensor<float>>().Dimensions.ToArray().Should().Equal(1, 3, 64, 64);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithSixteenBitThreeChannelInput_ShouldProduceThreeChannelTensor()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var bgr16 = new OpenCvSharp.Mat(20, 18, OpenCvSharp.MatType.CV_16UC3, new OpenCvSharp.Scalar(1024, 2048, 4096));
+
+        var tensor = method!.Invoke(_operator, new object?[] { bgr16, 64 });
+
+        tensor.Should().BeAssignableTo<DenseTensor<float>>();
+        tensor.As<DenseTensor<float>>().Dimensions.ToArray().Should().Equal(1, 3, 64, 64);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithFloatUnitRangeInput_ShouldKeepExpectedScale()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var gray32 = new OpenCvSharp.Mat(64, 64, OpenCvSharp.MatType.CV_32FC1, new OpenCvSharp.Scalar(0.5));
+
+        var tensor = method!.Invoke(_operator, new object?[] { gray32, 64 }).Should().BeAssignableTo<DenseTensor<float>>().Subject;
+        var values = tensor.ToArray();
+        var channelSize = 64 * 64;
+        values[0].Should().BeApproximately(0.5f, 0.02f);
+        values[channelSize].Should().BeApproximately(0.5f, 0.02f);
+        values[channelSize * 2].Should().BeApproximately(0.5f, 0.02f);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithFloatZeroTo255Input_ShouldUseDirectConversion()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var bgr32 = new OpenCvSharp.Mat(64, 64, OpenCvSharp.MatType.CV_32FC3, new OpenCvSharp.Scalar(10, 20, 30));
+
+        var tensor = method!.Invoke(_operator, new object?[] { bgr32, 64 }).Should().BeAssignableTo<DenseTensor<float>>().Subject;
+        var values = tensor.ToArray();
+        var channelSize = 64 * 64;
+        values[0].Should().BeApproximately(30f / 255f, 0.02f);
+        values[channelSize].Should().BeApproximately(20f / 255f, 0.02f);
+        values[channelSize * 2].Should().BeApproximately(10f / 255f, 0.02f);
+    }
+
+    [Fact]
+    public void PreprocessImage_WithOutOfRangeFloatInput_ShouldApplyMinMaxNormalization()
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "PreprocessImage",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        using var gray32 = new OpenCvSharp.Mat(64, 64, OpenCvSharp.MatType.CV_32FC1, new OpenCvSharp.Scalar(-10.0));
+        gray32.Set(0, 0, 10.0f);
+
+        var tensor = method!.Invoke(_operator, new object?[] { gray32, 64 }).Should().BeAssignableTo<DenseTensor<float>>().Subject;
+        var values = tensor.ToArray();
+        values.Min().Should().BeLessOrEqualTo(0.01f);
+        values.Max().Should().BeGreaterOrEqualTo(0.99f);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithNamedTargetClassesAndBundledLabels_ShouldContinuePastLabelResolution()
     {
         var op = CreateTestOperator("model.onnx", 0.5f);
@@ -220,6 +441,54 @@ public class DeepLearningOperatorTests
 
         method!.Invoke(_operator, new object?[] { standard, 2 }).Should().Be(YoloVersion.YOLOv5);
         method.Invoke(_operator, new object?[] { transposed, 2 }).Should().Be(YoloVersion.YOLOv5);
+    }
+
+    [Fact]
+    public void SelectDetectionOutputIndex_WithKnownLabelCount_ShouldPreferMatchingRank3Output()
+    {
+        var outputNames = new[] { "seg_output", "det_output" };
+        var outputShapes = new[]
+        {
+            new[] { 1, 3, 64, 64 },
+            new[] { 1, 84, 8400 }
+        };
+
+        var (selectedIndex, selectionRule) = InvokeSelectDetectionOutputIndex(outputNames, outputShapes, 80);
+
+        selectedIndex.Should().Be(1);
+        selectionRule.Should().Contain("KnownLabelFeature");
+    }
+
+    [Fact]
+    public void SelectDetectionOutputIndex_WithoutKnownLabelCount_ShouldUseRank3Heuristic()
+    {
+        var outputNames = new[] { "small_rank3", "large_rank3" };
+        var outputShapes = new[]
+        {
+            new[] { 1, 32, 32 },
+            new[] { 1, 84, 8400 }
+        };
+
+        var (selectedIndex, selectionRule) = InvokeSelectDetectionOutputIndex(outputNames, outputShapes, 0);
+
+        selectedIndex.Should().Be(1);
+        selectionRule.Should().Be("Rank3Heuristic");
+    }
+
+    [Fact]
+    public void SelectDetectionOutputIndex_WhenNoRank3Output_ShouldFallbackToFirstOutput()
+    {
+        var outputNames = new[] { "output0", "output1" };
+        var outputShapes = new[]
+        {
+            new[] { 1, 3, 64, 64 },
+            new[] { 1, 2, 32, 32 }
+        };
+
+        var (selectedIndex, selectionRule) = InvokeSelectDetectionOutputIndex(outputNames, outputShapes, 80);
+
+        selectedIndex.Should().Be(0);
+        selectionRule.Should().Be("FirstOutputFallback");
     }
 
     [Fact]
@@ -460,6 +729,45 @@ public class DeepLearningOperatorTests
         var property = instance.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         property.Should().NotBeNull();
         return (T)property!.GetValue(instance)!;
+    }
+
+    private static bool InvokeAreLabelsResolvable(
+        string? explicitLabelPath,
+        string? modelPath,
+        string targetClassesStr,
+        out string? resolvedPath)
+    {
+        var resolverType = typeof(DeepLearningOperator).Assembly.GetType("Acme.Product.Infrastructure.Services.DeepLearningLabelResolver");
+        resolverType.Should().NotBeNull();
+
+        var method = resolverType!.GetMethod(
+            "AreLabelsResolvable",
+            BindingFlags.Static | BindingFlags.Public);
+        method.Should().NotBeNull();
+
+        var args = new object?[] { explicitLabelPath, modelPath, targetClassesStr, null };
+        var isResolvable = method!.Invoke(null, args).Should().BeOfType<bool>().Subject;
+        resolvedPath = args[3]?.ToString();
+        return isResolvable;
+    }
+
+    private static (int SelectedIndex, string SelectionRule) InvokeSelectDetectionOutputIndex(
+        IReadOnlyList<string> outputNames,
+        IReadOnlyList<int[]> outputShapes,
+        int knownLabelCount)
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "SelectDetectionOutputIndex",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var tuple = method!.Invoke(null, new object?[] { outputNames, outputShapes, knownLabelCount });
+        tuple.Should().NotBeNull();
+        var tupleType = tuple!.GetType();
+        var selectedIndex = (int)(tupleType.GetField("Item1")!.GetValue(tuple)!);
+        var selectionRule = (string)(tupleType.GetField("Item2")!.GetValue(tuple)!);
+        return (selectedIndex, selectionRule);
     }
 
     private static string[] InvokeParseMetadataNames(string rawNames)

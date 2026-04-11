@@ -1,10 +1,10 @@
 # BlobDetection 技术笔记
 
-> **对应算子**: `BlobDetectionOperator` / `OperatorType.BlobAnalysis`  
-> **OperatorType**: `OperatorType.BlobAnalysis`  
-> **代码依据**: `Acme.Product/src/Acme.Product.Infrastructure/Operators/BlobDetectionOperator.cs`  
-> **相关算子**: [Threshold](./04-Threshold-技术笔记.md)、[Morphology](./10-Morphology-技术笔记.md)、[FindContours](./12-FindContours-技术笔记.md)  
-> **阅读前置**: 本文档从零基础讲起，无需前置知识  
+> **对应算子**: `BlobDetectionOperator` / `OperatorType.BlobAnalysis`
+> **OperatorType**: `OperatorType.BlobAnalysis`
+> **代码依据**: `Acme.Product/src/Acme.Product.Infrastructure/Operators/BlobDetectionOperator.cs`
+> **相关算子**: [Threshold](./04-Threshold-技术笔记.md)、[Morphology](./10-Morphology-技术笔记.md)、[FindContours](./12-FindContours-技术笔记.md)
+> **阅读前置**: 本文档从零基础讲起，无需前置知识
 > **核心来源**: ClearVision 当前实现、OpenCV connected components / contours、经典形状特征教材
 
 ---
@@ -74,19 +74,18 @@
 
 ### 3.1 什么是 blob
 
-在这里，blob 更接近"一个连通的前景区域"。  
+在这里，blob 更接近"一个连通的前景区域"。
 只要前景像素通过连通关系连成一片，就会被视为一个候选区域。
 
 ### 3.2 当前实现做了两层工作
 
-1. **连通域提取**  
-   先把前景区域切成一个个独立 component
-2. **区域特征分析**  
+1. **连通域提取**先把前景区域切成一个个独立 component
+2. **区域特征分析**
    再给每个区域算面积、周长、圆度、凸度、矩形度、惯性比、离心率、孔洞数等
 
 ### 3.3 为什么它常接在阈值和形态学后面
 
-因为它很依赖输入前景质量。  
+因为它很依赖输入前景质量。
 如果前面 [Threshold](./04-Threshold-技术笔记.md) 或 [Morphology](./10-Morphology-技术笔记.md) 做得不好，blob 结果就会直接失真。
 
 ---
@@ -96,9 +95,10 @@
 ### 4.1 基础几何特征
 
 #### 面积 (Area)
-**含义**：blob 包含的像素总数  
-**公式**：`Area = Σ(属于blob的像素)`  
-**单位**：像素个数  
+
+**含义**：blob 包含的像素总数
+**公式**：`Area = Σ(属于blob的像素)`
+**单位**：像素个数
 **用途**：最基本的筛选条件，过滤噪点和过大背景
 
 ```
@@ -112,8 +112,9 @@ Area = 25
 ```
 
 #### 周长 (Perimeter)
-**含义**：blob 外边界的长度  
-**计算方式**：统计外轮廓边缘像素数，或使用 Freeman 链码累加  
+
+**含义**：blob 外边界的长度
+**计算方式**：统计外轮廓边缘像素数，或使用 Freeman 链码累加
 **用途**：结合面积计算圆度等形状特征
 
 ```
@@ -129,17 +130,22 @@ Area = 25
 ### 4.2 形状描述特征
 
 #### 圆度 (Circularity)
-**含义**：衡量形状有多"圆"的指标  
+
+**含义**：衡量形状有多"圆"的指标
 **公式**：
+
 ```
 Circularity = 4π × Area / Perimeter²
 ```
-**取值范围**：0 ~ 1  
+
+**取值范围**：0 ~ 1
+
 - `1.0` = 完美圆形
 - `0.785` ≈ 正方形
 - 越小 = 形状越不规则
 
 **直观理解**：
+
 ```
 完美圆形:    Circularity = 1.0     (○)
 正方形:      Circularity ≈ 0.785   (□)
@@ -148,18 +154,23 @@ Circularity = 4π × Area / Perimeter²
 ```
 
 #### 凸度 (Convexity)
-**含义**：衡量形状"凹陷程度"的指标  
+
+**含义**：衡量形状"凹陷程度"的指标
 **需要先理解凸包**：把形状想象成钉子板上的橡皮筋，绷紧后包围形状的轮廓就是凸包
 
 **公式**：
+
 ```
 Convexity = Area / ConvexHullArea
 ```
-**取值范围**：0 ~ 1  
+
+**取值范围**：0 ~ 1
+
 - `1.0` = 完全凸形，没有任何凹陷
 - 越小 = 凹陷越严重
 
 **示例**：
+
 ```
 原始形状        凸包           计算
   ■ ■            ■ ■ ■
@@ -173,12 +184,16 @@ C形零件:    Convexity ≈ 0.8
 ```
 
 #### 矩形度 (Rectangularity)
-**含义**：衡量形状有多像矩形的指标  
+
+**含义**：衡量形状有多像矩形的指标
 **公式**：
+
 ```
 Rectangularity = Area / (BoundingBoxWidth × BoundingBoxHeight)
 ```
-**取值范围**：0 ~ 1  
+
+**取值范围**：0 ~ 1
+
 - `1.0` = 完美填充其外接矩形
 - 越小 = 形状与外接矩形差距越大
 
@@ -197,16 +212,20 @@ Rectangularity=1.0     Rectangularity≈0.5
 ### 4.3 惯性特征
 
 #### 惯性比 (Inertia Ratio)
-**含义**：描述形状"拉长程度"的指标  
+
+**含义**：描述形状"拉长程度"的指标
 **物理意义**：类似物理中的转动惯量，描述质量分布
 
 **公式**：
+
 ```
 Inertia Ratio = λ_min / λ_max
 ```
+
 其中 λ_min、λ_max 是二阶矩矩阵的特征值
 
-**取值范围**：0 ~ 1  
+**取值范围**：0 ~ 1
+
 - `1.0` = 各向同性（圆形、正方形）
 - 接近 `0` = 极度细长
 
@@ -217,24 +236,28 @@ Inertia Ratio = λ_min / λ_max
 ```
 
 #### 离心率 (Eccentricity)
-**含义**：描述形状偏离圆形的程度  
+
+**含义**：描述形状偏离圆形的程度
 **公式**：
+
 ```
 Eccentricity = √(1 - (λ_min/λ_max)²)
 ```
-**取值范围**：0 ~ 1  
+
+**取值范围**：0 ~ 1
+
 - `0` = 完美圆形
 - 接近 `1` = 极度细长
 
 ### 4.4 特征对比表
 
-| 特征 | 用途 | 完美圆形值 | 典型应用 |
-|------|------|-----------|---------|
-| Circularity | 找圆/球体 | 1.0 | 轴承滚珠检测 |
-| Convexity | 检测凹陷缺陷 | 1.0 | 缺口检测、裂纹 |
-| Rectangularity | 找矩形物体 | 1.0 | PCB元件检测 |
-| Inertia Ratio | 区分长短 | 1.0 | 针脚方向判断 |
-| Eccentricity | 测量椭圆程度 | 0 | 细胞形态分析 |
+| 特征           | 用途         | 完美圆形值 | 典型应用       |
+| -------------- | ------------ | ---------- | -------------- |
+| Circularity    | 找圆/球体    | 1.0        | 轴承滚珠检测   |
+| Convexity      | 检测凹陷缺陷 | 1.0        | 缺口检测、裂纹 |
+| Rectangularity | 找矩形物体   | 1.0        | PCB元件检测    |
+| Inertia Ratio  | 区分长短     | 1.0        | 针脚方向判断   |
+| Eccentricity   | 测量椭圆程度 | 0          | 细胞形态分析   |
 
 ---
 
@@ -335,8 +358,9 @@ HoleCount = 0      HoleCount = 1
 
 ### 6.2 欧拉数 (Euler Number)
 
-**定义**：描述拓扑结构的数字  
+**定义**：描述拓扑结构的数字
 **公式**：
+
 ```
 EulerNumber = 连通域数量 - 孔洞数量
             = Components - Holes
@@ -361,6 +385,7 @@ EulerNumber = 连通域数量 - 孔洞数量
 ### 6.3 实际应用
 
 **用欧拉数分类**：
+
 ```
 EulerNumber = 1  → 实心物体（螺丝、垫片）
 EulerNumber = 0  → 单孔物体（垫圈、螺母）
@@ -368,6 +393,7 @@ EulerNumber < 0  → 多孔物体（特殊零件、字符"8"）
 ```
 
 **ClearVision 实现**：
+
 - 带孔目标默认仍算 **1 个 blob**
 - 孔洞通过 `HoleCount` 和 `EulerNumber` 反映
 - 如需分离孔洞，使用专门的孔洞分析功能
@@ -407,12 +433,14 @@ EulerNumber < 0  → 多孔物体（特殊零件、字符"8"）
 ### 7.3 选择指南
 
 **选择 BlobDetection 当**：
+
 - ✅ 需要统计特征（面积、圆度等）进行筛选
 - ✅ 需要计数多个目标
 - ✅ 需要根据形状特征过滤
 - ✅ 处理带孔物体时需要整体分析
 
 **选择 FindContours 当**：
+
 - ✅ 需要精确的边界点坐标
 - ✅ 需要进行形状匹配/模板匹配
 - ✅ 需要分析每个孔洞的独立轮廓
@@ -629,28 +657,28 @@ Step 3: 参数配置策略
 
 ### 10.1 输入输出端口怎么理解
 
-| 端口 | 作用 |
-|------|------|
-| `Image` 输入 | 通常是已经分割过、接近前景/背景清晰的图像 |
-| `SourceImage` 输入 | 可选原图，用于灰度统计和结果绘制 |
-| `Blobs` 输出 | blob 特征列表 |
-| `BlobFeatures` 输出 | 打开详细特征后得到更完整的特征集 |
-| `BlobCount` 输出 | 过滤后的 blob 数量 |
+| 端口                  | 作用                                      |
+| --------------------- | ----------------------------------------- |
+| `Image` 输入        | 通常是已经分割过、接近前景/背景清晰的图像 |
+| `SourceImage` 输入  | 可选原图，用于灰度统计和结果绘制          |
+| `Blobs` 输出        | blob 特征列表                             |
+| `BlobFeatures` 输出 | 打开详细特征后得到更完整的特征集          |
+| `BlobCount` 输出    | 过滤后的 blob 数量                        |
 
 ### 10.2 关键参数怎么调
 
-| 参数 | 默认值 | 作用 |
-|------|------|------|
-| `MinArea` | `100` | 过滤掉太小的噪点 |
-| `MaxArea` | `100000` | 防止整块背景被当成目标 |
-| `Color` | `White` | 定义前景极性，必要时反转二值图 |
-| `MinCircularity` | `0.0` | 保留更接近圆形的目标 |
-| `MinConvexity` | `0.0` | 过滤有明显凹陷的区域 |
-| `MinInertiaRatio` | `0.0` | 过滤过细长区域 |
-| `MinRectangularity` | `0.0` | 保留更像矩形的区域 |
-| `MinEccentricity` | `0.0` | 倾向保留细长目标 |
-| `OutputDetailedFeatures` | `false` | 是否输出更全特征 |
-| `FeatureFilter` | `""` | 用表达式做二次筛选 |
+| 参数                       | 默认值     | 作用                           |
+| -------------------------- | ---------- | ------------------------------ |
+| `MinArea`                | `100`    | 过滤掉太小的噪点               |
+| `MaxArea`                | `100000` | 防止整块背景被当成目标         |
+| `Color`                  | `White`  | 定义前景极性，必要时反转二值图 |
+| `MinCircularity`         | `0.0`    | 保留更接近圆形的目标           |
+| `MinConvexity`           | `0.0`    | 过滤有明显凹陷的区域           |
+| `MinInertiaRatio`        | `0.0`    | 过滤过细长区域                 |
+| `MinRectangularity`      | `0.0`    | 保留更像矩形的区域             |
+| `MinEccentricity`        | `0.0`    | 倾向保留细长目标               |
+| `OutputDetailedFeatures` | `false`  | 是否输出更全特征               |
+| `FeatureFilter`          | `""`     | 用表达式做二次筛选             |
 
 ### 10.3 当前实现里最值得记住的几点
 
@@ -707,11 +735,9 @@ Gray / Color Filter
 
 ### 常见误区
 
-- 误区一：BlobDetection 就是轮廓检测  
-  它更偏向"连通域 + 区域特征"，轮廓只是其中一环。
-- 误区二：带孔目标会被拆成多个 blob  
-  当前实现不是这样。
-- 误区三：所有特征都要用  
+- 误区一：BlobDetection 就是轮廓检测它更偏向"连通域 + 区域特征"，轮廓只是其中一环。
+- 误区二：带孔目标会被拆成多个 blob当前实现不是这样。
+- 误区三：所有特征都要用
   实际上只需选择对当前任务最敏感的特征即可。
 
 ---

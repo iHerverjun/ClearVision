@@ -110,6 +110,58 @@ public class FlowNodePreviewServiceTests
     }
 
     [Fact]
+    public async Task PreviewWithMetricsAsync_ShouldReportMissingLabels_WhenNoTargetClassesAndNoMetadataOrLabelsFile()
+    {
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var target = new Operator("DeepLearning", OperatorType.DeepLearning, 0, 0);
+        var modelPath = Path.GetTempFileName();
+        target.AddParameter(new Parameter(Guid.NewGuid(), "ModelPath", "ModelPath", string.Empty, "string", modelPath));
+        target.AddParameter(new Parameter(Guid.NewGuid(), "LabelsPath", "LabelsPath", string.Empty, "string", string.Empty));
+        target.AddParameter(new Parameter(Guid.NewGuid(), "TargetClasses", "TargetClasses", string.Empty, "string", string.Empty));
+
+        var flow = new OperatorFlow("strict-label-contract-flow");
+        flow.AddOperator(target);
+
+        flowExecution.ExecuteFlowDebugAsync(
+                Arg.Any<OperatorFlow>(),
+                Arg.Any<DebugOptions>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowDebugExecutionResult
+            {
+                IsSuccess = true,
+                DebugSessionId = Guid.NewGuid(),
+                IntermediateResults = new Dictionary<Guid, Dictionary<string, object>>
+                {
+                    [target.Id] = new()
+                    {
+                        ["Image"] = CreatePreviewImageBytes()
+                    }
+                }
+            }));
+
+        var service = new FlowNodePreviewService(
+            NullLogger<FlowNodePreviewService>.Instance,
+            flowExecution,
+            Substitute.For<IPreviewMetricsAnalyzer>());
+
+        try
+        {
+            var result = await service.PreviewWithMetricsAsync(flow, target.Id, null);
+
+            result.MissingResources.Should().Contain(item => item.ResourceKey == "DeepLearning.LabelsPath");
+            result.DiagnosticCodes.Should().Contain("missing_labels");
+        }
+        finally
+        {
+            if (File.Exists(modelPath))
+            {
+                File.Delete(modelPath);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PreviewWithMetricsAsync_ShouldExcludeOriginalImageFromOutputs()
     {
         var flowExecution = Substitute.For<IFlowExecutionService>();
