@@ -1,87 +1,21 @@
 # N点标定 / NPointCalibration
 
-## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
-|------|------|
-| 类名 (Class) | `NPointCalibrationOperator` |
-| 枚举值 (Enum) | `OperatorType.NPointCalibration` |
-| 分类 (Category) | 标定 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+## 定位
+- 基于多点对应关系估计 2D 变换，输出 `CalibrationBundleV2`。
+- 目标是“全部点参与求解 + 鲁棒验收”，不再是最小点数硬求解。
 
-## 算法原理 / Algorithm Principle
-该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。
+## 输入
+- `PointPairs`：像素/物理点对。
+- `CalibrationMode`：`Affine` 或 `Perspective`。
 
-> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
+## 输出
+- `CalibrationData`：`CalibrationBundleV2` JSON。
 
-## 实现策略 / Implementation Strategy
-- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
-- 先校验输入图像与参数，再进入核心处理，避免空输入或非法格式直接进入底层 API。
-- 结果通过 `CreateImageOutput(...)` 封装，运行时通常附带 `Width` / `Height` 等基础字段。
+## 关键契约
+- `calibrationKind = planarTransform2D`。
+- `transformModel` 与求解模式一致（`affine` / `homography`）。
+- `quality` 输出包含 `accepted`、`meanError`、`maxError`、`inlierCount`。
 
-## 核心 API 调用链 / Core API Call Chain
-1. `TryGetInputImage(...)`
-2. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
-3. `Cv2.GetPerspectiveTransform`
-4. `Cv2.GetAffineTransform`
-5. `Cv2.Circle`
-6. `Cv2.PutText`
-7. `JsonSerializer.Serialize`
-8. `File.WriteAllText`
-9. `Directory.CreateDirectory`
-10. `CreateImageOutput(...)`
-
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `CalibrationMode` | `enum` | `"Affine"` | Affine/Affine；Perspective/Perspective | 工作模式选择。 |
-| `PointPairs` | `string` | `""` | - | 控制“PointPairs”这一实现参数，建议结合现场样本调节。 |
-| `SavePath` | `file` | `""` | - | 文件或资源路径。 |
-
-## 输入/输出端口 / Input/Output Ports
-### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | Image | `Image` | No | 输入待处理图像。 |
-
-### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `TransformMatrix` | Transform Matrix | `Any` | 输出本算子的处理结果。 |
-| `PixelSize` | Pixel Size | `Float` | 输出本算子的处理结果。 |
-| `ReprojectionError` | Reprojection Error | `Float` | 输出本算子的处理结果。 |
-### 运行时附加输出 / Runtime Additional Outputs
-| 名称 (Name) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|
-| `Width` | `Integer` | 输出图像宽度。 |
-| `Height` | `Integer` | 输出图像高度。 |
-| `TransformMatrix` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `PixelSize` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `ReprojectionError` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `Affine` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `CalibrationMode` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `PointPairs` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-| `Timestamp` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | 多数路径近似随输入规模线性增长。 |
-| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
-| 内存特征 (Memory Profile) | 通常需要为中间图像、结果图和输出封装分配额外内存；峰值随图像尺寸和中间副本数量增长。 |
-
-## 适用场景 / Use Cases
-- 适合做坐标变换、畸变校正和几何纠正。
-- 适合在测量、定位和机器人引导前统一参考系。
-- 不适合在标定数据质量差时直接作为精密依据。
-- 不适合跳过标定参数有效性检查。
-
-## 已知限制 / Known Limitations
-1. 当前实现通常以图像作为主要输出载体；若下游只关心数值，还需要同步读取附加字段。
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
-| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
-| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
+## 注意事项
+- 透视模型下不应输出全局单值 `PixelSize` 作为工业结论。
+- 共线、重复点、近奇异矩阵应直接失败，不允许伪成功。

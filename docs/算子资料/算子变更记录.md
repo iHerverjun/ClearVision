@@ -8,7 +8,7 @@
 |------|------|------|------|
 | `OperatorType.EuclideanClusterExtraction` | 欧氏聚类分割 | 3D | `1.0.0` |
 | `OperatorType.PPFEstimation` | PPF点对特征 | 3D | `1.0.0` |
-| `OperatorType.PPFMatch` | PPF表面匹配 | 3D | `1.0.1` |
+| `OperatorType.PPFMatch` | PPF表面匹配 | 3D | `1.0.4` |
 | `OperatorType.RansacPlaneSegmentation` | RANSAC平面分割 | 3D | `1.0.0` |
 | `OperatorType.StatisticalOutlierRemoval` | 统计滤波 | 3D | `1.0.0` |
 | `OperatorType.VoxelDownsample` | 体素下采样 | 3D | `1.0.0` |
@@ -18,7 +18,7 @@
 | `OperatorType.DualModalVoting` | 双模态投票 | AI检测 | `1.0.0` |
 | `OperatorType.EdgePairDefect` | 边缘对缺陷 | AI检测 | `1.0.0` |
 | `OperatorType.SemanticSegmentation` | 语义分割 | AI检测 | `1.0.0` |
-| `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `1.0.0` |
+| `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `2.0.0` |
 | `OperatorType.DistanceTransform` | Distance Transform | Analysis | `1.0.0` |
 | `OperatorType.FFT1D` | FFT 1D | Frequency | `1.0.0` |
 | `OperatorType.FrequencyFilter` | Frequency Filter | Frequency | `1.0.0` |
@@ -36,12 +36,12 @@
 | `OperatorType.LawsTextureFilter` | Laws Texture Filter | Texture | `1.0.0` |
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 匹配定位 | `1.0.0` |
 | `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 匹配定位 | `1.0.0` |
-| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 匹配定位 | `1.0.0` |
+| `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 匹配定位 | `1.0.4` |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 匹配定位 | `1.0.0` |
-| `OperatorType.PlanarMatching` | Planar Matching | 匹配定位 | `1.0.0` |
+| `OperatorType.PlanarMatching` | Planar Matching | 匹配定位 | `1.1.1` |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 匹配定位 | `1.0.0` |
-| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 匹配定位 | `1.1.0` |
-| `OperatorType.TemplateMatching` | 模板匹配 | 匹配定位 | `1.0.0` |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 匹配定位 | `1.1.2` |
+| `OperatorType.TemplateMatching` | 模板匹配 | 匹配定位 | `1.1.1` |
 | `OperatorType.CycleCounter` | 循环计数器 | 变量 | `1.0.0` |
 | `OperatorType.VariableIncrement` | 变量递增 | 变量 | `1.0.0` |
 | `OperatorType.VariableRead` | 变量读取 | 变量 | `1.0.0` |
@@ -54,7 +54,7 @@
 | `OperatorType.CornerDetection` | 角点检测 | 定位 | `1.0.0` |
 | `OperatorType.EdgeIntersection` | 边线交点 | 定位 | `1.0.0` |
 | `OperatorType.ParallelLineFind` | 平行线查找 | 定位 | `1.0.0` |
-| `OperatorType.PositionCorrection` | 位置修正 | 定位 | `1.0.0` |
+| `OperatorType.PositionCorrection` | 位置修正 | 定位 | `1.0.1` |
 | `OperatorType.QuadrilateralFind` | 四边形查找 | 定位 | `1.0.0` |
 | `OperatorType.RectangleDetection` | 矩形检测 | 定位 | `1.0.0` |
 | `OperatorType.ImageCompose` | 图像组合 | 拆分组合 | `1.0.0` |
@@ -66,17 +66,17 @@
 | `OperatorType.DatabaseWrite` | 数据库写入 | 数据处理 | `1.0.0` |
 | `OperatorType.JsonExtractor` | JSON 提取器 | 数据处理 | `1.0.0` |
 | `OperatorType.MathOperation` | 数值计算 | 数据处理 | `1.0.0` |
-| `OperatorType.PointAlignment` | 点位对齐 | 数据处理 | `1.0.0` |
-| `OperatorType.PointCorrection` | 点位修正 | 数据处理 | `1.0.0` |
+| `OperatorType.PointAlignment` | 点位对齐 | 数据处理 | `1.0.1` |
+| `OperatorType.PointCorrection` | 点位修正 | 数据处理 | `1.0.1` |
 | `OperatorType.UnitConvert` | 单位换算 | 数据处理 | `1.0.0` |
-| `OperatorType.CalibrationLoader` | 标定加载 | 标定 | `1.0.0` |
+| `OperatorType.CalibrationLoader` | Calibration Loader | 标定 | `1.0.0` |
 | `OperatorType.CameraCalibration` | Camera Calibration | 标定 | `1.0.0` |
-| `OperatorType.CoordinateTransform` | 坐标转换 | 标定 | `1.0.0` |
+| `OperatorType.CoordinateTransform` | Coordinate Transform | 标定 | `1.0.0` |
 | `OperatorType.FisheyeCalibration` | Fisheye Calibration | 标定 | `1.0.0` |
 | `OperatorType.FisheyeUndistort` | Fisheye Undistort | 标定 | `1.0.0` |
-| `OperatorType.HandEyeCalibration` | 手眼标定 | 标定 | `1.0.0` |
-| `OperatorType.HandEyeCalibrationValidator` | 手眼标定验证 | 标定 | `1.0.0` |
-| `OperatorType.NPointCalibration` | N点标定 | 标定 | `1.0.0` |
+| `OperatorType.HandEyeCalibration` | Hand-Eye Calibration | 标定 | `1.0.0` |
+| `OperatorType.HandEyeCalibrationValidator` | Hand-Eye Calibration Validator | 标定 | `1.0.1` |
+| `OperatorType.NPointCalibration` | N Point Calibration | 标定 | `1.0.0` |
 | `OperatorType.PixelToWorldTransform` | Pixel To World Transform | 标定 | `1.0.0` |
 | `OperatorType.StereoCalibration` | Stereo Calibration | 标定 | `1.0.0` |
 | `OperatorType.TranslationRotationCalibration` | 平移旋转标定 | 标定 | `1.0.0` |
@@ -136,7 +136,7 @@
 | `OperatorType.TimerStatistics` | 计时统计 | 逻辑工具 | `1.0.0` |
 | `OperatorType.TriggerModule` | 触发模块 | 逻辑工具 | `1.0.0` |
 | `OperatorType.ImageAcquisition` | 图像采集 | 采集 | `1.0.0` |
-| `OperatorType.AdaptiveThreshold` | 自适应阈值 | 预处理 | `1.0.0` |
+| `OperatorType.AdaptiveThreshold` | Adaptive Threshold | 预处理 | `1.0.0` |
 | `OperatorType.BilateralFilter` | 双边滤波 | 预处理 | `1.0.0` |
 | `OperatorType.ClaheEnhancement` | CLAHE增强 | 预处理 | `1.0.0` |
 | `OperatorType.ColorConversion` | 颜色空间转换 | 预处理 | `1.0.0` |
@@ -158,11 +158,17 @@
 | `OperatorType.Morphology` | Morphology (Legacy) | 预处理 | `1.0.0` |
 | `OperatorType.PerspectiveTransform` | 透视变换 | 预处理 | `1.0.0` |
 | `OperatorType.ShadingCorrection` | 光照校正 | 预处理 | `1.0.0` |
-| `OperatorType.Thresholding` | 二值化 | 预处理 | `1.0.0` |
-| `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `1.0.0` |
+| `OperatorType.Thresholding` | Threshold | 预处理 | `1.0.0` |
+| `OperatorType.ColorDetection` | 颜色检测 | 颜色处理 | `2.0.0` |
 | `OperatorType.ColorMeasurement` | 颜色测量 | 颜色处理 | `1.0.2` |
 
 ## 历史变更 / Historical Changes
+
+### OperatorType.AdaptiveThreshold / Adaptive Threshold
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `B975CE907035` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `B455F3119904` |
 
 ### OperatorType.AffineTransform / 仿射变换
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -185,9 +191,16 @@
 | `1.0.0` | `2026-03-04T10:35:29.6469155+08:00` | `6F966F31BFBE` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `7826C15D141A` |
 
+### OperatorType.AngleMeasurement / 角度测量
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `6AD54E78C9E8` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `75B22BE2483A` |
+
 ### OperatorType.AnomalyDetection / 异常检测
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `AAEA9F498173` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `C16C20BC74A9` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `0C14CFAF3486` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `C16C20BC74A9` |
@@ -207,6 +220,7 @@
 ### OperatorType.BlobAnalysis / Blob分析
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.0` | `2026-04-12T12:53:52.9929473+08:00` | `35B00D18F075` |
 | `1.1.0` | `2026-03-21T01:38:49.8374844+08:00` | `3BC2F4374BA8` |
 | `1.1.0` | `2026-03-17T14:30:51.0566057+08:00` | `9C4A1922B234` |
 | `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `15C54747CFB6` |
@@ -234,14 +248,16 @@
 ### OperatorType.BoxNms / 候选框抑制
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `E4CBB398C15C` |
 | `1.0.0` | `2026-03-26T20:16:17.5776687+08:00` | `2B3620B159CC` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `426E8183E019` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `96FD137BF2A1` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `C0B7D3338B2D` |
 
-### OperatorType.CalibrationLoader / 标定加载
+### OperatorType.CalibrationLoader / Calibration Loader
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `54BFF1856F9A` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `78A181F5EBA5` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `4DE2162FEF55` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `1680B6462051` |
@@ -249,6 +265,7 @@
 ### OperatorType.CaliperTool / 卡尺工具
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `CDB7057CA44D` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `8956BB4F439B` |
 | `1.0.0` | `2026-03-17T12:35:04.9178309+08:00` | `78EBE4E17E09` |
 | `1.0.0` | `2026-03-16T23:16:26.6950446+08:00` | `79BAEECDB051` |
@@ -258,6 +275,7 @@
 ### OperatorType.CameraCalibration / Camera Calibration
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `FE613E289E47` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `F16C96AD05AD` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `490769260740` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `C892CA5A86D9` |
@@ -265,6 +283,7 @@
 ### OperatorType.CircleMeasurement / 圆测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `715E73668BBF` |
 | `1.0.0` | `2026-03-16T01:00:41.9846479+08:00` | `0F06DC09DFF2` |
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `F24C794D0D92` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `D89303A4578F` |
@@ -272,8 +291,15 @@
 ### OperatorType.ClaheEnhancement / CLAHE增强
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `5F3BBC85B0F4` |
 | `1.0.0` | `2026-03-16T01:00:41.9846479+08:00` | `69E533C1A735` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `E6C58B4D7CFF` |
+
+### OperatorType.CodeRecognition / 条码识别
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `E9EA23FB99BA` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `C49C5CAA3C71` |
 
 ### OperatorType.ColorConversion / 颜色空间转换
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -284,6 +310,7 @@
 ### OperatorType.ColorDetection / 颜色检测
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `2.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `D9F18714A4C1` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `424C14C47E4B` |
 | `1.0.0` | `2026-03-17T12:35:04.9178309+08:00` | `F78B0BF0F340` |
 | `1.0.0` | `2026-03-16T01:00:41.9846479+08:00` | `423D33D479AE` |
@@ -331,6 +358,18 @@
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `89D3C64A1F06` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `CF1814DC72D3` |
 
+### OperatorType.ContourMeasurement / 轮廓测量
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `9E59A9BBDB9F` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `54B6127392FC` |
+
+### OperatorType.CoordinateTransform / Coordinate Transform
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `0ACBA65146BA` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `9A444692FBD4` |
+
 ### OperatorType.CopyMakeBorder / 边界填充
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
@@ -351,9 +390,16 @@
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `59FED1DF2CFC` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `8938799BB943` |
 
+### OperatorType.DatabaseWrite / 数据库写入
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `DB7098D9E78E` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `71703C60A331` |
+
 ### OperatorType.DeepLearning / 深度学习
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `2E48EADEADA1` |
 | `1.0.0` | `2026-03-27T21:24:05.6159117+08:00` | `4D9170172AFC` |
 | `1.0.0` | `2026-03-26T20:16:17.5776687+08:00` | `D88A39CAAF47` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `94CF298C8838` |
@@ -375,6 +421,7 @@
 ### OperatorType.DetectionSequenceJudge / Detection Sequence Judge
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `727A2E906BAF` |
 | `1.0.0` | `2026-03-27T15:14:57.0770992+08:00` | `304650035DC9` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `BBDC8D920528` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `8A2065048793` |
@@ -409,6 +456,7 @@
 ### OperatorType.EdgePairDefect / 边缘对缺陷
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `612FC012809E` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `40A7891AAD29` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `7FC4BA140142` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `81CCA70F0BDE` |
@@ -428,18 +476,21 @@
 ### OperatorType.FisheyeCalibration / Fisheye Calibration
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `429A6C95885C` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `990EBD083DE8` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `72B2E9BED29F` |
 
 ### OperatorType.FisheyeUndistort / Fisheye Undistort
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `A9155938C127` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `B0B56491C645` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `7B86C470ECE8` |
 
 ### OperatorType.FrameAveraging / 帧平均
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `5D3973154CFA` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `986722B04F67` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `2DF9846480B8` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `66F873796264` |
@@ -447,6 +498,7 @@
 ### OperatorType.GapMeasurement / 间隙测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `CE50242C670F` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `B4480FC082D5` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `81FC48BD52D5` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `EC1A78180B57` |
@@ -454,6 +506,7 @@
 ### OperatorType.GeoMeasurement / 几何测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `D3985346D77B` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `8E8DBCE518EA` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `20AC7D63887E` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `8F4ECDF2968D` |
@@ -471,6 +524,7 @@
 ### OperatorType.GeometricTolerance / 几何公差
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `29267D6F030B` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `D68B1A1FA0EC` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `9BDF9252DECC` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `CC1399C0B8AD` |
@@ -490,16 +544,20 @@
 | `1.0.0` | `2026-03-15T14:24:43.1972535+08:00` | `BE1DD761D410` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `C4917CE7BE0A` |
 
-### OperatorType.HandEyeCalibration / 手眼标定
+### OperatorType.HandEyeCalibration / Hand-Eye Calibration
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `37FB38F7A53F` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `0E8F8C1E43EC` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `2958261D0E81` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `0E8F8C1E43EC` |
 
-### OperatorType.HandEyeCalibrationValidator / 手眼标定验证
+### OperatorType.HandEyeCalibrationValidator / Hand-Eye Calibration Validator
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-04-12T13:38:35.2141516+08:00` | `E17BBC343ACF` |
+| `1.0.0` | `2026-04-12T13:37:21.3936141+08:00` | `16D11BE65447` |
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `0C424A5EA7B2` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `67868CDD56AD` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `5B2B745ACB3E` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `67868CDD56AD` |
@@ -507,9 +565,16 @@
 ### OperatorType.HistogramAnalysis / 直方图分析
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `01897F1C223A` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `8515841FC225` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `8B682154A78D` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `A33C328B07D8` |
+
+### OperatorType.HistogramEqualization / 直方图均衡化
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `279F9C6A031C` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `4F533BE2BFD2` |
 
 ### OperatorType.HttpRequest / HTTP 请求
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -593,13 +658,21 @@
 ### OperatorType.LineLineDistance / 线线距离
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `50EFBA259A3A` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `DB4FE7BE4F4D` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `6218C76C8208` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `C4197D651346` |
 
+### OperatorType.LineMeasurement / 直线测量
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `2FF0E868B0A4` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `FB7CB0898D13` |
+
 ### OperatorType.LocalDeformableMatching / Local Deformable Matching
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.4` | `2026-04-12T12:53:52.9929473+08:00` | `9AD0E95A8C88` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `95A32A24B967` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `D31FBB0020ED` |
 
@@ -615,6 +688,12 @@
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `23168BEB9E7F` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `DD0BC13363D3` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `ED740E081606` |
+
+### OperatorType.Measurement / 测量
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `91AB87431111` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `4016CC586C1F` |
 
 ### OperatorType.MinEnclosingGeometry / Min Enclosing Geometry
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -659,9 +738,10 @@
 | `1.0.0` | `2026-03-16T01:00:41.9846479+08:00` | `FFCB190578C7` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `7F475495E079` |
 
-### OperatorType.NPointCalibration / N点标定
+### OperatorType.NPointCalibration / N Point Calibration
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `7FBC8F939D41` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `170692A628FB` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `3DF5A204BEE4` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `0B9DBE2431AE` |
@@ -690,6 +770,7 @@
 ### OperatorType.PPFMatch / PPF表面匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.4` | `2026-04-12T12:53:52.9929473+08:00` | `0C6B3AA3DE69` |
 | `1.0.1` | `2026-03-21T01:38:49.8374844+08:00` | `0D0FDDC9C625` |
 | `1.0.1` | `2026-03-18T19:00:25.2910689+08:00` | `E64DEFAE4B95` |
 | `1.0.0` | `2026-03-17T16:34:20.9153387+08:00` | `3F62675CEB39` |
@@ -711,6 +792,7 @@
 ### OperatorType.PixelStatistics / 像素统计
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `77ED8F58B715` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `3E845B989BC1` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `82DC78427BAF` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `4EB06D674A3D` |
@@ -718,18 +800,21 @@
 ### OperatorType.PixelToWorldTransform / Pixel To World Transform
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `6B3BFC7109C5` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `863B5827D277` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `DD71E7F3F1AA` |
 
 ### OperatorType.PlanarMatching / Planar Matching
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.1` | `2026-04-12T12:53:52.9929473+08:00` | `F97D9B2286D6` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `7DF103AFF77A` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `2706B43F0B0E` |
 
 ### OperatorType.PointAlignment / 点位对齐
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-04-12T12:53:52.9929473+08:00` | `87ED7F7672ED` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `7D3ED24D3273` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `6732C97572C2` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `E4A8E6F775A9` |
@@ -737,6 +822,7 @@
 ### OperatorType.PointCorrection / 点位修正
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-04-12T12:53:52.9929473+08:00` | `6AA553FE68DD` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `C1DFFAC1D1D8` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `324DE476C870` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `815617758954` |
@@ -744,6 +830,7 @@
 ### OperatorType.PointLineDistance / 点线距离
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `84F85377B4C7` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `7C11CE8D231C` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `FCE5924A5358` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `EB16F20EF164` |
@@ -766,6 +853,7 @@
 ### OperatorType.PositionCorrection / 位置修正
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.1` | `2026-04-12T12:53:52.9929473+08:00` | `53B133FF0C30` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `07D84C961991` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `8B093712CDBE` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `A33AE687F32A` |
@@ -807,6 +895,12 @@
 |------|------|------|
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `BFA8EED40F07` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `B1DA89F6441D` |
+
+### OperatorType.RegionSkeleton / Region Skeleton
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `618A97A0B08E` |
+| `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `0B331757C5AA` |
 
 ### OperatorType.ResultJudgment / 结果判定
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
@@ -862,6 +956,7 @@
 ### OperatorType.ShapeMatching / 旋转尺度模板匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.2` | `2026-04-12T12:53:52.9929473+08:00` | `51059543B1E4` |
 | `1.1.0` | `2026-03-21T01:38:49.8374844+08:00` | `1A5E244A6349` |
 | `1.1.0` | `2026-03-17T14:30:51.0566057+08:00` | `141086A053D4` |
 | `1.0.0` | `2026-03-17T14:27:11.6128169+08:00` | `D405977E4DDC` |
@@ -873,6 +968,7 @@
 ### OperatorType.SharpnessEvaluation / 清晰度评估
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `85F599843C91` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `88E5BE97F908` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `1FF3E760D01C` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `3362EBCD01BB` |
@@ -902,6 +998,7 @@
 ### OperatorType.StereoCalibration / Stereo Calibration
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `810DBE56FF6D` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `8CC920E1EE3D` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `EB7C28467E72` |
 
@@ -914,6 +1011,7 @@
 ### OperatorType.SubpixelEdgeDetection / Subpixel Edge Detection
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `482F884A9448` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `3AB12925E1E0` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `A3FB6B396DF1` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `8A3328983212` |
@@ -921,6 +1019,7 @@
 ### OperatorType.SurfaceDefectDetection / 表面缺陷检测
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `2.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `3A7A4EC68BD2` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `90D11B72CA9C` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `77EFD328EF95` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `02BD406438C7` |
@@ -928,6 +1027,7 @@
 ### OperatorType.TemplateMatching / 模板匹配
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.1.1` | `2026-04-12T12:53:52.9929473+08:00` | `A856B21665F3` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `2FD9DB94E474` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `30BE4FBE1B26` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `2FD9DB94E474` |
@@ -942,6 +1042,12 @@
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `BD1CB4079308` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `23E51E9AEF58` |
 
+### OperatorType.Thresholding / Threshold
+| 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
+|------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `6EF90355BA3A` |
+| `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `F59A1E561D20` |
+
 ### OperatorType.TimerStatistics / 计时统计
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
@@ -952,6 +1058,7 @@
 ### OperatorType.TranslationRotationCalibration / 平移旋转标定
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `288090A14B98` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `108D0A0FCC40` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `994AF95A3442` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `62D1609B1CCB` |
@@ -988,6 +1095,7 @@
 ### OperatorType.Undistort / Undistort
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `DC5C039E75FD` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `AA6855AFF929` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `B1CB22CD65A0` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `397F69EB0E6E` |
@@ -1026,6 +1134,7 @@
 ### OperatorType.WidthMeasurement / 宽度测量
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `0A455BD495CA` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `7D994B459340` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `175A335805B8` |
 | `1.0.0` | `2026-03-16T19:59:19.7031372+08:00` | `7D994B459340` |

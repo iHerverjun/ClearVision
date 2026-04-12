@@ -13,8 +13,9 @@ using Acme.Product.Infrastructure.Operators;
 var repoRoot = ResolveRepoRoot(args);
 var overwrite = args.Any(arg => string.Equals(arg, "--overwrite", StringComparison.OrdinalIgnoreCase));
 var enforceVersionBump = args.Any(arg => string.Equals(arg, "--enforce-version-bump", StringComparison.OrdinalIgnoreCase));
-var operatorDocsRoot = Path.Combine(repoRoot, "算子资料");
+var operatorDocsRoot = Path.Combine(repoRoot, "docs", "算子资料");
 var docsRoot = Path.Combine(operatorDocsRoot, "算子名片");
+var legacyMirrorRoot = Path.Combine(repoRoot, "算子资料");
 var generatedAt = DateTimeOffset.Now;
 var qualityContext = BuildQualityContext(repoRoot, docsRoot);
 
@@ -57,6 +58,7 @@ GenerateCatalogJson(operators, docsRoot, generatedAt);
 GenerateCatalogMarkdown(operators, docsRoot, "./", generatedAt);
 var versionTracking = GenerateVersionTrackingArtifacts(candidates, operators, qualityContext, docsRoot, generatedAt);
 SyncRootCatalogArtifacts(operators, docsRoot, operatorDocsRoot, generatedAt);
+SyncLegacyMirrorArtifacts(operatorDocsRoot, docsRoot, legacyMirrorRoot);
 
 Console.WriteLine($"repoRoot={repoRoot} operatorDocsRoot={operatorDocsRoot} cardsRoot={docsRoot} operators={candidates.Count} generated={generated} skipped={skipped} overwrite={overwrite}");
 Console.WriteLine($"catalogJson={Path.Combine(operatorDocsRoot, "算子目录.json")} catalogMarkdown={Path.Combine(operatorDocsRoot, "算子目录.md")}");
@@ -237,6 +239,41 @@ static void SyncRootCatalogArtifacts(IReadOnlyList<CatalogOperator> operators, s
                 : "算子版本记录.json";
             File.WriteAllText(Path.Combine(docsParentRoot, destinationFileName), content, new UTF8Encoding(false));
         }
+    }
+}
+
+static void SyncLegacyMirrorArtifacts(string activeDocsRoot, string activeCardsRoot, string legacyMirrorRoot)
+{
+    Directory.CreateDirectory(legacyMirrorRoot);
+
+    foreach (var fileName in new[] { "算子目录.json", "算子目录.md", "算子变更记录.md", "算子版本记录.json", "算子手册.md", "导航.md" })
+    {
+        var sourcePath = Path.Combine(activeDocsRoot, fileName);
+        if (!File.Exists(sourcePath))
+        {
+            continue;
+        }
+
+        File.Copy(sourcePath, Path.Combine(legacyMirrorRoot, fileName), overwrite: true);
+    }
+
+    var legacyCardsRoot = Path.Combine(legacyMirrorRoot, "算子名片");
+    Directory.CreateDirectory(legacyCardsRoot);
+
+    foreach (var cardPath in Directory.EnumerateFiles(activeCardsRoot, "*.md", SearchOption.TopDirectoryOnly))
+    {
+        File.Copy(cardPath, Path.Combine(legacyCardsRoot, Path.GetFileName(cardPath)), overwrite: true);
+    }
+
+    foreach (var artifact in new[] { "catalog.json", "CATALOG.md", "CHANGELOG.md", "version-history.json" })
+    {
+        var sourcePath = Path.Combine(activeCardsRoot, artifact);
+        if (!File.Exists(sourcePath))
+        {
+            continue;
+        }
+
+        File.Copy(sourcePath, Path.Combine(legacyCardsRoot, artifact), overwrite: true);
     }
 }
 
