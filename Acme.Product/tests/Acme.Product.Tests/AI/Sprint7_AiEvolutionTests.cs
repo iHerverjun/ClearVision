@@ -56,7 +56,8 @@ public class Sprint7_AiEvolutionTests
         prompt.Should().Contain("参数推理指南");
         prompt.Should().Contain("数值提取规则");
         prompt.Should().Contain("mm/μm");
-        prompt.Should().Contain("PixelSize");
+        prompt.Should().Contain("CalibrationBundleV2");
+        prompt.Should().Contain("CalibrationLoader");
     }
 
     [Fact(DisplayName = "AiFlowValidator - 应自动填充必填默认值并对越界参数执行 Clamp")]
