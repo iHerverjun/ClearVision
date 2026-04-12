@@ -35,7 +35,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("StdDev", "StdDev", PortDataType.Float)]
 [OutputPort("ValidSampleRate", "Valid Sample Rate", PortDataType.Float)]
 [OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "AutoEdge", Options = new[] { "AutoEdge|AutoEdge", "ManualLines|ManualLines" })]
-[OperatorParam("NumSamples", "Sample Count", "int", DefaultValue = 24, Min = 10, Max = 100)]
+[OperatorParam("SampleCount", "Sample Count", "int", DefaultValue = 24, Min = 10, Max = 256)]
 [OperatorParam("Direction", "Direction", "enum", DefaultValue = "Perpendicular", Options = new[] { "Perpendicular|Perpendicular", "Custom|Custom" })]
 [OperatorParam("CustomAngle", "Custom Angle", "double", DefaultValue = 0.0, Min = -180.0, Max = 180.0)]
 [OperatorParam("RobustMode", "Robust Mode", "bool", DefaultValue = true)]
@@ -67,13 +67,13 @@ public class WidthMeasurementOperator : OperatorBase
         }
 
         var mode = GetStringParam(@operator, "MeasureMode", "AutoEdge");
-        var numSamples = GetIntParam(@operator, "NumSamples", 24, 10, 100);
+        var sampleCount = ResolveSampleCount(@operator);
         var direction = GetStringParam(@operator, "Direction", "Perpendicular");
         var customAngle = GetDoubleParam(@operator, "CustomAngle", 0.0, -180.0, 180.0);
         var robustMode = GetBoolParam(@operator, "RobustMode", true);
         var outlierSigmaK = GetDoubleParam(@operator, "OutlierSigmaK", 3.0, 0.5, 10.0);
         var minValidSamples = GetIntParam(@operator, "MinValidSamples", 0, 0, 256);
-        var multiScanCount = GetIntParam(@operator, "MultiScanCount", numSamples, 10, 256);
+        var multiScanCount = GetIntParam(@operator, "MultiScanCount", sampleCount, 10, 256);
 
         LineData line1;
         LineData line2;
@@ -108,7 +108,7 @@ public class WidthMeasurementOperator : OperatorBase
         var measurements = BuildMeasurementSamples(gray, line1, line2, multiScanCount, direction, customAngle);
         if (measurements.Count == 0)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("No valid width samples generated"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("[NoFeature] No valid edge-backed width samples generated"));
         }
 
         var allWidths = measurements.Select(m => m.Width).ToList();
@@ -159,7 +159,9 @@ public class WidthMeasurementOperator : OperatorBase
             { "ValidSampleRate", validSampleRate },
             { "Direction", direction },
             { "RefinedSampleCount", refinedSampleCount },
-            { "SampleCount", measurements.Count },
+            { "SampleCount", sampleCount },
+            { "MultiScanCount", multiScanCount },
+            { "ExecutedScanCount", measurements.Count },
             { "ValidSampleCount", usedWidths.Count },
             { "RobustMode", robustMode },
             { "OutlierSigmaK", outlierSigmaK },
@@ -181,16 +183,21 @@ public class WidthMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("MeasureMode must be AutoEdge or ManualLines");
         }
 
-        var samples = GetIntParam(@operator, "NumSamples", 24);
-        if (samples < 10 || samples > 100)
+        var sampleCount = ResolveSampleCount(@operator);
+        if (sampleCount < 10 || sampleCount > 256)
         {
-            return ValidationResult.Invalid("NumSamples must be within [10, 100]");
+            return ValidationResult.Invalid("SampleCount must be within [10, 256]");
         }
 
-        var multiScanCount = GetIntParam(@operator, "MultiScanCount", samples);
+        var multiScanCount = GetIntParam(@operator, "MultiScanCount", sampleCount);
         if (multiScanCount < 10 || multiScanCount > 256)
         {
             return ValidationResult.Invalid("MultiScanCount must be within [10, 256]");
+        }
+
+        if (multiScanCount < sampleCount)
+        {
+            return ValidationResult.Invalid("MultiScanCount must be greater than or equal to SampleCount");
         }
 
         var direction = GetStringParam(@operator, "Direction", "Perpendicular");
@@ -301,17 +308,28 @@ public class WidthMeasurementOperator : OperatorBase
                 continue;
             }
 
-            if (TryMeasureWidthByCaliper(gray, referenceStart, referenceEnd, out var startEdge, out var endEdge))
+            if (!TryMeasureWidthByCaliper(gray, referenceStart, referenceEnd, out var startEdge, out var endEdge))
             {
-                measurements.Add(new MeasurementSample(referenceStart, referenceEnd, startEdge, endEdge, Distance(startEdge, endEdge), true));
+                continue;
             }
-            else
-            {
-                measurements.Add(new MeasurementSample(referenceStart, referenceEnd, referenceStart, referenceEnd, fallbackWidth, false));
-            }
+
+            measurements.Add(new MeasurementSample(referenceStart, referenceEnd, startEdge, endEdge, Distance(startEdge, endEdge), true));
         }
 
         return measurements;
+    }
+
+    private static int ResolveSampleCount(Operator @operator)
+    {
+        var sampleCount = MeasurementRoiHelper.ReadIntParameter(@operator, "SampleCount", 0);
+        if (sampleCount > 0)
+        {
+            return Math.Clamp(sampleCount, 10, 256);
+        }
+
+        // Keep a read-only migration path for historical flows that still store NumSamples.
+        var legacy = MeasurementRoiHelper.ReadIntParameter(@operator, "NumSamples", 24);
+        return Math.Clamp(legacy, 10, 256);
     }
 
     private static bool TryDetectParallelLines(Mat src, out LineData line1, out LineData line2)

@@ -1,26 +1,19 @@
-﻿// LineLineDistanceOperator.cs
-// 线线距离算子
-// 计算两条线段或直线之间的最短距离
-// 作者：蘅芜君
 using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// Computes distance/angle/intersection between two lines.
-/// </summary>
 [OperatorMeta(
     DisplayName = "线线距离",
-    Description = "Computes distance and angle between two lines.",
+    Description = "Computes distance and angle between two lines or segments.",
     Category = "检测",
     IconName = "parallel",
-    Keywords = new[] { "line distance", "angle", "parallel" }
+    Keywords = new[] { "line distance", "angle", "parallel", "segment" }
 )]
 [InputPort("Line1", "Line 1", PortDataType.LineData, IsRequired = true)]
 [InputPort("Line2", "Line 2", PortDataType.LineData, IsRequired = true)]
@@ -30,10 +23,10 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("HasIntersection", "Has Intersection", PortDataType.Boolean)]
 [OutputPort("IsParallel", "Is Parallel", PortDataType.Boolean)]
 [OperatorParam("ParallelThreshold", "Parallel Threshold", "double", DefaultValue = 2.0, Min = 0.0, Max = 45.0)]
+[OperatorParam("DistanceModel", "Distance Model", "enum", DefaultValue = "Segment", Options = new[] { "Segment|Segment", "InfiniteLine|Infinite line" })]
+[OperatorParam("Unit", "Unit", "enum", DefaultValue = "Pixel", Options = new[] { "Pixel|Pixel" })]
 public class LineLineDistanceOperator : OperatorBase
 {
-    private static readonly Position NoIntersection = new(double.NaN, double.NaN);
-
     public override OperatorType OperatorType => OperatorType.LineLineDistance;
 
     public LineLineDistanceOperator(ILogger<LineLineDistanceOperator> logger) : base(logger)
@@ -61,16 +54,22 @@ public class LineLineDistanceOperator : OperatorBase
         }
 
         var parallelThreshold = GetDoubleParam(@operator, "ParallelThreshold", 2.0, 0, 45);
+        var distanceModel = GetStringParam(@operator, "DistanceModel", "Segment");
+        var unit = GetStringParam(@operator, "Unit", "Pixel");
 
-        var v1x = line1.EndX - line1.StartX;
-        var v1y = line1.EndY - line1.StartY;
-        var v2x = line2.EndX - line2.StartX;
-        var v2y = line2.EndY - line2.StartY;
+        if (!TryParseDistanceModel(distanceModel, out var parsedModel))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("DistanceModel must be Segment or InfiniteLine"));
+        }
 
-        var len1 = Math.Sqrt(v1x * v1x + v1y * v1y);
-        var len2 = Math.Sqrt(v2x * v2x + v2y * v2y);
+        if (!unit.Equals("Pixel", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Unit must be Pixel"));
+        }
 
-        if (!IsFiniteLine(line1) || !IsFiniteLine(line2))
+        var len1 = line1.Length;
+        var len2 = line2.Length;
+        if (!MeasurementGeometryHelper.IsFinite(line1) || !MeasurementGeometryHelper.IsFinite(line2))
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Line coordinates must be finite numbers"));
         }
@@ -80,38 +79,38 @@ public class LineLineDistanceOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Input line is zero length"));
         }
 
-        var dot = v1x * v2x + v1y * v2y;
-        var cosTheta = Math.Clamp(Math.Abs(dot) / (len1 * len2), -1.0, 1.0);
-        var angleDeg = Math.Acos(cosTheta) * 180.0 / Math.PI;
-
+        var angleDeg = MeasurementGeometryHelper.AngleBetweenLineDirections(line1, line2);
         var isParallel = angleDeg <= parallelThreshold;
-        var hasGeometricIntersection = TrySolveIntersection(line1, line2, out var geometricIntersection);
-        var hasIntersection = !isParallel && hasGeometricIntersection;
-        var intersection = hasIntersection ? geometricIntersection : NoIntersection;
 
-        double distance;
-        if (isParallel)
+        var hasInfiniteIntersection = MeasurementGeometryHelper.TryGetInfiniteLineIntersection(line1, line2, out var infiniteIntersection);
+        var hasSegmentIntersection = MeasurementGeometryHelper.TryGetSegmentIntersection(line1, line2, out var segmentIntersection);
+        var hasIntersection = parsedModel == DistanceModel.Segment ? hasSegmentIntersection : (!isParallel && hasInfiniteIntersection);
+        var intersection = parsedModel == DistanceModel.Segment
+            ? (hasSegmentIntersection ? segmentIntersection : MeasurementGeometryHelper.NoIntersection)
+            : (hasInfiniteIntersection ? infiniteIntersection : MeasurementGeometryHelper.NoIntersection);
+
+        var distance = parsedModel switch
         {
-            var midX = (line1.StartX + line1.EndX) / 2.0;
-            var midY = (line1.StartY + line1.EndY) / 2.0;
-            distance = DistancePointToLine(midX, midY, line2);
-        }
-        else
-        {
-            distance = 0;
-        }
+            DistanceModel.Segment => MeasurementGeometryHelper.DistanceSegmentToSegment(line1, line2),
+            DistanceModel.InfiniteLine => isParallel
+                ? MeasurementGeometryHelper.DistancePointToInfiniteLine(line1.StartX, line1.StartY, line2)
+                : 0.0,
+            _ => 0.0
+        };
 
         var output = new Dictionary<string, object>
         {
             { "Distance", distance },
             { "Angle", angleDeg },
-            { "Intersection", intersection },
+            { "Intersection", hasIntersection ? intersection : MeasurementGeometryHelper.NoIntersection },
             { "HasIntersection", hasIntersection },
             { "IsParallel", isParallel },
+            { "DistanceModel", parsedModel.ToString() },
+            { "Unit", "Pixel" },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
-            { "UncertaintyPx", isParallel ? 0.01 : 0.0 }
+            { "UncertaintyPx", parsedModel == DistanceModel.Segment ? 0.01 : 0.0 }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -125,56 +124,44 @@ public class LineLineDistanceOperator : OperatorBase
             return ValidationResult.Invalid("ParallelThreshold must be within [0, 45]");
         }
 
+        if (!TryParseDistanceModel(GetStringParam(@operator, "DistanceModel", "Segment"), out _))
+        {
+            return ValidationResult.Invalid("DistanceModel must be Segment or InfiniteLine");
+        }
+
+        if (!GetStringParam(@operator, "Unit", "Pixel").Equals("Pixel", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("Unit must be Pixel");
+        }
+
         return ValidationResult.Valid();
     }
 
-    private static bool TrySolveIntersection(LineData l1, LineData l2, out Position intersection)
+    private static bool TryParseDistanceModel(string model, out DistanceModel parsed)
     {
-        var x1 = l1.StartX;
-        var y1 = l1.StartY;
-        var x2 = l1.EndX;
-        var y2 = l1.EndY;
-
-        var x3 = l2.StartX;
-        var y3 = l2.StartY;
-        var x4 = l2.EndX;
-        var y4 = l2.EndY;
-
-        var denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        if (Math.Abs(denom) < 1e-9)
+        parsed = DistanceModel.Segment;
+        if (string.Equals(model, "Segment", StringComparison.OrdinalIgnoreCase))
         {
-            intersection = NoIntersection;
-            return false;
+            parsed = DistanceModel.Segment;
+            return true;
         }
 
-        var det1 = x1 * y2 - y1 * x2;
-        var det2 = x3 * y4 - y3 * x4;
-
-        var px = (det1 * (x3 - x4) - (x1 - x2) * det2) / denom;
-        var py = (det1 * (y3 - y4) - (y1 - y2) * det2) / denom;
-        intersection = new Position(px, py);
-        return true;
-    }
-
-    private static double DistancePointToLine(double px, double py, LineData line)
-    {
-        var a = line.EndY - line.StartY;
-        var b = line.StartX - line.EndX;
-        var c = line.EndX * line.StartY - line.StartX * line.EndY;
-        var denom = Math.Sqrt(a * a + b * b);
-        if (denom < 1e-9)
+        if (string.Equals(model, "InfiniteLine", StringComparison.OrdinalIgnoreCase))
         {
-            return 0;
+            parsed = DistanceModel.InfiniteLine;
+            return true;
         }
 
-        return Math.Abs(a * px + b * py + c) / denom;
+        return false;
     }
 
     private static bool TryParseLine(object? obj, out LineData line)
     {
         line = new LineData();
         if (obj == null)
+        {
             return false;
+        }
 
         if (obj is LineData lineData)
         {
@@ -206,8 +193,8 @@ public class LineLineDistanceOperator : OperatorBase
         if (obj is IDictionary legacyDict)
         {
             var normalized = legacyDict.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
             return TryParseLine(normalized, out line);
         }
 
@@ -232,13 +219,9 @@ public class LineLineDistanceOperator : OperatorBase
         };
     }
 
-    private static bool IsFiniteLine(LineData line)
+    private enum DistanceModel
     {
-        return double.IsFinite(line.StartX) &&
-               double.IsFinite(line.StartY) &&
-               double.IsFinite(line.EndX) &&
-               double.IsFinite(line.EndY);
+        Segment = 0,
+        InfiniteLine = 1
     }
 }
-
-

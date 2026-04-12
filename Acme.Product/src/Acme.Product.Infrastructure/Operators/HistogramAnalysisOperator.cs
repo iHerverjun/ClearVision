@@ -1,19 +1,15 @@
-// HistogramAnalysisOperator.cs
-// 直方图分析算子
-// 输出图像灰度或通道直方图统计结果
-// 作者：蘅芜君
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "直方图分析",
-    Description = "Computes histogram and distribution statistics for selected channel.",
+    Description = "Computes histogram and intensity-domain distribution statistics for a selected channel.",
     Category = "检测",
     IconName = "histogram",
     Keywords = new[] { "histogram", "distribution", "peak", "median" }
@@ -22,10 +18,14 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OutputPort("Mean", "Mean", PortDataType.Float)]
 [OutputPort("StdDev", "StdDev", PortDataType.Float)]
-[OutputPort("Mode", "Mode", PortDataType.Integer)]
-[OutputPort("Median", "Median", PortDataType.Integer)]
-[OutputPort("Peak", "Peak", PortDataType.Integer)]
-[OutputPort("Valley", "Valley", PortDataType.Integer)]
+[OutputPort("Mode", "Mode", PortDataType.Float)]
+[OutputPort("Median", "Median", PortDataType.Float)]
+[OutputPort("Peak", "Peak", PortDataType.Float)]
+[OutputPort("Valley", "Valley", PortDataType.Float)]
+[OutputPort("ModeBinIndex", "Mode Bin Index", PortDataType.Integer)]
+[OutputPort("MedianBinIndex", "Median Bin Index", PortDataType.Integer)]
+[OutputPort("PeakBinIndex", "Peak Bin Index", PortDataType.Integer)]
+[OutputPort("ValleyBinIndex", "Valley Bin Index", PortDataType.Integer)]
 [OperatorParam("Channel", "Channel", "enum", DefaultValue = "Gray", Options = new[] { "Gray|Gray", "R|R", "G|G", "B|B" })]
 [OperatorParam("BinCount", "Bin Count", "int", DefaultValue = 256, Min = 2, Max = 1024)]
 [OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0, Min = 0)]
@@ -58,7 +58,7 @@ public class HistogramAnalysisOperator : OperatorBase
 
         var channelName = GetStringParam(@operator, "Channel", "Gray");
         var binCount = GetIntParam(@operator, "BinCount", 256, 2, 1024);
-        var roi = ResolveRoi(@operator, src.Width, src.Height);
+        var roi = MeasurementRoiHelper.ResolveRoi(@operator, src.Width, src.Height);
         if (roi.Width <= 0 || roi.Height <= 0)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("ROI is invalid"));
@@ -66,8 +66,8 @@ public class HistogramAnalysisOperator : OperatorBase
 
         using var roiMat = new Mat(src, roi);
         using var channelMat = ExtractChannel(roiMat, channelName);
-
         Cv2.MeanStdDev(channelMat, out var mean, out var stddev);
+
         using var hist = new Mat();
         Cv2.CalcHist(
             new[] { channelMat },
@@ -84,27 +84,31 @@ public class HistogramAnalysisOperator : OperatorBase
             values[i] = hist.At<float>(i);
         }
 
-        var total = values.Sum(v => (double)v);
-        var mode = ArgMax(values);
-        var peak = mode;
-        var valley = ArgMin(values);
-        var median = ComputeMedianBin(values, total);
+        var total = values.Sum(value => (double)value);
+        var modeBinIndex = ArgMax(values);
+        var peakBinIndex = modeBinIndex;
+        var medianBinIndex = ComputeMedianBin(values, total);
+        var valleyBinIndex = TryFindValleyBetweenDominantPeaks(values, out var valleyIndex) ? valleyIndex : -1;
 
-        var chart = DrawHistogram(values, 512, 220);
         var output = new Dictionary<string, object>
         {
             { "Mean", mean.Val0 },
             { "StdDev", stddev.Val0 },
-            { "Mode", mode },
-            { "Median", median },
-            { "Peak", peak },
-            { "Valley", valley },
+            { "Mode", BinCenterIntensity(modeBinIndex, binCount) },
+            { "Median", BinCenterIntensity(medianBinIndex, binCount) },
+            { "Peak", BinCenterIntensity(peakBinIndex, binCount) },
+            { "Valley", valleyBinIndex >= 0 ? BinCenterIntensity(valleyBinIndex, binCount) : double.NaN },
+            { "ModeBinIndex", modeBinIndex },
+            { "MedianBinIndex", medianBinIndex },
+            { "PeakBinIndex", peakBinIndex },
+            { "ValleyBinIndex", valleyBinIndex },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
             { "UncertaintyPx", 0.0 }
         };
 
+        var chart = DrawHistogram(values, 512, 220);
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(chart, output)));
     }
 
@@ -158,38 +162,11 @@ public class HistogramAnalysisOperator : OperatorBase
         }
         finally
         {
-            foreach (var c in channels)
+            foreach (var channel in channels)
             {
-                c.Dispose();
+                channel.Dispose();
             }
         }
-    }
-
-    private static Rect ResolveRoi(Operator @operator, int width, int height)
-    {
-        var x = GetClampedInt(@operator, "RoiX", 0, 0, Math.Max(0, width - 1));
-        var y = GetClampedInt(@operator, "RoiY", 0, 0, Math.Max(0, height - 1));
-        var w = GetClampedInt(@operator, "RoiW", width - x, 1, width);
-        var h = GetClampedInt(@operator, "RoiH", height - y, 1, height);
-        w = Math.Min(w, width - x);
-        h = Math.Min(h, height - y);
-        return new Rect(x, y, Math.Max(0, w), Math.Max(0, h));
-    }
-
-    private static int GetClampedInt(Operator @operator, string name, int def, int min, int max)
-    {
-        var value = @operator.Parameters.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Value;
-        if (value == null)
-        {
-            return def;
-        }
-
-        if (!int.TryParse(value.ToString(), out var parsed))
-        {
-            parsed = def;
-        }
-
-        return Math.Clamp(parsed, min, max);
     }
 
     private static int ArgMax(IReadOnlyList<float> values)
@@ -204,27 +181,6 @@ public class HistogramAnalysisOperator : OperatorBase
         for (var i = 1; i < values.Count; i++)
         {
             if (values[i] > best)
-            {
-                best = values[i];
-                idx = i;
-            }
-        }
-
-        return idx;
-    }
-
-    private static int ArgMin(IReadOnlyList<float> values)
-    {
-        if (values.Count == 0)
-        {
-            return 0;
-        }
-
-        var idx = 0;
-        var best = values[0];
-        for (var i = 1; i < values.Count; i++)
-        {
-            if (values[i] < best)
             {
                 best = values[i];
                 idx = i;
@@ -254,6 +210,64 @@ public class HistogramAnalysisOperator : OperatorBase
         return values.Count - 1;
     }
 
+    private static bool TryFindValleyBetweenDominantPeaks(IReadOnlyList<float> values, out int valleyIndex)
+    {
+        valleyIndex = -1;
+        if (values.Count < 3)
+        {
+            return false;
+        }
+
+        var peaks = Enumerable.Range(0, values.Count)
+            .Where(index => IsLocalPeak(values, index))
+            .OrderByDescending(index => values[index])
+            .Take(4)
+            .ToList();
+
+        if (peaks.Count < 2)
+        {
+            return false;
+        }
+
+        var leftPeak = Math.Min(peaks[0], peaks[1]);
+        var rightPeak = Math.Max(peaks[0], peaks[1]);
+        if (rightPeak - leftPeak < 2)
+        {
+            return false;
+        }
+
+        valleyIndex = leftPeak + 1;
+        var bestValue = values[valleyIndex];
+        for (var i = leftPeak + 1; i < rightPeak; i++)
+        {
+            if (values[i] < bestValue)
+            {
+                bestValue = values[i];
+                valleyIndex = i;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsLocalPeak(IReadOnlyList<float> values, int index)
+    {
+        var left = index == 0 ? float.MinValue : values[index - 1];
+        var right = index == values.Count - 1 ? float.MinValue : values[index + 1];
+        return values[index] >= left && values[index] >= right;
+    }
+
+    private static double BinCenterIntensity(int index, int binCount)
+    {
+        if (index < 0)
+        {
+            return double.NaN;
+        }
+
+        var binWidth = 256.0 / binCount;
+        return ((index + 0.5) * binWidth) - 0.5;
+    }
+
     private static Mat DrawHistogram(IReadOnlyList<float> values, int width, int height)
     {
         var image = new Mat(height, width, MatType.CV_8UC3, Scalar.Black);
@@ -264,13 +278,12 @@ public class HistogramAnalysisOperator : OperatorBase
 
         var max = Math.Max(1e-6f, values.Max());
         var binWidth = width / (double)values.Count;
-
         for (var i = 1; i < values.Count; i++)
         {
             var x1 = (int)Math.Round((i - 1) * binWidth);
-            var y1 = height - (int)Math.Round(values[i - 1] / max * (height - 10));
+            var y1 = height - (int)Math.Round((values[i - 1] / max) * (height - 10));
             var x2 = (int)Math.Round(i * binWidth);
-            var y2 = height - (int)Math.Round(values[i] / max * (height - 10));
+            var y2 = height - (int)Math.Round((values[i] / max) * (height - 10));
             Cv2.Line(image, new Point(x1, y1), new Point(x2, y2), new Scalar(0, 255, 255), 1);
         }
 

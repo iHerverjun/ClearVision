@@ -2,6 +2,7 @@ using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -69,55 +70,22 @@ public class MeasureDistanceOperator : OperatorBase
         var p2 = new Point(x2, y2);
         var resultImage = src.Clone();
 
-        double distance;
-        switch (normalizedType)
+        if (!TryMeasure(p1, p2, normalizedType, out var distance, out var drawnEndPoint, out var label, out var error))
         {
-            case "pointtopoint":
-                if (x1 == x2 && y1 == y2)
-                {
-                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Start and end points are identical"));
-                }
-
-                distance = Distance(p1, p2);
-                DrawLineDistance(resultImage, p1, p2, $"{distance:F2}px");
-                break;
-
-            case "horizontal":
-                distance = Math.Abs(x2 - x1);
-                if (distance < 1e-9)
-                {
-                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Horizontal distance is zero"));
-                }
-
-                p2 = new Point(x2, y1);
-                DrawLineDistance(resultImage, p1, p2, $"H: {distance:F2}px");
-                break;
-
-            case "vertical":
-                distance = Math.Abs(y2 - y1);
-                if (distance < 1e-9)
-                {
-                    return Task.FromResult(OperatorExecutionOutput.Failure("[DegenerateGeometry] Vertical distance is zero"));
-                }
-
-                p2 = new Point(x1, y2);
-                DrawLineDistance(resultImage, p1, p2, $"V: {distance:F2}px");
-                break;
-
-            default:
-                return Task.FromResult(OperatorExecutionOutput.Failure($"Unsupported measure type: {measureType}"));
+            return Task.FromResult(OperatorExecutionOutput.Failure(error ?? $"Unsupported measure type: {measureType}"));
         }
 
+        DrawLineDistance(resultImage, p1, drawnEndPoint, label);
         var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "Distance", distance },
-            { "X1", x1 },
-            { "Y1", y1 },
-            { "X2", p2.X },
-            { "Y2", p2.Y },
+            { "X1", p1.X },
+            { "Y1", p1.Y },
+            { "X2", drawnEndPoint.X },
+            { "Y2", drawnEndPoint.Y },
             { "MeasureType", measureType },
-            { "DeltaX", p2.X - x1 },
-            { "DeltaY", p2.Y - y1 },
+            { "DeltaX", drawnEndPoint.X - p1.X },
+            { "DeltaY", drawnEndPoint.Y - p1.Y },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
@@ -141,22 +109,21 @@ public class MeasureDistanceOperator : OperatorBase
 
     private static OperatorExecutionOutput BuildPointInputResult(Point pointA, Point pointB, string measureType)
     {
-        if (pointA.X == pointB.X && pointA.Y == pointB.Y)
+        if (!TryMeasure(pointA, pointB, measureType.Trim().ToLowerInvariant(), out var distance, out var resolvedEndPoint, out _, out var error))
         {
-            return OperatorExecutionOutput.Failure("[DegenerateGeometry] PointA and PointB are identical");
+            return OperatorExecutionOutput.Failure(error ?? "Unsupported measure type");
         }
 
-        var distance = Distance(pointA, pointB);
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Distance", distance },
             { "X1", pointA.X },
             { "Y1", pointA.Y },
-            { "X2", pointB.X },
-            { "Y2", pointB.Y },
+            { "X2", resolvedEndPoint.X },
+            { "Y2", resolvedEndPoint.Y },
             { "MeasureType", measureType },
-            { "DeltaX", pointB.X - pointA.X },
-            { "DeltaY", pointB.Y - pointA.Y },
+            { "DeltaX", resolvedEndPoint.X - pointA.X },
+            { "DeltaY", resolvedEndPoint.Y - pointA.Y },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
@@ -164,12 +131,60 @@ public class MeasureDistanceOperator : OperatorBase
         });
     }
 
+    private static bool TryMeasure(Point start, Point end, string normalizedType, out double distance, out Point drawnEndPoint, out string label, out string? error)
+    {
+        distance = 0;
+        drawnEndPoint = end;
+        label = string.Empty;
+        error = null;
+
+        if (start.X == end.X && start.Y == end.Y)
+        {
+            error = "[DegenerateGeometry] Start and end points are identical";
+            return false;
+        }
+
+        switch (normalizedType)
+        {
+            case "pointtopoint":
+                distance = Distance(start, end);
+                drawnEndPoint = end;
+                label = $"{distance:F2}px";
+                return true;
+            case "horizontal":
+                distance = Math.Abs(end.X - start.X);
+                if (distance < 1e-9)
+                {
+                    error = "[DegenerateGeometry] Horizontal distance is zero";
+                    return false;
+                }
+
+                drawnEndPoint = new Point(end.X, start.Y);
+                label = $"H: {distance:F2}px";
+                return true;
+            case "vertical":
+                distance = Math.Abs(end.Y - start.Y);
+                if (distance < 1e-9)
+                {
+                    error = "[DegenerateGeometry] Vertical distance is zero";
+                    return false;
+                }
+
+                drawnEndPoint = new Point(start.X, end.Y);
+                label = $"V: {distance:F2}px";
+                return true;
+            default:
+                error = $"Unsupported measure type: {normalizedType}";
+                return false;
+        }
+    }
+
     private static void DrawLineDistance(Mat image, Point p1, Point p2, string label)
     {
         Cv2.Line(image, p1, p2, new Scalar(0, 255, 0), 2);
         Cv2.Circle(image, p1, 5, new Scalar(255, 0, 0), -1);
         Cv2.Circle(image, p2, 5, new Scalar(255, 0, 0), -1);
-        var textPoint = new Point((p1.X + p2.X) / 2 + 6, (p1.Y + p2.Y) / 2 - 6);
+        var textPoint = new Point(((p1.X + p2.X) / 2) + 6, ((p1.Y + p2.Y) / 2) - 6);
         Cv2.PutText(image, label, textPoint, HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
     }
 
@@ -177,7 +192,7 @@ public class MeasureDistanceOperator : OperatorBase
     {
         var dx = p2.X - p1.X;
         var dy = p2.Y - p1.Y;
-        return Math.Sqrt(dx * dx + dy * dy);
+        return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
     private static bool TryParsePoint(object? obj, out Point point)
@@ -199,7 +214,7 @@ public class MeasureDistanceOperator : OperatorBase
             case Point2d p2d:
                 point = new Point((int)Math.Round(p2d.X), (int)Math.Round(p2d.Y));
                 return true;
-            case Acme.Product.Core.ValueObjects.Position pos:
+            case Position pos:
                 point = new Point((int)Math.Round(pos.X), (int)Math.Round(pos.Y));
                 return true;
         }

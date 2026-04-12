@@ -38,7 +38,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Polarity", "Polarity", "enum", DefaultValue = "Both", Options = new[] { "DarkToLight|DarkToLight", "LightToDark|LightToDark", "Both|Both" })]
 [OperatorParam("EdgeThreshold", "Edge Threshold", "double", DefaultValue = 18.0, Min = 1.0, Max = 255.0)]
 [OperatorParam("ExpectedCount", "Expected Count", "int", DefaultValue = 1, Min = 1, Max = 100)]
-[OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "edge_pairs", Options = new[] { "single_edge|single_edge", "edge_pairs|edge_pairs" })]
+[OperatorParam("MeasureMode", "Measure Mode", "enum", DefaultValue = "edge_pairs", Options = new[] { "edge_pairs|edge_pairs" })]
 [OperatorParam("PairDirection", "Pair Direction", "enum", DefaultValue = "any", Options = new[] { "positive_to_negative|positive_to_negative", "negative_to_positive|negative_to_positive", "any|any" })]
 [OperatorParam("SubpixelAccuracy", "Subpixel Accuracy", "bool", DefaultValue = false)]
 [OperatorParam("SubPixelMode", "Sub Pixel Mode", "enum", DefaultValue = "gradient_centroid", Options = new[] { "gradient_centroid|gradient_centroid", "zernike|zernike" })]
@@ -75,6 +75,11 @@ public class CaliperToolOperator : OperatorBase
         var pairDirection = GetStringParam(@operator, "PairDirection", "any");
         var subpixel = GetBoolParam(@operator, "SubpixelAccuracy", false);
         var subPixelMode = GetStringParam(@operator, "SubPixelMode", "gradient_centroid");
+        if (!measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("MeasureMode must be edge_pairs"));
+        }
+
         var subpixelDetector = subpixel ? new SubPixelEdgeDetector
         {
             EdgeThreshold = (byte)Math.Clamp(edgeThreshold, 1.0, 255.0)
@@ -110,9 +115,7 @@ public class CaliperToolOperator : OperatorBase
             detectedEdges.Add(new DetectedEdge(edge.Index, edge.Polarity, new Position(x, y)));
         }
 
-        var pairs = measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase)
-            ? BuildEdgePairs(detectedEdges, pairDirection, expectedCount)
-            : new List<(int First, int Second)>();
+        var pairs = BuildEdgePairs(detectedEdges, pairDirection, expectedCount);
 
         var pairDistances = new List<double>(pairs.Count);
         var pairedEdgePoints = new List<Position>(pairs.Count * 2);
@@ -142,6 +145,11 @@ public class CaliperToolOperator : OperatorBase
         var edgePairsOutput = measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase)
             ? pairedEdgePoints
             : detectedEdges.Select(e => e.Point).ToList();
+
+        if (pairCount < expectedCount)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"[NoFeature] Expected at least {expectedCount} edge pair(s), got {pairCount}"));
+        }
 
         var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
@@ -179,10 +187,9 @@ public class CaliperToolOperator : OperatorBase
         }
 
         var measureMode = GetStringParam(@operator, "MeasureMode", "edge_pairs");
-        var validMeasureModes = new[] { "single_edge", "edge_pairs" };
-        if (!validMeasureModes.Contains(measureMode, StringComparer.OrdinalIgnoreCase))
+        if (!measureMode.Equals("edge_pairs", StringComparison.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid("MeasureMode must be single_edge or edge_pairs");
+            return ValidationResult.Invalid("MeasureMode must be edge_pairs");
         }
 
         var pairDirection = GetStringParam(@operator, "PairDirection", "any");

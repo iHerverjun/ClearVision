@@ -1,19 +1,12 @@
-// SharpnessEvaluationOperator.cs
-// 清晰度评估算子
-// 使用多种指标评估图像清晰度质量
-// 作者：蘅芜君
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// Evaluates image sharpness by multiple focus measures.
-/// </summary>
 [OperatorMeta(
     DisplayName = "清晰度评估",
     Description = "Evaluates focus quality of an image.",
@@ -26,6 +19,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("IsSharp", "Is Sharp", PortDataType.Boolean)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OperatorParam("Method", "Method", "enum", DefaultValue = "Laplacian", Options = new[] { "Laplacian|Laplacian", "Brenner|Brenner", "Tenengrad|Tenengrad", "SMD|SMD" })]
+[OperatorParam("ThresholdMode", "Threshold Mode", "enum", DefaultValue = "PerMethodDefault", Options = new[] { "PerMethodDefault|PerMethodDefault", "Manual|Manual" })]
 [OperatorParam("Threshold", "Threshold", "double", DefaultValue = 100.0, Min = 0.0)]
 [OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0)]
 [OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0)]
@@ -33,6 +27,15 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("RoiH", "ROI Height", "int", DefaultValue = 0)]
 public class SharpnessEvaluationOperator : OperatorBase
 {
+    private static readonly IReadOnlyDictionary<string, double> DefaultThresholds =
+        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Laplacian"] = 100.0,
+            ["Brenner"] = 30.0,
+            ["Tenengrad"] = 800.0,
+            ["SMD"] = 10.0
+        };
+
     public override OperatorType OperatorType => OperatorType.SharpnessEvaluation;
 
     public SharpnessEvaluationOperator(ILogger<SharpnessEvaluationOperator> logger) : base(logger)
@@ -55,10 +58,20 @@ public class SharpnessEvaluationOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid"));
         }
 
-        var method = GetStringParam(@operator, "Method", "Laplacian");
-        var threshold = GetDoubleParam(@operator, "Threshold", 100.0, 0);
-        var roi = BuildRoi(@operator, src.Width, src.Height);
+        var method = ResolveMethod(GetStringParam(@operator, "Method", "Laplacian"));
+        if (method == null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Method must be Laplacian/Brenner/Tenengrad/SMD"));
+        }
 
+        var thresholdMode = GetStringParam(@operator, "ThresholdMode", "PerMethodDefault");
+        var thresholdUsed = ResolveThreshold(@operator, method, thresholdMode);
+        if (double.IsNaN(thresholdUsed))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("ThresholdMode must be PerMethodDefault or Manual"));
+        }
+
+        var roi = MeasurementRoiHelper.ResolveRoi(@operator, src.Width, src.Height);
         using var gray = new Mat();
         if (src.Channels() == 1)
         {
@@ -70,16 +83,17 @@ public class SharpnessEvaluationOperator : OperatorBase
         }
 
         using var roiGray = new Mat(gray, roi);
-        var score = method.ToLowerInvariant() switch
+        var score = method switch
         {
-            "laplacian" => ComputeLaplacianVariance(roiGray),
-            "brenner" => ComputeBrenner(roiGray),
-            "tenengrad" => ComputeTenengrad(roiGray),
-            "smd" => ComputeSmd(roiGray),
+            "Laplacian" => ComputeLaplacianVariance(roiGray),
+            "Brenner" => ComputeBrenner(roiGray),
+            "Tenengrad" => ComputeTenengrad(roiGray),
+            "SMD" => ComputeSmd(roiGray),
             _ => ComputeLaplacianVariance(roiGray)
         };
 
-        var isSharp = score >= threshold;
+        var decisionReady = DefaultThresholds.ContainsKey(method);
+        var isSharp = score >= thresholdUsed;
 
         var resultImage = src.Clone();
         Cv2.Rectangle(resultImage, roi, new Scalar(0, 255, 255), 1);
@@ -91,6 +105,9 @@ public class SharpnessEvaluationOperator : OperatorBase
             { "Score", score },
             { "IsSharp", isSharp },
             { "Method", method },
+            { "ThresholdMode", thresholdMode },
+            { "ThresholdUsed", thresholdUsed },
+            { "DecisionReady", decisionReady },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
@@ -102,11 +119,17 @@ public class SharpnessEvaluationOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var method = GetStringParam(@operator, "Method", "Laplacian");
-        var valid = new[] { "Laplacian", "Brenner", "Tenengrad", "SMD" };
-        if (!valid.Contains(method, StringComparer.OrdinalIgnoreCase))
+        var method = ResolveMethod(GetStringParam(@operator, "Method", "Laplacian"));
+        if (method == null)
         {
             return ValidationResult.Invalid("Method must be Laplacian/Brenner/Tenengrad/SMD");
+        }
+
+        var thresholdMode = GetStringParam(@operator, "ThresholdMode", "PerMethodDefault");
+        if (!thresholdMode.Equals("PerMethodDefault", StringComparison.OrdinalIgnoreCase) &&
+            !thresholdMode.Equals("Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("ThresholdMode must be PerMethodDefault or Manual");
         }
 
         var threshold = GetDoubleParam(@operator, "Threshold", 100);
@@ -118,32 +141,32 @@ public class SharpnessEvaluationOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static Rect BuildRoi(Operator @operator, int width, int height)
+    private static string? ResolveMethod(string raw)
     {
-        var x = Math.Clamp(GetParamAsInt(@operator, "RoiX", 0), 0, Math.Max(0, width - 1));
-        var y = Math.Clamp(GetParamAsInt(@operator, "RoiY", 0), 0, Math.Max(0, height - 1));
-        var w = GetParamAsInt(@operator, "RoiW", 0);
-        var h = GetParamAsInt(@operator, "RoiH", 0);
-
-        if (w <= 0 || h <= 0)
+        return raw switch
         {
-            return new Rect(0, 0, width, height);
-        }
-
-        w = Math.Clamp(w, 1, width - x);
-        h = Math.Clamp(h, 1, height - y);
-        return new Rect(x, y, w, h);
+            "Laplacian" => "Laplacian",
+            "Brenner" => "Brenner",
+            "Tenengrad" => "Tenengrad",
+            "SMD" => "SMD",
+            _ => null
+        };
     }
 
-    private static int GetParamAsInt(Operator op, string name, int fallback)
+    private double ResolveThreshold(Operator @operator, string method, string thresholdMode)
     {
-        var p = op.Parameters.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (p?.Value == null)
+        if (thresholdMode.Equals("Manual", StringComparison.OrdinalIgnoreCase))
         {
-            return fallback;
+            return GetDoubleParam(@operator, "Threshold", 100.0, 0);
         }
 
-        return int.TryParse(p.Value.ToString(), out var value) ? value : fallback;
+        if (thresholdMode.Equals("PerMethodDefault", StringComparison.OrdinalIgnoreCase) &&
+            DefaultThresholds.TryGetValue(method, out var defaultThreshold))
+        {
+            return defaultThreshold;
+        }
+
+        return double.NaN;
     }
 
     private static double ComputeLaplacianVariance(Mat gray)
@@ -187,7 +210,7 @@ public class SharpnessEvaluationOperator : OperatorBase
             {
                 var gx = idxX[y, x];
                 var gy = idxY[y, x];
-                sum += gx * gx + gy * gy;
+                sum += (gx * gx) + (gy * gy);
             }
         }
 
@@ -198,7 +221,6 @@ public class SharpnessEvaluationOperator : OperatorBase
     {
         var idx = gray.GetGenericIndexer<byte>();
         var sum = 0.0;
-
         for (var y = 0; y < gray.Rows - 1; y++)
         {
             for (var x = 0; x < gray.Cols - 1; x++)

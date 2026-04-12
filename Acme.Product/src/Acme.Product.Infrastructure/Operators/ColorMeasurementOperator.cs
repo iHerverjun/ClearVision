@@ -1,8 +1,5 @@
-﻿// ColorMeasurementOperator.cs
-// 颜色测量算子
-// 统计目标区域颜色特征并输出测量结果
-// 作者：蘅芜君
 using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -10,28 +7,27 @@ using Acme.Product.Infrastructure.ImageProcessing;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "颜色测量",
-    Description = "Measures average Lab/HSV values and computes DeltaE.",
+    Description = "Measures Lab delta-E or HSV statistics over a selected ROI.",
     Category = "颜色处理",
     IconName = "color-measure",
     Keywords = new[] { "color", "deltaE", "lab", "hsv" },
-    Version = "1.0.2"
+    Version = "2.0.0"
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
 [InputPort("ReferenceColor", "Reference Color", PortDataType.Any, IsRequired = false)]
-[OutputPort("L", "L", PortDataType.Float)]
-[OutputPort("A", "A", PortDataType.Float)]
-[OutputPort("B", "B", PortDataType.Float)]
-[OutputPort("H", "H", PortDataType.Float)]
-[OutputPort("S", "S", PortDataType.Float)]
-[OutputPort("V", "V", PortDataType.Float)]
+[OutputPort("LabMean", "Lab Mean", PortDataType.Any)]
+[OutputPort("ReferenceLab", "Reference Lab", PortDataType.Any)]
 [OutputPort("DeltaE", "DeltaE", PortDataType.Float)]
+[OutputPort("HueMean", "Hue Mean", PortDataType.Float)]
+[OutputPort("SaturationMean", "Saturation Mean", PortDataType.Float)]
+[OutputPort("ValueMean", "Value Mean", PortDataType.Float)]
+[OutputPort("HueValid", "Hue Valid", PortDataType.Boolean)]
 [OutputPort("Image", "Image", PortDataType.Image)]
-[OperatorParam("ColorSpace", "Color Space", "enum", DefaultValue = "Lab", Options = new[] { "Lab|Lab", "HSV|HSV" })]
+[OperatorParam("MeasurementMode", "Measurement Mode", "enum", DefaultValue = "LabDeltaE", Options = new[] { "LabDeltaE|Lab DeltaE", "HsvStats|HSV Stats" })]
 [OperatorParam("DeltaEMethod", "DeltaE Method", "enum", DefaultValue = "CIEDE2000", Options = new[] { "CIE76|CIE76", "CIEDE2000|CIEDE2000" })]
 [OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0)]
 [OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0)]
@@ -42,6 +38,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("RefB", "Ref B", "double", DefaultValue = 0.0)]
 public class ColorMeasurementOperator : OperatorBase
 {
+    private const double MinHueSaturation = 12.0;
+    private const double MinHueValue = 12.0;
+
     public override OperatorType OperatorType => OperatorType.ColorMeasurement;
 
     public ColorMeasurementOperator(ILogger<ColorMeasurementOperator> logger) : base(logger)
@@ -64,97 +63,66 @@ public class ColorMeasurementOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid"));
         }
 
-        var colorSpace = GetStringParam(@operator, "ColorSpace", "Lab");
-
-        var roiX = GetIntParam(@operator, "RoiX", 0, 0, Math.Max(0, src.Width - 1));
-        var roiY = GetIntParam(@operator, "RoiY", 0, 0, Math.Max(0, src.Height - 1));
-        var roiW = GetIntParam(@operator, "RoiW", 0, 0, src.Width);
-        var roiH = GetIntParam(@operator, "RoiH", 0, 0, src.Height);
-
-        if (roiW <= 0)
+        var measurementMode = ResolveMeasurementMode(@operator);
+        if (measurementMode == null)
         {
-            roiW = src.Width - roiX;
+            return Task.FromResult(OperatorExecutionOutput.Failure("MeasurementMode must be LabDeltaE or HsvStats"));
         }
 
-        if (roiH <= 0)
-        {
-            roiH = src.Height - roiY;
-        }
-
-        var roi = ClampRect(new Rect(roiX, roiY, roiW, roiH), src.Width, src.Height);
+        using var colorSource = EnsureColorImage(src);
+        var roi = MeasurementRoiHelper.ResolveRoi(@operator, colorSource.Width, colorSource.Height);
         if (roi.Width <= 0 || roi.Height <= 0)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("ROI is invalid"));
         }
 
-        using var lab = new Mat();
-        using var hsv = new Mat();
-        Cv2.CvtColor(src, lab, ColorConversionCodes.BGR2Lab);
-        Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
+        using var roiMat = new Mat(colorSource, roi);
+        var resultImage = colorSource.Clone();
+        Cv2.Rectangle(resultImage, roi, new Scalar(0, 255, 255), 2);
 
-        using var labRoi = new Mat(lab, roi);
-        using var hsvRoi = new Mat(hsv, roi);
-
-        var hsvMean = Cv2.Mean(hsvRoi);
-        var labMean = Cv2.Mean(labRoi);
-
-        // Convert OpenCV Lab scaling back to standard CIE units:
-        // L: 0..255 -> 0..100, a/b: 0..255 with 128 as zero.
-        var lValue = labMean.Val0 * (100.0 / 255.0);
-        var aValue = labMean.Val1 - 128.0;
-        var bValue = labMean.Val2 - 128.0;
-
-        var hValue = hsvMean.Val0;
-        var sValue = hsvMean.Val1;
-        var vValue = hsvMean.Val2;
-
-        var refL = GetDoubleParam(@operator, "RefL", lValue);
-        var refA = GetDoubleParam(@operator, "RefA", aValue);
-        var refB = GetDoubleParam(@operator, "RefB", bValue);
-
-        if (inputs != null && inputs.TryGetValue("ReferenceColor", out var referenceObj))
+        Dictionary<string, object> output;
+        if (measurementMode == "LabDeltaE")
         {
-            TryOverrideReference(referenceObj, ref refL, ref refA, ref refB);
+            output = MeasureLabDeltaE(@operator, inputs, roiMat);
+            Cv2.PutText(
+                resultImage,
+                $"DeltaE:{Convert.ToDouble(output["DeltaE"]):F2}",
+                new Point(roi.X, Math.Max(20, roi.Y - 5)),
+                HersheyFonts.HersheySimplex,
+                0.6,
+                new Scalar(0, 255, 255),
+                2);
+        }
+        else
+        {
+            output = MeasureHsvStats(roiMat);
+            var hueLabel = Convert.ToBoolean(output["HueValid"])
+                ? $"H:{Convert.ToDouble(output["HueMean"]):F1}deg"
+                : "H:invalid";
+            Cv2.PutText(
+                resultImage,
+                hueLabel,
+                new Point(roi.X, Math.Max(20, roi.Y - 5)),
+                HersheyFonts.HersheySimplex,
+                0.6,
+                new Scalar(0, 255, 255),
+                2);
         }
 
-        var deltaEMethod = GetStringParam(@operator, "DeltaEMethod", "CIEDE2000");
-        var deltaE = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase)
-            ? ColorDifference.DeltaE76(new CieLab(lValue, aValue, bValue), new CieLab(refL, refA, refB))
-            : ColorDifference.DeltaE00(new CieLab(lValue, aValue, bValue), new CieLab(refL, refA, refB));
-
-        var resultImage = src.Clone();
-        Cv2.Rectangle(resultImage, roi, new Scalar(0, 255, 255), 2);
-        Cv2.PutText(
-            resultImage,
-            $"DeltaE:{deltaE:F2}",
-            new Point(roi.X, Math.Max(20, roi.Y - 5)),
-            HersheyFonts.HersheySimplex,
-            0.6,
-            new Scalar(0, 255, 255),
-            2);
-
-        var output = new Dictionary<string, object>
-        {
-            { "L", lValue },
-            { "A", aValue },
-            { "B", bValue },
-            { "H", hValue },
-            { "S", sValue },
-            { "V", vValue },
-            { "DeltaE", deltaE },
-            { "ColorSpace", colorSpace }
-        };
+        output["MeasurementMode"] = measurementMode;
+        output["StatusCode"] = "OK";
+        output["StatusMessage"] = "Success";
+        output["Confidence"] = 1.0;
+        output["UncertaintyPx"] = 0.0;
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var colorSpace = GetStringParam(@operator, "ColorSpace", "Lab");
-        var validSpaces = new[] { "Lab", "HSV" };
-        if (!validSpaces.Contains(colorSpace, StringComparer.OrdinalIgnoreCase))
+        if (ResolveMeasurementMode(@operator) == null)
         {
-            return ValidationResult.Invalid("ColorSpace must be Lab or HSV");
+            return ValidationResult.Invalid("MeasurementMode must be LabDeltaE or HsvStats");
         }
 
         var deltaEMethod = GetStringParam(@operator, "DeltaEMethod", "CIEDE2000");
@@ -164,8 +132,8 @@ public class ColorMeasurementOperator : OperatorBase
             return ValidationResult.Invalid("DeltaEMethod must be CIE76 or CIEDE2000");
         }
 
-        var roiW = GetIntParam(@operator, "RoiW", 0);
-        var roiH = GetIntParam(@operator, "RoiH", 0);
+        var roiW = MeasurementRoiHelper.ReadIntParameter(@operator, "RoiW", 0);
+        var roiH = MeasurementRoiHelper.ReadIntParameter(@operator, "RoiH", 0);
         if (roiW < 0 || roiH < 0)
         {
             return ValidationResult.Invalid("RoiW/RoiH must be >= 0");
@@ -174,35 +142,163 @@ public class ColorMeasurementOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static Rect ClampRect(Rect rect, int width, int height)
+    private static string? ResolveMeasurementMode(Operator @operator)
     {
-        var x = Math.Clamp(rect.X, 0, Math.Max(0, width - 1));
-        var y = Math.Clamp(rect.Y, 0, Math.Max(0, height - 1));
-        var w = Math.Clamp(rect.Width, 0, width - x);
-        var h = Math.Clamp(rect.Height, 0, height - y);
-        return new Rect(x, y, w, h);
+        var measurementMode = GetOptionalParameter(@operator, "MeasurementMode");
+        if (measurementMode != null)
+        {
+            return measurementMode switch
+            {
+                "LabDeltaE" => "LabDeltaE",
+                "HsvStats" => "HsvStats",
+                _ => null
+            };
+        }
+
+        // Read-only migration path for historical flows.
+        var legacyColorSpace = GetOptionalParameter(@operator, "ColorSpace");
+        return legacyColorSpace switch
+        {
+            null => "LabDeltaE",
+            "Lab" => "LabDeltaE",
+            "HSV" => "HsvStats",
+            _ => null
+        };
     }
 
-    private static void TryOverrideReference(object? referenceObj, ref double refL, ref double refA, ref double refB)
+    private static string? GetOptionalParameter(Operator @operator, string name)
+    {
+        var raw = @operator.Parameters.FirstOrDefault(parameter => parameter.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Value?.ToString();
+        return raw?.Trim();
+    }
+
+    private static Mat EnsureColorImage(Mat src)
+    {
+        if (src.Channels() == 3)
+        {
+            return src.Clone();
+        }
+
+        var color = new Mat();
+        Cv2.CvtColor(src, color, ColorConversionCodes.GRAY2BGR);
+        return color;
+    }
+
+    private Dictionary<string, object> MeasureLabDeltaE(Operator @operator, Dictionary<string, object>? inputs, Mat roiMat)
+    {
+        using var lab = new Mat();
+        Cv2.CvtColor(roiMat, lab, ColorConversionCodes.BGR2Lab);
+        var labMean = Cv2.Mean(lab);
+
+        var lValue = labMean.Val0 * (100.0 / 255.0);
+        var aValue = labMean.Val1 - 128.0;
+        var bValue = labMean.Val2 - 128.0;
+
+        var refL = GetDoubleParam(@operator, "RefL", lValue);
+        var refA = GetDoubleParam(@operator, "RefA", aValue);
+        var refB = GetDoubleParam(@operator, "RefB", bValue);
+        if (inputs != null && inputs.TryGetValue("ReferenceColor", out var referenceObj))
+        {
+            TryOverrideReferenceLab(referenceObj, ref refL, ref refA, ref refB);
+        }
+
+        var labValue = new CieLab(lValue, aValue, bValue);
+        var referenceValue = new CieLab(refL, refA, refB);
+        var deltaEMethod = GetStringParam(@operator, "DeltaEMethod", "CIEDE2000");
+        var deltaE = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase)
+            ? ColorDifference.DeltaE76(labValue, referenceValue)
+            : ColorDifference.DeltaE00(labValue, referenceValue);
+
+        return new Dictionary<string, object>
+        {
+            { "LabMean", new Dictionary<string, object> { { "L", lValue }, { "A", aValue }, { "B", bValue } } },
+            { "ReferenceLab", new Dictionary<string, object> { { "L", refL }, { "A", refA }, { "B", refB } } },
+            { "DeltaE", deltaE },
+            { "HueMean", double.NaN },
+            { "SaturationMean", double.NaN },
+            { "ValueMean", double.NaN },
+            { "HueValid", false }
+        };
+    }
+
+    private static Dictionary<string, object> MeasureHsvStats(Mat roiMat)
+    {
+        using var hsv = new Mat();
+        Cv2.CvtColor(roiMat, hsv, ColorConversionCodes.BGR2HSV);
+
+        var mean = Cv2.Mean(hsv);
+        var saturationMean = mean.Val1 * (100.0 / 255.0);
+        var valueMean = mean.Val2 * (100.0 / 255.0);
+
+        var hueAngles = new List<double>(hsv.Rows * hsv.Cols);
+        for (var y = 0; y < hsv.Rows; y++)
+        {
+            for (var x = 0; x < hsv.Cols; x++)
+            {
+                var pixel = hsv.At<Vec3b>(y, x);
+                if (pixel.Item1 < MinHueSaturation || pixel.Item2 < MinHueValue)
+                {
+                    continue;
+                }
+
+                hueAngles.Add(pixel.Item0 * 2.0 * Math.PI / 180.0);
+            }
+        }
+
+        if (hueAngles.Count == 0)
+        {
+            return new Dictionary<string, object>
+            {
+                { "LabMean", new Dictionary<string, object>() },
+                { "ReferenceLab", new Dictionary<string, object>() },
+                { "DeltaE", double.NaN },
+                { "HueMean", double.NaN },
+                { "SaturationMean", saturationMean },
+                { "ValueMean", valueMean },
+                { "HueValid", false }
+            };
+        }
+
+        var sinSum = hueAngles.Sum(Math.Sin);
+        var cosSum = hueAngles.Sum(Math.Cos);
+        var meanAngle = Math.Atan2(sinSum / hueAngles.Count, cosSum / hueAngles.Count);
+        if (meanAngle < 0)
+        {
+            meanAngle += 2 * Math.PI;
+        }
+
+        return new Dictionary<string, object>
+        {
+            { "LabMean", new Dictionary<string, object>() },
+            { "ReferenceLab", new Dictionary<string, object>() },
+            { "DeltaE", double.NaN },
+            { "HueMean", meanAngle * 180.0 / Math.PI },
+            { "SaturationMean", saturationMean },
+            { "ValueMean", valueMean },
+            { "HueValid", true }
+        };
+    }
+
+    private static void TryOverrideReferenceLab(object? referenceObj, ref double refL, ref double refA, ref double refB)
     {
         if (referenceObj == null)
         {
             return;
         }
 
-        if (referenceObj is double[] arr && arr.Length >= 3)
+        if (referenceObj is double[] doubles && doubles.Length >= 3)
         {
-            refL = arr[0];
-            refA = arr[1];
-            refB = arr[2];
+            refL = doubles[0];
+            refA = doubles[1];
+            refB = doubles[2];
             return;
         }
 
-        if (referenceObj is float[] floatArr && floatArr.Length >= 3)
+        if (referenceObj is float[] floats && floats.Length >= 3)
         {
-            refL = floatArr[0];
-            refA = floatArr[1];
-            refB = floatArr[2];
+            refL = floats[0];
+            refA = floats[1];
+            refB = floats[2];
             return;
         }
 
@@ -228,9 +324,9 @@ public class ColorMeasurementOperator : OperatorBase
         if (referenceObj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
-            TryOverrideReference(normalized, ref refL, ref refA, ref refB);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+            TryOverrideReferenceLab(normalized, ref refL, ref refA, ref refB);
         }
     }
 
@@ -252,4 +348,3 @@ public class ColorMeasurementOperator : OperatorBase
         };
     }
 }
-

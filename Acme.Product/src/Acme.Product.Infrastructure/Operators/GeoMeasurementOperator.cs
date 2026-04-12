@@ -1,15 +1,11 @@
-// GeoMeasurementOperator.cs
-// 几何测量算子
-// 计算点线圆等几何元素之间的距离与角度
-// 作者：蘅芜君
 using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -28,7 +24,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("MeasureType", "Measure Type", PortDataType.String)]
 [OperatorParam("Element1Type", "Element1 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
 [OperatorParam("Element2Type", "Element2 Type", "enum", DefaultValue = "Auto", Options = new[] { "Auto|Auto", "Point|Point", "Line|Line", "Circle|Circle" })]
-[OperatorParam("DistanceModel", "Distance Model", "enum", DefaultValue = "InfiniteLine", Options = new[] { "InfiniteLine|Infinite line", "Segment|Segment" })]
+[OperatorParam("DistanceModel", "Distance Model", "enum", DefaultValue = "Segment", Options = new[] { "Segment|Segment", "InfiniteLine|Infinite line" })]
 public class GeoMeasurementOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.GeoMeasurement;
@@ -51,143 +47,33 @@ public class GeoMeasurementOperator : OperatorBase
 
         var type1 = ResolveType(element1Obj, GetStringParam(@operator, "Element1Type", "Auto"));
         var type2 = ResolveType(element2Obj, GetStringParam(@operator, "Element2Type", "Auto"));
-
         if (type1 == GeoElementType.Unknown || type2 == GeoElementType.Unknown)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Failed to resolve element types"));
         }
 
-        var distanceModelText = GetStringParam(@operator, "DistanceModel", "InfiniteLine");
-        if (!TryParseDistanceModel(distanceModelText, out var distanceModel))
+        if (!TryParseDistanceModel(GetStringParam(@operator, "DistanceModel", "Segment"), out var distanceModel))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("DistanceModel must be InfiniteLine or Segment"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("DistanceModel must be Segment or InfiniteLine"));
         }
 
-        var distance = 0.0;
-        var angle = 0.0;
-        var intersection1 = new Position(0, 0);
-        var intersection2 = new Position(0, 0);
-        var measureType = $"{type1}-{type2}";
-
-        if (type1 == GeoElementType.Point && type2 == GeoElementType.Point &&
-            TryParsePoint(element1Obj, out var p1) &&
-            TryParsePoint(element2Obj, out var p2))
+        if (!TryMeasure(element1Obj, element2Obj, type1, type2, distanceModel, out var measurement, out var error))
         {
-            distance = Math.Sqrt((p1.X - p2.X) * (p1.X - p2.X) + (p1.Y - p2.Y) * (p1.Y - p2.Y));
-        }
-        else if (type1 == GeoElementType.Point && type2 == GeoElementType.Line &&
-                 TryParsePoint(element1Obj, out var p) &&
-                 TryParseLine(element2Obj, out var line))
-        {
-            distance = DistancePointToLine(p.X, p.Y, line);
-        }
-        else if (type1 == GeoElementType.Line && type2 == GeoElementType.Point &&
-                 TryParseLine(element1Obj, out line) &&
-                 TryParsePoint(element2Obj, out p))
-        {
-            distance = DistancePointToLine(p.X, p.Y, line);
-            measureType = "Point-Line";
-        }
-        else if (type1 == GeoElementType.Point && type2 == GeoElementType.Circle &&
-                 TryParsePoint(element1Obj, out p) &&
-                 TryParseCircle(element2Obj, out var circle))
-        {
-            var centerDist = Math.Sqrt((p.X - circle.CenterX) * (p.X - circle.CenterX) + (p.Y - circle.CenterY) * (p.Y - circle.CenterY));
-            distance = Math.Abs(centerDist - circle.Radius);
-        }
-        else if (type1 == GeoElementType.Circle && type2 == GeoElementType.Point &&
-                 TryParseCircle(element1Obj, out circle) &&
-                 TryParsePoint(element2Obj, out p))
-        {
-            var centerDist = Math.Sqrt((p.X - circle.CenterX) * (p.X - circle.CenterX) + (p.Y - circle.CenterY) * (p.Y - circle.CenterY));
-            distance = Math.Abs(centerDist - circle.Radius);
-            measureType = "Point-Circle";
-        }
-        else if (type1 == GeoElementType.Line && type2 == GeoElementType.Line &&
-                 TryParseLine(element1Obj, out var line1) &&
-                 TryParseLine(element2Obj, out var line2))
-        {
-            angle = AngleBetweenLines(line1, line2);
-            var hasIntersection = TryGetLineIntersection(line1, line2, out var cross);
-            if (hasIntersection)
-            {
-                intersection1 = cross;
-            }
-
-            distance = distanceModel switch
-            {
-                DistanceModel.InfiniteLine => DistanceLineToLineInfinite(line1, line2, hasIntersection),
-                DistanceModel.Segment => DistanceSegmentToSegment(line1, line2),
-                _ => 0
-            };
-        }
-        else if (type1 == GeoElementType.Line && type2 == GeoElementType.Circle &&
-                 TryParseLine(element1Obj, out line1) &&
-                 TryParseCircle(element2Obj, out circle))
-        {
-            var intersects = SolveLineCircleIntersections(line1, circle);
-            if (intersects.Count > 0)
-            {
-                intersection1 = intersects[0];
-            }
-
-            if (intersects.Count > 1)
-            {
-                intersection2 = intersects[1];
-            }
-
-            distance = DistancePointToLine(circle.CenterX, circle.CenterY, line1);
-        }
-        else if (type1 == GeoElementType.Circle && type2 == GeoElementType.Line &&
-                 TryParseCircle(element1Obj, out circle) &&
-                 TryParseLine(element2Obj, out line1))
-        {
-            var intersects = SolveLineCircleIntersections(line1, circle);
-            if (intersects.Count > 0)
-            {
-                intersection1 = intersects[0];
-            }
-
-            if (intersects.Count > 1)
-            {
-                intersection2 = intersects[1];
-            }
-
-            distance = DistancePointToLine(circle.CenterX, circle.CenterY, line1);
-            measureType = "Line-Circle";
-        }
-        else if (type1 == GeoElementType.Circle && type2 == GeoElementType.Circle &&
-                 TryParseCircle(element1Obj, out var c1) &&
-                 TryParseCircle(element2Obj, out var c2))
-        {
-            var dx = c2.CenterX - c1.CenterX;
-            var dy = c2.CenterY - c1.CenterY;
-            var centerDistance = Math.Sqrt(dx * dx + dy * dy);
-            distance = Math.Max(0.0, centerDistance - c1.Radius - c2.Radius);
-            var intersects = SolveCircleCircleIntersections(c1, c2);
-            if (intersects.Count > 0)
-            {
-                intersection1 = intersects[0];
-            }
-
-            if (intersects.Count > 1)
-            {
-                intersection2 = intersects[1];
-            }
-        }
-        else
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Unsupported geometry type combination"));
+            return Task.FromResult(OperatorExecutionOutput.Failure(error ?? "Unsupported geometry type combination"));
         }
 
         var output = new Dictionary<string, object>
         {
-            { "Distance", distance },
-            { "Angle", angle },
-            { "Intersection1", intersection1 },
-            { "Intersection2", intersection2 },
-            { "MeasureType", measureType },
+            { "Distance", measurement.Distance },
+            { "Angle", measurement.Angle },
+            { "Intersection1", measurement.Intersection1 },
+            { "Intersection2", measurement.Intersection2 },
+            { "MeasureType", measurement.MeasureType },
             { "DistanceModel", distanceModel.ToString() },
+            { "DistanceUnit", "Pixel" },
+            { "DistanceMeaning", measurement.DistanceMeaning },
+            { "Relation", measurement.Relation },
+            { "IntersectionCount", measurement.IntersectionCount },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
             { "Confidence", 1.0 },
@@ -199,41 +85,256 @@ public class GeoMeasurementOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var valid = new[] { "Auto", "Point", "Line", "Circle" };
-
+        var validTypes = new[] { "Auto", "Point", "Line", "Circle" };
         var type1 = GetStringParam(@operator, "Element1Type", "Auto");
-        if (!valid.Contains(type1, StringComparer.OrdinalIgnoreCase))
+        if (!validTypes.Contains(type1, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("Element1Type must be Auto, Point, Line, or Circle");
         }
 
         var type2 = GetStringParam(@operator, "Element2Type", "Auto");
-        if (!valid.Contains(type2, StringComparer.OrdinalIgnoreCase))
+        if (!validTypes.Contains(type2, StringComparer.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid("Element2Type must be Auto, Point, Line, or Circle");
         }
 
-        var distanceModel = GetStringParam(@operator, "DistanceModel", "InfiniteLine");
+        var distanceModel = GetStringParam(@operator, "DistanceModel", "Segment");
         if (!TryParseDistanceModel(distanceModel, out _))
         {
-            return ValidationResult.Invalid("DistanceModel must be InfiniteLine or Segment");
+            return ValidationResult.Invalid("DistanceModel must be Segment or InfiniteLine");
         }
 
         return ValidationResult.Valid();
     }
 
-    private static bool TryParseDistanceModel(string model, out DistanceModel parsed)
+    private static bool TryMeasure(
+        object element1,
+        object element2,
+        GeoElementType type1,
+        GeoElementType type2,
+        DistanceModel distanceModel,
+        out GeometryMeasurement measurement,
+        out string? error)
     {
-        parsed = DistanceModel.InfiniteLine;
-        if (string.Equals(model, "InfiniteLine", StringComparison.OrdinalIgnoreCase))
+        measurement = default;
+        error = null;
+
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Point &&
+            TryParsePoint(element1, out var point1) &&
+            TryParsePoint(element2, out var point2))
         {
-            parsed = DistanceModel.InfiniteLine;
+            measurement = new GeometryMeasurement(
+                Distance: MeasurementGeometryHelper.Distance(point1, point2),
+                Angle: 0.0,
+                Intersection1: MeasurementGeometryHelper.NoIntersection,
+                Intersection2: MeasurementGeometryHelper.NoIntersection,
+                MeasureType: "Point-Point",
+                DistanceMeaning: "CenterDistance",
+                Relation: "Separated",
+                IntersectionCount: 0);
             return true;
         }
 
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Line &&
+            TryParsePoint(element1, out var point) &&
+            TryParseLine(element2, out var line))
+        {
+            measurement = CreatePointLineMeasurement(point, line, distanceModel);
+            return true;
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Point &&
+            TryParseLine(element1, out line) &&
+            TryParsePoint(element2, out point))
+        {
+            measurement = CreatePointLineMeasurement(point, line, distanceModel) with { MeasureType = "Point-Line" };
+            return true;
+        }
+
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Circle &&
+            TryParsePoint(element1, out point) &&
+            TryParseCircle(element2, out var circle))
+        {
+            var centerDistance = MeasurementGeometryHelper.Distance(point.X, point.Y, circle.CenterX, circle.CenterY);
+            measurement = new GeometryMeasurement(
+                Distance: Math.Abs(centerDistance - circle.Radius),
+                Angle: 0.0,
+                Intersection1: MeasurementGeometryHelper.NoIntersection,
+                Intersection2: MeasurementGeometryHelper.NoIntersection,
+                MeasureType: "Point-Circle",
+                DistanceMeaning: "BoundaryGap",
+                Relation: centerDistance < circle.Radius ? "Inside" : "Outside",
+                IntersectionCount: 0);
+            return true;
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Point &&
+            TryParseCircle(element1, out circle) &&
+            TryParsePoint(element2, out point))
+        {
+            var centerDistance = MeasurementGeometryHelper.Distance(point.X, point.Y, circle.CenterX, circle.CenterY);
+            measurement = new GeometryMeasurement(
+                Distance: Math.Abs(centerDistance - circle.Radius),
+                Angle: 0.0,
+                Intersection1: MeasurementGeometryHelper.NoIntersection,
+                Intersection2: MeasurementGeometryHelper.NoIntersection,
+                MeasureType: "Point-Circle",
+                DistanceMeaning: "BoundaryGap",
+                Relation: centerDistance < circle.Radius ? "Inside" : "Outside",
+                IntersectionCount: 0);
+            return true;
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Line &&
+            TryParseLine(element1, out var line1) &&
+            TryParseLine(element2, out var line2))
+        {
+            var infiniteIntersection = MeasurementGeometryHelper.TryGetInfiniteLineIntersection(line1, line2, out var cross)
+                ? cross
+                : MeasurementGeometryHelper.NoIntersection;
+            var segmentIntersection = MeasurementGeometryHelper.TryGetSegmentIntersection(line1, line2, out var segmentCross)
+                ? segmentCross
+                : MeasurementGeometryHelper.NoIntersection;
+            var hasSegmentIntersection = !double.IsNaN(segmentIntersection.X);
+            var distance = distanceModel == DistanceModel.Segment
+                ? MeasurementGeometryHelper.DistanceSegmentToSegment(line1, line2)
+                : (!double.IsNaN(infiniteIntersection.X) ? 0.0 : MeasurementGeometryHelper.DistancePointToInfiniteLine(line1.StartX, line1.StartY, line2));
+
+            measurement = new GeometryMeasurement(
+                Distance: distance,
+                Angle: MeasurementGeometryHelper.AngleBetweenLineDirections(line1, line2),
+                Intersection1: distanceModel == DistanceModel.Segment ? segmentIntersection : infiniteIntersection,
+                Intersection2: MeasurementGeometryHelper.NoIntersection,
+                MeasureType: "Line-Line",
+                DistanceMeaning: distanceModel == DistanceModel.Segment ? "SegmentShortestDistance" : "InfiniteLineShortestDistance",
+                Relation: hasSegmentIntersection ? "Intersecting" : "Separated",
+                IntersectionCount: distanceModel == DistanceModel.Segment
+                    ? (hasSegmentIntersection ? 1 : 0)
+                    : (double.IsNaN(infiniteIntersection.X) ? 0 : 1));
+            return true;
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Circle &&
+            TryParseLine(element1, out line1) &&
+            TryParseCircle(element2, out circle))
+        {
+            measurement = CreateLineCircleMeasurement(line1, circle, distanceModel);
+            return true;
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Line &&
+            TryParseCircle(element1, out circle) &&
+            TryParseLine(element2, out line1))
+        {
+            measurement = CreateLineCircleMeasurement(line1, circle, distanceModel);
+            return true;
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Circle &&
+            TryParseCircle(element1, out var circle1) &&
+            TryParseCircle(element2, out var circle2))
+        {
+            measurement = CreateCircleCircleMeasurement(circle1, circle2);
+            return true;
+        }
+
+        error = "Unsupported geometry type combination";
+        return false;
+    }
+
+    private static GeometryMeasurement CreatePointLineMeasurement(Position point, LineData line, DistanceModel distanceModel)
+    {
+        var distance = distanceModel == DistanceModel.Segment
+            ? MeasurementGeometryHelper.DistancePointToSegment(point.X, point.Y, line)
+            : MeasurementGeometryHelper.DistancePointToInfiniteLine(point.X, point.Y, line);
+        var footPoint = distanceModel == DistanceModel.Segment
+            ? MeasurementGeometryHelper.ProjectPointToSegment(point.X, point.Y, line)
+            : MeasurementGeometryHelper.ProjectPointToInfiniteLine(point.X, point.Y, line);
+
+        return new GeometryMeasurement(
+            Distance: distance,
+            Angle: 0.0,
+            Intersection1: footPoint,
+            Intersection2: MeasurementGeometryHelper.NoIntersection,
+            MeasureType: "Point-Line",
+            DistanceMeaning: distanceModel == DistanceModel.Segment ? "PointToSegmentDistance" : "PointToInfiniteLineDistance",
+            Relation: "Projected",
+            IntersectionCount: 1);
+    }
+
+    private static GeometryMeasurement CreateLineCircleMeasurement(LineData line, CircleSpec circle, DistanceModel distanceModel)
+    {
+        var centerDistance = distanceModel == DistanceModel.Segment
+            ? MeasurementGeometryHelper.DistancePointToSegment(circle.CenterX, circle.CenterY, line)
+            : MeasurementGeometryHelper.DistancePointToInfiniteLine(circle.CenterX, circle.CenterY, line);
+        var boundaryGap = Math.Max(0.0, centerDistance - circle.Radius);
+        var intersections = SolveLineCircleIntersections(line, circle, distanceModel == DistanceModel.Segment);
+        var relation = centerDistance > circle.Radius
+            ? "Separated"
+            : Math.Abs(centerDistance - circle.Radius) <= 1e-6
+                ? "Tangent"
+                : "Overlap";
+
+        return new GeometryMeasurement(
+            Distance: boundaryGap,
+            Angle: 0.0,
+            Intersection1: intersections.Count > 0 ? intersections[0] : MeasurementGeometryHelper.NoIntersection,
+            Intersection2: intersections.Count > 1 ? intersections[1] : MeasurementGeometryHelper.NoIntersection,
+            MeasureType: "Line-Circle",
+            DistanceMeaning: "BoundaryGap",
+            Relation: relation,
+            IntersectionCount: intersections.Count);
+    }
+
+    private static GeometryMeasurement CreateCircleCircleMeasurement(CircleSpec first, CircleSpec second)
+    {
+        var centerDistance = MeasurementGeometryHelper.Distance(first.CenterX, first.CenterY, second.CenterX, second.CenterY);
+        string relation;
+        double distance;
+
+        if (centerDistance > first.Radius + second.Radius)
+        {
+            relation = "Separated";
+            distance = centerDistance - first.Radius - second.Radius;
+        }
+        else if (centerDistance < Math.Abs(first.Radius - second.Radius))
+        {
+            relation = "Contained";
+            distance = Math.Abs(first.Radius - second.Radius) - centerDistance;
+        }
+        else
+        {
+            relation = Math.Abs(centerDistance - (first.Radius + second.Radius)) <= 1e-6 ||
+                       Math.Abs(centerDistance - Math.Abs(first.Radius - second.Radius)) <= 1e-6
+                ? "Tangent"
+                : "Intersecting";
+            distance = 0.0;
+        }
+
+        var intersections = SolveCircleCircleIntersections(first, second);
+        return new GeometryMeasurement(
+            Distance: distance,
+            Angle: 0.0,
+            Intersection1: intersections.Count > 0 ? intersections[0] : MeasurementGeometryHelper.NoIntersection,
+            Intersection2: intersections.Count > 1 ? intersections[1] : MeasurementGeometryHelper.NoIntersection,
+            MeasureType: "Circle-Circle",
+            DistanceMeaning: "BoundaryGap",
+            Relation: relation,
+            IntersectionCount: intersections.Count);
+    }
+
+    private static bool TryParseDistanceModel(string model, out DistanceModel parsed)
+    {
+        parsed = DistanceModel.Segment;
         if (string.Equals(model, "Segment", StringComparison.OrdinalIgnoreCase))
         {
             parsed = DistanceModel.Segment;
+            return true;
+        }
+
+        if (string.Equals(model, "InfiniteLine", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = DistanceModel.InfiniteLine;
             return true;
         }
 
@@ -266,131 +367,9 @@ public class GeoMeasurementOperator : OperatorBase
         return TryParseCircle(raw, out _) ? GeoElementType.Circle : GeoElementType.Unknown;
     }
 
-    private static double DistancePointToLine(double px, double py, LineData line)
-    {
-        var a = line.EndY - line.StartY;
-        var b = line.StartX - line.EndX;
-        var c = line.EndX * line.StartY - line.StartX * line.EndY;
-        var denominator = Math.Sqrt(a * a + b * b);
-        if (denominator < 1e-9)
-        {
-            return 0;
-        }
-
-        return Math.Abs(a * px + b * py + c) / denominator;
-    }
-
-    private static double DistanceLineToLineInfinite(LineData line1, LineData line2, bool hasIntersection)
-    {
-        if (hasIntersection)
-        {
-            return 0.0;
-        }
-
-        return DistancePointToLine(line1.StartX, line1.StartY, line2);
-    }
-
-    private static double DistanceSegmentToSegment(LineData line1, LineData line2)
-    {
-        if (TryGetSegmentIntersection(line1, line2, out _))
-        {
-            return 0.0;
-        }
-
-        var d1 = DistancePointToSegment(line1.StartX, line1.StartY, line2);
-        var d2 = DistancePointToSegment(line1.EndX, line1.EndY, line2);
-        var d3 = DistancePointToSegment(line2.StartX, line2.StartY, line1);
-        var d4 = DistancePointToSegment(line2.EndX, line2.EndY, line1);
-        return Math.Min(Math.Min(d1, d2), Math.Min(d3, d4));
-    }
-
-    private static double DistancePointToSegment(double px, double py, LineData line)
-    {
-        var dx = line.EndX - line.StartX;
-        var dy = line.EndY - line.StartY;
-        var norm2 = dx * dx + dy * dy;
-        if (norm2 < 1e-9)
-        {
-            return Math.Sqrt((px - line.StartX) * (px - line.StartX) + (py - line.StartY) * (py - line.StartY));
-        }
-
-        var t = ((px - line.StartX) * dx + (py - line.StartY) * dy) / norm2;
-        t = Math.Clamp(t, 0.0, 1.0);
-        var projX = line.StartX + t * dx;
-        var projY = line.StartY + t * dy;
-        var ex = px - projX;
-        var ey = py - projY;
-        return Math.Sqrt(ex * ex + ey * ey);
-    }
-
-    private static bool TryGetSegmentIntersection(LineData l1, LineData l2, out Position intersection)
-    {
-        intersection = new Position(0, 0);
-        if (!TryGetLineIntersection(l1, l2, out var cross))
-        {
-            return false;
-        }
-
-        if (IsPointOnSegment(cross, l1) && IsPointOnSegment(cross, l2))
-        {
-            intersection = cross;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsPointOnSegment(Position p, LineData line)
-    {
-        var minX = Math.Min(line.StartX, line.EndX) - 1e-6;
-        var maxX = Math.Max(line.StartX, line.EndX) + 1e-6;
-        var minY = Math.Min(line.StartY, line.EndY) - 1e-6;
-        var maxY = Math.Max(line.StartY, line.EndY) + 1e-6;
-        return p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY;
-    }
-
-    private static double AngleBetweenLines(LineData l1, LineData l2)
-    {
-        var v1x = l1.EndX - l1.StartX;
-        var v1y = l1.EndY - l1.StartY;
-        var v2x = l2.EndX - l2.StartX;
-        var v2y = l2.EndY - l2.StartY;
-
-        var norm1 = Math.Sqrt(v1x * v1x + v1y * v1y);
-        var norm2 = Math.Sqrt(v2x * v2x + v2y * v2y);
-        if (norm1 < 1e-9 || norm2 < 1e-9)
-        {
-            return 0;
-        }
-
-        var cos = Math.Clamp((v1x * v2x + v1y * v2y) / (norm1 * norm2), -1.0, 1.0);
-        var angle = Math.Acos(cos) * 180.0 / Math.PI;
-        return angle > 90 ? 180 - angle : angle;
-    }
-
-    private static bool TryGetLineIntersection(LineData l1, LineData l2, out Position point)
-    {
-        point = new Position(0, 0);
-
-        var denominator = (l1.StartX - l1.EndX) * (l2.StartY - l2.EndY) -
-                          (l1.StartY - l1.EndY) * (l2.StartX - l2.EndX);
-        if (Math.Abs(denominator) < 1e-9)
-        {
-            return false;
-        }
-
-        var pxNumerator = (l1.StartX * l1.EndY - l1.StartY * l1.EndX) * (l2.StartX - l2.EndX) -
-                          (l1.StartX - l1.EndX) * (l2.StartX * l2.EndY - l2.StartY * l2.EndX);
-        var pyNumerator = (l1.StartX * l1.EndY - l1.StartY * l1.EndX) * (l2.StartY - l2.EndY) -
-                          (l1.StartY - l1.EndY) * (l2.StartX * l2.EndY - l2.StartY * l2.EndX);
-        point = new Position(pxNumerator / denominator, pyNumerator / denominator);
-        return true;
-    }
-
-    private static List<Position> SolveLineCircleIntersections(LineData line, CircleSpec circle)
+    private static List<Position> SolveLineCircleIntersections(LineData line, CircleSpec circle, bool clampToSegment)
     {
         var result = new List<Position>();
-
         var x1 = line.StartX - circle.CenterX;
         var y1 = line.StartY - circle.CenterY;
         var x2 = line.EndX - circle.CenterX;
@@ -398,53 +377,61 @@ public class GeoMeasurementOperator : OperatorBase
         var dx = x2 - x1;
         var dy = y2 - y1;
 
-        var a = dx * dx + dy * dy;
-        var b = 2 * (x1 * dx + y1 * dy);
-        var c = x1 * x1 + y1 * y1 - circle.Radius * circle.Radius;
-
-        var delta = b * b - 4 * a * c;
+        var a = (dx * dx) + (dy * dy);
+        var b = 2 * ((x1 * dx) + (y1 * dy));
+        var c = (x1 * x1) + (y1 * y1) - (circle.Radius * circle.Radius);
+        var delta = (b * b) - (4 * a * c);
         if (delta < 0 || Math.Abs(a) < 1e-12)
         {
             return result;
         }
 
-        var sqrt = Math.Sqrt(Math.Max(0, delta));
-        var t1 = (-b + sqrt) / (2 * a);
-        var t2 = (-b - sqrt) / (2 * a);
-
-        result.Add(new Position(line.StartX + t1 * (line.EndX - line.StartX), line.StartY + t1 * (line.EndY - line.StartY)));
-        if (Math.Abs(t1 - t2) > 1e-9)
+        var sqrtDelta = Math.Sqrt(Math.Max(0.0, delta));
+        var roots = new[] { (-b + sqrtDelta) / (2 * a), (-b - sqrtDelta) / (2 * a) };
+        foreach (var t in roots)
         {
-            result.Add(new Position(line.StartX + t2 * (line.EndX - line.StartX), line.StartY + t2 * (line.EndY - line.StartY)));
+            if (clampToSegment && (t < -1e-9 || t > 1 + 1e-9))
+            {
+                continue;
+            }
+
+            var point = new Position(
+                line.StartX + (t * (line.EndX - line.StartX)),
+                line.StartY + (t * (line.EndY - line.StartY)));
+
+            if (result.All(existing => MeasurementGeometryHelper.Distance(existing, point) > 1e-6))
+            {
+                result.Add(point);
+            }
         }
 
         return result;
     }
 
-    private static List<Position> SolveCircleCircleIntersections(CircleSpec c1, CircleSpec c2)
+    private static List<Position> SolveCircleCircleIntersections(CircleSpec first, CircleSpec second)
     {
         var result = new List<Position>();
-        var dx = c2.CenterX - c1.CenterX;
-        var dy = c2.CenterY - c1.CenterY;
-        var d = Math.Sqrt(dx * dx + dy * dy);
+        var dx = second.CenterX - first.CenterX;
+        var dy = second.CenterY - first.CenterY;
+        var distance = Math.Sqrt((dx * dx) + (dy * dy));
 
-        if (d < 1e-9 || d > c1.Radius + c2.Radius || d < Math.Abs(c1.Radius - c2.Radius))
+        if (distance < 1e-9 || distance > first.Radius + second.Radius || distance < Math.Abs(first.Radius - second.Radius))
         {
             return result;
         }
 
-        var a = (c1.Radius * c1.Radius - c2.Radius * c2.Radius + d * d) / (2 * d);
-        var h2 = c1.Radius * c1.Radius - a * a;
-        if (h2 < 0)
+        var a = ((first.Radius * first.Radius) - (second.Radius * second.Radius) + (distance * distance)) / (2 * distance);
+        var hSquared = (first.Radius * first.Radius) - (a * a);
+        if (hSquared < 0)
         {
             return result;
         }
 
-        var h = Math.Sqrt(Math.Max(0, h2));
-        var xm = c1.CenterX + a * dx / d;
-        var ym = c1.CenterY + a * dy / d;
-        var rx = -dy * (h / d);
-        var ry = dx * (h / d);
+        var h = Math.Sqrt(Math.Max(0.0, hSquared));
+        var xm = first.CenterX + ((a * dx) / distance);
+        var ym = first.CenterY + ((a * dy) / distance);
+        var rx = -dy * (h / distance);
+        var ry = dx * (h / distance);
 
         result.Add(new Position(xm + rx, ym + ry));
         if (h > 1e-9)
@@ -463,9 +450,9 @@ public class GeoMeasurementOperator : OperatorBase
             return false;
         }
 
-        if (obj is Position p)
+        if (obj is Position position)
         {
-            point = p;
+            point = position;
             return true;
         }
 
@@ -480,8 +467,8 @@ public class GeoMeasurementOperator : OperatorBase
         if (obj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
             return TryParsePoint(normalized, out point);
         }
 
@@ -515,8 +502,8 @@ public class GeoMeasurementOperator : OperatorBase
         if (raw is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0f, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0f, StringComparer.OrdinalIgnoreCase);
             return TryParseLine(normalized, out line);
         }
 
@@ -559,8 +546,8 @@ public class GeoMeasurementOperator : OperatorBase
         if (raw is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
             return TryParseCircle(normalized, out circle);
         }
 
@@ -613,9 +600,19 @@ public class GeoMeasurementOperator : OperatorBase
 
     private enum DistanceModel
     {
-        InfiniteLine = 0,
-        Segment = 1
+        Segment = 0,
+        InfiniteLine = 1
     }
 
     private sealed record CircleSpec(double CenterX, double CenterY, double Radius);
+
+    private readonly record struct GeometryMeasurement(
+        double Distance,
+        double Angle,
+        Position Intersection1,
+        Position Intersection2,
+        string MeasureType,
+        string DistanceMeaning,
+        string Relation,
+        int IntersectionCount);
 }

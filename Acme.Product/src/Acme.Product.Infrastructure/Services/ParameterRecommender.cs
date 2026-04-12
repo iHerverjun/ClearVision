@@ -137,6 +137,7 @@ public sealed class ParameterRecommender
         return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
             ["Method"] = "Laplacian",
+            ["ThresholdMode"] = "Manual",
             ["Threshold"] = Math.Round(threshold, 2),
             ["RoiX"] = 0,
             ["RoiY"] = 0,

@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-12 14:44:33 +08:00`
+> 生成时间 / Generated At: `2026-04-12 18:31:04 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -35,7 +35,7 @@
 | 颜色处理 | 2 | 1.3% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **87.2**
+- 平均分 / Average: **87.3**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
 | A | 102 |
@@ -184,24 +184,24 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AngleMeasurement` | 角度测量 | 1 | 2 | 7 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [AngleMeasurement](./AngleMeasurement.md) |
 | `OperatorType.ArcCaliper` | Arc Caliper | 7 | 2 | 0 | 58 (C) | `1.0.0` | - | [ArcCaliper](./ArcCaliper.md) |
-| `OperatorType.CaliperTool` | 卡尺工具 | 2 | 7 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./CaliperTool.md) |
+| `OperatorType.CaliperTool` | 卡尺工具 | 2 | 7 | 9 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./CaliperTool.md) |
 | `OperatorType.CircleMeasurement` | 圆测量 | 1 | 7 | 7 | 100 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [CircleMeasurement](./CircleMeasurement.md) |
 | `OperatorType.ContourExtrema` | Contour Extrema | 3 | 6 | 0 | 58 (C) | `1.0.0` | - | [ContourExtrema](./ContourExtrema.md) |
 | `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./ContourMeasurement.md) |
 | `OperatorType.GapMeasurement` | 间隙测量 | 2 | 9 | 8 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GapMeasurement](./GapMeasurement.md) |
 | `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 3 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeoMeasurement](./GeoMeasurement.md) |
 | `OperatorType.GeometricFitting` | Geometric Fitting | 1 | 2 | 8 | 100 (A) | `1.0.0` | 当前实现的几何拟合流程并不是直接接收点集输入，而是： | [GeometricFitting](./GeometricFitting.md) |
-| `OperatorType.GeometricTolerance` | 几何公差 | 1 | 5 | 9 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeometricTolerance](./GeometricTolerance.md) |
-| `OperatorType.HistogramAnalysis` | 直方图分析 | 1 | 7 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [HistogramAnalysis](./HistogramAnalysis.md) |
-| `OperatorType.LineLineDistance` | 线线距离 | 2 | 5 | 1 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [LineLineDistance](./LineLineDistance.md) |
-| `OperatorType.LineMeasurement` | 直线测量 | 1 | 5 | 4 | 94 (A) | `1.0.0` | 该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。 | [LineMeasurement](./LineMeasurement.md) |
+| `OperatorType.GeometricTolerance` | 几何公差 | 5 | 7 | 5 | 96 (A) | `1.0.0` | - | [GeometricTolerance](./GeometricTolerance.md) |
+| `OperatorType.HistogramAnalysis` | 直方图分析 | 1 | 11 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [HistogramAnalysis](./HistogramAnalysis.md) |
+| `OperatorType.LineLineDistance` | 线线距离 | 2 | 5 | 3 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [LineLineDistance](./LineLineDistance.md) |
+| `OperatorType.LineMeasurement` | 直线测量 | 1 | 5 | 4 | 96 (A) | `1.0.0` | 该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。 | [LineMeasurement](./LineMeasurement.md) |
 | `OperatorType.Measurement` | 测量 | 3 | 2 | 5 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [Measurement](./Measurement.md) |
 | `OperatorType.MinEnclosingGeometry` | Min Enclosing Geometry | 1 | 2 | 10 | 90 (A) | `1.0.0` | - | [MinEnclosingGeometry](./MinEnclosingGeometry.md) |
 | `OperatorType.PhaseClosure` | Phase Closure | 4 | 4 | 0 | 58 (C) | `1.0.0` | - | [PhaseClosure](./PhaseClosure.md) |
-| `OperatorType.PixelStatistics` | 像素统计 | 2 | 6 | 5 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [PixelStatistics](./PixelStatistics.md) |
-| `OperatorType.PointLineDistance` | 点线距离 | 2 | 2 | 0 | 91 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [PointLineDistance](./PointLineDistance.md) |
-| `OperatorType.SharpnessEvaluation` | 清晰度评估 | 1 | 3 | 6 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [SharpnessEvaluation](./SharpnessEvaluation.md) |
-| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 8 | 8 | 96 (A) | `1.0.0` | 当前实现有两种工作模式： | [WidthMeasurement](./WidthMeasurement.md) |
+| `OperatorType.PixelStatistics` | 像素统计 | 2 | 6 | 5 | 96 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [PixelStatistics](./PixelStatistics.md) |
+| `OperatorType.PointLineDistance` | 点线距离 | 2 | 2 | 2 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [PointLineDistance](./PointLineDistance.md) |
+| `OperatorType.SharpnessEvaluation` | 清晰度评估 | 1 | 3 | 7 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [SharpnessEvaluation](./SharpnessEvaluation.md) |
+| `OperatorType.WidthMeasurement` | 宽度测量 | 3 | 8 | 8 | 96 (A) | `1.0.0` | - | [WidthMeasurement](./WidthMeasurement.md) |
 
 ### 流程控制 (6)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -305,4 +305,4 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ColorDetection` | 颜色检测 | 2 | 10 | 18 | 94 (A) | `2.0.0` | - | [ColorDetection](./ColorDetection.md) |
-| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 94 (A) | `1.0.2` | - | [ColorMeasurement](./ColorMeasurement.md) |
+| `OperatorType.ColorMeasurement` | 颜色测量 | 2 | 8 | 9 | 96 (A) | `2.0.0` | - | [ColorMeasurement](./ColorMeasurement.md) |

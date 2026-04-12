@@ -56,7 +56,7 @@ public class PixelStatisticsOperator : OperatorBase
         }
 
         var channel = GetStringParam(@operator, "Channel", "Gray");
-        var roi = ResolveRoi(@operator, src.Width, src.Height);
+        var roi = MeasurementRoiHelper.ResolveRoi(@operator, src.Width, src.Height);
         if (roi.Width <= 0 || roi.Height <= 0)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("ROI is invalid"));
@@ -64,7 +64,11 @@ public class PixelStatisticsOperator : OperatorBase
 
         using var roiMat = new Mat(src, roi);
         using var analysis = ExtractChannel(roiMat, channel);
-        using var mask = ResolveMask(inputs, analysis.Size());
+        using var mask = ResolveMask(inputs, roi, src.Size(), out var maskError);
+        if (maskError != null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(maskError));
+        }
 
         Cv2.MeanStdDev(analysis, out var mean, out var stddev, mask);
         Cv2.MinMaxLoc(analysis, out var minValue, out var maxValue, out _, out _, mask);
@@ -162,8 +166,9 @@ public class PixelStatisticsOperator : OperatorBase
         }
     }
 
-    private static Mat ResolveMask(Dictionary<string, object>? inputs, Size size)
+    private static Mat ResolveMask(Dictionary<string, object>? inputs, Rect roi, Size sourceSize, out string? error)
     {
+        error = null;
         if (inputs == null ||
             !ImageWrapper.TryGetFromInputs(inputs, "Mask", out var maskWrapper) ||
             maskWrapper == null)
@@ -187,12 +192,25 @@ public class PixelStatisticsOperator : OperatorBase
             Cv2.CvtColor(maskSrc, grayMask, ColorConversionCodes.BGR2GRAY);
         }
 
-        if (grayMask.Size() != size)
+        Mat roiMask;
+        if (grayMask.Size() == sourceSize)
         {
-            var resized = new Mat();
-            Cv2.Resize(grayMask, resized, size);
+            if (roi.Right > grayMask.Width || roi.Bottom > grayMask.Height)
+            {
+                grayMask.Dispose();
+                error = "Mask ROI exceeds mask image bounds";
+                return new Mat();
+            }
+
+            roiMask = new Mat(grayMask, roi).Clone();
             grayMask.Dispose();
-            grayMask = resized;
+            grayMask = roiMask;
+        }
+        else if (grayMask.Size() != roi.Size)
+        {
+            grayMask.Dispose();
+            error = "Mask must match the full image size or the resolved ROI size";
+            return new Mat();
         }
 
         Cv2.Threshold(grayMask, grayMask, 1, 255, ThresholdTypes.Binary);
@@ -238,28 +256,4 @@ public class PixelStatisticsOperator : OperatorBase
         return 255;
     }
 
-    private static Rect ResolveRoi(Operator @operator, int width, int height)
-    {
-        var x = ReadParam(@operator, "RoiX", 0);
-        var y = ReadParam(@operator, "RoiY", 0);
-        var w = ReadParam(@operator, "RoiW", width - x);
-        var h = ReadParam(@operator, "RoiH", height - y);
-
-        x = Math.Clamp(x, 0, Math.Max(0, width - 1));
-        y = Math.Clamp(y, 0, Math.Max(0, height - 1));
-        w = Math.Clamp(w, 1, width - x);
-        h = Math.Clamp(h, 1, height - y);
-        return new Rect(x, y, w, h);
-    }
-
-    private static int ReadParam(Operator @operator, string name, int def)
-    {
-        var raw = @operator.Parameters.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Value;
-        if (raw == null)
-        {
-            return def;
-        }
-
-        return int.TryParse(raw.ToString(), out var value) ? value : def;
-    }
 }

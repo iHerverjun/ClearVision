@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T14:44:33.1319396+08:00",
+  "generatedAt": "2026-04-12T18:31:04.9508036+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -3009,7 +3009,7 @@
       "id": "LineMeasurement",
       "type": 20,
       "displayName": "直线测量",
-      "description": "霍夫直线检测与测量",
+      "description": "Detects line features and reports line direction, span and fitting diagnostics.",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -3064,14 +3064,18 @@
           "displayName": "检测方法",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "HoughLine",
+          "defaultValue": "ProbabilisticHough",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": [
             {
-              "value": "HoughLine",
+              "value": "HoughLines",
               "label": "霍夫直线"
+            },
+            {
+              "value": "ProbabilisticHough",
+              "label": "概率霍夫直线"
             },
             {
               "value": "FitLine",
@@ -3114,13 +3118,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/LineMeasurement.md"
     },
@@ -3375,7 +3379,7 @@
       "id": "GeometricTolerance",
       "type": 23,
       "displayName": "几何公差",
-      "description": "角度偏差测量（仅角度模型，非完整GD&T公差带）",
+      "description": "Evaluates a constrained 2D GD&T subset using feature/datum and tolerance-zone semantics.",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -3383,13 +3387,37 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "Image",
           "displayName": "输入图像",
           "dataType": "Image",
+          "isRequired": false
+        },
+        {
+          "name": "FeaturePrimary",
+          "displayName": "Primary Feature",
+          "dataType": "Any",
           "isRequired": true
+        },
+        {
+          "name": "DatumA",
+          "displayName": "Datum A",
+          "dataType": "Any",
+          "isRequired": true
+        },
+        {
+          "name": "DatumB",
+          "displayName": "Datum B",
+          "dataType": "Any",
+          "isRequired": false
+        },
+        {
+          "name": "DatumC",
+          "displayName": "Datum C",
+          "dataType": "Any",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -3401,7 +3429,13 @@
         },
         {
           "name": "Tolerance",
-          "displayName": "角度偏差",
+          "displayName": "公差带",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ZoneDeviation",
+          "displayName": "偏离公差带",
           "dataType": "Float",
           "isRequired": null
         },
@@ -3413,7 +3447,7 @@
         },
         {
           "name": "LinearBand",
-          "displayName": "线性跳动带(像素)",
+          "displayName": "线性偏差带(像素)",
           "dataType": "Float",
           "isRequired": null
         },
@@ -3422,12 +3456,18 @@
           "displayName": "测量模型",
           "dataType": "String",
           "isRequired": null
+        },
+        {
+          "name": "Accepted",
+          "displayName": "Accepted",
+          "dataType": "Boolean",
+          "isRequired": null
         }
       ],
       "parameters": [
         {
-          "name": "MeasureType",
-          "displayName": "测量类型",
+          "name": "ToleranceType",
+          "displayName": "Tolerance Type",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Parallelism",
@@ -3442,13 +3482,56 @@
             {
               "value": "Perpendicularity",
               "label": "垂直度"
+            },
+            {
+              "value": "Position",
+              "label": "位置度"
+            },
+            {
+              "value": "Concentricity",
+              "label": "同心度"
             }
           ]
         },
         {
-          "name": "Line1_X1",
-          "displayName": "线1起点X",
-          "dataType": "int",
+          "name": "ZoneSize",
+          "displayName": "Zone Size",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "2",
+          "min": "0",
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "EvaluationMode",
+          "displayName": "Evaluation Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "CircularZone",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "CircularZone",
+              "label": "Circular Zone"
+            },
+            {
+              "value": "RectangularZone",
+              "label": "Rectangular Zone"
+            },
+            {
+              "value": "Projected2D",
+              "label": "Projected 2D"
+            }
+          ]
+        },
+        {
+          "name": "NominalX",
+          "displayName": "Nominal X",
+          "dataType": "double",
           "description": null,
           "defaultValue": "0",
           "min": null,
@@ -3457,77 +3540,11 @@
           "options": null
         },
         {
-          "name": "Line1_Y1",
-          "displayName": "线1起点Y",
-          "dataType": "int",
+          "name": "NominalY",
+          "displayName": "Nominal Y",
+          "dataType": "double",
           "description": null,
           "defaultValue": "0",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line1_X2",
-          "displayName": "线1终点X",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "100",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line1_Y2",
-          "displayName": "线1终点Y",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "100",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line2_X1",
-          "displayName": "线2起点X",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "0",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line2_Y1",
-          "displayName": "线2起点Y",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "200",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line2_X2",
-          "displayName": "线2终点X",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "100",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "Line2_Y2",
-          "displayName": "线2终点Y",
-          "dataType": "int",
-          "description": null,
-          "defaultValue": "200",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -3535,13 +3552,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/GeometricTolerance.md"
     },
@@ -4730,12 +4747,8 @@
               "label": "Largest Contour"
             },
             {
-              "value": "AllContours",
-              "label": "All Contours"
-            },
-            {
-              "value": "FirstContour",
-              "label": "First Contour"
+              "value": "BestResidual",
+              "label": "Best Residual"
             }
           ]
         },
@@ -10851,10 +10864,6 @@
           "isRequired": true,
           "options": [
             {
-              "value": "single_edge",
-              "label": "single_edge"
-            },
-            {
               "value": "edge_pairs",
               "label": "edge_pairs"
             }
@@ -10917,13 +10926,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/CaliperTool.md"
     },
@@ -10939,7 +10948,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "当前实现有两种工作模式：",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "Image",
@@ -11032,13 +11041,13 @@
           ]
         },
         {
-          "name": "NumSamples",
+          "name": "SampleCount",
           "displayName": "Sample Count",
           "dataType": "int",
           "description": null,
           "defaultValue": "24",
           "min": "10",
-          "max": "100",
+          "max": "256",
           "isRequired": true,
           "options": null
         },
@@ -11133,7 +11142,7 @@
       "id": "PointLineDistance",
       "type": 132,
       "displayName": "点线距离",
-      "description": "Computes perpendicular distance from a point to a line.",
+      "description": "Computes distance from a point to a line or segment.",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -11170,15 +11179,52 @@
           "isRequired": null
         }
       ],
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "DistanceModel",
+          "displayName": "Distance Model",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Segment",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Segment",
+              "label": "Segment"
+            },
+            {
+              "value": "InfiniteLine",
+              "label": "Infinite line"
+            }
+          ]
+        },
+        {
+          "name": "Unit",
+          "displayName": "Unit",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Pixel",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Pixel",
+              "label": "Pixel"
+            }
+          ]
+        }
+      ],
       "quality": {
-        "totalScore": 91,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
-        "parameterValidationScore": 80,
+        "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/PointLineDistance.md"
     },
@@ -11186,7 +11232,7 @@
       "id": "LineLineDistance",
       "type": 133,
       "displayName": "线线距离",
-      "description": "Computes distance and angle between two lines.",
+      "description": "Computes distance and angle between two lines or segments.",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -11252,6 +11298,42 @@
           "max": "45",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "DistanceModel",
+          "displayName": "Distance Model",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Segment",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Segment",
+              "label": "Segment"
+            },
+            {
+              "value": "InfiniteLine",
+              "label": "Infinite line"
+            }
+          ]
+        },
+        {
+          "name": "Unit",
+          "displayName": "Unit",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "Pixel",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "Pixel",
+              "label": "Pixel"
+            }
+          ]
         }
       ],
       "quality": {
@@ -11646,6 +11728,26 @@
           ]
         },
         {
+          "name": "ThresholdMode",
+          "displayName": "Threshold Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "PerMethodDefault",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "PerMethodDefault",
+              "label": "PerMethodDefault"
+            },
+            {
+              "value": "Manual",
+              "label": "Manual"
+            }
+          ]
+        },
+        {
           "name": "Threshold",
           "displayName": "Threshold",
           "dataType": "double",
@@ -11702,13 +11804,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/SharpnessEvaluation.md"
     },
@@ -13292,9 +13394,9 @@
       "id": "ColorMeasurement",
       "type": 174,
       "displayName": "颜色测量",
-      "description": "Measures average Lab/HSV values and computes DeltaE.",
+      "description": "Measures Lab delta-E or HSV statistics over a selected ROI.",
       "category": "颜色处理",
-      "version": "1.0.2",
+      "version": "2.0.0",
       "tags": [
         "功能域:测量",
         "成熟度:稳定",
@@ -13317,45 +13419,45 @@
       ],
       "outputPorts": [
         {
-          "name": "L",
-          "displayName": "L",
-          "dataType": "Float",
+          "name": "LabMean",
+          "displayName": "Lab Mean",
+          "dataType": "Any",
           "isRequired": null
         },
         {
-          "name": "A",
-          "displayName": "A",
-          "dataType": "Float",
-          "isRequired": null
-        },
-        {
-          "name": "B",
-          "displayName": "B",
-          "dataType": "Float",
-          "isRequired": null
-        },
-        {
-          "name": "H",
-          "displayName": "H",
-          "dataType": "Float",
-          "isRequired": null
-        },
-        {
-          "name": "S",
-          "displayName": "S",
-          "dataType": "Float",
-          "isRequired": null
-        },
-        {
-          "name": "V",
-          "displayName": "V",
-          "dataType": "Float",
+          "name": "ReferenceLab",
+          "displayName": "Reference Lab",
+          "dataType": "Any",
           "isRequired": null
         },
         {
           "name": "DeltaE",
           "displayName": "DeltaE",
           "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "HueMean",
+          "displayName": "Hue Mean",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "SaturationMean",
+          "displayName": "Saturation Mean",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ValueMean",
+          "displayName": "Value Mean",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "HueValid",
+          "displayName": "Hue Valid",
+          "dataType": "Boolean",
           "isRequired": null
         },
         {
@@ -13367,22 +13469,22 @@
       ],
       "parameters": [
         {
-          "name": "ColorSpace",
-          "displayName": "Color Space",
+          "name": "MeasurementMode",
+          "displayName": "Measurement Mode",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "Lab",
+          "defaultValue": "LabDeltaE",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": [
             {
-              "value": "Lab",
-              "label": "Lab"
+              "value": "LabDeltaE",
+              "label": "Lab DeltaE"
             },
             {
-              "value": "HSV",
-              "label": "HSV"
+              "value": "HsvStats",
+              "label": "HSV Stats"
             }
           ]
         },
@@ -13485,13 +13587,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/ColorMeasurement.md"
     },
@@ -14613,18 +14715,18 @@
           "displayName": "Distance Model",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "InfiniteLine",
+          "defaultValue": "Segment",
           "min": null,
           "max": null,
           "isRequired": true,
           "options": [
             {
-              "value": "InfiniteLine",
-              "label": "Infinite line"
-            },
-            {
               "value": "Segment",
               "label": "Segment"
+            },
+            {
+              "value": "InfiniteLine",
+              "label": "Infinite line"
             }
           ]
         }
@@ -15586,7 +15688,7 @@
       "id": "HistogramAnalysis",
       "type": 213,
       "displayName": "直方图分析",
-      "description": "Computes histogram and distribution statistics for selected channel.",
+      "description": "Computes histogram and intensity-domain distribution statistics for a selected channel.",
       "category": "检测",
       "version": "1.0.0",
       "tags": [
@@ -15625,24 +15727,48 @@
         {
           "name": "Mode",
           "displayName": "Mode",
-          "dataType": "Integer",
+          "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "Median",
           "displayName": "Median",
-          "dataType": "Integer",
+          "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "Peak",
           "displayName": "Peak",
-          "dataType": "Integer",
+          "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "Valley",
           "displayName": "Valley",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ModeBinIndex",
+          "displayName": "Mode Bin Index",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "MedianBinIndex",
+          "displayName": "Median Bin Index",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "PeakBinIndex",
+          "displayName": "Peak Bin Index",
+          "dataType": "Integer",
+          "isRequired": null
+        },
+        {
+          "name": "ValleyBinIndex",
+          "displayName": "Valley Bin Index",
           "dataType": "Integer",
           "isRequired": null
         }
@@ -15887,13 +16013,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/PixelStatistics.md"
     },

@@ -26,7 +26,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Threshold", "Binary Threshold", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
 [OperatorParam("MinArea", "Min Contour Area", "int", DefaultValue = 100, Min = 0)]
 [OperatorParam("MinPoints", "Min Points", "int", DefaultValue = 5, Min = 3, Max = 10000)]
-[OperatorParam("ContourSelection", "Contour Selection", "enum", DefaultValue = "LargestContour", Options = new[] { "LargestContour|Largest Contour", "AllContours|All Contours", "FirstContour|First Contour" })]
+[OperatorParam("ContourSelection", "Contour Selection", "enum", DefaultValue = "LargestContour", Options = new[] { "LargestContour|Largest Contour", "BestResidual|Best Residual" })]
 [OperatorParam("RobustMethod", "Robust Method", "enum", DefaultValue = "LeastSquares", Options = new[] { "LeastSquares|LeastSquares", "Ransac|Ransac" })]
 [OperatorParam("RansacIterations", "Ransac Iterations", "int", DefaultValue = 200, Min = 10, Max = 5000)]
 [OperatorParam("RansacInlierThreshold", "Ransac Inlier Threshold", "double", DefaultValue = 2.0, Min = 0.1, Max = 100.0)]
@@ -81,14 +81,10 @@ public class GeometricFittingOperator : OperatorBase
 
         Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
         var validContours = contours.Where(c => Cv2.ContourArea(c) >= minArea).ToList();
-        var selectedContours = SelectContours(validContours, contourSelection);
+        var selectedContours = SelectContours(validContours, contourSelection, fitType);
         if (validContours.Count == 0)
         {
-            var noContourData = new Dictionary<string, object>
-            {
-                { "FitResult", CreateFailedFitResult("No valid contour found.", fitType, robustMethod, contourSelection, 0, 0) }
-            };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, noContourData)));
+            return Task.FromResult(OperatorExecutionOutput.Failure("[NoFeature] No valid contour found."));
         }
 
         var allPoints = selectedContours
@@ -98,11 +94,7 @@ public class GeometricFittingOperator : OperatorBase
 
         if (allPoints.Length < minPoints)
         {
-            var insufficientData = new Dictionary<string, object>
-            {
-                { "FitResult", CreateFailedFitResult($"Insufficient points. Need {minPoints}, got {allPoints.Length}.", fitType, robustMethod, contourSelection, validContours.Count, selectedContours.Count) }
-            };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, insufficientData)));
+            return Task.FromResult(OperatorExecutionOutput.Failure($"[DegenerateGeometry] Insufficient points. Need {minPoints}, got {allPoints.Length}."));
         }
 
         var fitResult = new Dictionary<string, object>
@@ -133,6 +125,12 @@ public class GeometricFittingOperator : OperatorBase
             default:
                 FitCircle(allPoints, resultImage, fitResult, useRansac, ransacIterations, ransacInlierThreshold);
                 break;
+        }
+
+        if (fitResult.TryGetValue("Success", out var successObj) && successObj is bool fitSucceeded && !fitSucceeded)
+        {
+            var message = fitResult.TryGetValue("Message", out var messageObj) ? messageObj?.ToString() : "Fit failed.";
+            return Task.FromResult(OperatorExecutionOutput.Failure($"[NoFeature] {message}"));
         }
 
         for (var i = 0; i < selectedContours.Count; i++)
@@ -361,41 +359,58 @@ public class GeometricFittingOperator : OperatorBase
         }
     }
 
-    private static Dictionary<string, object> CreateFailedFitResult(
-        string message,
-        string fitType,
-        string robustMethod,
-        string contourSelection,
-        int sourceContourCount,
-        int selectedContourCount)
-    {
-        return new Dictionary<string, object>
-        {
-            { "Success", false },
-            { "FitType", fitType },
-            { "RequestedRobustMethod", robustMethod },
-            { "AppliedRobustMethod", robustMethod },
-            { "RobustMethod", robustMethod },
-            { "ContourSelection", contourSelection },
-            { "SourceContourCount", sourceContourCount },
-            { "SelectedContourCount", selectedContourCount },
-            { "PointCount", 0 },
-            { "Geometry", new Dictionary<string, object>() },
-            { "Message", message }
-        };
-    }
-
-    private static List<Point[]> SelectContours(List<Point[]> validContours, string contourSelection)
+    private static List<Point[]> SelectContours(List<Point[]> validContours, string contourSelection, string fitType)
     {
         return contourSelection.ToLowerInvariant() switch
         {
-            "allcontours" => validContours,
-            "firstcontour" => validContours.Take(1).ToList(),
+            "bestresidual" => validContours
+                .OrderBy(contour => EstimateContourResidual(contour, fitType))
+                .Take(1)
+                .ToList(),
             _ => validContours
                 .OrderByDescending(contour => Cv2.ContourArea(contour))
                 .Take(1)
                 .ToList()
         };
+    }
+
+    private static double EstimateContourResidual(Point[] contour, string fitType)
+    {
+        var points = contour.Select(point => new Point2f(point.X, point.Y)).ToArray();
+        if (points.Length < 2)
+        {
+            return double.PositiveInfinity;
+        }
+
+        try
+        {
+            switch (fitType.ToLowerInvariant())
+            {
+                case "line":
+                    var line = Cv2.FitLine(points, DistanceTypes.L2, 0, 0.01, 0.01);
+                    return CalculateLineResidualStats(points, CreateLineModelFromFit(line.Vx, line.Vy, line.X1, line.Y1)).MeanResidual;
+                case "ellipse":
+                    if (points.Length < 5)
+                    {
+                        return double.PositiveInfinity;
+                    }
+
+                    return CalculateEllipseResidualStats(points, Cv2.FitEllipse(points)).MeanResidual;
+                case "circle":
+                default:
+                    var (cx, cy, r) = FitCircleLeastSquares(points);
+                    if (r <= 0)
+                    {
+                        return double.PositiveInfinity;
+                    }
+
+                    return CalculateCircleResidualStats(points, new CircleModel(cx, cy, r)).MeanResidual;
+            }
+        }
+        catch
+        {
+            return double.PositiveInfinity;
+        }
     }
 
     private static Dictionary<string, object> GetGeometry(Dictionary<string, object> fitResult)
@@ -878,6 +893,22 @@ public class GeometricFittingOperator : OperatorBase
     private static (double cx, double cy, double r) FitCircleLeastSquares(Point2f[] points)
     {
         var n = points.Length;
+        if (n < 3)
+        {
+            return (0, 0, 0);
+        }
+
+        var meanX = points.Average(point => point.X);
+        var meanY = points.Average(point => point.Y);
+        var scale = points
+            .Select(point => Math.Sqrt(Math.Pow(point.X - meanX, 2) + Math.Pow(point.Y - meanY, 2)))
+            .DefaultIfEmpty(0.0)
+            .Average();
+        if (scale < 1e-9)
+        {
+            return (0, 0, 0);
+        }
+
         double sumX = 0;
         double sumY = 0;
         double sumX2 = 0;
@@ -890,8 +921,8 @@ public class GeometricFittingOperator : OperatorBase
 
         for (var i = 0; i < n; i++)
         {
-            var x = points[i].X;
-            var y = points[i].Y;
+            var x = (points[i].X - meanX) / scale;
+            var y = (points[i].Y - meanY) / scale;
             sumX += x;
             sumY += y;
             sumX2 += x * x;
@@ -915,10 +946,14 @@ public class GeometricFittingOperator : OperatorBase
             return (0, 0, 0);
         }
 
-        var cx = ((d * c) - (b * e)) / det;
-        var cy = ((a * e) - (b * d)) / det;
-        var r = Math.Sqrt((sumX2 / n) - ((2 * cx * sumX) / n) + (cx * cx)
-                          + (sumY2 / n) - ((2 * cy * sumY) / n) + (cy * cy));
+        var normalizedCx = ((d * c) - (b * e)) / det;
+        var normalizedCy = ((a * e) - (b * d)) / det;
+        var normalizedR = Math.Sqrt((sumX2 / n) - ((2 * normalizedCx * sumX) / n) + (normalizedCx * normalizedCx)
+                                    + (sumY2 / n) - ((2 * normalizedCy * sumY) / n) + (normalizedCy * normalizedCy));
+
+        var cx = (normalizedCx * scale) + meanX;
+        var cy = (normalizedCy * scale) + meanY;
+        var r = normalizedR * scale;
         return (cx, cy, r);
     }
 
@@ -950,10 +985,10 @@ public class GeometricFittingOperator : OperatorBase
         }
 
         var contourSelection = GetStringParam(@operator, "ContourSelection", "LargestContour");
-        var validSelections = new[] { "LargestContour", "AllContours", "FirstContour" };
+        var validSelections = new[] { "LargestContour", "BestResidual" };
         if (!validSelections.Contains(contourSelection, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid("ContourSelection must be LargestContour, AllContours or FirstContour.");
+            return ValidationResult.Invalid("ContourSelection must be LargestContour or BestResidual.");
         }
 
         var robustMethod = GetStringParam(@operator, "RobustMethod", "LeastSquares");
