@@ -23,6 +23,7 @@ public class AIPromptBuilder
     public AIPromptBuilder()
     {
         InitializeOperatorLibrary();
+        NormalizeDataOperatorContracts();
     }
 
     /// <summary>
@@ -84,6 +85,52 @@ public class AIPromptBuilder
         // 流程控制
         _operators.Add(new PromptOperatorInfo(OperatorType.ConditionalBranch, "条件分支", "根据条件走不同分支", "Any", "Any", specialNotes: "必须提供 True 和 False 两个分支的输出"));
         _operators.Add(new PromptOperatorInfo(OperatorType.ResultJudgment, "结果判定", "判定检测结果", "Any", "Boolean"));
+    }
+
+    private void NormalizeDataOperatorContracts()
+    {
+        _operators.RemoveAll(op =>
+            op.Type == OperatorType.ArrayIndexer ||
+            op.Type == OperatorType.JsonExtractor ||
+            op.Type == OperatorType.MathOperation);
+
+        _operators.Add(new PromptOperatorInfo(
+            OperatorType.ArrayIndexer,
+            "数组索引",
+            "从列表中按索引或条件提取单个元素",
+            "List",
+            "Any",
+            new[]
+            {
+                new PromptParamInfo("Mode", "enum", "提取模式", true, "Index", options: new[] { "Index", "MaxConfidence", "MaxArea", "MinArea", "First", "Last" }),
+                new PromptParamInfo("Index", "int", "索引", false, "0", "0"),
+                new PromptParamInfo("LabelFilter", "string", "标签过滤", false, string.Empty)
+            }));
+
+        _operators.Add(new PromptOperatorInfo(
+            OperatorType.JsonExtractor,
+            "JSON提取",
+            "从 JSON 中按 JSONPath 提取字段",
+            "Json",
+            "Any",
+            new[]
+            {
+                new PromptParamInfo("JsonPath", "string", "JSONPath", true, "$.data"),
+                new PromptParamInfo("OutputType", "string", "输出类型", false, "Any", options: new[] { "Any", "String", "Float", "Double", "Integer", "Int", "Boolean", "Bool" }),
+                new PromptParamInfo("DefaultValue", "string", "默认值", false, string.Empty),
+                new PromptParamInfo("Required", "bool", "是否必需", false, "false")
+            }));
+
+        _operators.Add(new PromptOperatorInfo(
+            OperatorType.MathOperation,
+            "数学运算",
+            "加减乘除等运算",
+            "ValueA",
+            "Float",
+            new[]
+            {
+                new PromptParamInfo("Operation", "enum", "运算类型", true, "Add", options: new[] { "Add", "Subtract", "Multiply", "Divide", "Abs", "Min", "Max", "Power", "Sqrt", "Round", "Modulo" })
+            }));
     }
 
     /// <summary>

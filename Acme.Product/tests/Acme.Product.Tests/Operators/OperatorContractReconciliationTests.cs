@@ -71,6 +71,41 @@ public class OperatorContractReconciliationTests
         var arrayIndexer = factory.GetMetadata(OperatorType.ArrayIndexer)!;
         arrayIndexer.InputPorts.Select(p => p.Name).Should().Contain("List");
         arrayIndexer.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "Item", "Found", "Index" });
+        arrayIndexer.Parameters.Select(p => p.Name).Should().Contain("LabelFilter");
+
+        var jsonExtractor = factory.GetMetadata(OperatorType.JsonExtractor)!;
+        jsonExtractor.InputPorts.Select(p => p.Name).Should().Contain("Json");
+        jsonExtractor.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "Value", "IsSuccess" });
+        jsonExtractor.Parameters.Select(p => p.Name).Should().Contain(new[] { "JsonPath", "OutputType", "DefaultValue", "Required" });
+        jsonExtractor.Parameters.Select(p => p.Name).Should().NotContain("Path");
+
+        var aggregator = factory.GetMetadata(OperatorType.Aggregator)!;
+        aggregator.OutputPorts.Select(p => p.Name).Should().Contain("NumericCount");
+
+        var databaseWrite = factory.GetMetadata(OperatorType.DatabaseWrite)!;
+        databaseWrite.InputPorts.Select(p => p.Name).Should().Contain(new[] { "Data", "RecordId" });
+        databaseWrite.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "Status", "RecordId" });
+        databaseWrite.Parameters.Select(p => p.Name).Should().Contain(new[] { "ConnectionString", "TableName", "DbType" });
+
+        var boxFilter = factory.GetMetadata(OperatorType.BoxFilter)!;
+        boxFilter.InputPorts.Select(p => p.Name).Should().Contain("Detections");
+        boxFilter.Parameters.Select(p => p.Name).Should().Contain(new[] { "FilterMode", "MinArea", "MaxArea", "MinScore" });
+
+        var boxNms = factory.GetMetadata(OperatorType.BoxNms)!;
+        boxNms.InputPorts.Select(p => p.Name).Should().Contain("Detections");
+        boxNms.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "SuppressedDetections", "Diagnostics" });
+
+        var unitConvert = factory.GetMetadata(OperatorType.UnitConvert)!;
+        unitConvert.InputPorts.Select(p => p.Name).Should().Contain(new[] { "Value", "PixelSize" });
+        unitConvert.Parameters.Select(p => p.Name).Should().Contain(new[] { "FromUnit", "ToUnit", "Scale", "UseCalibration" });
+
+        var pointAlignment = factory.GetMetadata(OperatorType.PointAlignment)!;
+        pointAlignment.InputPorts.Select(p => p.Name).Should().Contain(new[] { "CurrentPoint", "ReferencePoint" });
+        pointAlignment.Parameters.Select(p => p.Name).Should().Contain(new[] { "OutputUnit", "PixelSize" });
+
+        var pointCorrection = factory.GetMetadata(OperatorType.PointCorrection)!;
+        pointCorrection.OutputPorts.Select(p => p.Name).Should().Contain(new[] { "TransformMatrix", "TransformUnit" });
+        pointCorrection.Parameters.Select(p => p.Name).Should().Contain(new[] { "CorrectionMode", "OutputUnit", "PixelSize", "MaxAllowedDistance" });
     }
 
     [Fact]
@@ -371,7 +406,7 @@ public class OperatorContractReconciliationTests
     }
 
     [Fact]
-    public async Task ArrayIndexer_BackwardCompatibility_Should_Accept_Items_Key()
+    public async Task ArrayIndexer_Should_Reject_Legacy_Items_Key()
     {
         // 测试 ArrayIndexer 向后兼容旧的 "Items" 输入键
         var sut = new ArrayIndexerOperator(Substitute.For<ILogger<ArrayIndexerOperator>>());
@@ -389,9 +424,50 @@ public class OperatorContractReconciliationTests
             ["Items"] = items
         });
 
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("List");
+    }
+
+    [Fact]
+    public async Task JsonExtractor_Should_Expose_Value_And_IsSuccess_Contract()
+    {
+        var sut = new JsonExtractorOperator(Substitute.For<ILogger<JsonExtractorOperator>>());
+        var op = new Operator("json", OperatorType.JsonExtractor, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("JsonPath", "$.user.name", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("OutputType", "String", "string"));
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Json"] = """{"user":{"name":"Alice"}}"""
+        });
+
         result.IsSuccess.Should().BeTrue();
-        result.OutputData.Should().ContainKey("Item");
-        result.OutputData!["Found"].Should().Be(true);
+        result.OutputData.Should().ContainKey("Value");
+        result.OutputData.Should().ContainKey("IsSuccess");
+        result.OutputData.Should().NotContainKey("Found");
+        result.OutputData!["Value"].Should().Be("Alice");
+        result.OutputData["IsSuccess"].Should().Be(true);
+    }
+
+    [Fact]
+    public async Task PointCorrection_Should_Expose_TransformUnit_As_Pixel()
+    {
+        var sut = new PointCorrectionOperator(Substitute.For<ILogger<PointCorrectionOperator>>());
+        var op = new Operator("point-correction", OperatorType.PointCorrection, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("CorrectionMode", "TranslationOnly", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("OutputUnit", "mm", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("PixelSize", 0.1d, "double"));
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["DetectedPoint"] = new Position(0, 0),
+            ["ReferencePoint"] = new Position(10, 20)
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("TransformUnit");
+        result.OutputData!["TransformUnit"].Should().Be("Pixel");
+        result.OutputData["TransformMatrix"].Should().BeOfType<double[][]>();
     }
 
     private static ImageWrapper CreatePatternTemplate()

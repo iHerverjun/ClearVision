@@ -87,8 +87,8 @@ public class StubRegistryBuilder
             (inputs) =>
             {
                 var op = inputs.GetValueOrDefault("Operation", "Add");
-                var a = float.TryParse(inputs.GetValueOrDefault("InputA", "10"), out var valA) ? valA : 10;
-                var b = float.TryParse(inputs.GetValueOrDefault("InputB", "5"), out var valB) ? valB : 5;
+                var a = float.TryParse(inputs.GetValueOrDefault("ValueA", "10"), out var valA) ? valA : 10;
+                var b = float.TryParse(inputs.GetValueOrDefault("ValueB", "5"), out var valB) ? valB : 5;
 
                 var result = op switch
                 {

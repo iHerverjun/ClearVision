@@ -226,8 +226,8 @@ public class Sprint5_AIWorkflowServiceTests
         var inputs = new Dictionary<string, string>
         {
             ["Operation"] = "Add",
-            ["InputA"] = "10",
-            ["InputB"] = "5"
+            ["ValueA"] = "10",
+            ["ValueB"] = "5"
         };
 
         // Act

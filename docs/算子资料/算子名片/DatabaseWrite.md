@@ -7,57 +7,40 @@
 | 枚举值 (Enum) | `OperatorType.DatabaseWrite` |
 | 分类 (Category) | 数据 |
 | 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。
-
-> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
+该算子把输入数据持久化到数据库表中，当前正式支持 `SQLite`、`SQLServer`、`MySQL` 三种后端。
 
 ## 实现策略 / Implementation Strategy
-- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
-
-## 核心 API 调用链 / Core API Call Chain
-1. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
-2. `JsonSerializer.Serialize`
+- 输入 `Data` 为待落库载荷，算子内部统一序列化为 JSON。
+- 输入 `RecordId` 为可选幂等键；提供后按同一 `Id` 执行 upsert/merge，不提供则自动生成 GUID。
+- 建表与写入按 provider 分层实现，并带固定瞬态重试与超时控制。
 
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
-| `ConnectionString` | `string` | `""` | - | 控制“ConnectionString”这一实现参数，建议结合现场样本调节。 |
-| `TableName` | `string` | `"InspectionResults"` | - | 控制“TableName”这一实现参数，建议结合现场样本调节。 |
-| `DbType` | `enum` | `"SQLite"` | SQLite/SQLite；SQLServer/SQLServer；MySQL/MySQL | 操作类型或转换类型。 |
+| `ConnectionString` | `string` | `""` | - | 目标数据库连接字符串。不能为空。 |
+| `TableName` | `string` | `"InspectionResults"` | - | 目标表名。仅允许字母、数字、下划线，且必须以字母或下划线开头。 |
+| `DbType` | `enum` | `"SQLite"` | `SQLite` / `SQLServer` / `MySQL` | 数据库类型。三种值都是真实现，不允许占位成功。 |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Data` | 数据 | `Any` | Yes | 提供算法执行所需输入。 |
+| `Data` | 数据 | `Any` | Yes | 待写入的业务载荷。 |
+| `RecordId` | 记录ID | `String` | No | 可选幂等键；提供后相同 `Id` 会被更新而不是重复插入。 |
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Status` | 状态 | `Boolean` | 输出本算子的处理结果。 |
-| `RecordId` | 记录ID | `String` | 输出本算子的处理结果。 |
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | 多数路径近似随输入规模线性增长。 |
-| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
-| 内存特征 (Memory Profile) | 主要由中间结果、缓存结构和输出封装决定。 |
-
-## 适用场景 / Use Cases
-- 适合文件、结果、采集和外部存储交互。
-- 适合把流程结果落盘、输出或接入外围系统。
-- 不适合忽略路径、权限和资源可用性检查。
-- 不适合把 I/O 成功当成业务成功。
+| `Status` | 状态 | `Boolean` | 写入是否成功。 |
+| `RecordId` | 记录ID | `String` | 实际落库使用的记录标识。 |
 
 ## 已知限制 / Known Limitations
-
+1. 当前统一表结构为 `Id / Data / Timestamp`，更复杂的列映射不在本算子内展开。
+2. 多库真实回归依赖 Docker/Testcontainers 环境。
 
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
-| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
-| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-04-12 | 收口为真实三库实现，新增 `RecordId` 输入与幂等 upsert/merge 语义。 |
