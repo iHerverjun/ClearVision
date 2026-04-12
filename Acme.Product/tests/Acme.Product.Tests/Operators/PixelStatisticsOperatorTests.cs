@@ -2,10 +2,10 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
-using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -15,36 +15,54 @@ public class PixelStatisticsOperatorTests
     [Fact]
     public void OperatorType_ShouldBePixelStatistics()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.PixelStatistics, sut.OperatorType);
+        CreateSut().OperatorType.Should().Be(OperatorType.PixelStatistics);
     }
 
     [Fact]
     public async Task ExecuteAsync_ConstantImage_ShouldReturnExpectedMean()
     {
         var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object>
-        {
-            { "Channel", "Gray" }
-        });
+        var op = CreateOperator(new Dictionary<string, object> { ["Channel"] = "Gray" });
 
         using var image = CreateConstantImage(100);
         var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.Equal(100.0, Convert.ToDouble(result.OutputData!["Mean"]), 3);
-        Assert.Equal(100.0, Convert.ToDouble(result.OutputData["Min"]), 3);
-        Assert.Equal(100.0, Convert.ToDouble(result.OutputData["Max"]), 3);
-        Assert.True(result.OutputData.ContainsKey("StatusCode"));
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Mean"]).Should().BeApproximately(100.0, 1e-3);
+        Convert.ToDouble(result.OutputData["Min"]).Should().BeApproximately(100.0, 1e-3);
+        Convert.ToDouble(result.OutputData["Max"]).Should().BeApproximately(100.0, 1e-3);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RoiAndMismatchedMask_ShouldReturnFailure()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Channel"] = "Gray",
+            ["RoiX"] = 10,
+            ["RoiY"] = 10,
+            ["RoiW"] = 20,
+            ["RoiH"] = 20
+        });
+
+        using var image = CreateConstantImage(100);
+        using var mask = new ImageWrapper(new Mat(8, 8, MatType.CV_8UC1, Scalar.White));
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["Mask"] = mask;
+
+        var result = await sut.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Mask");
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidChannel_ShouldReturnInvalid()
     {
         var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "Channel", "LAB" } });
-        Assert.False(sut.ValidateParameters(op).IsValid);
+        var op = CreateOperator(new Dictionary<string, object> { ["Channel"] = "LAB" });
+        sut.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
     private static PixelStatisticsOperator CreateSut()
@@ -57,9 +75,9 @@ public class PixelStatisticsOperatorTests
         var op = new Operator("PixelStatistics", OperatorType.PixelStatistics, 0, 0);
         if (parameters != null)
         {
-            foreach (var (k, v) in parameters)
+            foreach (var (key, value) in parameters)
             {
-                op.AddParameter(new Parameter(Guid.NewGuid(), k, k, string.Empty, "string", v));
+                op.AddParameter(new Parameter(Guid.NewGuid(), key, key, string.Empty, "string", value));
             }
         }
 

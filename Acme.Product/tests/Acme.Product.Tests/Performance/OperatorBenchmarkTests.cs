@@ -51,6 +51,27 @@ public class OperatorBenchmarkTests
         OperatorType.PixelToWorldTransform
     ];
 
+    private static readonly OperatorType[] MeasurementBenchmarkTypes =
+    [
+        OperatorType.Measurement,
+        OperatorType.CircleMeasurement,
+        OperatorType.LineMeasurement,
+        OperatorType.ContourMeasurement,
+        OperatorType.AngleMeasurement,
+        OperatorType.GeometricTolerance,
+        OperatorType.GeometricFitting,
+        OperatorType.CaliperTool,
+        OperatorType.WidthMeasurement,
+        OperatorType.PointLineDistance,
+        OperatorType.LineLineDistance,
+        OperatorType.GapMeasurement,
+        OperatorType.GeoMeasurement,
+        OperatorType.SharpnessEvaluation,
+        OperatorType.ColorMeasurement,
+        OperatorType.HistogramAnalysis,
+        OperatorType.PixelStatistics
+    ];
+
     private readonly ITestOutputHelper _output;
     private readonly OperatorFactory _factory;
     private readonly IReadOnlyDictionary<OperatorType, IOperatorExecutor> _executors;
@@ -157,6 +178,46 @@ public class OperatorBenchmarkTests
         _output.WriteLine($"Calibration benchmark report written: {reportPath}");
     }
 
+    [Fact]
+    public async Task Benchmark_MeasurementOperators_ShouldGenerateBaselineReport()
+    {
+        var entries = new List<BenchmarkEntry>();
+
+        foreach (var type in MeasurementBenchmarkTypes)
+        {
+            var samples = await RunMeasurementBenchmarkAsync(type, width: 512, height: 512);
+            if (samples.Count == 0)
+            {
+                _output.WriteLine($"[Skip] {type}: no successful sample.");
+                continue;
+            }
+
+            var avg = samples.Average();
+            var p95 = Percentile(samples, 0.95);
+            var p99 = Percentile(samples, 0.99);
+            var needsOptimization = avg > 100;
+
+            var entry = new BenchmarkEntry(
+                type,
+                512,
+                512,
+                samples.Count,
+                avg,
+                p95,
+                p99,
+                needsOptimization);
+
+            entries.Add(entry);
+            _output.WriteLine(
+                $"{type} @ 512x512: avg={avg:F2}ms, p95={p95:F2}ms, p99={p99:F2}ms, status={(needsOptimization ? "NeedOptimize" : "OK")}");
+        }
+
+        Assert.Equal(MeasurementBenchmarkTypes.Length, entries.Count);
+
+        var reportPath = WriteMeasurementReport(entries);
+        _output.WriteLine($"Measurement benchmark report written: {reportPath}");
+    }
+
     private async Task<List<long>> RunBenchmarkAsync(
         OperatorType type,
         IOperatorExecutor executor,
@@ -249,6 +310,31 @@ public class OperatorBenchmarkTests
                 File.Delete(calibrationFile);
             }
         }
+    }
+
+    private async Task<List<long>> RunMeasurementBenchmarkAsync(OperatorType type, int width, int height)
+    {
+        var iterations = 6;
+        var samples = new List<long>(iterations);
+
+        using var measurementImage = CreateMeasurementBenchmarkImage(width, height);
+        using var circleImage = CreateCircleBenchmarkImage(width, height);
+        using var lineImage = CreateLineBenchmarkImage(width, height);
+        using var caliperImage = CreateCaliperBenchmarkImage(width, height);
+        using var gapImage = CreateGapBenchmarkImage(width, height);
+        using var widthImage = CreateWidthBenchmarkImage(width, height);
+
+        _ = await ExecuteMeasurementSampleAsync(type, measurementImage, circleImage, lineImage, caliperImage, gapImage, widthImage);
+        for (var i = 0; i < iterations; i++)
+        {
+            var elapsed = await ExecuteMeasurementSampleAsync(type, measurementImage, circleImage, lineImage, caliperImage, gapImage, widthImage);
+            if (elapsed >= 0)
+            {
+                samples.Add(elapsed);
+            }
+        }
+
+        return samples;
     }
 
     private async Task<long> ExecuteOnceAsync(
@@ -412,6 +498,155 @@ public class OperatorBenchmarkTests
         }
     }
 
+    private async Task<long> ExecuteMeasurementSampleAsync(
+        OperatorType type,
+        Mat measurementImage,
+        Mat circleImage,
+        Mat lineImage,
+        Mat caliperImage,
+        Mat gapImage,
+        Mat widthImage)
+    {
+        IOperatorExecutor executor;
+        var op = new Operator($"{type}_Benchmark", type, 0, 0);
+        var inputs = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+        switch (type)
+        {
+            case OperatorType.Measurement:
+                executor = new MeasureDistanceOperator(NullLogger<MeasureDistanceOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MeasureType", "MeasureType", string.Empty, "string", "PointToPoint"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "X1", "X1", string.Empty, "int", 80));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Y1", "Y1", string.Empty, "int", 110));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "X2", "X2", string.Empty, "int", 420));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Y2", "Y2", string.Empty, "int", 360));
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            case OperatorType.CircleMeasurement:
+                executor = new CircleMeasurementOperator(NullLogger<CircleMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Method", "Method", string.Empty, "string", "HoughCircle"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MinRadius", "MinRadius", string.Empty, "int", 30));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MaxRadius", "MaxRadius", string.Empty, "int", 140));
+                inputs["Image"] = new ImageWrapper(circleImage.Clone());
+                break;
+            case OperatorType.LineMeasurement:
+                executor = new LineMeasurementOperator(NullLogger<LineMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Method", "Method", string.Empty, "string", "FitLine"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MinLength", "MinLength", string.Empty, "double", 80.0));
+                inputs["Image"] = new ImageWrapper(lineImage.Clone());
+                break;
+            case OperatorType.ContourMeasurement:
+                executor = new ContourMeasurementOperator(NullLogger<ContourMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Threshold", "Threshold", string.Empty, "double", 100.0));
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            case OperatorType.AngleMeasurement:
+                executor = new AngleMeasurementOperator(NullLogger<AngleMeasurementOperator>.Instance);
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            case OperatorType.GeometricTolerance:
+                executor = new GeometricToleranceOperator(NullLogger<GeometricToleranceOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "ToleranceType", "ToleranceType", string.Empty, "string", "Parallelism"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "ZoneSize", "ZoneSize", string.Empty, "double", 2.0));
+                inputs["FeaturePrimary"] = new LineData(60, 120, 460, 120);
+                inputs["DatumA"] = new LineData(60, 220, 460, 220);
+                break;
+            case OperatorType.GeometricFitting:
+                executor = new GeometricFittingOperator(NullLogger<GeometricFittingOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "FitType", "FitType", string.Empty, "string", "Circle"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Threshold", "Threshold", string.Empty, "double", 100.0));
+                inputs["Image"] = new ImageWrapper(circleImage.Clone());
+                break;
+            case OperatorType.CaliperTool:
+                executor = new CaliperToolOperator(NullLogger<CaliperToolOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MeasureMode", "MeasureMode", string.Empty, "string", "edge_pairs"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "ExpectedCount", "ExpectedCount", string.Empty, "int", 1));
+                inputs["Image"] = new ImageWrapper(caliperImage.Clone());
+                break;
+            case OperatorType.WidthMeasurement:
+                executor = new WidthMeasurementOperator(NullLogger<WidthMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MeasureMode", "MeasureMode", string.Empty, "string", "ManualLines"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "SampleCount", "SampleCount", string.Empty, "int", 20));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MultiScanCount", "MultiScanCount", string.Empty, "int", 24));
+                inputs["Image"] = new ImageWrapper(widthImage.Clone());
+                inputs["Line1"] = new LineData(180, 120, 180, 390);
+                inputs["Line2"] = new LineData(300, 120, 300, 390);
+                break;
+            case OperatorType.PointLineDistance:
+                executor = new PointLineDistanceOperator(NullLogger<PointLineDistanceOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "DistanceModel", "DistanceModel", string.Empty, "string", "Segment"));
+                inputs["Point"] = new Position(240, 210);
+                inputs["Line"] = new LineData(60, 200, 460, 200);
+                break;
+            case OperatorType.LineLineDistance:
+                executor = new LineLineDistanceOperator(NullLogger<LineLineDistanceOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "DistanceModel", "DistanceModel", string.Empty, "string", "Segment"));
+                inputs["Line1"] = new LineData(20, 20, 420, 20);
+                inputs["Line2"] = new LineData(20, 160, 420, 160);
+                break;
+            case OperatorType.GapMeasurement:
+                executor = new GapMeasurementOperator(NullLogger<GapMeasurementOperator>.Instance);
+                inputs["Image"] = new ImageWrapper(gapImage.Clone());
+                break;
+            case OperatorType.GeoMeasurement:
+                executor = new GeoMeasurementOperator(NullLogger<GeoMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Element1Type", "Element1Type", string.Empty, "string", "Line"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "Element2Type", "Element2Type", string.Empty, "string", "Line"));
+                op.AddParameter(new Parameter(Guid.NewGuid(), "DistanceModel", "DistanceModel", string.Empty, "string", "Segment"));
+                inputs["Element1"] = new LineData(60, 200, 460, 200);
+                inputs["Element2"] = new LineData(260, 40, 260, 460);
+                break;
+            case OperatorType.SharpnessEvaluation:
+                executor = new SharpnessEvaluationOperator(NullLogger<SharpnessEvaluationOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "ThresholdMode", "ThresholdMode", string.Empty, "string", "PerMethodDefault"));
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            case OperatorType.ColorMeasurement:
+                executor = new ColorMeasurementOperator(NullLogger<ColorMeasurementOperator>.Instance);
+                op.AddParameter(new Parameter(Guid.NewGuid(), "MeasurementMode", "MeasurementMode", string.Empty, "string", "LabDeltaE"));
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                inputs["ReferenceColor"] = new Dictionary<string, object> { ["L"] = 0.0, ["A"] = 0.0, ["B"] = 0.0 };
+                break;
+            case OperatorType.HistogramAnalysis:
+                executor = new HistogramAnalysisOperator(NullLogger<HistogramAnalysisOperator>.Instance);
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            case OperatorType.PixelStatistics:
+                executor = new PixelStatisticsOperator(NullLogger<PixelStatisticsOperator>.Instance);
+                inputs["Image"] = new ImageWrapper(measurementImage.Clone());
+                break;
+            default:
+                _output.WriteLine($"[Skip sample] {type}: no measurement benchmark setup.");
+                return -1;
+        }
+
+        OperatorExecutionOutput? result = null;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            result = await executor.ExecuteAsync(op, inputs);
+            stopwatch.Stop();
+            if (!result.IsSuccess)
+            {
+                _output.WriteLine($"[Skip sample] {type}: {result.ErrorMessage}");
+                return -1;
+            }
+
+            return stopwatch.ElapsedMilliseconds;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _output.WriteLine($"[Skip sample] {type}: threw {ex.GetType().Name} - {ex.Message}");
+            return -1;
+        }
+        finally
+        {
+            DisposeObjectGraph(result?.OutputData);
+            DisposeObjectGraph(inputs);
+        }
+    }
+
     private static Dictionary<string, object> BuildInputs(Acme.Product.Core.Services.OperatorMetadata? metadata, Mat baseImage)
     {
         var inputs = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -464,6 +699,56 @@ public class OperatorBenchmarkTests
         return image;
     }
 
+    private static Mat CreateMeasurementBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(image, new Rect(50, 50, width / 3, height / 4), Scalar.White, -1);
+        Cv2.Rectangle(image, new Rect(width / 2, height / 2, width / 3 - 20, height / 3 - 20), new Scalar(180, 180, 180), -1);
+        Cv2.Circle(image, new CvPoint(width / 2, height / 3), 70, new Scalar(255, 255, 255), 2);
+        Cv2.Line(image, new CvPoint(30, height - 40), new CvPoint(width - 30, 40), new Scalar(0, 255, 0), 3);
+        return image;
+    }
+
+    private static Mat CreateCircleBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Circle(image, new CvPoint(width / 2, height / 2), 90, Scalar.White, 3);
+        return image;
+    }
+
+    private static Mat CreateLineBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Line(image, new CvPoint(40, 80), new CvPoint(width - 40, 100), Scalar.White, 2);
+        Cv2.Line(image, new CvPoint(70, height / 2), new CvPoint(width - 70, height / 2), Scalar.White, 3);
+        return image;
+    }
+
+    private static Mat CreateCaliperBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(image, new Rect(width / 2 - 60, height / 4, 120, height / 2), Scalar.White, -1);
+        return image;
+    }
+
+    private static Mat CreateGapBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
+        foreach (var x in new[] { 80, 160, 240, 320, 400 })
+        {
+            Cv2.Line(image, new CvPoint(x, 30), new CvPoint(x, height - 30), Scalar.White, 2);
+        }
+
+        return image;
+    }
+
+    private static Mat CreateWidthBenchmarkImage(int width, int height)
+    {
+        var image = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(image, new Rect(190, 110, 100, 290), Scalar.White, -1);
+        return image;
+    }
+
     private static double Percentile(IReadOnlyList<long> values, double percentile)
     {
         if (values.Count == 0)
@@ -513,6 +798,33 @@ public class OperatorBenchmarkTests
         var builder = new StringBuilder();
 
         builder.AppendLine("# Calibration Operator Benchmark Report");
+        builder.AppendLine();
+        builder.AppendLine($"Generated (UTC): {DateTime.UtcNow:O}");
+        builder.AppendLine();
+        builder.AppendLine("| Operator | Resolution | Iterations | Avg (ms) | P95 (ms) | P99 (ms) | Status |");
+        builder.AppendLine("|---|---:|---:|---:|---:|---:|---|");
+
+        foreach (var entry in entries.OrderBy(item => item.AverageMs))
+        {
+            builder.AppendLine(
+                $"| {entry.OperatorType} | {entry.Width}x{entry.Height} | {entry.Iterations} | {entry.AverageMs:F2} | {entry.P95Ms:F2} | {entry.P99Ms:F2} | {(entry.NeedsOptimization ? "NeedOptimize" : "OK")} |");
+        }
+
+        File.WriteAllText(reportPath, builder.ToString());
+        return reportPath;
+    }
+
+    private static string WriteMeasurementReport(IReadOnlyList<BenchmarkEntry> entries)
+    {
+        var repoRoot = ResolveAcmeProductRoot();
+        var reportDirectory = Path.Combine(repoRoot, "test_results");
+
+        Directory.CreateDirectory(reportDirectory);
+
+        var reportPath = Path.Combine(reportDirectory, "measurement_operator_benchmark_report.md");
+        var builder = new StringBuilder();
+
+        builder.AppendLine("# Measurement Operator Benchmark Report");
         builder.AppendLine();
         builder.AppendLine($"Generated (UTC): {DateTime.UtcNow:O}");
         builder.AppendLine();

@@ -107,14 +107,15 @@ public class OperatorContractReconciliationTests
         var sut = new WidthMeasurementOperator(Substitute.For<ILogger<WidthMeasurementOperator>>());
         var op = new Operator("width", OperatorType.WidthMeasurement, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("MeasureMode", "ManualLines", "string"));
-        op.AddParameter(TestHelpers.CreateParameter("NumSamples", 20, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("SampleCount", 20, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("MultiScanCount", 24, "int"));
         op.AddParameter(TestHelpers.CreateParameter("Direction", "Custom", "string"));
         op.AddParameter(TestHelpers.CreateParameter("CustomAngle", 45.0, "double"));
 
-        using var image = TestHelpers.CreateTestImage();
+        using var image = CreateEdgeWidthImage();
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["Line1"] = new LineData(20, 20, 20, 120);
-        inputs["Line2"] = new LineData(40, 20, 40, 120);
+        inputs["Line1"] = new LineData(48, 25, 48, 135);
+        inputs["Line2"] = new LineData(102, 25, 102, 135);
 
         var result = await sut.ExecuteAsync(op, inputs);
 
@@ -129,7 +130,8 @@ public class OperatorContractReconciliationTests
         var sut = new WidthMeasurementOperator(Substitute.For<ILogger<WidthMeasurementOperator>>());
         var op = new Operator("width", OperatorType.WidthMeasurement, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("MeasureMode", "ManualLines", "string"));
-        op.AddParameter(TestHelpers.CreateParameter("NumSamples", 24, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("SampleCount", 24, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("MultiScanCount", 24, "int"));
         op.AddParameter(TestHelpers.CreateParameter("Direction", "Perpendicular", "string"));
 
         using var image = CreateEdgeWidthImage();

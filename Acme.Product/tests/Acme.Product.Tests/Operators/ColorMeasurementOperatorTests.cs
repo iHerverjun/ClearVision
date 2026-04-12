@@ -2,10 +2,10 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
-using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -15,51 +15,64 @@ public class ColorMeasurementOperatorTests
     [Fact]
     public void OperatorType_ShouldBeColorMeasurement()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.ColorMeasurement, sut.OperatorType);
+        CreateSut().OperatorType.Should().Be(OperatorType.ColorMeasurement);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithReferenceColor_ShouldReturnDeltaE()
+    public async Task ExecuteAsync_LabDeltaEMode_ShouldReturnDeltaEAndLabMean()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "ColorSpace", "Lab" },
-            { "DeltaEMethod", "CIEDE2000" },
-            { "RoiX", 0 },
-            { "RoiY", 0 },
-            { "RoiW", 40 },
-            { "RoiH", 40 }
+            ["MeasurementMode"] = "LabDeltaE",
+            ["DeltaEMethod"] = "CIEDE2000",
+            ["RoiW"] = 40,
+            ["RoiH"] = 40
         });
 
-        using var image = CreateSolidColorImage();
+        using var image = CreateSolidColorImage(new Scalar(30, 30, 200));
         var inputs = TestHelpers.CreateImageInputs(image);
         inputs["ReferenceColor"] = new Dictionary<string, object>
         {
-            { "L", 0.0 },
-            { "A", 0.0 },
-            { "B", 0.0 }
+            ["L"] = 0.0,
+            ["A"] = 0.0,
+            ["B"] = 0.0
         };
 
         var result = await sut.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.True(Convert.ToDouble(result.OutputData!["DeltaE"]) > 0.0);
-        Assert.True(result.OutputData.ContainsKey("L"));
-        Assert.True(result.OutputData.ContainsKey("H"));
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().ContainKey("LabMean");
+        Convert.ToDouble(result.OutputData!["DeltaE"]).Should().BeGreaterThan(0.0);
+        result.OutputData["MeasurementMode"].Should().Be("LabDeltaE");
     }
 
     [Fact]
-    public void ValidateParameters_WithInvalidColorSpace_ShouldReturnInvalid()
+    public async Task ExecuteAsync_HsvStatsMode_ShouldUseCircularHueMean()
     {
         var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "ColorSpace", "RGB" } });
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["MeasurementMode"] = "HsvStats"
+        });
 
-        var validation = sut.ValidateParameters(op);
+        using var image = CreateHueWrapImage();
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
-        Assert.False(validation.IsValid);
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["MeasurementMode"].Should().Be("HsvStats");
+        result.OutputData["HueValid"].Should().Be(true);
+        var hueMean = Convert.ToDouble(result.OutputData["HueMean"]);
+        (hueMean < 20.0 || hueMean > 340.0).Should().BeTrue();
+        double.IsNaN(Convert.ToDouble(result.OutputData["DeltaE"])).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidMeasurementMode_ShouldReturnInvalid()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object> { ["MeasurementMode"] = "RGB" });
+        sut.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
     private static ColorMeasurementOperator CreateSut()
@@ -70,7 +83,6 @@ public class ColorMeasurementOperatorTests
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("ColorMeasurement", OperatorType.ColorMeasurement, 0, 0);
-
         if (parameters != null)
         {
             foreach (var (name, value) in parameters)
@@ -82,9 +94,22 @@ public class ColorMeasurementOperatorTests
         return op;
     }
 
-    private static ImageWrapper CreateSolidColorImage()
+    private static ImageWrapper CreateSolidColorImage(Scalar bgr)
     {
-        var mat = new Mat(60, 60, MatType.CV_8UC3, new Scalar(30, 30, 200));
+        return new ImageWrapper(new Mat(60, 60, MatType.CV_8UC3, bgr));
+    }
+
+    private static ImageWrapper CreateHueWrapImage()
+    {
+        var mat = new Mat(60, 60, MatType.CV_8UC3);
+        for (var y = 0; y < mat.Rows; y++)
+        {
+            for (var x = 0; x < mat.Cols; x++)
+            {
+                mat.Set(y, x, x < 30 ? new Vec3b(0, 0, 255) : new Vec3b(10, 10, 255));
+            }
+        }
+
         return new ImageWrapper(mat);
     }
 }

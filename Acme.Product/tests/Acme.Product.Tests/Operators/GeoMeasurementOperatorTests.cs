@@ -2,9 +2,9 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -14,55 +14,55 @@ public class GeoMeasurementOperatorTests
     [Fact]
     public void OperatorType_ShouldBeGeoMeasurement()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.GeoMeasurement, sut.OperatorType);
+        CreateSut().OperatorType.Should().Be(OperatorType.GeoMeasurement);
     }
 
     [Fact]
-    public async Task ExecuteAsync_PointPoint_ShouldReturnDistance()
+    public async Task ExecuteAsync_LineCircle_ShouldReturnBoundaryGap()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Element1Type", "Point" },
-            { "Element2Type", "Point" }
+            ["Element1Type"] = "Line",
+            ["Element2Type"] = "Circle",
+            ["DistanceModel"] = "InfiniteLine"
         });
 
         var inputs = new Dictionary<string, object>
         {
-            { "Element1", new Position(0, 0) },
-            { "Element2", new Position(3, 4) }
+            ["Element1"] = new LineData(0, 0, 100, 0),
+            ["Element2"] = new CircleData(50, 20, 5)
         };
 
         var result = await sut.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.Equal(5.0, Convert.ToDouble(result.OutputData!["Distance"]), 6);
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(15.0, 1e-6);
+        result.OutputData["DistanceMeaning"].Should().Be("BoundaryGap");
+        result.OutputData["Relation"].Should().Be("Separated");
     }
 
     [Fact]
-    public async Task ExecuteAsync_LineLine_InfiniteLineModel_ShouldReturnZero_WhenInfiniteLinesIntersect()
+    public async Task ExecuteAsync_CircleCircle_ShouldDistinguishContainment()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Element1Type", "Line" },
-            { "Element2Type", "Line" },
-            { "DistanceModel", "InfiniteLine" }
+            ["Element1Type"] = "Circle",
+            ["Element2Type"] = "Circle"
         });
 
         var inputs = new Dictionary<string, object>
         {
-            { "Element1", new LineData(0, 0, 10, 0) },
-            { "Element2", new LineData(20, 5, 20, 15) }
+            ["Element1"] = new CircleData(0, 0, 20),
+            ["Element2"] = new CircleData(5, 0, 5)
         };
 
         var result = await sut.ExecuteAsync(op, inputs);
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.Equal(0.0, Convert.ToDouble(result.OutputData!["Distance"]), 6);
-        Assert.Equal("InfiniteLine", result.OutputData["DistanceModel"]);
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(10.0, 1e-6);
+        result.OutputData["Relation"].Should().Be("Contained");
     }
 
     [Fact]
@@ -71,38 +71,30 @@ public class GeoMeasurementOperatorTests
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Element1Type", "Line" },
-            { "Element2Type", "Line" },
-            { "DistanceModel", "Segment" }
+            ["Element1Type"] = "Line",
+            ["Element2Type"] = "Line",
+            ["DistanceModel"] = "Segment"
         });
 
         var inputs = new Dictionary<string, object>
         {
-            { "Element1", new LineData(0, 0, 10, 0) },
-            { "Element2", new LineData(20, 5, 20, 15) }
+            ["Element1"] = new LineData(0, 0, 10, 0),
+            ["Element2"] = new LineData(20, 5, 20, 15)
         };
 
         var result = await sut.ExecuteAsync(op, inputs);
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.Equal(Math.Sqrt(125.0), Convert.ToDouble(result.OutputData!["Distance"]), 3);
-        Assert.Equal("Segment", result.OutputData["DistanceModel"]);
-    }
 
-    [Fact]
-    public void ValidateParameters_WithInvalidType_ShouldReturnInvalid()
-    {
-        var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "Element1Type", "Ellipse" } });
-        Assert.False(sut.ValidateParameters(op).IsValid);
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(Math.Sqrt(125.0), 1e-3);
+        result.OutputData["DistanceModel"].Should().Be("Segment");
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidDistanceModel_ShouldReturnInvalid()
     {
         var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "DistanceModel", "Ray" } });
-        Assert.False(sut.ValidateParameters(op).IsValid);
+        var op = CreateOperator(new Dictionary<string, object> { ["DistanceModel"] = "Ray" });
+        sut.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
     private static GeoMeasurementOperator CreateSut()
@@ -115,9 +107,9 @@ public class GeoMeasurementOperatorTests
         var op = new Operator("GeoMeasurement", OperatorType.GeoMeasurement, 0, 0);
         if (parameters != null)
         {
-            foreach (var (k, v) in parameters)
+            foreach (var (key, value) in parameters)
             {
-                op.AddParameter(new Parameter(Guid.NewGuid(), k, k, string.Empty, "string", v));
+                op.AddParameter(new Parameter(Guid.NewGuid(), key, key, string.Empty, "string", value));
             }
         }
 

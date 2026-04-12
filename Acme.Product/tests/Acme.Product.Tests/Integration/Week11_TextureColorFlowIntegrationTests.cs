@@ -73,7 +73,7 @@ public sealed class Week11_TextureColorFlowIntegrationTests
         var exec = new ColorMeasurementOperator(NullLogger<ColorMeasurementOperator>.Instance);
 
         var op = new Operator("color", OperatorType.ColorMeasurement, 0, 0);
-        op.AddParameter(TestHelpers.CreateParameter("ColorSpace", "Lab", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("MeasurementMode", "LabDeltaE", "string"));
         op.AddParameter(TestHelpers.CreateParameter("DeltaEMethod", "CIEDE2000", "string"));
         op.AddParameter(TestHelpers.CreateParameter("RoiX", 0, "int"));
         op.AddParameter(TestHelpers.CreateParameter("RoiY", 0, "int"));
@@ -95,9 +95,10 @@ public sealed class Week11_TextureColorFlowIntegrationTests
         var result = await exec.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
 
-        var l = Convert.ToDouble(result.OutputData!["L"]);
-        var a = Convert.ToDouble(result.OutputData["A"]);
-        var b = Convert.ToDouble(result.OutputData["B"]);
+        var labMean = result.OutputData!["LabMean"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        var l = Convert.ToDouble(labMean["L"]);
+        var a = Convert.ToDouble(labMean["A"]);
+        var b = Convert.ToDouble(labMean["B"]);
         var deltaE = Convert.ToDouble(result.OutputData["DeltaE"]);
 
         var expected = ColorDifference.DeltaE00(new CieLab(0, 0, 0), new CieLab(l, a, b));

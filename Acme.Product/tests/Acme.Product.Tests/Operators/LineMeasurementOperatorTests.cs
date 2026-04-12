@@ -1,13 +1,11 @@
-// LineMeasurementOperatorTests.cs
-// LineMeasurementOperatorTests测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -27,47 +25,57 @@ public class LineMeasurementOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithNullInputs_ShouldReturnFailure()
+    public async Task ExecuteAsync_WithHoughLines_ShouldReportLineDirectionInsteadOfNormalAngle()
     {
-        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
-        var result = await _operator.ExecuteAsync(op, null);
-        result.IsSuccess.Should().BeFalse();
-    }
+        var op = new Operator("line", OperatorType.LineMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "HoughLines", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 80, "int"));
 
-    [Fact]
-    public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
-    {
-        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
-        var inputs = TestHelpers.CreateImageInputs(image);
-        var result = await _operator.ExecuteAsync(op, inputs);
-        result.IsSuccess.Should().BeTrue();
-        result.OutputData.Should().ContainKey("Image");
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WithGrayImage_ShouldReturnSuccess()
-    {
-        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
-        using var image = TestHelpers.CreateGrayShapeTestImage();
+        using var image = CreateHorizontalLineImage();
         var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
-        result.IsSuccess.Should().BeTrue();
-        result.OutputData.Should().ContainKey("LineCount");
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var angle = Convert.ToDouble(result.OutputData!["Angle"]);
+        angle.Should().BeApproximately(0.0, 5.0);
     }
 
     [Fact]
-    public void ValidateParameters_Default_ShouldBeValid()
+    public async Task ExecuteAsync_WithFitLine_ShouldEmitResidualDiagnostics()
     {
-        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
-        _operator.ValidateParameters(op).IsValid.Should().BeTrue();
+        var op = new Operator("line", OperatorType.LineMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "FitLine", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("MinLength", 50.0, "double"));
+
+        using var image = CreateDiagonalLineImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData.Should().ContainKey("ResidualMean");
+        result.OutputData.Should().ContainKey("ResidualMax");
+        result.OutputData!["Line"].Should().BeOfType<LineData>();
+        Convert.ToDouble(result.OutputData["ResidualMax"]).Should().BeLessThan(5.0);
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidMethod_ShouldBeInvalid()
     {
-        var op = new Operator("测试", OperatorType.LineMeasurement, 0, 0);
+        var op = new Operator("line", OperatorType.LineMeasurement, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("Method", "Ransac", "enum"));
+
         _operator.ValidateParameters(op).IsValid.Should().BeFalse();
+    }
+
+    private static ImageWrapper CreateHorizontalLineImage()
+    {
+        var mat = new Mat(200, 240, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Line(mat, new Point(20, 100), new Point(220, 100), Scalar.White, 3);
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateDiagonalLineImage()
+    {
+        var mat = new Mat(220, 240, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Line(mat, new Point(20, 180), new Point(220, 40), Scalar.White, 3);
+        return new ImageWrapper(mat);
     }
 }

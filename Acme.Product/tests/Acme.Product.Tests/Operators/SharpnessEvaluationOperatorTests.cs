@@ -1,11 +1,11 @@
-﻿using Acme.Product.Core.Entities;
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
-using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -21,16 +21,16 @@ public class SharpnessEvaluationOperatorTests
     [Fact]
     public void OperatorType_ShouldBeSharpnessEvaluation()
     {
-        Assert.Equal(OperatorType.SharpnessEvaluation, _operator.OperatorType);
+        _operator.OperatorType.Should().Be(OperatorType.SharpnessEvaluation);
     }
 
     [Fact]
-    public async Task ExecuteAsync_SharpImage_ShouldScoreHigherThanBlurredImage()
+    public async Task ExecuteAsync_PerMethodThresholds_ShouldStillRankSharpImageHigher()
     {
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Method", "Laplacian" },
-            { "Threshold", 0.0 }
+            ["Method"] = "Laplacian",
+            ["ThresholdMode"] = "PerMethodDefault"
         });
 
         using var sharp = CreatePatternImage();
@@ -39,30 +39,22 @@ public class SharpnessEvaluationOperatorTests
         var sharpResult = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(sharp));
         var blurResult = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(blur));
 
-        Assert.True(sharpResult.IsSuccess);
-        Assert.True(blurResult.IsSuccess);
-
-        var sharpScore = Convert.ToDouble(sharpResult.OutputData!["Score"]);
-        var blurScore = Convert.ToDouble(blurResult.OutputData!["Score"]);
-
-        Assert.True(sharpScore > blurScore);
-        Assert.True(sharpResult.OutputData.ContainsKey("StatusCode"));
+        sharpResult.IsSuccess.Should().BeTrue(sharpResult.ErrorMessage);
+        blurResult.IsSuccess.Should().BeTrue(blurResult.ErrorMessage);
+        Convert.ToDouble(sharpResult.OutputData!["Score"]).Should().BeGreaterThan(Convert.ToDouble(blurResult.OutputData!["Score"]));
+        sharpResult.OutputData.Should().ContainKeys("ThresholdUsed", "DecisionReady");
     }
 
     [Fact]
-    public void ValidateParameters_WithInvalidMethod_ShouldReturnInvalid()
+    public void ValidateParameters_WithInvalidThresholdMode_ShouldReturnInvalid()
     {
-        var op = CreateOperator(new Dictionary<string, object> { { "Method", "Unknown" } });
-
-        var validation = _operator.ValidateParameters(op);
-
-        Assert.False(validation.IsValid);
+        var op = CreateOperator(new Dictionary<string, object> { ["ThresholdMode"] = "Auto" });
+        _operator.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("Sharpness", OperatorType.SharpnessEvaluation, 0, 0);
-
         if (parameters != null)
         {
             foreach (var (name, value) in parameters)

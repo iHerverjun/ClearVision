@@ -41,6 +41,20 @@ public class GeometricFittingOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithNoValidContour_ShouldReturnTopLevelFailure()
+    {
+        var op = new Operator("GeoFit", OperatorType.GeometricFitting, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("FitType", "Circle", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 100.0, "double"));
+
+        using var blank = new ImageWrapper(new Mat(160, 160, MatType.CV_8UC3, Scalar.Black));
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(blank));
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("NoFeature");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithRansacLineFit_ShouldReturnRobustResult()
     {
         var op = new Operator("GeoFit", OperatorType.GeometricFitting, 0, 0);

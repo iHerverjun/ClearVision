@@ -2,10 +2,10 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
-using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -15,36 +15,36 @@ public class HistogramAnalysisOperatorTests
     [Fact]
     public void OperatorType_ShouldBeHistogramAnalysis()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.HistogramAnalysis, sut.OperatorType);
+        CreateSut().OperatorType.Should().Be(OperatorType.HistogramAnalysis);
     }
 
     [Fact]
-    public async Task ExecuteAsync_GrayChannel_ShouldReturnStatistics()
+    public async Task ExecuteAsync_ShouldReturnIntensityDomainStatistics()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Channel", "Gray" },
-            { "BinCount", 64 }
+            ["Channel"] = "Gray",
+            ["BinCount"] = 64
         });
 
         using var image = CreateGradientImage();
         var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
-        Assert.True(result.OutputData!.ContainsKey("Mean"));
-        Assert.True(result.OutputData.ContainsKey("Median"));
-        Assert.True(result.OutputData.ContainsKey("StatusCode"));
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var mode = Convert.ToDouble(result.OutputData!["Mode"]);
+        var median = Convert.ToDouble(result.OutputData["Median"]);
+        mode.Should().BeGreaterThanOrEqualTo(0.0);
+        median.Should().BeGreaterThanOrEqualTo(0.0);
+        result.OutputData.Should().ContainKeys("ModeBinIndex", "MedianBinIndex", "PeakBinIndex", "ValleyBinIndex");
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidChannel_ShouldReturnInvalid()
     {
         var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "Channel", "HSV" } });
-        Assert.False(sut.ValidateParameters(op).IsValid);
+        var op = CreateOperator(new Dictionary<string, object> { ["Channel"] = "HSV" });
+        sut.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
     private static HistogramAnalysisOperator CreateSut()
@@ -57,9 +57,9 @@ public class HistogramAnalysisOperatorTests
         var op = new Operator("HistogramAnalysis", OperatorType.HistogramAnalysis, 0, 0);
         if (parameters != null)
         {
-            foreach (var (k, v) in parameters)
+            foreach (var (key, value) in parameters)
             {
-                op.AddParameter(new Parameter(Guid.NewGuid(), k, k, string.Empty, "string", v));
+                op.AddParameter(new Parameter(Guid.NewGuid(), key, key, string.Empty, "string", value));
             }
         }
 
