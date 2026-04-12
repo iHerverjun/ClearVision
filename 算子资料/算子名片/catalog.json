@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T01:06:23.7911086+08:00",
+  "generatedAt": "2026-04-12T14:41:21.2026600+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -306,7 +306,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -416,13 +416,13 @@
         }
       ],
       "quality": {
-        "totalScore": 68,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 78,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ImageAcquisition.md"
     },
@@ -523,13 +523,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Filtering.md"
     },
@@ -545,7 +545,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。",
       "inputPorts": [
         {
           "name": "Image",
@@ -672,13 +672,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/EdgeDetection.md"
     },
@@ -694,7 +694,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -787,13 +787,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Thresholding.md"
     },
@@ -812,7 +812,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -898,13 +898,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Morphology.md"
     },
@@ -920,7 +920,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -1160,13 +1160,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/BlobAnalysis.md"
     },
@@ -1182,7 +1182,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全…",
       "inputPorts": [
         {
           "name": "Image",
@@ -1381,13 +1381,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/TemplateMatching.md"
     },
@@ -1403,7 +1403,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -1509,13 +1509,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/Measurement.md"
     },
@@ -1531,7 +1531,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。",
       "inputPorts": [
         {
           "name": "Image",
@@ -1616,13 +1616,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/CodeRecognition.md"
     },
@@ -1638,7 +1638,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "当前实现是一个基于 ONNX Runtime 的 YOLO 推理算子，支持：",
       "inputPorts": [
         {
           "name": "Image",
@@ -1834,13 +1834,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/DeepLearning.md"
     },
@@ -1856,7 +1856,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -1959,13 +1959,13 @@
         }
       ],
       "quality": {
-        "totalScore": 88,
+        "totalScore": 98,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/ResultOutput.md"
     },
@@ -1981,7 +1981,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2132,13 +2132,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ContourDetection.md"
     },
@@ -2154,7 +2154,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子通过局部中值替换中心像素，特别适合抑制椒盐噪声和孤立异常点。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2185,13 +2185,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/MedianBlur.md"
     },
@@ -2207,7 +2207,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子使用双边滤波同时考虑空间距离与像素差异，在保边前提下降低噪声。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2260,13 +2260,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/BilateralFilter.md"
     },
@@ -2282,7 +2282,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2374,13 +2374,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageResize.md"
     },
@@ -2396,7 +2396,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2460,13 +2460,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageCrop.md"
     },
@@ -2482,7 +2482,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于仿射模型执行旋转、缩放或平移等二维几何变换。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2557,13 +2557,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageRotate.md"
     },
@@ -2579,7 +2579,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子利用单应性矩阵对图像做透视变换，用于视角校正或几何对齐。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2831,13 +2831,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PerspectiveTransform.md"
     },
@@ -2853,7 +2853,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。",
       "inputPorts": [
         {
           "name": "Image",
@@ -2995,13 +2995,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/CircleMeasurement.md"
     },
@@ -3017,7 +3017,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。",
       "inputPorts": [
         {
           "name": "Image",
@@ -3114,13 +3114,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/LineMeasurement.md"
     },
@@ -3136,7 +3136,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -3227,13 +3227,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ContourMeasurement.md"
     },
@@ -3249,7 +3249,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -3361,13 +3361,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/AngleMeasurement.md"
     },
@@ -3383,7 +3383,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -3535,13 +3535,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/GeometricTolerance.md"
     },
@@ -3678,13 +3678,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/CameraCalibration.md"
     },
@@ -3723,35 +3723,23 @@
           "isRequired": null
         }
       ],
-      "parameters": [
-        {
-          "name": "CalibrationFile",
-          "displayName": "Calibration File",
-          "dataType": "file",
-          "description": null,
-          "defaultValue": "",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        }
-      ],
+      "parameters": [],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 91,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
-        "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/Undistort.md"
     },
     {
       "id": "CoordinateTransform",
       "type": 26,
-      "displayName": "坐标转换",
-      "description": "像素坐标到物理坐标转换",
+      "displayName": "Coordinate Transform",
+      "description": "Converts pixel coordinates to physical coordinates using CalibrationBundleV2 Transform2D.",
       "category": "标定",
       "version": "1.0.0",
       "tags": [
@@ -3763,39 +3751,45 @@
       "inputPorts": [
         {
           "name": "Image",
-          "displayName": "输入图像",
+          "displayName": "Input Image",
           "dataType": "Image",
           "isRequired": false
         },
         {
           "name": "PixelX",
-          "displayName": "像素X",
+          "displayName": "Pixel X",
           "dataType": "Float",
           "isRequired": false
         },
         {
           "name": "PixelY",
-          "displayName": "像素Y",
+          "displayName": "Pixel Y",
           "dataType": "Float",
+          "isRequired": false
+        },
+        {
+          "name": "CalibrationData",
+          "displayName": "Calibration Bundle V2 JSON",
+          "dataType": "String",
           "isRequired": false
         }
       ],
       "outputPorts": [
         {
           "name": "Image",
-          "displayName": "结果图像",
+          "displayName": "Result Image",
           "dataType": "Image",
           "isRequired": null
         },
         {
           "name": "PhysicalX",
-          "displayName": "物理X(mm)",
+          "displayName": "Physical X",
           "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "PhysicalY",
-          "displayName": "物理Y(mm)",
+          "displayName": "Physical Y",
           "dataType": "Float",
           "isRequired": null
         }
@@ -3803,7 +3797,7 @@
       "parameters": [
         {
           "name": "PixelX",
-          "displayName": "像素X坐标",
+          "displayName": "Pixel X",
           "dataType": "double",
           "description": null,
           "defaultValue": "0",
@@ -3814,7 +3808,7 @@
         },
         {
           "name": "PixelY",
-          "displayName": "像素Y坐标",
+          "displayName": "Pixel Y",
           "dataType": "double",
           "description": null,
           "defaultValue": "0",
@@ -3822,38 +3816,16 @@
           "max": null,
           "isRequired": true,
           "options": null
-        },
-        {
-          "name": "PixelSize",
-          "displayName": "像素尺寸(mm/px)",
-          "dataType": "double",
-          "description": null,
-          "defaultValue": "0.01",
-          "min": "0.0001",
-          "max": "100",
-          "isRequired": true,
-          "options": null
-        },
-        {
-          "name": "CalibrationFile",
-          "displayName": "标定文件路径",
-          "dataType": "file",
-          "description": null,
-          "defaultValue": "",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/CoordinateTransform.md"
     },
@@ -3869,7 +3841,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -4009,13 +3981,13 @@
         }
       ],
       "quality": {
-        "totalScore": 88,
+        "totalScore": 98,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/ModbusCommunication.md"
     },
@@ -4031,7 +4003,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -4145,13 +4117,13 @@
         }
       ],
       "quality": {
-        "totalScore": 88,
+        "totalScore": 98,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/TcpCommunication.md"
     },
@@ -4167,7 +4139,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
       "inputPorts": [
         {
           "name": "Data",
@@ -4239,13 +4211,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/DatabaseWrite.md"
     },
@@ -4261,7 +4233,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Value",
@@ -4341,13 +4313,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/ConditionalBranch.md"
     },
@@ -4363,7 +4335,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -4430,13 +4402,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ColorConversion.md"
     },
@@ -4452,7 +4424,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "自适应阈值不会对整幅图使用一个全局阈值，而是针对每个像素在其邻域窗口 W(x, y)…",
       "inputPorts": [
         {
           "name": "Image",
@@ -4545,13 +4517,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/AdaptiveThreshold.md"
     },
@@ -4567,7 +4539,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -4640,13 +4612,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/HistogramEqualization.md"
     },
@@ -4662,7 +4634,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "当前实现的几何拟合流程并不是直接接收点集输入，而是：",
       "inputPorts": [
         {
           "name": "Image",
@@ -4811,13 +4783,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/GeometricFitting.md"
     },
@@ -4833,7 +4805,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -4991,13 +4963,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/RoiManager.md"
     },
@@ -5013,7 +4985,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮…",
       "inputPorts": [
         {
           "name": "Image",
@@ -5155,13 +5127,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ShapeMatching.md"
     },
@@ -5180,7 +5152,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。",
       "inputPorts": [
         {
           "name": "Image",
@@ -5274,13 +5246,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/SubpixelEdgeDetection.md"
     },
@@ -5638,7 +5610,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -5806,13 +5778,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/SerialCommunication.md"
     },
@@ -5828,7 +5800,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -6113,13 +6085,13 @@
         }
       ],
       "quality": {
-        "totalScore": 70,
+        "totalScore": 80,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/SiemensS7Communication.md"
     },
@@ -6135,7 +6107,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -6365,13 +6337,13 @@
         }
       ],
       "quality": {
-        "totalScore": 70,
+        "totalScore": 80,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/MitsubishiMcCommunication.md"
     },
@@ -6387,7 +6359,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Data",
@@ -6617,13 +6589,13 @@
         }
       ],
       "quality": {
-        "totalScore": 70,
+        "totalScore": 80,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=90"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/OmronFinsCommunication.md"
     },
@@ -6639,7 +6611,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Value",
@@ -6802,13 +6774,13 @@
         }
       ],
       "quality": {
-        "totalScore": 56,
+        "totalScore": 66,
         "level": "C",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/ResultJudgment.md"
     },
@@ -7165,7 +7137,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -7278,13 +7250,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ClaheEnhancement.md"
     },
@@ -7300,7 +7272,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -7439,13 +7411,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/MorphologicalOperation.md"
     },
@@ -7461,7 +7433,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -7514,13 +7486,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/LaplacianSharpen.md"
     },
@@ -7536,7 +7508,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image1",
@@ -7645,13 +7617,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ImageAdd.md"
     },
@@ -7667,7 +7639,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image1",
@@ -7722,13 +7694,13 @@
         }
       ],
       "quality": {
-        "totalScore": 79,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 89,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageSubtract.md"
     },
@@ -7744,7 +7716,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Background",
@@ -7803,13 +7775,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageBlend.md"
     },
@@ -7825,7 +7797,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [],
       "outputPorts": [
         {
@@ -7900,13 +7872,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/VariableRead.md"
     },
@@ -7922,7 +7894,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Value",
@@ -8015,13 +7987,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/VariableWrite.md"
     },
@@ -8037,7 +8009,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [],
       "outputPorts": [
         {
@@ -8146,13 +8118,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/VariableIncrement.md"
     },
@@ -8168,7 +8140,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Input",
@@ -8239,13 +8211,13 @@
         }
       ],
       "quality": {
-        "totalScore": 65,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 75,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 90,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=90"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=90"
       },
       "docPath": "算子资料/算子名片/TryCatch.md"
     },
@@ -8261,7 +8233,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [],
       "outputPorts": [
         {
@@ -8333,13 +8305,13 @@
         }
       ],
       "quality": {
-        "totalScore": 56,
+        "totalScore": 66,
         "level": "C",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/CycleCounter.md"
     },
@@ -8355,7 +8327,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于局部特征点匹配完成模板定位，核心流程是：",
       "inputPorts": [
         {
           "name": "Image",
@@ -8460,13 +8432,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/AkazeFeatureMatch.md"
     },
@@ -8482,7 +8454,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配…",
       "inputPorts": [
         {
           "name": "Image",
@@ -8609,13 +8581,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/OrbFeatureMatch.md"
     },
@@ -8631,7 +8603,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape…",
       "inputPorts": [
         {
           "name": "Image",
@@ -8747,13 +8719,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/GradientShapeMatch.md"
     },
@@ -8769,7 +8741,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕模板、特征或几何相似性执行定位匹配，用于判断目标是否存在以及位姿大致位置。",
       "inputPorts": [
         {
           "name": "Image",
@@ -9006,13 +8978,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PyramidShapeMatch.md"
     },
@@ -9028,7 +9000,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。",
       "inputPorts": [
         {
           "name": "DLResult",
@@ -9153,13 +9125,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/DualModalVoting.md"
     },
@@ -9175,7 +9147,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Items",
@@ -9248,13 +9220,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ForEach.md"
     },
@@ -9270,7 +9242,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "List",
@@ -9349,13 +9321,13 @@
         }
       ],
       "quality": {
-        "totalScore": 69,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 79,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/ArrayIndexer.md"
     },
@@ -9371,7 +9343,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Json",
@@ -9408,13 +9380,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/JsonExtractor.md"
     },
@@ -9430,7 +9402,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "ValueA",
@@ -9518,13 +9490,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/MathOperation.md"
     },
@@ -9540,7 +9512,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "InputA",
@@ -9602,13 +9574,13 @@
         }
       ],
       "quality": {
-        "totalScore": 63,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 73,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/LogicGate.md"
     },
@@ -9624,7 +9596,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Input",
@@ -9713,13 +9685,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/TypeConvert.md"
     },
@@ -9735,7 +9707,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Body",
@@ -9856,13 +9828,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/HttpRequest.md"
     },
@@ -9878,7 +9850,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解…",
       "inputPorts": [
         {
           "name": "Payload",
@@ -9970,13 +9942,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/MqttPublish.md"
     },
@@ -9992,7 +9964,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Arg1",
@@ -10029,13 +10001,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 76,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/StringFormat.md"
     },
@@ -10051,7 +10023,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -10110,13 +10082,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ImageSave.md"
     },
@@ -10132,7 +10104,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子结合学习型模型或规则判定完成识别、检测或缺陷筛查。",
       "inputPorts": [
         {
           "name": "Image",
@@ -10157,13 +10129,13 @@
       ],
       "parameters": [],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/OcrRecognition.md"
     },
@@ -10179,7 +10151,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "BaseImage",
@@ -10210,13 +10182,13 @@
       ],
       "parameters": [],
       "quality": {
-        "totalScore": 61,
-        "level": "C",
-        "documentationScore": 60,
+        "totalScore": 71,
+        "level": "B",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=75"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageDiff.md"
     },
@@ -10232,7 +10204,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Value",
@@ -10343,13 +10315,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/Statistics.md"
     },
@@ -10365,7 +10337,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Value1",
@@ -10449,13 +10421,13 @@
         }
       ],
       "quality": {
-        "totalScore": 56,
+        "totalScore": 66,
         "level": "C",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/Aggregator.md"
     },
@@ -10471,7 +10443,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Input",
@@ -10508,13 +10480,13 @@
         }
       ],
       "quality": {
-        "totalScore": 51,
-        "level": "D",
-        "documentationScore": 60,
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/Comment.md"
     },
@@ -10530,7 +10502,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "ValueA",
@@ -10646,13 +10618,13 @@
         }
       ],
       "quality": {
-        "totalScore": 51,
-        "level": "D",
-        "documentationScore": 60,
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/Comparator.md"
     },
@@ -10668,7 +10640,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Input",
@@ -10705,13 +10677,13 @@
         }
       ],
       "quality": {
-        "totalScore": 51,
-        "level": "D",
-        "documentationScore": 60,
+        "totalScore": 61,
+        "level": "C",
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 80,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=30, Validation=80, ErrorHandling=35"
+        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/Delay.md"
     },
@@ -10727,7 +10699,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -10945,13 +10917,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/CaliperTool.md"
     },
@@ -10967,7 +10939,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "当前实现有两种工作模式：",
       "inputPorts": [
         {
           "name": "Image",
@@ -11147,13 +11119,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/WidthMeasurement.md"
     },
@@ -11169,7 +11141,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Point",
@@ -11200,13 +11172,13 @@
       ],
       "parameters": [],
       "quality": {
-        "totalScore": 81,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 91,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/PointLineDistance.md"
     },
@@ -11222,7 +11194,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Line1",
@@ -11283,13 +11255,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/LineLineDistance.md"
     },
@@ -11305,7 +11277,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Detections",
@@ -11417,13 +11389,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/BoxNms.md"
     },
@@ -11439,7 +11411,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Detections",
@@ -11593,13 +11565,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/BoxFilter.md"
     },
@@ -11615,7 +11587,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -11730,13 +11702,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/SharpnessEvaluation.md"
     },
@@ -11752,7 +11724,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
       "inputPorts": [
         {
           "name": "ReferencePoint",
@@ -11856,21 +11828,21 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/PositionCorrection.md"
     },
     {
       "id": "NPointCalibration",
       "type": 150,
-      "displayName": "N点标定",
-      "description": "Builds affine or perspective calibration from user point pairs.",
+      "displayName": "N Point Calibration",
+      "description": "Builds robust affine or homography calibration from all point pairs.",
       "category": "标定",
       "version": "1.0.0",
       "tags": [
@@ -11889,15 +11861,9 @@
       ],
       "outputPorts": [
         {
-          "name": "TransformMatrix",
-          "displayName": "Transform Matrix",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "PixelSize",
-          "displayName": "Pixel Size",
-          "dataType": "Float",
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
           "isRequired": null
         },
         {
@@ -11952,21 +11918,21 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/NPointCalibration.md"
     },
     {
       "id": "CalibrationLoader",
       "type": 151,
-      "displayName": "标定加载",
-      "description": "Loads calibration data from JSON/XML/YAML file.",
+      "displayName": "Calibration Loader",
+      "description": "Loads CalibrationBundleV2 JSON and exposes typed calibration outputs.",
       "category": "标定",
       "version": "1.0.0",
       "tags": [
@@ -11978,34 +11944,28 @@
       "inputPorts": [],
       "outputPorts": [
         {
-          "name": "TransformMatrix",
-          "displayName": "Transform Matrix",
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
+          "name": "CalibrationBundle",
+          "displayName": "Calibration Bundle",
           "dataType": "Any",
           "isRequired": null
         },
         {
-          "name": "CameraMatrix",
-          "displayName": "Camera Matrix",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "DistCoeffs",
-          "displayName": "Dist Coeffs",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "PixelSize",
-          "displayName": "Pixel Size",
-          "dataType": "Float",
+          "name": "Accepted",
+          "displayName": "Accepted",
+          "dataType": "Boolean",
           "isRequired": null
         }
       ],
       "parameters": [
         {
           "name": "FilePath",
-          "displayName": "File Path",
+          "displayName": "Calibration File Path",
           "dataType": "file",
           "description": null,
           "defaultValue": "",
@@ -12013,40 +11973,16 @@
           "max": null,
           "isRequired": true,
           "options": null
-        },
-        {
-          "name": "FileFormat",
-          "displayName": "File Format",
-          "dataType": "enum",
-          "description": null,
-          "defaultValue": "JSON",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": [
-            {
-              "value": "JSON",
-              "label": "JSON"
-            },
-            {
-              "value": "XML",
-              "label": "XML"
-            },
-            {
-              "value": "YAML",
-              "label": "YAML"
-            }
-          ]
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/CalibrationLoader.md"
     },
@@ -12062,7 +11998,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
       "inputPorts": [
         {
           "name": "Value",
@@ -12172,13 +12108,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/UnitConvert.md"
     },
@@ -12194,7 +12130,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Trigger",
@@ -12263,13 +12199,13 @@
         }
       ],
       "quality": {
-        "totalScore": 74,
+        "totalScore": 84,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=35"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/TimerStatistics.md"
     },
@@ -12285,7 +12221,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Input1",
@@ -12371,13 +12307,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/ScriptOperator.md"
     },
@@ -12393,7 +12329,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
       "inputPorts": [
         {
           "name": "Signal",
@@ -12471,13 +12407,13 @@
         }
       ],
       "quality": {
-        "totalScore": 74,
+        "totalScore": 84,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 35,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=35"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=35"
       },
       "docPath": "算子资料/算子名片/TriggerModule.md"
     },
@@ -12493,7 +12429,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
       "inputPorts": [
         {
           "name": "CurrentPoint",
@@ -12562,13 +12498,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/PointAlignment.md"
     },
@@ -12584,7 +12520,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
       "inputPorts": [
         {
           "name": "DetectedPoint",
@@ -12691,13 +12627,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/PointCorrection.md"
     },
@@ -12713,7 +12649,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -12888,13 +12824,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/GapMeasurement.md"
     },
@@ -12910,7 +12846,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子把以某个中心为参考的环形区域，从笛卡尔坐标系展开到极坐标平面。",
       "inputPorts": [
         {
           "name": "Image",
@@ -13024,13 +12960,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PolarUnwrap.md"
     },
@@ -13046,7 +12982,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。",
       "inputPorts": [
         {
           "name": "Image",
@@ -13107,13 +13043,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ShadingCorrection.md"
     },
@@ -13129,7 +13065,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子做的是时间域融合，不是空间域滤波。它会保留最近 N 帧图像，在时间轴上对同一像…",
       "inputPorts": [
         {
           "name": "Image",
@@ -13186,13 +13122,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/FrameAveraging.md"
     },
@@ -13208,7 +13144,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于仿射模型执行旋转、缩放或平移等二维几何变换。",
       "inputPorts": [
         {
           "name": "Image",
@@ -13342,13 +13278,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/AffineTransform.md"
     },
@@ -13549,13 +13485,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ColorMeasurement.md"
     },
@@ -13822,7 +13758,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -13925,13 +13861,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/EdgePairDefect.md"
     },
@@ -13947,7 +13883,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14047,13 +13983,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/RectangleDetection.md"
     },
@@ -14061,7 +13997,7 @@
       "id": "TranslationRotationCalibration",
       "type": 183,
       "displayName": "平移旋转标定",
-      "description": "Fits image-to-robot transform from calibration point pairs.",
+      "description": "Fits robust 2D rigid or similarity transform from image-to-robot point pairs.",
       "category": "标定",
       "version": "1.0.0",
       "tags": [
@@ -14080,20 +14016,20 @@
       ],
       "outputPorts": [
         {
-          "name": "TransformMatrix",
-          "displayName": "Transform Matrix",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "RotationCenter",
-          "displayName": "Rotation Center",
-          "dataType": "Point",
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
           "isRequired": null
         },
         {
           "name": "CalibrationError",
           "displayName": "Calibration Error",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "MaxCalibrationError",
+          "displayName": "Max Calibration Error",
           "dataType": "Float",
           "isRequired": null
         }
@@ -14143,13 +14079,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/TranslationRotationCalibration.md"
     },
@@ -14165,7 +14101,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14261,13 +14197,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/CornerDetection.md"
     },
@@ -14283,7 +14219,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Line1",
@@ -14320,13 +14256,13 @@
       ],
       "parameters": [],
       "quality": {
-        "totalScore": 79,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 89,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/EdgeIntersection.md"
     },
@@ -14342,7 +14278,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14436,13 +14372,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ParallelLineFind.md"
     },
@@ -14458,7 +14394,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14546,13 +14482,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/QuadrilateralFind.md"
     },
@@ -14568,7 +14504,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Element1",
@@ -14694,13 +14630,13 @@
         }
       ],
       "quality": {
-        "totalScore": 86,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 85,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=85"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/GeoMeasurement.md"
     },
@@ -14716,7 +14652,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image1",
@@ -14799,13 +14735,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageStitching.md"
     },
@@ -14821,7 +14757,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14906,13 +14842,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageTiling.md"
     },
@@ -14928,7 +14864,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -14994,13 +14930,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageNormalize.md"
     },
@@ -15016,7 +14952,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image1",
@@ -15104,13 +15040,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageCompose.md"
     },
@@ -15126,7 +15062,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -15229,13 +15165,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/CopyMakeBorder.md"
     },
@@ -15251,7 +15187,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
       "inputPorts": [
         {
           "name": "Data",
@@ -15360,13 +15296,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/TextSave.md"
     },
@@ -15382,7 +15318,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Points1",
@@ -15526,13 +15462,13 @@
         }
       ],
       "quality": {
-        "totalScore": 80,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 90,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 60,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=60"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
       },
       "docPath": "算子资料/算子名片/PointSetTool.md"
     },
@@ -15548,7 +15484,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -15636,13 +15572,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/BlobLabeling.md"
     },
@@ -15658,7 +15594,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。",
       "inputPorts": [
         {
           "name": "Image",
@@ -15797,13 +15733,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/HistogramAnalysis.md"
     },
@@ -15819,7 +15755,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。",
       "inputPorts": [
         {
           "name": "Image",
@@ -15951,13 +15887,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/PixelStatistics.md"
     },
@@ -15973,7 +15909,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": null,
+      "algorithm": "该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。",
       "inputPorts": [
         {
           "name": "Image",
@@ -16036,13 +15972,13 @@
         }
       ],
       "quality": {
-        "totalScore": 84,
-        "level": "B",
-        "documentationScore": 60,
+        "totalScore": 94,
+        "level": "A",
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/MeanFilter.md"
     },
@@ -16230,13 +16166,13 @@
         }
       ],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 95,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/StatisticalOutlierRemoval.md"
     },
@@ -16347,13 +16283,13 @@
         }
       ],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 95,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/RansacPlaneSegmentation.md"
     },
@@ -16434,13 +16370,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/EuclideanClusterExtraction.md"
     },
@@ -16521,13 +16457,13 @@
         }
       ],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 95,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PPFEstimation.md"
     },
@@ -16769,13 +16705,13 @@
         }
       ],
       "quality": {
-        "totalScore": 85,
+        "totalScore": 95,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=80, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PPFMatch.md"
     },
@@ -17525,7 +17461,7 @@
     {
       "id": "HandEyeCalibration",
       "type": 227,
-      "displayName": "手眼标定",
+      "displayName": "Hand-Eye Calibration",
       "description": "Solves eye-in-hand or simplified eye-to-hand calibration from robot poses and calibration-board poses.",
       "category": "标定",
       "version": "1.0.0",
@@ -17551,15 +17487,9 @@
       ],
       "outputPorts": [
         {
-          "name": "HandEyeMatrix",
-          "displayName": "Hand Eye Matrix",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "InverseHandEyeMatrix",
-          "displayName": "Inverse Hand Eye Matrix",
-          "dataType": "Any",
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
           "isRequired": null
         },
         {
@@ -17676,23 +17606,23 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/HandEyeCalibration.md"
     },
     {
       "id": "HandEyeCalibrationValidator",
       "type": 228,
-      "displayName": "手眼标定验证",
-      "description": "Validates a hand-eye calibration matrix and produces quality metrics, HTML report, and pose suggestions.",
+      "displayName": "Hand-Eye Calibration Validator",
+      "description": "Validates a hand-eye CalibrationBundleV2 payload and produces quality metrics, HTML report, and pose suggestions.",
       "category": "标定",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
@@ -17713,13 +17643,19 @@
           "isRequired": true
         },
         {
-          "name": "HandEyeMatrix",
-          "displayName": "Hand Eye Matrix",
-          "dataType": "Any",
-          "isRequired": true
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
+          "isRequired": false
         }
       ],
       "outputPorts": [
+        {
+          "name": "CalibrationData",
+          "displayName": "Calibration Data",
+          "dataType": "String",
+          "isRequired": null
+        },
         {
           "name": "MeanError",
           "displayName": "Mean Error",
@@ -17786,13 +17722,13 @@
         }
       ],
       "quality": {
-        "totalScore": 73,
+        "totalScore": 83,
         "level": "B",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 30,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=30, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/HandEyeCalibrationValidator.md"
     },
@@ -17828,18 +17764,6 @@
           "name": "CalibrationData",
           "displayName": "Calibration Data",
           "dataType": "String",
-          "isRequired": null
-        },
-        {
-          "name": "CameraMatrix",
-          "displayName": "Camera Matrix",
-          "dataType": "Any",
-          "isRequired": null
-        },
-        {
-          "name": "DistCoeffs",
-          "displayName": "Distortion Coefficients",
-          "dataType": "Any",
           "isRequired": null
         }
       ],
@@ -17963,13 +17887,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/FisheyeCalibration.md"
     },
@@ -18016,17 +17940,6 @@
       ],
       "parameters": [
         {
-          "name": "CalibrationFile",
-          "displayName": "Calibration File",
-          "dataType": "file",
-          "description": null,
-          "defaultValue": "",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
-        {
           "name": "UseLut",
           "displayName": "Use LUT Acceleration",
           "dataType": "bool",
@@ -18072,13 +17985,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 96,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/FisheyeUndistort.md"
     },
@@ -18289,13 +18202,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/StereoCalibration.md"
     },
@@ -18303,7 +18216,7 @@
       "id": "PixelToWorldTransform",
       "type": 232,
       "displayName": "Pixel To World Transform",
-      "description": "Transforms between pixel coordinates and world plane coordinates using calibration data. Supports both forward (pixel→world) and inverse (world→pixel) transformations.",
+      "description": "Transforms coordinates via CalibrationBundleV2 using either Transform2D or camera ray-plane intersection.",
       "category": "标定",
       "version": "1.0.0",
       "tags": [
@@ -18321,13 +18234,13 @@
         },
         {
           "name": "Points",
-          "displayName": "Input Points (Pixel or World)",
+          "displayName": "Input Points",
           "dataType": "PointList",
           "isRequired": false
         },
         {
           "name": "CalibrationData",
-          "displayName": "Calibration Data JSON",
+          "displayName": "Calibration Bundle V2 JSON",
           "dataType": "String",
           "isRequired": false
         }
@@ -18353,17 +18266,6 @@
         }
       ],
       "parameters": [
-        {
-          "name": "CalibrationFile",
-          "displayName": "Calibration File Path",
-          "dataType": "file",
-          "description": null,
-          "defaultValue": "",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": null
-        },
         {
           "name": "TransformMode",
           "displayName": "Transform Mode",
@@ -18440,30 +18342,6 @@
           "options": null
         },
         {
-          "name": "OutputCoordinateSystem",
-          "displayName": "Output Coordinate System",
-          "dataType": "enum",
-          "description": null,
-          "defaultValue": "World",
-          "min": null,
-          "max": null,
-          "isRequired": true,
-          "options": [
-            {
-              "value": "World",
-              "label": "World (mm)"
-            },
-            {
-              "value": "Image",
-              "label": "Image (pixels)"
-            },
-            {
-              "value": "Normalized",
-              "label": "Normalized (0-1)"
-            }
-          ]
-        },
-        {
           "name": "GenerateReport",
           "displayName": "Generate Accuracy Report",
           "dataType": "bool",
@@ -18476,13 +18354,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 100,
         "level": "A",
-        "documentationScore": 60,
+        "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 100,
-        "summary": "Doc=60, Test=100, Validation=100, ErrorHandling=100"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=100"
       },
       "docPath": "算子资料/算子名片/PixelToWorldTransform.md"
     },

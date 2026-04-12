@@ -6,6 +6,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Calibration;
 
 namespace Acme.Product.Infrastructure.Services;
 
@@ -19,6 +20,14 @@ namespace Acme.Product.Infrastructure.Services;
 /// </summary>
 public class FlowLinter
 {
+    private static readonly HashSet<OperatorType> CalibrationBundleConsumers = new()
+    {
+        OperatorType.CoordinateTransform,
+        OperatorType.Undistort,
+        OperatorType.FisheyeUndistort,
+        OperatorType.PixelToWorldTransform
+    };
+
     /// <summary>
     /// 检查流程安全性（完整三层规则）
     /// </summary>
@@ -126,6 +135,25 @@ public class FlowLinter
                     Suggestion = "请检查端口数据类型匹配，或使用 TypeConvert 算子进行转换。"
                 };
             }
+        }
+        foreach (var calibOp in flow.Operators.Where(op => RequiresAcceptedCalibrationBundle(op.Type)))
+        {
+            if (!HasCalibrationDataUpstream(flow, calibOp, out var upstreamCalibrationSource) ||
+                upstreamCalibrationSource == null ||
+                !IsPreviewOnlyCalibrationProducer(upstreamCalibrationSource))
+            {
+                continue;
+            }
+
+            yield return new LintIssue
+            {
+                Code = "SAFETY_003",
+                Severity = LintSeverity.Error,
+                OperatorId = calibOp.Id,
+                OperatorName = calibOp.Name,
+                Message = $"Calibration consumer [{calibOp.Name}] is connected to preview-only calibration producer [{upstreamCalibrationSource.Name}].",
+                Suggestion = "Use a producer mode that can emit Accepted=true CalibrationBundleV2 output."
+            };
         }
     }
 
@@ -262,23 +290,23 @@ public class FlowLinter
             yield return issue;
         }
 
-        // SAFETY_003: CoordinateTransform(HandEye) 的 CalibrationFile 不能为空
-        foreach (var coordOp in flow.Operators.Where(op => op.Type == OperatorType.CoordinateTransform))
+        // SAFETY_003: 标定消费者必须显式提供 CalibrationData（V2）
+        foreach (var calibOp in flow.Operators.Where(op => RequiresAcceptedCalibrationBundle(op.Type)))
         {
-            var calibFileParam = coordOp.Parameters.FirstOrDefault(p =>
-                p.Name.Equals("CalibrationFile", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Equals("CalibFile", StringComparison.OrdinalIgnoreCase));
+            var calibrationDataParam = FindCalibrationDataParameter(calibOp);
+            var calibrationData = GetParamStringValue(calibrationDataParam);
+            var hasUpstreamBundleConnection = HasCalibrationDataUpstream(flow, calibOp, out var upstreamCalibrationSource);
 
-            if (calibFileParam == null || string.IsNullOrWhiteSpace(GetParamStringValue(calibFileParam)))
+            if (string.IsNullOrWhiteSpace(calibrationData) && !hasUpstreamBundleConnection)
             {
                 yield return new LintIssue
                 {
                     Code = "SAFETY_003",
                     Severity = LintSeverity.Error,
-                    OperatorId = coordOp.Id,
-                    OperatorName = coordOp.Name,
-                    Message = $"手眼标定算子 [{coordOp.Name}] 未指定 CalibrationFile。",
-                    Suggestion = "请先使用手眼标定向导生成标定文件，然后在算子参数中指定。"
+                    OperatorId = calibOp.Id,
+                    OperatorName = calibOp.Name,
+                    Message = $"标定消费者算子 [{calibOp.Name}] 缺少 CalibrationData（CalibrationBundleV2 JSON）。",
+                    Suggestion = "请通过上游标定节点或参数注入 CalibrationBundleV2，并确保质量状态为 Accepted。"
                 };
             }
         }
@@ -437,6 +465,66 @@ public class FlowLinter
         return param.Value.ToString();
     }
 
+    private static bool RequiresAcceptedCalibrationBundle(OperatorType type)
+    {
+        return CalibrationBundleConsumers.Contains(type);
+    }
+
+    private static Parameter? FindCalibrationDataParameter(Operator op)
+    {
+        return op.Parameters.FirstOrDefault(p =>
+            p.Name.Equals("CalibrationData", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasCalibrationDataUpstream(OperatorFlow flow, Operator op, out Operator? upstreamCalibrationSource)
+    {
+        upstreamCalibrationSource = null;
+
+        foreach (var connection in flow.Connections.Where(c => c.TargetOperatorId == op.Id))
+        {
+            var targetPort = op.InputPorts.FirstOrDefault(p => p.Id == connection.TargetPortId);
+            if (targetPort == null || !targetPort.Name.Equals("CalibrationData", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var sourceOp = flow.Operators.FirstOrDefault(candidate => candidate.Id == connection.SourceOperatorId);
+            if (sourceOp == null)
+            {
+                continue;
+            }
+
+            var sourcePort = sourceOp.OutputPorts.FirstOrDefault(p => p.Id == connection.SourcePortId);
+            if (sourcePort == null || !sourcePort.Name.Equals("CalibrationData", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            upstreamCalibrationSource = sourceOp;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPreviewOnlyCalibrationProducer(Operator op)
+    {
+        static bool Matches(Parameter? parameter, string expected)
+        {
+            var value = parameter?.Value?.ToString();
+            return value != null && value.Equals(expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return op.Type switch
+        {
+            OperatorType.CameraCalibration or OperatorType.FisheyeCalibration
+                => Matches(op.Parameters.FirstOrDefault(p => p.Name.Equals("Mode", StringComparison.OrdinalIgnoreCase)), "SingleImage"),
+            OperatorType.StereoCalibration
+                => Matches(op.Parameters.FirstOrDefault(p => p.Name.Equals("Mode", StringComparison.OrdinalIgnoreCase)), "SinglePair"),
+            _ => false
+        };
+    }
+
     #endregion
 
     #region 第三层：参数值合理性
@@ -448,16 +536,14 @@ public class FlowLinter
     {
         foreach (var op in flow.Operators)
         {
-            // PARAM_001: CoordinateTransform.PixelSize 超出 (0, 10.0] mm
-            if (op.Type == OperatorType.CoordinateTransform)
+            // PARAM_001: 标定消费者的 CalibrationData 必须是 Accepted 的 CalibrationBundleV2
+            if (RequiresAcceptedCalibrationBundle(op.Type))
             {
-                var pixelSizeParam = op.Parameters.FirstOrDefault(p =>
-                    p.Name.Equals("PixelSize", StringComparison.OrdinalIgnoreCase));
-
-                if (pixelSizeParam != null &&
-                    double.TryParse(GetParamStringValue(pixelSizeParam), out var pixelSize))
+                var calibrationDataParam = FindCalibrationDataParameter(op);
+                var calibrationData = GetParamStringValue(calibrationDataParam);
+                if (!string.IsNullOrWhiteSpace(calibrationData))
                 {
-                    if (pixelSize <= 0 || pixelSize > 10.0)
+                    if (!CalibrationBundleV2Json.TryDeserialize(calibrationData!, out var bundle, out var deserializeError))
                     {
                         yield return new LintIssue
                         {
@@ -465,8 +551,22 @@ public class FlowLinter
                             Severity = LintSeverity.Error,
                             OperatorId = op.Id,
                             OperatorName = op.Name,
-                            Message = $"PixelSize 参数值 {pixelSize} 超出有效范围 (0, 10.0] mm。",
-                            Suggestion = "请检查标定结果，PixelSize 应在 0 到 10.0 mm 之间。"
+                            Message = $"算子 [{op.Name}] 的 CalibrationData 不是有效 CalibrationBundleV2：{deserializeError}",
+                            Suggestion = "请提供 schemaVersion=2 且包含 calibrationKind/sourceFrame/targetFrame/quality 的 JSON。"
+                        };
+                        continue;
+                    }
+
+                    if (!CalibrationBundleV2Json.TryRequireAccepted(bundle, out var acceptedError))
+                    {
+                        yield return new LintIssue
+                        {
+                            Code = "PARAM_001",
+                            Severity = LintSeverity.Error,
+                            OperatorId = op.Id,
+                            OperatorName = op.Name,
+                            Message = $"算子 [{op.Name}] 的 CalibrationData 未通过验收：{acceptedError}",
+                            Suggestion = "请使用 Quality.Accepted=true 的标定结果驱动生产链路。"
                         };
                     }
                 }

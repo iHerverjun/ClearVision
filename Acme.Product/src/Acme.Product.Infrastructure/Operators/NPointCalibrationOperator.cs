@@ -1,36 +1,35 @@
-﻿// NPointCalibrationOperator.cs
-// N 点标定算子
-// 通过多点对应关系求解坐标映射参数
-// 作者：蘅芜君
 using System.Collections;
 using System.Globalization;
 using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
-    DisplayName = "N点标定",
-    Description = "Builds affine or perspective calibration from user point pairs.",
-    Category = "标定",
+    DisplayName = "N Point Calibration",
+    Description = "Builds robust affine or homography calibration from all point pairs.",
+    Category = "Calibration",
     IconName = "n-point",
-    Keywords = new[] { "n-point", "affine", "perspective", "calibration" }
+    Keywords = new[] { "n-point", "affine", "homography", "calibration", "ransac" }
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
-[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
-[OutputPort("PixelSize", "Pixel Size", PortDataType.Float)]
+[OutputPort("CalibrationData", "Calibration Data", PortDataType.String)]
 [OutputPort("ReprojectionError", "Reprojection Error", PortDataType.Float)]
 [OperatorParam("CalibrationMode", "Calibration Mode", "enum", DefaultValue = "Affine", Options = new[] { "Affine|Affine", "Perspective|Perspective" })]
 [OperatorParam("PointPairs", "Point Pairs", "string", DefaultValue = "")]
 [OperatorParam("SavePath", "Save Path", "file", DefaultValue = "")]
 public class NPointCalibrationOperator : OperatorBase
 {
+    private const double MinPointDistance = 1e-6;
+    private const double MaxAcceptedReprojectionError = 3.0;
+
     public override OperatorType OperatorType => OperatorType.NPointCalibration;
 
     public NPointCalibrationOperator(ILogger<NPointCalibrationOperator> logger) : base(logger)
@@ -47,48 +46,254 @@ public class NPointCalibrationOperator : OperatorBase
 
         if (!TryParsePointPairs(pointPairsRaw, out var pointPairs) || pointPairs.Count == 0)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("PointPairs is required and must be valid JSON or list data"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("PointPairs is required and must be valid JSON or list data."));
+        }
+
+        var isPerspective = mode.Equals("Perspective", StringComparison.OrdinalIgnoreCase);
+        var requiredCount = isPerspective ? 4 : 3;
+        if (pointPairs.Count < requiredCount)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"{mode} mode requires at least {requiredCount} point pairs."));
+        }
+
+        var srcPoints = pointPairs.Select(p => new Point2d(p.ImagePoint.X, p.ImagePoint.Y)).ToArray();
+        var dstPoints = pointPairs.Select(p => new Point2d(p.WorldPoint.X, p.WorldPoint.Y)).ToArray();
+
+        if (!TryValidatePointSet(srcPoints, requiredCount, "ImagePoint", out var sourceValidationError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(sourceValidationError ?? "ImagePoint set is invalid."));
+        }
+
+        if (!TryValidatePointSet(dstPoints, requiredCount, "WorldPoint", out var targetValidationError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(targetValidationError ?? "WorldPoint set is invalid."));
+        }
+
+        if (isPerspective)
+        {
+            return Task.FromResult(ExecutePerspectiveCalibration(@operator, inputs, pointPairs, srcPoints, dstPoints));
+        }
+
+        return Task.FromResult(ExecuteAffineCalibration(@operator, inputs, pointPairs, srcPoints, dstPoints));
+    }
+
+    public override ValidationResult ValidateParameters(Operator @operator)
+    {
+        var mode = GetStringParam(@operator, "CalibrationMode", "Affine");
+        if (!mode.Equals("Affine", StringComparison.OrdinalIgnoreCase) &&
+            !mode.Equals("Perspective", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("CalibrationMode must be Affine or Perspective.");
+        }
+
+        var pointPairsRaw = ResolvePointPairsRaw(@operator, null);
+        if (string.IsNullOrWhiteSpace(pointPairsRaw))
+        {
+            return ValidationResult.Valid();
+        }
+
+        if (!TryParsePointPairs(pointPairsRaw, out var pointPairs))
+        {
+            return ValidationResult.Invalid("PointPairs is not valid JSON/list format.");
         }
 
         var requiredCount = mode.Equals("Perspective", StringComparison.OrdinalIgnoreCase) ? 4 : 3;
         if (pointPairs.Count < requiredCount)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"{mode} mode requires at least {requiredCount} point pairs"));
+            return ValidationResult.Invalid($"{mode} mode requires at least {requiredCount} point pairs.");
         }
 
-        var srcPoints = pointPairs.Select(p => new Point2f((float)p.ImagePoint.X, (float)p.ImagePoint.Y)).ToArray();
-        var dstPoints = pointPairs.Select(p => new Point2f((float)p.WorldPoint.X, (float)p.WorldPoint.Y)).ToArray();
+        return ValidationResult.Valid();
+    }
 
-        double[][] transformMatrix;
-        double reprojectionError;
+    private OperatorExecutionOutput ExecuteAffineCalibration(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        IReadOnlyList<PointPair> pointPairs,
+        IReadOnlyList<Point2d> srcPoints,
+        IReadOnlyList<Point2d> dstPoints)
+    {
+        using var srcMat = InputArray.Create(srcPoints.Select(ToPoint2f).ToArray());
+        using var dstMat = InputArray.Create(dstPoints.Select(ToPoint2f).ToArray());
+        using var inlierMask = new Mat();
+        using var affineMatrix = Cv2.EstimateAffine2D(
+            srcMat,
+            dstMat,
+            inlierMask,
+            RobustEstimationAlgorithms.RANSAC,
+            3.0,
+            3000,
+            0.995,
+            20);
 
-        if (mode.Equals("Perspective", StringComparison.OrdinalIgnoreCase))
+        if (affineMatrix is null || affineMatrix.Empty() || affineMatrix.Rows != 2 || affineMatrix.Cols != 3)
         {
-            using var perspectiveMatrix = Cv2.GetPerspectiveTransform(srcPoints.Take(4).ToArray(), dstPoints.Take(4).ToArray());
-            transformMatrix = ToMatrixArray(perspectiveMatrix, 3, 3);
-            reprojectionError = CalculatePerspectiveReprojectionError(pointPairs, perspectiveMatrix);
+            return OperatorExecutionOutput.Failure("Failed to estimate a valid affine transform.");
         }
-        else
+
+        var transform = ToMatrixArray(affineMatrix, 2, 3);
+        if (!CalibrationBundleV2Helpers.IsFiniteMatrix(transform))
         {
-            using var affineMatrix = Cv2.GetAffineTransform(srcPoints.Take(3).ToArray(), dstPoints.Take(3).ToArray());
-            transformMatrix = ToMatrixArray(affineMatrix, 2, 3);
-            reprojectionError = CalculateAffineReprojectionError(pointPairs, affineMatrix);
+            return OperatorExecutionOutput.Failure("Estimated affine transform contains invalid values.");
         }
 
-        var pixelSize = EstimatePixelSize(pointPairs);
+        if (!TryGetInlierFlags(inlierMask, pointPairs.Count, out var inlierFlags))
+        {
+            return OperatorExecutionOutput.Failure("Failed to parse affine inlier mask.");
+        }
 
+        var errorStats = CalculateAffineReprojectionErrors(pointPairs, transform, inlierFlags);
+        if (errorStats.InlierCount < 3)
+        {
+            return OperatorExecutionOutput.Failure("Affine estimation failed because inliers are insufficient.");
+        }
+
+        var pixelSizeX = Math.Sqrt(transform[0][0] * transform[0][0] + transform[1][0] * transform[1][0]);
+        var pixelSizeY = Math.Sqrt(transform[0][1] * transform[0][1] + transform[1][1] * transform[1][1]);
+        double? pixelSize = null;
+        if (pixelSizeX > 0 && pixelSizeY > 0)
+        {
+            var anisotropy = Math.Abs(pixelSizeX - pixelSizeY) / Math.Max(pixelSizeX, pixelSizeY);
+            if (anisotropy <= 0.02)
+            {
+                pixelSize = (pixelSizeX + pixelSizeY) * 0.5;
+            }
+        }
+
+        var accepted = errorStats.MeanError <= MaxAcceptedReprojectionError &&
+                       errorStats.InlierCount >= 3 &&
+                       errorStats.InlierRatio >= 0.5;
+
+        var diagnostics = new List<string>
+        {
+            "Affine transform estimated with all points via RANSAC.",
+            $"InlierRatio={errorStats.InlierRatio:F3}",
+            $"InlierCount={errorStats.InlierCount}/{pointPairs.Count}"
+        };
+        if (!accepted)
+        {
+            diagnostics.Add($"Mean reprojection error {errorStats.MeanError:F4} exceeds acceptance threshold {MaxAcceptedReprojectionError:F4}.");
+        }
+
+        var bundle = CreateBundle(
+            TransformModelV2.Affine,
+            transform,
+            pixelSizeX,
+            pixelSizeY,
+            accepted,
+            diagnostics,
+            errorStats,
+            pointPairs.Count);
+
+        return BuildSuccessOutput(@operator, inputs, pointPairs, bundle, transform, pixelSize, pixelSizeX, pixelSizeY, errorStats);
+    }
+
+    private OperatorExecutionOutput ExecutePerspectiveCalibration(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        IReadOnlyList<PointPair> pointPairs,
+        IReadOnlyList<Point2d> srcPoints,
+        IReadOnlyList<Point2d> dstPoints)
+    {
+        using var srcMat = InputArray.Create(srcPoints);
+        using var dstMat = InputArray.Create(dstPoints);
+        using var inlierMask = new Mat();
+        using var homography = Cv2.FindHomography(
+            srcMat,
+            dstMat,
+            HomographyMethods.Ransac,
+            3.0,
+            inlierMask,
+            3000,
+            0.995);
+
+        if (homography is null || homography.Empty() || homography.Rows != 3 || homography.Cols != 3)
+        {
+            return OperatorExecutionOutput.Failure("Failed to estimate a valid homography.");
+        }
+
+        var transform = ToMatrixArray(homography, 3, 3);
+        if (!CalibrationBundleV2Helpers.IsFiniteMatrix(transform))
+        {
+            return OperatorExecutionOutput.Failure("Estimated homography contains invalid values.");
+        }
+
+        var det = Cv2.Determinant(homography);
+        if (!double.IsFinite(det) || Math.Abs(det) <= 1e-12)
+        {
+            return OperatorExecutionOutput.Failure("Estimated homography is singular.");
+        }
+
+        if (!TryGetInlierFlags(inlierMask, pointPairs.Count, out var inlierFlags))
+        {
+            return OperatorExecutionOutput.Failure("Failed to parse homography inlier mask.");
+        }
+
+        var errorStats = CalculateHomographyReprojectionErrors(pointPairs, transform, inlierFlags);
+        if (errorStats.InlierCount < 4)
+        {
+            return OperatorExecutionOutput.Failure("Homography estimation failed because inliers are insufficient.");
+        }
+
+        var accepted = errorStats.MeanError <= MaxAcceptedReprojectionError &&
+                       errorStats.InlierCount >= 4 &&
+                       errorStats.InlierRatio >= 0.5;
+
+        var diagnostics = new List<string>
+        {
+            "Perspective transform estimated with all points via FindHomography(RANSAC).",
+            $"InlierRatio={errorStats.InlierRatio:F3}",
+            $"InlierCount={errorStats.InlierCount}/{pointPairs.Count}",
+            "PixelSize is intentionally not reported for homography model."
+        };
+        if (!accepted)
+        {
+            diagnostics.Add($"Mean reprojection error {errorStats.MeanError:F4} exceeds acceptance threshold {MaxAcceptedReprojectionError:F4}.");
+        }
+
+        var bundle = CreateBundle(
+            TransformModelV2.Homography,
+            transform,
+            pixelSizeX: null,
+            pixelSizeY: null,
+            accepted,
+            diagnostics,
+            errorStats,
+            pointPairs.Count);
+
+        return BuildSuccessOutput(@operator, inputs, pointPairs, bundle, transform, pixelSize: null, pixelSizeX: null, pixelSizeY: null, errorStats);
+    }
+
+    private OperatorExecutionOutput BuildSuccessOutput(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        IReadOnlyList<PointPair> pointPairs,
+        CalibrationBundleV2 bundle,
+        double[][] transform,
+        double? pixelSize,
+        double? pixelSizeX,
+        double? pixelSizeY,
+        ReprojectionErrorStats errorStats)
+    {
+        var calibrationJson = CalibrationBundleV2Json.Serialize(bundle);
         var savePath = GetStringParam(@operator, "SavePath", string.Empty);
         if (!string.IsNullOrWhiteSpace(savePath))
         {
-            TrySaveCalibration(savePath, mode, transformMatrix, pixelSize, reprojectionError, pointPairs);
+            TrySaveCalibration(savePath, calibrationJson);
         }
 
         var resultData = new Dictionary<string, object>
         {
-            { "TransformMatrix", transformMatrix },
-            { "PixelSize", pixelSize },
-            { "ReprojectionError", reprojectionError }
+            ["CalibrationData"] = calibrationJson,
+            ["CalibrationBundle"] = bundle,
+            ["ReprojectionError"] = errorStats.MeanError,
+            ["MaxReprojectionError"] = errorStats.MaxError,
+            ["InlierCount"] = errorStats.InlierCount,
+            ["TotalSampleCount"] = pointPairs.Count,
+            ["InlierRatio"] = errorStats.InlierRatio,
+            ["Accepted"] = bundle.Quality.Accepted
         };
+
 
         if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
         {
@@ -97,35 +302,236 @@ public class NPointCalibrationOperator : OperatorBase
             {
                 var resultImage = src.Clone();
                 DrawCalibrationPoints(resultImage, pointPairs);
-                return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, resultData)));
+                return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, resultData));
             }
         }
 
-        return Task.FromResult(OperatorExecutionOutput.Success(resultData));
+        return OperatorExecutionOutput.Success(resultData);
     }
 
-    public override ValidationResult ValidateParameters(Operator @operator)
+    private static CalibrationBundleV2 CreateBundle(
+        TransformModelV2 model,
+        double[][] transformMatrix,
+        double? pixelSizeX,
+        double? pixelSizeY,
+        bool accepted,
+        IReadOnlyList<string> diagnostics,
+        ReprojectionErrorStats errorStats,
+        int sampleCount)
     {
-        var mode = GetStringParam(@operator, "CalibrationMode", "Affine");
-        var validModes = new[] { "Affine", "Perspective" };
-        if (!validModes.Contains(mode, StringComparer.OrdinalIgnoreCase))
+        return new CalibrationBundleV2
         {
-            return ValidationResult.Invalid("CalibrationMode must be Affine or Perspective");
+            SchemaVersion = 2,
+            CalibrationKind = CalibrationKindV2.PlanarTransform2D,
+            TransformModel = model,
+            SourceFrame = "image",
+            TargetFrame = "world",
+            Unit = "mm",
+            Transform2D = new CalibrationTransform2DV2
+            {
+                Model = model,
+                Matrix = transformMatrix,
+                PixelSizeX = pixelSizeX,
+                PixelSizeY = pixelSizeY
+            },
+            Quality = new CalibrationQualityV2
+            {
+                Accepted = accepted,
+                MeanError = errorStats.MeanError,
+                MaxError = errorStats.MaxError,
+                InlierCount = errorStats.InlierCount,
+                TotalSampleCount = sampleCount,
+                Diagnostics = diagnostics.ToList()
+            },
+            GeneratedAtUtc = DateTime.UtcNow,
+            ProducerOperator = nameof(NPointCalibrationOperator)
+        };
+    }
+
+    private void TrySaveCalibration(string savePath, string calibrationJson)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(savePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(savePath, calibrationJson);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save calibration data to {Path}.", savePath);
+        }
+    }
+
+    private static bool TryValidatePointSet(
+        IReadOnlyList<Point2d> points,
+        int requiredCount,
+        string pointName,
+        out string? error)
+    {
+        error = null;
+        if (points.Count < requiredCount)
+        {
+            error = $"{pointName} requires at least {requiredCount} points.";
+            return false;
         }
 
-        var pointPairsRaw = ResolvePointPairsRaw(@operator, null);
-        if (!string.IsNullOrWhiteSpace(pointPairsRaw) && !TryParsePointPairs(pointPairsRaw, out var parsedPairs))
+        for (var i = 0; i < points.Count; i++)
         {
-            return ValidationResult.Invalid("PointPairs is not valid JSON/list format");
+            if (!double.IsFinite(points[i].X) || !double.IsFinite(points[i].Y))
+            {
+                error = $"{pointName} contains non-finite values.";
+                return false;
+            }
         }
 
-        var requiredCount = mode.Equals("Perspective", StringComparison.OrdinalIgnoreCase) ? 4 : 3;
-        if (!string.IsNullOrWhiteSpace(pointPairsRaw) && TryParsePointPairs(pointPairsRaw, out parsedPairs) && parsedPairs.Count < requiredCount)
+        for (var i = 0; i < points.Count; i++)
         {
-            return ValidationResult.Invalid($"{mode} mode requires at least {requiredCount} point pairs");
+            for (var j = i + 1; j < points.Count; j++)
+            {
+                var dx = points[i].X - points[j].X;
+                var dy = points[i].Y - points[j].Y;
+                if (dx * dx + dy * dy <= MinPointDistance * MinPointDistance)
+                {
+                    error = $"{pointName} contains duplicate or near-duplicate points.";
+                    return false;
+                }
+            }
         }
 
-        return ValidationResult.Valid();
+        var maxTriangleArea = GetMaxTriangleArea(points);
+        var minX = points.Min(p => p.X);
+        var maxX = points.Max(p => p.X);
+        var minY = points.Min(p => p.Y);
+        var maxY = points.Max(p => p.Y);
+        var scale = Math.Max(maxX - minX, maxY - minY);
+        var minArea = Math.Max(1e-8, scale * scale * 1e-4);
+        if (maxTriangleArea < minArea)
+        {
+            error = $"{pointName} is geometrically degenerate (nearly collinear).";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetInlierFlags(Mat inlierMask, int pointCount, out bool[] inlierFlags)
+    {
+        inlierFlags = Enumerable.Repeat(true, pointCount).ToArray();
+        if (inlierMask.Empty())
+        {
+            return true;
+        }
+
+        try
+        {
+            if (inlierMask.Rows == pointCount && inlierMask.Cols >= 1)
+            {
+                for (var i = 0; i < pointCount; i++)
+                {
+                    inlierFlags[i] = inlierMask.At<byte>(i, 0) != 0;
+                }
+
+                return true;
+            }
+
+            if (inlierMask.Cols == pointCount && inlierMask.Rows >= 1)
+            {
+                for (var i = 0; i < pointCount; i++)
+                {
+                    inlierFlags[i] = inlierMask.At<byte>(0, i) != 0;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static ReprojectionErrorStats CalculateAffineReprojectionErrors(
+        IReadOnlyList<PointPair> pairs,
+        IReadOnlyList<double[]> matrix,
+        IReadOnlyList<bool> inliers)
+    {
+        var allErrors = new List<double>(pairs.Count);
+        var inlierErrors = new List<double>(pairs.Count);
+        var inlierCount = 0;
+
+        for (var i = 0; i < pairs.Count; i++)
+        {
+            var x = pairs[i].ImagePoint.X;
+            var y = pairs[i].ImagePoint.Y;
+            var px = matrix[0][0] * x + matrix[0][1] * y + matrix[0][2];
+            var py = matrix[1][0] * x + matrix[1][1] * y + matrix[1][2];
+            var dx = px - pairs[i].WorldPoint.X;
+            var dy = py - pairs[i].WorldPoint.Y;
+            var error = Math.Sqrt(dx * dx + dy * dy);
+            allErrors.Add(error);
+
+            if (inliers[i])
+            {
+                inlierCount++;
+                inlierErrors.Add(error);
+            }
+        }
+
+        var selected = inlierErrors.Count > 0 ? inlierErrors : allErrors;
+        return new ReprojectionErrorStats(
+            selected.Average(),
+            selected.Max(),
+            inlierCount,
+            pairs.Count == 0 ? 0 : inlierCount / (double)pairs.Count);
+    }
+
+    private static ReprojectionErrorStats CalculateHomographyReprojectionErrors(
+        IReadOnlyList<PointPair> pairs,
+        IReadOnlyList<double[]> matrix,
+        IReadOnlyList<bool> inliers)
+    {
+        var allErrors = new List<double>(pairs.Count);
+        var inlierErrors = new List<double>(pairs.Count);
+        var inlierCount = 0;
+
+        for (var i = 0; i < pairs.Count; i++)
+        {
+            var x = pairs[i].ImagePoint.X;
+            var y = pairs[i].ImagePoint.Y;
+
+            var w = matrix[2][0] * x + matrix[2][1] * y + matrix[2][2];
+            if (Math.Abs(w) <= 1e-12)
+            {
+                allErrors.Add(double.MaxValue / 4);
+                continue;
+            }
+
+            var px = (matrix[0][0] * x + matrix[0][1] * y + matrix[0][2]) / w;
+            var py = (matrix[1][0] * x + matrix[1][1] * y + matrix[1][2]) / w;
+            var dx = px - pairs[i].WorldPoint.X;
+            var dy = py - pairs[i].WorldPoint.Y;
+            var error = Math.Sqrt(dx * dx + dy * dy);
+            allErrors.Add(error);
+
+            if (inliers[i])
+            {
+                inlierCount++;
+                inlierErrors.Add(error);
+            }
+        }
+
+        var selected = inlierErrors.Count > 0 ? inlierErrors : allErrors;
+        return new ReprojectionErrorStats(
+            selected.Average(),
+            selected.Max(),
+            inlierCount,
+            pairs.Count == 0 ? 0 : inlierCount / (double)pairs.Count);
     }
 
     private static string ResolvePointPairsRaw(Operator @operator, Dictionary<string, object>? inputs)
@@ -135,7 +541,10 @@ public class NPointCalibrationOperator : OperatorBase
             return pairObj.ToString() ?? string.Empty;
         }
 
-        return @operator.Parameters.FirstOrDefault(p => p.Name.Equals("PointPairs", StringComparison.OrdinalIgnoreCase))?.Value?.ToString() ?? string.Empty;
+        return @operator.Parameters.FirstOrDefault(p =>
+                   p.Name.Equals("PointPairs", StringComparison.OrdinalIgnoreCase))
+               ?.Value?.ToString()
+               ?? string.Empty;
     }
 
     private static bool TryParsePointPairs(object? raw, out List<PointPair> pointPairs)
@@ -262,8 +671,11 @@ public class NPointCalibrationOperator : OperatorBase
         if (raw is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(
+                    entry => entry.Key!.ToString() ?? string.Empty,
+                    entry => entry.Value ?? 0.0,
+                    StringComparer.OrdinalIgnoreCase);
             return TryParsePointPair(normalized, out pair);
         }
 
@@ -321,9 +733,9 @@ public class NPointCalibrationOperator : OperatorBase
             return false;
         }
 
-        if (raw is Position p)
+        if (raw is Position position)
         {
-            point = p;
+            point = position;
             return true;
         }
 
@@ -349,8 +761,11 @@ public class NPointCalibrationOperator : OperatorBase
         if (raw is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(
+                    entry => entry.Key!.ToString() ?? string.Empty,
+                    entry => entry.Value ?? 0.0,
+                    StringComparer.OrdinalIgnoreCase);
             return TryParsePoint(normalized, out point);
         }
 
@@ -390,113 +805,33 @@ public class NPointCalibrationOperator : OperatorBase
         return result;
     }
 
-    private static double CalculateAffineReprojectionError(IReadOnlyList<PointPair> pairs, Mat affineMatrix)
+    private static double GetMaxTriangleArea(IReadOnlyList<Point2d> points)
     {
-        var sumSquared = 0.0;
-        for (var i = 0; i < pairs.Count; i++)
+        var maxArea = 0.0;
+        for (var i = 0; i < points.Count - 2; i++)
         {
-            var x = pairs[i].ImagePoint.X;
-            var y = pairs[i].ImagePoint.Y;
-
-            var predictedX = affineMatrix.At<double>(0, 0) * x + affineMatrix.At<double>(0, 1) * y + affineMatrix.At<double>(0, 2);
-            var predictedY = affineMatrix.At<double>(1, 0) * x + affineMatrix.At<double>(1, 1) * y + affineMatrix.At<double>(1, 2);
-
-            var dx = predictedX - pairs[i].WorldPoint.X;
-            var dy = predictedY - pairs[i].WorldPoint.Y;
-            sumSquared += dx * dx + dy * dy;
-        }
-
-        return Math.Sqrt(sumSquared / Math.Max(1, pairs.Count));
-    }
-
-    private static double CalculatePerspectiveReprojectionError(IReadOnlyList<PointPair> pairs, Mat perspectiveMatrix)
-    {
-        var sumSquared = 0.0;
-        for (var i = 0; i < pairs.Count; i++)
-        {
-            var x = pairs[i].ImagePoint.X;
-            var y = pairs[i].ImagePoint.Y;
-
-            var w = perspectiveMatrix.At<double>(2, 0) * x + perspectiveMatrix.At<double>(2, 1) * y + perspectiveMatrix.At<double>(2, 2);
-            if (Math.Abs(w) < 1e-9)
+            for (var j = i + 1; j < points.Count - 1; j++)
             {
-                continue;
-            }
-
-            var predictedX = (perspectiveMatrix.At<double>(0, 0) * x + perspectiveMatrix.At<double>(0, 1) * y + perspectiveMatrix.At<double>(0, 2)) / w;
-            var predictedY = (perspectiveMatrix.At<double>(1, 0) * x + perspectiveMatrix.At<double>(1, 1) * y + perspectiveMatrix.At<double>(1, 2)) / w;
-
-            var dx = predictedX - pairs[i].WorldPoint.X;
-            var dy = predictedY - pairs[i].WorldPoint.Y;
-            sumSquared += dx * dx + dy * dy;
-        }
-
-        return Math.Sqrt(sumSquared / Math.Max(1, pairs.Count));
-    }
-
-    private static double EstimatePixelSize(IReadOnlyList<PointPair> pairs)
-    {
-        var ratios = new List<double>();
-
-        for (var i = 0; i < pairs.Count; i++)
-        {
-            for (var j = i + 1; j < pairs.Count; j++)
-            {
-                var imageDist = Math.Sqrt(Math.Pow(pairs[i].ImagePoint.X - pairs[j].ImagePoint.X, 2) + Math.Pow(pairs[i].ImagePoint.Y - pairs[j].ImagePoint.Y, 2));
-                var worldDist = Math.Sqrt(Math.Pow(pairs[i].WorldPoint.X - pairs[j].WorldPoint.X, 2) + Math.Pow(pairs[i].WorldPoint.Y - pairs[j].WorldPoint.Y, 2));
-
-                if (imageDist > 1e-9 && worldDist > 1e-9)
+                for (var k = j + 1; k < points.Count; k++)
                 {
-                    ratios.Add(worldDist / imageDist);
+                    var area = Math.Abs(
+                        points[i].X * (points[j].Y - points[k].Y) +
+                        points[j].X * (points[k].Y - points[i].Y) +
+                        points[k].X * (points[i].Y - points[j].Y)) * 0.5;
+                    if (area > maxArea)
+                    {
+                        maxArea = area;
+                    }
                 }
             }
         }
 
-        return ratios.Count > 0 ? ratios.Average() : 1.0;
+        return maxArea;
     }
 
-    private void TrySaveCalibration(
-        string savePath,
-        string mode,
-        double[][] matrix,
-        double pixelSize,
-        double reprojectionError,
-        IReadOnlyList<PointPair> pairs)
+    private static Point2f ToPoint2f(Point2d point)
     {
-        try
-        {
-            var directory = Path.GetDirectoryName(savePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            var payload = new Dictionary<string, object>
-            {
-                { "CalibrationMode", mode },
-                { "TransformMatrix", matrix },
-                { "PixelSize", pixelSize },
-                { "ReprojectionError", reprojectionError },
-                { "PointPairs", pairs.Select(p => new
-                    {
-                        ImagePoint = new { p.ImagePoint.X, p.ImagePoint.Y },
-                        WorldPoint = new { p.WorldPoint.X, p.WorldPoint.Y }
-                    }).ToList()
-                },
-                { "Timestamp", DateTime.UtcNow }
-            };
-
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
-            File.WriteAllText(savePath, json);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to save calibration data to {Path}", savePath);
-        }
+        return new Point2f((float)point.X, (float)point.Y);
     }
 
     private static void DrawCalibrationPoints(Mat image, IReadOnlyList<PointPair> pointPairs)
@@ -506,10 +841,18 @@ public class NPointCalibrationOperator : OperatorBase
             var x = (int)Math.Round(pointPairs[i].ImagePoint.X);
             var y = (int)Math.Round(pointPairs[i].ImagePoint.Y);
             Cv2.Circle(image, new Point(x, y), 4, new Scalar(0, 255, 0), -1);
-            Cv2.PutText(image, (i + 1).ToString(), new Point(x + 6, y - 6), HersheyFonts.HersheySimplex, 0.5, new Scalar(0, 255, 255), 1);
+            Cv2.PutText(
+                image,
+                (i + 1).ToString(CultureInfo.InvariantCulture),
+                new Point(x + 6, y - 6),
+                HersheyFonts.HersheySimplex,
+                0.5,
+                new Scalar(0, 255, 255),
+                1);
         }
     }
 
     private readonly record struct PointPair(Position ImagePoint, Position WorldPoint);
-}
 
+    private readonly record struct ReprojectionErrorStats(double MeanError, double MaxError, int InlierCount, double InlierRatio);
+}

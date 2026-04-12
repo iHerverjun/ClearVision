@@ -69,6 +69,12 @@ public static class OperatorModuleCatalog
                 or OperatorType.NPointCalibration
                 or OperatorType.CalibrationLoader
                 or OperatorType.TranslationRotationCalibration
+                or OperatorType.HandEyeCalibration
+                or OperatorType.HandEyeCalibrationValidator
+                or OperatorType.FisheyeCalibration
+                or OperatorType.FisheyeUndistort
+                or OperatorType.StereoCalibration
+                or OperatorType.PixelToWorldTransform
                 => OperatorModule.Calibration,
 
             OperatorType.ModbusCommunication

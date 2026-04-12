@@ -1,68 +1,23 @@
-# Pixel To World Transform / PixelToWorldTransform
+# 像素-世界坐标变换 / PixelToWorldTransform
 
-## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
-|------|------|
-| 类名 (Class) | `PixelToWorldTransformOperator` |
-| 枚举值 (Enum) | `OperatorType.PixelToWorldTransform` |
-| 分类 (Category) | 标定 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+## 定位
+- 使用 `CalibrationBundleV2` 在像素坐标与世界坐标之间做双向变换。
 
-## 算法原理 / Algorithm Principle
-> 中文：Transforms between pixel coordinates and world plane coordinates using calibration data. Supports both forward (pixel→world) and inverse (world→pixel) transformations.。
-> English: Transforms between pixel coordinates and world plane coordinates using calibration data. Supports both forward (pixel→world) and inverse (world→pixel) transformations..
+## 输入
+- `Points`：待变换点集。
+- `CalibrationData`：`CalibrationBundleV2` JSON。
+- 可选 `Image`：用于可视化。
 
-## 实现策略 / Implementation Strategy
-> 中文：TODO：补充实现策略与方案对比。
-> English: TODO: Add implementation strategy and alternatives comparison.
+## 输出
+- `TransformedPoints`
+- `TransformResult`（误差/条件数等诊断）
+- `Image`（可视化）
 
-## 核心 API 调用链 / Core API Call Chain
-- TODO：补充关键 API 调用链
+## 支持路径
+- `Transform2D` 平面映射路径（`scaleOffset/similarity/affine/homography`）。
+- `intrinsics + extrinsics + worldPlaneZ` 投影路径（实现支持时）。
 
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `CalibrationFile` | `file` | "" | - | - |
-| `TransformMode` | `enum` | PixelToWorld | - | - |
-| `WorldPlaneZ` | `double` | 0 | - | - |
-| `UnitScale` | `double` | 1 | [0.0001, 10000] | - |
-| `InputPointX` | `double` | 0 | - | - |
-| `InputPointY` | `double` | 0 | - | - |
-| `UseDistortion` | `bool` | true | - | - |
-| `OutputCoordinateSystem` | `enum` | World | - | - |
-| `GenerateReport` | `bool` | true | - | - |
-
-## 输入/输出端口 / Input/Output Ports
-### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | Input Image (Optional) | `Image` | No | - |
-| `Points` | Input Points (Pixel or World) | `PointList` | No | - |
-| `CalibrationData` | Calibration Data JSON | `String` | No | - |
-
-### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `Image` | Visualization Image | `Image` | - |
-| `TransformedPoints` | Transformed Points | `PointList` | - |
-| `TransformResult` | Transform Result Details | `Any` | - |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | O(?) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | ? |
-
-## 适用场景 / Use Cases
-- 适合 (Suitable)：TODO
-- 不适合 (Not Suitable)：TODO
-
-## 已知限制 / Known Limitations
-1. TODO
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+## 验收门槛
+- `schemaVersion=2`。
+- `quality.accepted=true`。
+- 模型与矩阵维度匹配。

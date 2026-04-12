@@ -10,68 +10,85 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：四边形透视校正。
-> English: 四边形透视校正.
+该算子利用单应性矩阵对图像做透视变换，用于视角校正或几何对齐。
+
+> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
 
 ## 实现策略 / Implementation Strategy
-> 中文：TODO：补充实现策略与方案对比。
-> English: TODO: Add implementation strategy and alternatives comparison.
+- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
+- 先校验输入图像与参数，再进入核心处理，避免空输入或非法格式直接进入底层 API。
+- 结果通过 `CreateImageOutput(...)` 封装，运行时通常附带 `Width` / `Height` 等基础字段。
 
 ## 核心 API 调用链 / Core API Call Chain
-- TODO：补充关键 API 调用链
+1. `TryGetInputImage(...)`
+2. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
+3. `Cv2.GetPerspectiveTransform`
+4. `Cv2.WarpPerspective`
+5. `CreateImageOutput(...)`
 
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
-| `SrcPointsJson` | `string` | "" | - | - |
-| `DstPointsJson` | `string` | "" | - | - |
-| `SrcX1` | `double` | 0 | - | - |
-| `SrcY1` | `double` | 0 | - | - |
-| `SrcX2` | `double` | 100 | - | - |
-| `SrcY2` | `double` | 0 | - | - |
-| `SrcX3` | `double` | 100 | - | - |
-| `SrcY3` | `double` | 100 | - | - |
-| `SrcX4` | `double` | 0 | - | - |
-| `SrcY4` | `double` | 100 | - | - |
-| `DstX1` | `double` | 0 | - | - |
-| `DstY1` | `double` | 0 | - | - |
-| `DstX2` | `double` | 640 | - | - |
-| `DstY2` | `double` | 0 | - | - |
-| `DstX3` | `double` | 640 | - | - |
-| `DstY3` | `double` | 480 | - | - |
-| `DstX4` | `double` | 0 | - | - |
-| `DstY4` | `double` | 480 | - | - |
-| `OutputWidth` | `int` | 640 | [1, 8192] | - |
-| `OutputHeight` | `int` | 480 | [1, 8192] | - |
+| `SrcPointsJson` | `string` | `""` | - | 控制“SrcPointsJson”这一实现参数，建议结合现场样本调节。 |
+| `DstPointsJson` | `string` | `""` | - | 控制“DstPointsJson”这一实现参数，建议结合现场样本调节。 |
+| `SrcX1` | `double` | `0.0` | - | 控制“SrcX1”这一实现参数，建议结合现场样本调节。 |
+| `SrcY1` | `double` | `0.0` | - | 控制“SrcY1”这一实现参数，建议结合现场样本调节。 |
+| `SrcX2` | `double` | `100.0` | - | 控制“SrcX2”这一实现参数，建议结合现场样本调节。 |
+| `SrcY2` | `double` | `0.0` | - | 控制“SrcY2”这一实现参数，建议结合现场样本调节。 |
+| `SrcX3` | `double` | `100.0` | - | 控制“SrcX3”这一实现参数，建议结合现场样本调节。 |
+| `SrcY3` | `double` | `100.0` | - | 控制“SrcY3”这一实现参数，建议结合现场样本调节。 |
+| `SrcX4` | `double` | `0.0` | - | 控制“SrcX4”这一实现参数，建议结合现场样本调节。 |
+| `SrcY4` | `double` | `100.0` | - | 控制“SrcY4”这一实现参数，建议结合现场样本调节。 |
+| `DstX1` | `double` | `0.0` | - | 控制“DstX1”这一实现参数，建议结合现场样本调节。 |
+| `DstY1` | `double` | `0.0` | - | 控制“DstY1”这一实现参数，建议结合现场样本调节。 |
+| `DstX2` | `double` | `640.0` | - | 控制“DstX2”这一实现参数，建议结合现场样本调节。 |
+| `DstY2` | `double` | `0.0` | - | 控制“DstY2”这一实现参数，建议结合现场样本调节。 |
+| `DstX3` | `double` | `640.0` | - | 控制“DstX3”这一实现参数，建议结合现场样本调节。 |
+| `DstY3` | `double` | `480.0` | - | 控制“DstY3”这一实现参数，建议结合现场样本调节。 |
+| `DstX4` | `double` | `0.0` | - | 控制“DstX4”这一实现参数，建议结合现场样本调节。 |
+| `DstY4` | `double` | `480.0` | - | 控制“DstY4”这一实现参数，建议结合现场样本调节。 |
+| `OutputWidth` | `int` | `640` | [1, 8192] | 控制“OutputWidth”这一实现参数，建议结合现场样本调节。 |
+| `OutputHeight` | `int` | `480` | [1, 8192] | 控制“OutputHeight”这一实现参数，建议结合现场样本调节。 |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Image` | 图像 | `Image` | Yes | - |
-| `SrcPoints` | 源点集合 | `PointList` | No | - |
-| `DstPoints` | 目标点集合 | `PointList` | No | - |
+| `Image` | 图像 | `Image` | Yes | 输入待处理图像。 |
+| `SrcPoints` | 源点集合 | `PointList` | No | 提供点位输入。 |
+| `DstPoints` | 目标点集合 | `PointList` | No | 提供点位输入。 |
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Image` | 图像 | `Image` | - |
+| `Image` | 图像 | `Image` | 输出处理后的结果图像。 |
+### 运行时附加输出 / Runtime Additional Outputs
+| 名称 (Name) | 数据类型 (DataType) | 说明 (Description) |
+|------|------|------|
+| `Width` | `Integer` | 输出图像宽度。 |
+| `Height` | `Integer` | 输出图像高度。 |
+| `PointSetMode` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
+| `PointCount` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
 
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
 |------|------|
-| 时间复杂度 (Time Complexity) | O(?) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | ? |
+| 时间复杂度 (Time Complexity) | 多数路径近似随输入规模线性增长。 |
+| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
+| 内存特征 (Memory Profile) | 通常需要为中间图像、结果图和输出封装分配额外内存；峰值随图像尺寸和中间副本数量增长。 |
 
 ## 适用场景 / Use Cases
-- 适合 (Suitable)：TODO
-- 不适合 (Not Suitable)：TODO
+- 适合做坐标变换、畸变校正和几何纠正。
+- 适合在测量、定位和机器人引导前统一参考系。
+- 不适合在标定数据质量差时直接作为精密依据。
+- 不适合跳过标定参数有效性检查。
 
 ## 已知限制 / Known Limitations
-1. TODO
+1. 当前实现通常以图像作为主要输出载体；若下游只关心数值，还需要同步读取附加字段。
 
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
+| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
+| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |

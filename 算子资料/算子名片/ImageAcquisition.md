@@ -10,53 +10,66 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：从文件或相机采集图像。
-> English: 从文件或相机采集图像.
+该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。
+
+> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
 
 ## 实现策略 / Implementation Strategy
-> 中文：TODO：补充实现策略与方案对比。
-> English: TODO: Add implementation strategy and alternatives comparison.
+- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
+- 结果通过 `CreateImageOutput(...)` 封装，运行时通常附带 `Width` / `Height` 等基础字段。
 
 ## 核心 API 调用链 / Core API Call Chain
-- TODO：补充关键 API 调用链
+1. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
+2. `Cv2.ImDecode`
+3. `Cv2.ImRead`
+4. `File.Exists`
+5. `CreateImageOutput(...)`
 
 ## 参数说明 / Parameters
 | 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
 |--------|------|--------|------|------|
-| `SourceType` | `enum` | File | - | - |
-| `FilePath` | `file` | "" | - | - |
-| `CameraId` | `cameraBinding` | "" | - | - |
-| `ExposureTime` | `double` | 5000 | >= 1 | - |
-| `Gain` | `double` | 1 | >= 0 | - |
-| `TriggerMode` | `enum` | Software | - | - |
+| `sourceType` | `enum` | `"file"` | file/文件；camera/相机 | 操作类型或转换类型。 |
+| `filePath` | `file` | `""` | - | 文件或资源路径。 |
+| `cameraId` | `cameraBinding` | `""` | - | 控制“cameraId”这一实现参数，建议结合现场样本调节。 |
 
 ## 输入/输出端口 / Input/Output Ports
 ### 输入 / Inputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
 |------|------|------|------|------|
-| `Image` | 输入图像 | `Image` | No | - |
-| `FilePath` | 文件路径输入 | `String` | No | - |
+
 
 ### 输出 / Outputs
 | 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
 |------|------|------|------|
-| `Image` | 图像 | `Image` | - |
+| `Image` | 图像 | `Image` | 输出处理后的结果图像。 |
+### 运行时附加输出 / Runtime Additional Outputs
+| 名称 (Name) | 数据类型 (DataType) | 说明 (Description) |
+|------|------|------|
+| `Width` | `Integer` | 输出图像宽度。 |
+| `Height` | `Integer` | 输出图像高度。 |
+| `Channels` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
+| `Source` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
+| `CameraId` | `Auto` | 当前实现中的运行时附加字段，具体语义以源码输出逻辑为准。 |
 
 ## 性能特征 / Performance
 | 指标 (Metric) | 值 (Value) |
 |------|------|
-| 时间复杂度 (Time Complexity) | O(?) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | ? |
+| 时间复杂度 (Time Complexity) | 多数路径近似随输入规模线性增长。 |
+| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
+| 内存特征 (Memory Profile) | 通常需要为中间图像、结果图和输出封装分配额外内存；峰值随图像尺寸和中间副本数量增长。 |
 
 ## 适用场景 / Use Cases
-- 适合 (Suitable)：TODO
-- 不适合 (Not Suitable)：TODO
+- 适合文件、结果、采集和外部存储交互。
+- 适合把流程结果落盘、输出或接入外围系统。
+- 不适合忽略路径、权限和资源可用性检查。
+- 不适合把 I/O 成功当成业务成功。
 
 ## 已知限制 / Known Limitations
-1. TODO
+1. 当前实现通常以图像作为主要输出载体；若下游只关心数值，还需要同步读取附加字段。
 
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
+| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
+| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |

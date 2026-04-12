@@ -1,178 +1,210 @@
-// CoordinateTransformOperator.cs
-// 坐标转换算子 - 像素坐标到物理坐标转换
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-using System.Text.Json;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 坐标转换算子 - 像素坐标到物理坐标转换
-/// </summary>
 [OperatorMeta(
-    DisplayName = "坐标转换",
-    Description = "像素坐标到物理坐标转换",
-    Category = "标定",
+    DisplayName = "Coordinate Transform",
+    Description = "Converts pixel coordinates to physical coordinates using CalibrationBundleV2 Transform2D.",
+    Category = "Calibration",
     IconName = "coordinate-transform",
-    Keywords = new[] { "坐标", "像素", "物理", "毫米", "转换", "Coordinate", "Pixel to mm", "Physical" }
+    Keywords = new[] { "coordinate", "pixel", "physical", "calibration", "transform2d" }
 )]
-[InputPort("Image", "输入图像", PortDataType.Image, IsRequired = false)]
-[InputPort("PixelX", "像素X", PortDataType.Float, IsRequired = false)]
-[InputPort("PixelY", "像素Y", PortDataType.Float, IsRequired = false)]
-[OutputPort("Image", "结果图像", PortDataType.Image)]
-[OutputPort("PhysicalX", "物理X(mm)", PortDataType.Float)]
-[OutputPort("PhysicalY", "物理Y(mm)", PortDataType.Float)]
-[OperatorParam("PixelX", "像素X坐标", "double", DefaultValue = 0.0)]
-[OperatorParam("PixelY", "像素Y坐标", "double", DefaultValue = 0.0)]
-[OperatorParam("PixelSize", "像素尺寸(mm/px)", "double", DefaultValue = 0.01, Min = 0.0001, Max = 100.0)]
-[OperatorParam("CalibrationFile", "标定文件路径", "file", DefaultValue = "")]
+[InputPort("Image", "Input Image", PortDataType.Image, IsRequired = false)]
+[InputPort("PixelX", "Pixel X", PortDataType.Float, IsRequired = false)]
+[InputPort("PixelY", "Pixel Y", PortDataType.Float, IsRequired = false)]
+[InputPort("CalibrationData", "Calibration Bundle V2 JSON", PortDataType.String, IsRequired = false)]
+[OutputPort("Image", "Result Image", PortDataType.Image)]
+[OutputPort("PhysicalX", "Physical X", PortDataType.Float)]
+[OutputPort("PhysicalY", "Physical Y", PortDataType.Float)]
+[OperatorParam("PixelX", "Pixel X", "double", DefaultValue = 0.0)]
+[OperatorParam("PixelY", "Pixel Y", "double", DefaultValue = 0.0)]
 public class CoordinateTransformOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.CoordinateTransform;
 
-    public CoordinateTransformOperator(ILogger<CoordinateTransformOperator> logger) : base(logger) { }
+    public CoordinateTransformOperator(ILogger<CoordinateTransformOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 获取输入图像（可选）
-        ImageWrapper? imageWrapper = null;
-        if (inputs != null && inputs.TryGetValue("Image", out var imgObj))
-        {
-            ImageWrapper.TryGetFromObject(imgObj, out imageWrapper);
-        }
-
-        // 获取像素坐标
         var pixelX = GetParameterOrInput(inputs, @operator, "PixelX", 0.0);
         var pixelY = GetParameterOrInput(inputs, @operator, "PixelY", 0.0);
 
-        // 获取参数
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 0.01, 0.0001, 100.0);
-        var calibrationFile = GetStringParam(@operator, "CalibrationFile", "");
-
-        // 从标定文件加载变换矩阵（如果有）
-        double originX = 0;
-        double originY = 0;
-        double scaleX = pixelSize;
-        double scaleY = pixelSize;
-
-        if (!string.IsNullOrEmpty(calibrationFile) && File.Exists(calibrationFile))
+        if (!TryResolveCalibrationData(@operator, inputs, out var calibrationJson))
         {
-            try
-            {
-                var calibrationData = File.ReadAllText(calibrationFile);
-                var calInfo = JsonSerializer.Deserialize<CalibrationInfo>(calibrationData);
-                if (calInfo != null)
-                {
-                    originX = calInfo.OriginX;
-                    originY = calInfo.OriginY;
-                    scaleX = calInfo.ScaleX > 0 ? calInfo.ScaleX : pixelSize;
-                    scaleY = calInfo.ScaleY > 0 ? calInfo.ScaleY : pixelSize;
-                }
-            }
-            catch { }
+            return Task.FromResult(OperatorExecutionOutput.Failure("CalibrationBundleV2 data is required. Provide CalibrationData input or inline CalibrationData parameter."));
         }
 
-        // 计算物理坐标
-        var physicalX = originX + pixelX * scaleX;
-        var physicalY = originY + pixelY * scaleY;
+        if (!CalibrationBundleV2Json.TryDeserialize(calibrationJson!, out var bundle, out var parseError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Invalid CalibrationBundleV2: {parseError}"));
+        }
 
-        // 准备输出图像
-        Dictionary<string, object> outputData;
+        if (!CalibrationBundleV2Json.TryRequireAccepted(bundle, out var acceptedError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(acceptedError));
+        }
 
-        if (imageWrapper != null)
+        if (!IsSupportedKind(bundle.CalibrationKind))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"Unsupported CalibrationKind for CoordinateTransform: {bundle.CalibrationKind}."));
+        }
+
+        if (!CalibrationPlanarTransformRuntime.TryCreate(
+                bundle,
+                new[] { TransformModelV2.ScaleOffset, TransformModelV2.Similarity, TransformModelV2.Affine, TransformModelV2.Homography },
+                out var runtime,
+                out var runtimeError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(runtimeError));
+        }
+
+        if (!runtime.TryApplyForward(pixelX, pixelY, out var physicalX, out var physicalY, out var transformError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Coordinate transform failed: {transformError}"));
+        }
+
+        var outputData = new Dictionary<string, object>
+        {
+            ["PixelX"] = pixelX,
+            ["PixelY"] = pixelY,
+            ["PhysicalX"] = physicalX,
+            ["PhysicalY"] = physicalY,
+            ["TransformModel"] = runtime.Model.ToString(),
+            ["CalibrationKind"] = bundle.CalibrationKind.ToString(),
+            ["SourceFrame"] = bundle.SourceFrame,
+            ["TargetFrame"] = bundle.TargetFrame,
+            ["Unit"] = bundle.Unit
+        };
+
+        if (TryGetInputImage(inputs, "Image", out var imageWrapper) && imageWrapper != null)
         {
             var src = imageWrapper.GetMat();
             if (src.Empty())
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+                return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
             }
 
             var resultImage = src.Clone();
-
-            // 绘制标记
-            var center = new Point((int)pixelX, (int)pixelY);
-            Cv2.Circle(resultImage, center, 5, new Scalar(0, 0, 255), -1);
-            Cv2.Circle(resultImage, center, 10, new Scalar(0, 255, 0), 2);
-
-            // 显示坐标信息
-            var text = $"Pixel: ({pixelX:F1}, {pixelY:F1})";
-            var physText = $"Phys: ({physicalX:F3}, {physicalY:F3})";
-            Cv2.PutText(resultImage, text, new Point(10, 30),
-                HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
-            Cv2.PutText(resultImage, physText, new Point(10, 55),
-                HersheyFonts.HersheySimplex, 0.6, new Scalar(255, 255, 255), 2);
-
-            outputData = CreateImageOutput(resultImage, new Dictionary<string, object>
-            {
-                { "PixelX", pixelX },
-                { "PixelY", pixelY },
-                { "PhysicalX", physicalX },
-                { "PhysicalY", physicalY },
-                { "PixelSize", pixelSize },
-                { "ScaleX", scaleX },
-                { "ScaleY", scaleY }
-            });
-        }
-        else
-        {
-            outputData = new Dictionary<string, object>
-            {
-                { "Image", new byte[0] },
-                { "Width", 0 },
-                { "Height", 0 },
-                { "PixelX", pixelX },
-                { "PixelY", pixelY },
-                { "PhysicalX", physicalX },
-                { "PhysicalY", physicalY },
-                { "PixelSize", pixelSize },
-                { "ScaleX", scaleX },
-                { "ScaleY", scaleY }
-            };
+            DrawOverlay(resultImage, pixelX, pixelY, physicalX, physicalY, runtime.Model.ToString(), bundle.Unit);
+            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, outputData)));
         }
 
         return Task.FromResult(OperatorExecutionOutput.Success(outputData));
     }
 
-    private double GetParameterOrInput(Dictionary<string, object>? inputs, Operator @operator, string paramName, double defaultValue)
-    {
-        // 优先从inputs获取
-        if (inputs != null && inputs.TryGetValue(paramName, out var val))
-        {
-            try
-            {
-                return Convert.ToDouble(val);
-            }
-            catch { }
-        }
-
-        // 从参数获取
-        return GetDoubleParam(@operator, paramName, defaultValue);
-    }
-
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 0.01);
-        if (pixelSize <= 0 || pixelSize > 100)
+        var pixelX = GetDoubleParam(@operator, "PixelX", 0.0);
+        var pixelY = GetDoubleParam(@operator, "PixelY", 0.0);
+
+        if (!double.IsFinite(pixelX) || !double.IsFinite(pixelY))
         {
-            return ValidationResult.Invalid("像素尺寸必须在 0-100 mm/px 之间");
+            return ValidationResult.Invalid("PixelX and PixelY must be finite numbers.");
         }
+
         return ValidationResult.Valid();
     }
 
-    private class CalibrationInfo
+    private static bool IsSupportedKind(CalibrationKindV2 kind)
     {
-        public double OriginX { get; set; }
-        public double OriginY { get; set; }
-        public double ScaleX { get; set; }
-        public double ScaleY { get; set; }
+        return kind == CalibrationKindV2.PlanarTransform2D || kind == CalibrationKindV2.RigidTransform2D;
+    }
+
+    private static void DrawOverlay(
+        Mat image,
+        double pixelX,
+        double pixelY,
+        double physicalX,
+        double physicalY,
+        string model,
+        string unit)
+    {
+        var center = new Point((int)Math.Round(pixelX), (int)Math.Round(pixelY));
+        Cv2.Circle(image, center, 5, new Scalar(0, 0, 255), -1);
+        Cv2.Circle(image, center, 11, new Scalar(0, 255, 0), 2);
+
+        Cv2.PutText(
+            image,
+            $"Pixel: ({pixelX:F2}, {pixelY:F2})",
+            new Point(10, 30),
+            HersheyFonts.HersheySimplex,
+            0.6,
+            new Scalar(255, 255, 255),
+            2);
+        Cv2.PutText(
+            image,
+            $"Physical: ({physicalX:F4}, {physicalY:F4}) {unit}",
+            new Point(10, 55),
+            HersheyFonts.HersheySimplex,
+            0.6,
+            new Scalar(255, 255, 255),
+            2);
+        Cv2.PutText(
+            image,
+            $"Model: {model}",
+            new Point(10, 80),
+            HersheyFonts.HersheySimplex,
+            0.6,
+            new Scalar(255, 255, 255),
+            2);
+    }
+
+    private bool TryResolveCalibrationData(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        out string? calibrationData)
+    {
+        calibrationData = null;
+
+        if (inputs != null &&
+            inputs.TryGetValue("CalibrationData", out var data) &&
+            data is string inlineData &&
+            !string.IsNullOrWhiteSpace(inlineData))
+        {
+            calibrationData = inlineData;
+            return true;
+        }
+
+        var inlineParameterData = GetStringParam(@operator, "CalibrationData", string.Empty);
+        if (!string.IsNullOrWhiteSpace(inlineParameterData))
+        {
+            calibrationData = inlineParameterData;
+            return true;
+        }
+
+        return false;
+    }
+
+    private double GetParameterOrInput(
+        Dictionary<string, object>? inputs,
+        Operator @operator,
+        string paramName,
+        double defaultValue)
+    {
+        if (inputs != null && inputs.TryGetValue(paramName, out var value) && value != null)
+        {
+            try
+            {
+                return Convert.ToDouble(value);
+            }
+            catch
+            {
+                // Fall through and read parameter value.
+            }
+        }
+
+        return GetDoubleParam(@operator, paramName, defaultValue);
     }
 }

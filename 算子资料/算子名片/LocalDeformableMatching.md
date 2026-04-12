@@ -10,8 +10,8 @@
 | 作者 (Author) | 蘅芜君 |
 
 ## 算法原理 / Algorithm Principle
-> 中文：Experimental local deformable matching with verified rigid fallback and multi-candidate suppression.。
-> English: Experimental local deformable matching with verified rigid fallback and multi-candidate suppression..
+> 中文：Local deformable matching with TPS deformation field estimation, multi-candidate search and NMS-based multi-target output.。
+> English: Local deformable matching with TPS deformation field estimation, multi-candidate search and NMS-based multi-target output..
 
 ## 实现策略 / Implementation Strategy
 > 中文：TODO：补充实现策略与方案对比。
@@ -30,7 +30,7 @@
 | `MaxDeformation` | `double` | 20 | [5, 100] | - |
 | `OcclusionThreshold` | `double` | 0.3 | [0.1, 0.9] | - |
 | `MinMatchScore` | `double` | 0.6 | [0, 1] | - |
-| `EnableFallback` | `bool` | false | - | - |
+| `EnableFallback` | `bool` | true | - | - |
 | `MaxIterations` | `int` | 5 | [1, 20] | - |
 | `ConvergenceThreshold` | `double` | 0.5 | [0.1, 5] | - |
 | `MaxMatches` | `int` | 5 | [1, 20] | - |
@@ -73,4 +73,4 @@
 ## 变更记录 / Changelog
 | 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
 |------|------|----------|
-| 1.0.4 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+| 1.0.0 | 2026-03-18 | 自动生成文档骨架 / Generated skeleton |

@@ -1,60 +1,18 @@
 # 平移旋转标定 / TranslationRotationCalibration
 
-## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
-|------|------|
-| 类名 (Class) | `TranslationRotationCalibrationOperator` |
-| 枚举值 (Enum) | `OperatorType.TranslationRotationCalibration` |
-| 分类 (Category) | 标定 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+## 定位
+- 面向 2D 刚体/相似变换的标定求解。
+- 输出统一为 `CalibrationBundleV2`，并使用 `Quality.Accepted` 作为验收位。
 
-## 算法原理 / Algorithm Principle
-> 中文：Fits image-to-robot transform from calibration point pairs.。
-> English: Fits image-to-robot transform from calibration point pairs..
+## 输入
+- `CalibrationPoints`：图像坐标与机械坐标对应关系。
+- `Method`：求解方法（例如 `SVD`、`LeastSquares`）。
 
-## 实现策略 / Implementation Strategy
-> 中文：TODO：补充实现策略与方案对比。
-> English: TODO: Add implementation strategy and alternatives comparison.
+## 输出
+- `CalibrationData`：`CalibrationBundleV2` JSON。
+- 可选诊断字段：标定误差、样本数、建议信息。
 
-## 核心 API 调用链 / Core API Call Chain
-- TODO：补充关键 API 调用链
-
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `CalibrationPoints` | `string` | [] | - | - |
-| `Method` | `enum` | LeastSquares | - | - |
-| `SavePath` | `file` | "" | - | - |
-
-## 输入/输出端口 / Input/Output Ports
-### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | Image | `Image` | No | - |
-
-### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `TransformMatrix` | Transform Matrix | `Any` | - |
-| `RotationCenter` | Rotation Center | `Point` | - |
-| `CalibrationError` | Calibration Error | `Float` | - |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | O(?) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | ? |
-
-## 适用场景 / Use Cases
-- 适合 (Suitable)：TODO
-- 不适合 (Not Suitable)：TODO
-
-## 已知限制 / Known Limitations
-1. TODO
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+## 关键契约
+- `calibrationKind = rigidTransform2D`。
+- `transform2D.model` 必须和方法语义一致。
+- 奇异输入或退化点集必须失败，不能输出默认矩阵冒充成功。

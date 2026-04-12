@@ -1,23 +1,13 @@
-// FisheyeCalibrationOperator.cs
-// 鱼眼相机标定算子
-// 对标 Halcon: change_radial_distortion_cam_par
-// 作者：AI Assistant
-
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 鱼眼相机标定算子 - 支持棋盘格和圆点板标定
-/// 对标 Halcon change_radial_distortion_cam_par
-/// </summary>
 [OperatorMeta(
     DisplayName = "Fisheye Calibration",
     Description = "Calibrates fisheye camera intrinsics and distortion parameters using chessboard or circle grid patterns.",
@@ -28,8 +18,6 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Image", "Input Image", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "Result Image", PortDataType.Image)]
 [OutputPort("CalibrationData", "Calibration Data", PortDataType.String)]
-[OutputPort("CameraMatrix", "Camera Matrix", PortDataType.Any)]
-[OutputPort("DistCoeffs", "Distortion Coefficients", PortDataType.Any)]
 [OperatorParam("PatternType", "Pattern Type", "enum", DefaultValue = "Chessboard", Options = new[] { "Chessboard|Chessboard", "CircleGrid|CircleGrid" })]
 [OperatorParam("BoardWidth", "Board Width", "int", DefaultValue = 9, Min = 2, Max = 30)]
 [OperatorParam("BoardHeight", "Board Height", "int", DefaultValue = 6, Min = 2, Max = 30)]
@@ -41,6 +29,11 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("CheckConditions", "Check Conditions", "bool", DefaultValue = true)]
 public class FisheyeCalibrationOperator : OperatorBase
 {
+    private const int MinValidFolderSamples = 12;
+    private const double MeanErrorAcceptanceThreshold = 0.35;
+    private const double MaxErrorAcceptanceThreshold = 0.60;
+    private const double OutlierThresholdScale = 1.8;
+
     public override OperatorType OperatorType => OperatorType.FisheyeCalibration;
 
     public FisheyeCalibrationOperator(ILogger<FisheyeCalibrationOperator> logger) : base(logger)
@@ -61,321 +54,22 @@ public class FisheyeCalibrationOperator : OperatorBase
         var calibrationOutputPath = GetStringParam(@operator, "CalibrationOutputPath", "fisheye_calibration_result.json");
         var recomputeExtrinsic = GetBoolParam(@operator, "RecomputeExtrinsic", true);
         var checkConditions = GetBoolParam(@operator, "CheckConditions", true);
-
         var patternSize = new Size(boardWidth, boardHeight);
 
         if (mode.Equals("FolderCalibration", StringComparison.OrdinalIgnoreCase))
         {
             return ExecuteFolderCalibration(
-                patternType, patternSize, squareSize, imageFolder, 
-                calibrationOutputPath, recomputeExtrinsic, checkConditions, cancellationToken);
+                patternType,
+                patternSize,
+                squareSize,
+                imageFolder,
+                calibrationOutputPath,
+                recomputeExtrinsic,
+                checkConditions,
+                cancellationToken);
         }
 
-        return ExecuteSingleImageCalibration(inputs, patternType, patternSize, squareSize);
-    }
-
-    private Task<OperatorExecutionOutput> ExecuteSingleImageCalibration(
-        Dictionary<string, object>? inputs,
-        string patternType,
-        Size patternSize,
-        double squareSize)
-    {
-        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
-        }
-
-        var src = imageWrapper.GetMat();
-        if (src.Empty())
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
-        }
-
-        var resultImage = src.Clone();
-        using var gray = new Mat();
-        if (src.Channels() == 1)
-        {
-            src.CopyTo(gray);
-        }
-        else
-        {
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        }
-
-        if (!TryFindCalibrationCorners(gray, patternType, patternSize, out var corners) || corners.Length == 0)
-        {
-            var notFoundData = new Dictionary<string, object>
-            {
-                { "CalibrationData", "" },
-                { "Found", false },
-                { "Message", "Calibration pattern was not detected." }
-            };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, notFoundData)));
-        }
-
-        if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
-        {
-            Cv2.CornerSubPix(
-                gray,
-                corners,
-                new Size(11, 11),
-                new Size(-1, -1),
-                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
-        }
-
-        Cv2.DrawChessboardCorners(resultImage, patternSize, corners, true);
-
-        var objectPoints = CreateObjectPoints(patternSize, squareSize);
-        var imageSize = gray.Size();
-
-        // 使用兼容 OpenCvSharp4 的标定路径。当前运行时缺少 Fisheye API，回退到标准标定。
-        var (cameraMatrix, distCoeffs, rvecs, tvecs, calibrationError) = CalibrateFisheye(
-            new List<Point3f[]> { objectPoints },
-            new List<Point2f[]> { corners },
-            imageSize);
-
-        var payload = new FisheyeCalibrationPayload
-        {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = src.Width,
-            ImageHeight = src.Height,
-            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
-            DistCoeffs = FlattenMat(distCoeffs),
-            CalibrationError = calibrationError,
-            ImageCount = 1,
-            FailedFiles = new List<string>(),
-            Found = true,
-            Corners = corners.Select(c => new Point2Payload(c.X, c.Y)).ToList(),
-            ObjectPoints = objectPoints.Select(p => new Point3Payload(p.X, p.Y, p.Z)).ToList(),
-            Timestamp = DateTime.UtcNow,
-            Model = "Kannala-Brandt",
-            IsFisheye = true
-        };
-
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-
-        Cv2.PutText(
-            resultImage,
-            $"Fisheye: {corners.Length} corners, Err: {calibrationError:F4}",
-            new Point(10, 30),
-            HersheyFonts.HersheySimplex,
-            0.7,
-            new Scalar(0, 255, 0),
-            2);
-
-        var outputData = new Dictionary<string, object>
-        {
-            { "CalibrationData", json },
-            { "CameraMatrix", cameraMatrix },
-            { "DistCoeffs", distCoeffs },
-            { "Found", true },
-            { "CornerCount", corners.Length },
-            { "CalibrationError", calibrationError },
-            { "Message", $"Fisheye calibration succeeded with {corners.Length} corners." }
-        };
-
-        cameraMatrix.Dispose();
-        distCoeffs.Dispose();
-        DisposeMatArray(rvecs);
-        DisposeMatArray(tvecs);
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, outputData)));
-    }
-
-    private Task<OperatorExecutionOutput> ExecuteFolderCalibration(
-        string patternType,
-        Size patternSize,
-        double squareSize,
-        string imageFolder,
-        string outputPath,
-        bool recomputeExtrinsic,
-        bool checkConditions,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(imageFolder) || !Directory.Exists(imageFolder))
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("ImageFolder does not exist."));
-        }
-
-        var imageFiles = Directory.GetFiles(imageFolder, "*.png")
-            .Concat(Directory.GetFiles(imageFolder, "*.jpg"))
-            .Concat(Directory.GetFiles(imageFolder, "*.jpeg"))
-            .Concat(Directory.GetFiles(imageFolder, "*.bmp"))
-            .ToArray();
-
-        if (imageFiles.Length == 0)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("No calibration image was found in folder."));
-        }
-
-        var objectPointsList = new List<Point3f[]>();
-        var imagePointsList = new List<Point2f[]>();
-        var failedFiles = new List<string>();
-        Size imageSize = default;
-
-        foreach (var file in imageFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                using var img = Cv2.ImRead(file, ImreadModes.Grayscale);
-                if (img.Empty())
-                {
-                    failedFiles.Add(Path.GetFileName(file));
-                    continue;
-                }
-
-                if (imageSize == default)
-                {
-                    imageSize = img.Size();
-                }
-
-                if (!TryFindCalibrationCorners(img, patternType, patternSize, out var corners) || corners.Length == 0)
-                {
-                    failedFiles.Add(Path.GetFileName(file));
-                    continue;
-                }
-
-                if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
-                {
-                    Cv2.CornerSubPix(
-                        img,
-                        corners,
-                        new Size(11, 11),
-                        new Size(-1, -1),
-                        new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
-                }
-
-                objectPointsList.Add(CreateObjectPoints(patternSize, squareSize));
-                imagePointsList.Add(corners);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to process calibration image {File}.", file);
-                failedFiles.Add(Path.GetFileName(file));
-            }
-        }
-
-        if (objectPointsList.Count < 3)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"Need at least 3 valid images, got {objectPointsList.Count}."));
-        }
-
-        // 使用兼容 OpenCvSharp4 的标定路径。当前运行时缺少 Fisheye API，回退到标准标定。
-        var (cameraMatrix, distCoeffs, rvecs, tvecs, calibrationError) = CalibrateFisheye(
-            objectPointsList, imagePointsList, imageSize);
-
-        var payload = new FisheyeCalibrationPayload
-        {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = imageSize.Width,
-            ImageHeight = imageSize.Height,
-            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
-            DistCoeffs = FlattenMat(distCoeffs),
-            CalibrationError = calibrationError,
-            ImageCount = imageFiles.Length - failedFiles.Count,
-            FailedFiles = failedFiles,
-            Found = true,
-            Timestamp = DateTime.UtcNow,
-            Model = "Kannala-Brandt",
-            IsFisheye = true
-        };
-
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-        try
-        {
-            File.WriteAllText(outputPath, json);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to save calibration file to {Path}.", outputPath);
-        }
-
-        using var previewBase = Cv2.ImRead(imageFiles.First(), ImreadModes.Color);
-        var resultImage = previewBase.Empty()
-            ? new Mat(imageSize.Height, imageSize.Width, MatType.CV_8UC3, Scalar.Black)
-            : previewBase.Clone();
-
-        Cv2.PutText(
-            resultImage,
-            $"Fisheye: {payload.ImageCount}/{imageFiles.Length}, Err: {calibrationError:F4}",
-            new Point(10, 30),
-            HersheyFonts.HersheySimplex,
-            0.7,
-            new Scalar(0, 255, 0),
-            2);
-
-        var additionalData = new Dictionary<string, object>
-        {
-            { "CalibrationData", json },
-            { "CameraMatrix", cameraMatrix },
-            { "DistCoeffs", distCoeffs },
-            { "CalibrationError", calibrationError },
-            { "ImageCount", payload.ImageCount },
-            { "TotalImages", imageFiles.Length },
-            { "OutputPath", outputPath },
-            { "Message", $"Fisheye calibration completed with {payload.ImageCount}/{imageFiles.Length} images." }
-        };
-
-        cameraMatrix.Dispose();
-        distCoeffs.Dispose();
-        DisposeMatArray(rvecs);
-        DisposeMatArray(tvecs);
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
-    }
-
-    private static (Mat cameraMatrix, Mat distCoeffs, Mat[] rvecs, Mat[] tvecs, double calibrationError) CalibrateFisheye(
-        List<Point3f[]> objectPoints,
-        List<Point2f[]> imagePoints,
-        Size imageSize)
-    {
-        var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1);
-        var distCoeffs = new Mat(1, 8, MatType.CV_64FC1, Scalar.All(0));
-        var rvecs = new Mat[objectPoints.Count];
-        var tvecs = new Mat[objectPoints.Count];
-
-        // 初始化相机矩阵
-        cameraMatrix.Set(0, 0, imageSize.Width * 0.8);
-        cameraMatrix.Set(1, 1, imageSize.Height * 0.8);
-        cameraMatrix.Set(0, 2, imageSize.Width / 2.0);
-        cameraMatrix.Set(1, 2, imageSize.Height / 2.0);
-        cameraMatrix.Set(2, 2, 1.0);
-
-        try
-        {
-            var objectPointMats = new List<Mat>(objectPoints.Count);
-            var imagePointMats = new List<Mat>(imagePoints.Count);
-            for (var i = 0; i < objectPoints.Count; i++)
-            {
-                objectPointMats.Add(Mat.FromArray(objectPoints[i]));
-                imagePointMats.Add(Mat.FromArray(imagePoints[i]));
-            }
-
-            var rms = Cv2.CalibrateCamera(
-                objectPointMats,
-                imagePointMats,
-                imageSize,
-                cameraMatrix,
-                distCoeffs,
-                out rvecs,
-                out tvecs);
-
-            foreach (var mat in objectPointMats) mat.Dispose();
-            foreach (var mat in imagePointMats) mat.Dispose();
-
-            return (cameraMatrix, distCoeffs, rvecs, tvecs, rms);
-        }
-        catch
-        {
-            return (cameraMatrix, distCoeffs, rvecs, tvecs, double.NaN);
-        }
+        return ExecuteSingleImagePreview(inputs, patternType, patternSize);
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -407,6 +101,500 @@ public class FisheyeCalibrationOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private Task<OperatorExecutionOutput> ExecuteSingleImagePreview(
+        Dictionary<string, object>? inputs,
+        string patternType,
+        Size patternSize)
+    {
+        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
+        }
+
+        var src = imageWrapper.GetMat();
+        if (src.Empty())
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
+        }
+
+        var resultImage = src.Clone();
+        using var gray = new Mat();
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
+
+        var diagnostics = new List<string>
+        {
+            "SingleImage mode is preview only. Use FolderCalibration to produce an accepted fisheye calibration bundle."
+        };
+        var found = TryFindCalibrationCorners(gray, patternType, patternSize, out var corners) && corners.Length > 0;
+        if (found)
+        {
+            if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+            {
+                Cv2.CornerSubPix(
+                    gray,
+                    corners,
+                    new Size(11, 11),
+                    new Size(-1, -1),
+                    new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
+            }
+
+            Cv2.DrawChessboardCorners(resultImage, patternSize, corners, true);
+            diagnostics.Add($"Pattern detected with {corners.Length} corners.");
+            Cv2.PutText(resultImage, $"Preview corners: {corners.Length}", new Point(10, 30), HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 255, 0), 2);
+        }
+        else
+        {
+            diagnostics.Add("Calibration pattern was not detected.");
+            Cv2.PutText(resultImage, "Preview only: pattern not found", new Point(10, 30), HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 165, 255), 2);
+        }
+
+        var bundle = new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.FisheyeIntrinsics,
+            TransformModel = TransformModelV2.Preview,
+            SourceFrame = "image_pixel",
+            TargetFrame = "camera_normalized",
+            Unit = "px",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = src.Width,
+                Height = src.Height
+            },
+            Distortion = new CalibrationDistortionV2
+            {
+                Model = DistortionModelV2.KannalaBrandt,
+                Coefficients = Array.Empty<double>()
+            },
+            Quality = CalibrationBundleV2Helpers.CreatePreviewQuality(
+                diagnostics: diagnostics,
+                sampleCount: found ? corners.Length : 0),
+            ProducerOperator = nameof(FisheyeCalibrationOperator)
+        };
+
+        var calibrationJson = CalibrationBundleV2Json.Serialize(bundle);
+        var output = new Dictionary<string, object>
+        {
+            ["CalibrationData"] = calibrationJson,
+            ["Found"] = found,
+            ["Accepted"] = false,
+            ["CornerCount"] = found ? corners.Length : 0,
+            ["Message"] = "SingleImage mode generates preview diagnostics only."
+        };
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
+    }
+
+    private Task<OperatorExecutionOutput> ExecuteFolderCalibration(
+        string patternType,
+        Size patternSize,
+        double squareSize,
+        string imageFolder,
+        string outputPath,
+        bool recomputeExtrinsic,
+        bool checkConditions,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(imageFolder) || !Directory.Exists(imageFolder))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("ImageFolder does not exist."));
+        }
+
+        var imageFiles = EnumerateImageFiles(imageFolder);
+        if (imageFiles.Length == 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("No calibration image was found in folder."));
+        }
+
+        var failedFiles = new List<string>();
+        var samples = new List<CalibrationSample>();
+        Size? imageSize = null;
+
+        foreach (var file in imageFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                using var img = Cv2.ImRead(file, ImreadModes.Grayscale);
+                if (img.Empty())
+                {
+                    failedFiles.Add($"{Path.GetFileName(file)}: unreadable");
+                    continue;
+                }
+
+                if (imageSize == null)
+                {
+                    imageSize = img.Size();
+                }
+                else if (img.Size() != imageSize.Value)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure(
+                        $"Mixed image resolution detected. Expected {imageSize.Value.Width}x{imageSize.Value.Height}, but {Path.GetFileName(file)} is {img.Width}x{img.Height}."));
+                }
+
+                if (!TryFindCalibrationCorners(img, patternType, patternSize, out var corners) || corners.Length == 0)
+                {
+                    failedFiles.Add($"{Path.GetFileName(file)}: pattern not found");
+                    continue;
+                }
+
+                if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+                {
+                    Cv2.CornerSubPix(
+                        img,
+                        corners,
+                        new Size(11, 11),
+                        new Size(-1, -1),
+                        new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
+                }
+
+                samples.Add(new CalibrationSample(
+                    Path.GetFileName(file),
+                    CreateObjectPoints(patternSize, squareSize),
+                    corners));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to process fisheye calibration image {File}.", file);
+                failedFiles.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            }
+        }
+
+        if (imageSize == null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("No readable image was found in folder."));
+        }
+
+        if (samples.Count < MinValidFolderSamples)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"Need at least {MinValidFolderSamples} valid images. Found {samples.Count}."));
+        }
+
+        if (!TrySolveFisheyeCalibration(samples, imageSize.Value, recomputeExtrinsic, checkConditions, out var solveResult, out var solveError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(solveError));
+        }
+
+        var outlierThreshold = Math.Max(MaxErrorAcceptanceThreshold, solveResult.MeanError * OutlierThresholdScale);
+        var inlierSamples = new List<CalibrationSample>();
+        var outlierFiles = new List<string>();
+        for (var i = 0; i < samples.Count; i++)
+        {
+            if (solveResult.ViewErrors[i] <= outlierThreshold)
+            {
+                inlierSamples.Add(samples[i]);
+            }
+            else
+            {
+                outlierFiles.Add(samples[i].Source);
+            }
+        }
+
+        var finalResult = solveResult;
+        if (outlierFiles.Count > 0 && inlierSamples.Count >= MinValidFolderSamples)
+        {
+            if (TrySolveFisheyeCalibration(inlierSamples, imageSize.Value, recomputeExtrinsic, checkConditions, out var refinedResult, out var refinedError))
+            {
+                finalResult = refinedResult;
+                samples = inlierSamples;
+            }
+            else
+            {
+                Logger.LogWarning("Refined fisheye calibration failed after outlier rejection: {Error}", refinedError);
+            }
+        }
+
+        var accepted =
+            samples.Count >= MinValidFolderSamples &&
+            finalResult.MeanError <= MeanErrorAcceptanceThreshold &&
+            finalResult.MaxError <= MaxErrorAcceptanceThreshold;
+
+        var diagnostics = new List<string>
+        {
+            $"Total images: {imageFiles.Length}",
+            $"Detected valid samples: {samples.Count}",
+            $"Rejected during detection: {failedFiles.Count}",
+            $"Rejected as outliers: {outlierFiles.Count}",
+            $"Mean reprojection error: {finalResult.MeanError:F4} px",
+            $"Max reprojection error: {finalResult.MaxError:F4} px"
+        };
+
+        if (failedFiles.Count > 0)
+        {
+            diagnostics.Add($"Bad samples: {string.Join(", ", failedFiles.Take(10))}");
+        }
+
+        if (outlierFiles.Count > 0)
+        {
+            diagnostics.Add($"Outlier samples: {string.Join(", ", outlierFiles.Take(10))}");
+        }
+
+        if (!accepted)
+        {
+            diagnostics.Add($"Quality gate failed. Thresholds: mean<={MeanErrorAcceptanceThreshold:F2}, max<={MaxErrorAcceptanceThreshold:F2}, minSamples>={MinValidFolderSamples}.");
+        }
+        else
+        {
+            diagnostics.Add("Quality gate passed.");
+        }
+
+        var bundle = new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.FisheyeIntrinsics,
+            TransformModel = TransformModelV2.Projection,
+            SourceFrame = "image_pixel",
+            TargetFrame = "camera_normalized",
+            Unit = "px",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = imageSize.Value.Width,
+                Height = imageSize.Value.Height
+            },
+            Intrinsics = new CalibrationIntrinsicsV2
+            {
+                CameraMatrix = finalResult.CameraMatrix
+            },
+            Distortion = new CalibrationDistortionV2
+            {
+                Model = DistortionModelV2.KannalaBrandt,
+                Coefficients = finalResult.DistCoeffs
+            },
+            Quality = new CalibrationQualityV2
+            {
+                Accepted = accepted,
+                MeanError = finalResult.MeanError,
+                MaxError = finalResult.MaxError,
+                InlierCount = samples.Count,
+                TotalSampleCount = imageFiles.Length,
+                Diagnostics = diagnostics
+            },
+            ProducerOperator = nameof(FisheyeCalibrationOperator)
+        };
+
+        var calibrationJson = CalibrationBundleV2Json.Serialize(bundle);
+        TryWriteOutputFile(outputPath, calibrationJson);
+
+        using var previewBase = Cv2.ImRead(imageFiles[0], ImreadModes.Color);
+        var resultImage = previewBase.Empty()
+            ? new Mat(imageSize.Value.Height, imageSize.Value.Width, MatType.CV_8UC3, Scalar.Black)
+            : previewBase.Clone();
+        Cv2.PutText(
+            resultImage,
+            $"Accepted: {accepted}  Mean: {finalResult.MeanError:F3}px  Max: {finalResult.MaxError:F3}px",
+            new Point(10, 30),
+            HersheyFonts.HersheySimplex,
+            0.65,
+            accepted ? new Scalar(0, 255, 0) : new Scalar(0, 165, 255),
+            2);
+
+        var output = new Dictionary<string, object>
+        {
+            ["CalibrationData"] = calibrationJson,
+            ["Accepted"] = accepted,
+            ["CalibrationError"] = finalResult.MeanError,
+            ["MaxReprojectionError"] = finalResult.MaxError,
+            ["ImageCount"] = samples.Count,
+            ["TotalImages"] = imageFiles.Length,
+            ["OutputPath"] = outputPath,
+            ["Message"] = accepted
+                ? $"Fisheye calibration accepted with {samples.Count}/{imageFiles.Length} samples."
+                : "Fisheye calibration completed but did not pass quality acceptance."
+        };
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
+    }
+
+    private static bool TrySolveFisheyeCalibration(
+        IReadOnlyList<CalibrationSample> samples,
+        Size imageSize,
+        bool recomputeExtrinsic,
+        bool checkConditions,
+        out CalibrationSolveResult result,
+        out string error)
+    {
+        result = new CalibrationSolveResult(Array.Empty<double[]>(), Array.Empty<double>(), Array.Empty<double>(), 0, 0);
+        error = string.Empty;
+
+        var objectPointMats = new List<Mat>(samples.Count);
+        var imagePointMats = new List<Mat>(samples.Count);
+        IEnumerable<Mat>? rvecEnumerable = null;
+        IEnumerable<Mat>? tvecEnumerable = null;
+
+        try
+        {
+            foreach (var sample in samples)
+            {
+                objectPointMats.Add(Mat.FromArray(sample.ObjectPoints));
+                imagePointMats.Add(Mat.FromArray(sample.ImagePoints));
+            }
+
+            using var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1, Scalar.All(0));
+            cameraMatrix.Set(0, 0, imageSize.Width * 0.8);
+            cameraMatrix.Set(1, 1, imageSize.Height * 0.8);
+            cameraMatrix.Set(0, 2, imageSize.Width / 2.0);
+            cameraMatrix.Set(1, 2, imageSize.Height / 2.0);
+            cameraMatrix.Set(2, 2, 1.0);
+
+            using var distCoeffs = new Mat(4, 1, MatType.CV_64FC1, Scalar.All(0));
+
+            var flags = FishEyeCalibrationFlags.UseIntrinsicGuess;
+            if (recomputeExtrinsic)
+            {
+                flags |= FishEyeCalibrationFlags.RecomputeExtrinsic;
+            }
+
+            if (checkConditions)
+            {
+                flags |= FishEyeCalibrationFlags.CheckCond;
+            }
+
+            Cv2.FishEye.Calibrate(
+                objectPointMats,
+                imagePointMats,
+                imageSize,
+                cameraMatrix,
+                distCoeffs,
+                out rvecEnumerable,
+                out tvecEnumerable,
+                flags,
+                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 100, 1e-7));
+
+            var rvecs = rvecEnumerable?.ToArray() ?? Array.Empty<Mat>();
+            var tvecs = tvecEnumerable?.ToArray() ?? Array.Empty<Mat>();
+            var viewErrors = ComputePerViewErrors(samples, rvecs, tvecs, cameraMatrix, distCoeffs);
+            var mean = viewErrors.Length == 0 ? 0 : viewErrors.Average();
+            var max = viewErrors.Length == 0 ? 0 : viewErrors.Max();
+
+            result = new CalibrationSolveResult(
+                CalibrationBundleV2Helpers.ToJaggedMatrix(cameraMatrix),
+                CalibrationBundleV2Helpers.ToFlatVector(distCoeffs),
+                viewErrors,
+                mean,
+                max);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Fisheye calibration failed without fallback: {ex.Message}";
+            return false;
+        }
+        finally
+        {
+            DisposeMatList(objectPointMats);
+            DisposeMatList(imagePointMats);
+            DisposeMatList(rvecEnumerable);
+            DisposeMatList(tvecEnumerable);
+        }
+    }
+
+    private static double[] ComputePerViewErrors(
+        IReadOnlyList<CalibrationSample> samples,
+        IReadOnlyList<Mat> rvecs,
+        IReadOnlyList<Mat> tvecs,
+        Mat cameraMatrix,
+        Mat distCoeffs)
+    {
+        if (rvecs.Count != samples.Count || tvecs.Count != samples.Count)
+        {
+            return Enumerable.Repeat(double.PositiveInfinity, samples.Count).ToArray();
+        }
+
+        var errors = new double[samples.Count];
+        for (var i = 0; i < samples.Count; i++)
+        {
+            using var objectPoints = Mat.FromArray(samples[i].ObjectPoints);
+            using var projected = new Mat();
+            using var jacobian = new Mat();
+            Cv2.FishEye.ProjectPoints(
+                objectPoints,
+                projected,
+                rvecs[i],
+                tvecs[i],
+                cameraMatrix,
+                distCoeffs,
+                0,
+                jacobian);
+
+            var projectedPoints = ReadPoint2fVector(projected);
+            if (projectedPoints.Length != samples[i].ImagePoints.Length)
+            {
+                errors[i] = double.PositiveInfinity;
+                continue;
+            }
+
+            double sumSq = 0;
+            for (var p = 0; p < projectedPoints.Length; p++)
+            {
+                var dx = projectedPoints[p].X - samples[i].ImagePoints[p].X;
+                var dy = projectedPoints[p].Y - samples[i].ImagePoints[p].Y;
+                sumSq += dx * dx + dy * dy;
+            }
+
+            errors[i] = Math.Sqrt(sumSq / projectedPoints.Length);
+        }
+
+        return errors;
+    }
+
+    private static Point2f[] ReadPoint2fVector(Mat mat)
+    {
+        if (mat.Empty())
+        {
+            return Array.Empty<Point2f>();
+        }
+
+        var count = Math.Max(mat.Rows, mat.Cols);
+        var points = new Point2f[count];
+        for (var i = 0; i < count; i++)
+        {
+            points[i] = mat.Rows >= mat.Cols ? mat.At<Point2f>(i, 0) : mat.At<Point2f>(0, i);
+        }
+
+        return points;
+    }
+
+    private void TryWriteOutputFile(string outputPath, string json)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(outputPath, json);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save fisheye calibration file to {Path}.", outputPath);
+        }
+    }
+
+    private static string[] EnumerateImageFiles(string folder)
+    {
+        return Directory.GetFiles(folder, "*.*")
+            .Where(path =>
+            {
+                var ext = Path.GetExtension(path);
+                return ext.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".tif", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".tiff", StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool TryFindCalibrationCorners(Mat gray, string patternType, Size patternSize, out Point2f[] corners)
@@ -444,66 +632,25 @@ public class FisheyeCalibrationOperator : OperatorBase
         return points;
     }
 
-    private static double[][] ToJaggedMatrix3x3(Mat cameraMatrix)
+    private static void DisposeMatList(IEnumerable<Mat>? mats)
     {
-        return new[]
+        if (mats == null)
         {
-            new[] { cameraMatrix.At<double>(0, 0), cameraMatrix.At<double>(0, 1), cameraMatrix.At<double>(0, 2) },
-            new[] { cameraMatrix.At<double>(1, 0), cameraMatrix.At<double>(1, 1), cameraMatrix.At<double>(1, 2) },
-            new[] { cameraMatrix.At<double>(2, 0), cameraMatrix.At<double>(2, 1), cameraMatrix.At<double>(2, 2) }
-        };
-    }
-
-    private static double[] FlattenMat(Mat mat)
-    {
-        if (mat.Empty())
-        {
-            return Array.Empty<double>();
+            return;
         }
 
-        var result = new double[mat.Rows * mat.Cols];
-        var index = 0;
-        for (var r = 0; r < mat.Rows; r++)
-        {
-            for (var c = 0; c < mat.Cols; c++)
-            {
-                result[index++] = mat.At<double>(r, c);
-            }
-        }
-
-        return result;
-    }
-
-    private static void DisposeMatArray(Mat[]? mats)
-    {
-        if (mats == null) return;
         foreach (var mat in mats)
         {
-            mat?.Dispose();
+            mat.Dispose();
         }
     }
 
-    private sealed class FisheyeCalibrationPayload
-    {
-        public string PatternType { get; set; } = string.Empty;
-        public int BoardWidth { get; set; }
-        public int BoardHeight { get; set; }
-        public double SquareSize { get; set; }
-        public int ImageWidth { get; set; }
-        public int ImageHeight { get; set; }
-        public double[][] CameraMatrix { get; set; } = Array.Empty<double[]>();
-        public double[] DistCoeffs { get; set; } = Array.Empty<double>();
-        public double CalibrationError { get; set; }
-        public int ImageCount { get; set; }
-        public List<string> FailedFiles { get; set; } = new();
-        public bool Found { get; set; }
-        public List<Point2Payload>? Corners { get; set; }
-        public List<Point3Payload>? ObjectPoints { get; set; }
-        public DateTime Timestamp { get; set; }
-        public string Model { get; set; } = "Kannala-Brandt";
-        public bool IsFisheye { get; set; } = true;
-    }
+    private sealed record CalibrationSample(string Source, Point3f[] ObjectPoints, Point2f[] ImagePoints);
 
-    private readonly record struct Point2Payload(double X, double Y);
-    private readonly record struct Point3Payload(double X, double Y, double Z);
+    private sealed record CalibrationSolveResult(
+        double[][] CameraMatrix,
+        double[] DistCoeffs,
+        double[] ViewErrors,
+        double MeanError,
+        double MaxError);
 }

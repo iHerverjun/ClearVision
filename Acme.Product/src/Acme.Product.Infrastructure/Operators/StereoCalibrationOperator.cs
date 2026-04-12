@@ -3,12 +3,11 @@
 // 对标 Halcon: binocular_calibration / gen_binocular_rectification_map
 // 作者：AI Assistant
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -148,29 +147,36 @@ public class StereoCalibrationOperator : OperatorBase
                 new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
         }
 
-        var objectPoints = CreateObjectPoints(patternSize, squareSize);
         var imageSize = leftGray.Size();
 
         // 单个图像对无法进行完整双目标定，只能验证角点检测
         var resultImage = CreateStereoVisualization(leftMat, rightMat, leftCorners, rightCorners, patternSize);
 
-        var payload = new StereoCalibrationPayload
+        var bundle = new CalibrationBundleV2
         {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = imageSize.Width,
-            ImageHeight = imageSize.Height,
-            ImageCount = 1,
-            Found = true,
-            Message = "Single pair mode: corner detection successful. Use FolderCalibration for full stereo calibration.",
-            LeftCorners = leftCorners.Select(c => new Point2Payload(c.X, c.Y)).ToList(),
-            RightCorners = rightCorners.Select(c => new Point2Payload(c.X, c.Y)).ToList(),
-            Timestamp = DateTime.UtcNow
+            CalibrationKind = CalibrationKindV2.StereoRig,
+            TransformModel = TransformModelV2.Preview,
+            SourceFrame = "left_camera",
+            TargetFrame = "right_camera",
+            Unit = "mm",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = imageSize.Width,
+                Height = imageSize.Height
+            },
+            Quality = CalibrationBundleV2Helpers.CreatePreviewQuality(
+                new[]
+                {
+                    "SinglePair mode is preview-only.",
+                    $"PatternType={patternType}",
+                    $"CornersLeft={leftCorners.Length}",
+                    $"CornersRight={rightCorners.Length}"
+                },
+                sampleCount: 1),
+            ProducerOperator = nameof(StereoCalibrationOperator)
         };
 
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        var json = CalibrationBundleV2Json.Serialize(bundle);
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, new Dictionary<string, object>
         {
@@ -178,7 +184,8 @@ public class StereoCalibrationOperator : OperatorBase
             { "Found", true },
             { "LeftCornerCount", leftCorners.Length },
             { "RightCornerCount", rightCorners.Length },
-            { "Message", payload.Message }
+            { "Accepted", false },
+            { "Message", "Single pair mode: preview only. Use FolderCalibration for accepted stereo bundle." }
         })));
     }
 
@@ -298,14 +305,18 @@ public class StereoCalibrationOperator : OperatorBase
         // 执行立体校正
         var rectificationResult = PerformStereoRectification(
             calibrationResult, imageSize, zeroDisparity, alpha);
+        if (!rectificationResult.Success)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Stereo rectification failed."));
+        }
 
         // 保存结果
-        var payload = CreateCalibrationPayload(
+        var bundle = CreateCalibrationBundleV2(
             patternType, patternSize, squareSize, imageSize,
             objectPointsList.Count, leftFiles.Length, failedPairs,
             calibrationResult, rectificationResult);
 
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        var json = CalibrationBundleV2Json.Serialize(bundle);
         try
         {
             File.WriteAllText(outputPath, json);
@@ -323,6 +334,7 @@ public class StereoCalibrationOperator : OperatorBase
         var outputData = new Dictionary<string, object>
         {
             { "CalibrationData", json },
+            { "Accepted", true },
             { "CameraMatrixLeft", calibrationResult.CameraMatrixLeft },
             { "DistCoeffsLeft", calibrationResult.DistCoeffsLeft },
             { "CameraMatrixRight", calibrationResult.CameraMatrixRight },
@@ -444,6 +456,7 @@ public class StereoCalibrationOperator : OperatorBase
             result.DisparityToDepth = new Mat(4, 4, MatType.CV_64FC1);
 
             // 执行立体校正
+            var rectificationFlags = zeroDisparity ? StereoRectificationFlags.ZeroDisparity : (StereoRectificationFlags)0;
             Cv2.StereoRectify(
                 calibration.CameraMatrixLeft,
                 calibration.DistCoeffsLeft,
@@ -457,7 +470,7 @@ public class StereoCalibrationOperator : OperatorBase
                 result.LeftProjection,
                 result.RightProjection,
                 result.DisparityToDepth,
-                StereoRectificationFlags.ZeroDisparity,
+                rectificationFlags,
                 alpha,
                 imageSize,
                 out var leftValidRoi,
@@ -694,39 +707,68 @@ public class StereoCalibrationOperator : OperatorBase
         }
     }
 
-    private StereoCalibrationPayload CreateCalibrationPayload(
+    private CalibrationBundleV2 CreateCalibrationBundleV2(
         string patternType, Size patternSize, double squareSize, Size imageSize,
         int validPairs, int totalPairs, List<int> failedPairs,
         StereoCalibrationResult calib, StereoRectificationResult rect)
     {
-        return new StereoCalibrationPayload
+        var leftDistCoeffs = FlattenMat(calib.DistCoeffsLeft);
+        var rightDistCoeffs = FlattenMat(calib.DistCoeffsRight);
+        var diagnostics = new List<string>
         {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = imageSize.Width,
-            ImageHeight = imageSize.Height,
-            ImageCount = validPairs,
-            TotalPairs = totalPairs,
-            FailedPairIndices = failedPairs,
-            Found = true,
-            Timestamp = DateTime.UtcNow,
-            CameraMatrixLeft = ToJaggedMatrix(calib.CameraMatrixLeft),
-            DistCoeffsLeft = FlattenMat(calib.DistCoeffsLeft),
-            CameraMatrixRight = ToJaggedMatrix(calib.CameraMatrixRight),
-            DistCoeffsRight = FlattenMat(calib.DistCoeffsRight),
-            RotationMatrix = ToJaggedMatrix(calib.RotationMatrix),
-            TranslationVector = FlattenMat(calib.TranslationVector),
-            EssentialMatrix = ToJaggedMatrix(calib.EssentialMatrix),
-            FundamentalMatrix = ToJaggedMatrix(calib.FundamentalMatrix),
-            ReprojectionErrorLeft = calib.ReprojectionErrorLeft,
-            ReprojectionErrorRight = calib.ReprojectionErrorRight,
-            ReprojectionErrorStereo = calib.ReprojectionErrorStereo,
-            EpipolarError = calib.EpipolarError,
-            LeftValidRoi = new[] { rect.LeftValidRoi.X, rect.LeftValidRoi.Y, rect.LeftValidRoi.Width, rect.LeftValidRoi.Height },
-            RightValidRoi = new[] { rect.RightValidRoi.X, rect.RightValidRoi.Y, rect.RightValidRoi.Width, rect.RightValidRoi.Height },
-            Message = $"Stereo calibration successful. Valid pairs: {validPairs}/{totalPairs}"
+            $"PatternType={patternType}",
+            $"Board={patternSize.Width}x{patternSize.Height}",
+            $"SquareSize={squareSize.ToString("G17", System.Globalization.CultureInfo.InvariantCulture)}",
+            $"ValidPairs={validPairs}",
+            $"TotalPairs={totalPairs}",
+            $"FailedPairs={failedPairs.Count}"
+        };
+
+        return new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.StereoRig,
+            TransformModel = TransformModelV2.StereoRig,
+            SourceFrame = "left_camera",
+            TargetFrame = "right_camera",
+            Unit = "mm",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = imageSize.Width,
+                Height = imageSize.Height
+            },
+            Stereo = new StereoCalibrationDataV2
+            {
+                LeftIntrinsics = new CalibrationIntrinsicsV2
+                {
+                    CameraMatrix = ToJaggedMatrix(calib.CameraMatrixLeft)
+                },
+                RightIntrinsics = new CalibrationIntrinsicsV2
+                {
+                    CameraMatrix = ToJaggedMatrix(calib.CameraMatrixRight)
+                },
+                LeftDistortion = new CalibrationDistortionV2
+                {
+                    Model = DistortionModelV2.BrownConrady,
+                    Coefficients = leftDistCoeffs
+                },
+                RightDistortion = new CalibrationDistortionV2
+                {
+                    Model = DistortionModelV2.BrownConrady,
+                    Coefficients = rightDistCoeffs
+                },
+                Rotation = ToJaggedMatrix(calib.RotationMatrix),
+                Translation = FlattenMat(calib.TranslationVector),
+                Essential = ToJaggedMatrix(calib.EssentialMatrix),
+                Fundamental = ToJaggedMatrix(calib.FundamentalMatrix),
+                Q = ToJaggedMatrix(rect.DisparityToDepth)
+            },
+            Quality = CalibrationBundleV2Helpers.CreateAcceptedQuality(
+                calib.ReprojectionErrorStereo,
+                Math.Max(calib.ReprojectionErrorStereo, Math.Max(calib.ReprojectionErrorLeft, calib.ReprojectionErrorRight)),
+                validPairs,
+                totalPairs,
+                diagnostics),
+            ProducerOperator = nameof(StereoCalibrationOperator)
         };
     }
 

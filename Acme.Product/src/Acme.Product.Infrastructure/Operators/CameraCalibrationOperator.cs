@@ -1,12 +1,8 @@
-// CameraCalibrationOperator.cs
-// 相机标定算子
-// 根据标定板样本估计内参与畸变参数
-// 作者：蘅芜君
-using System.Text.Json;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -31,6 +27,11 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("CalibrationOutputPath", "Calibration Output Path", "string", DefaultValue = "calibration_result.json")]
 public class CameraCalibrationOperator : OperatorBase
 {
+    private const int MinValidFolderSamples = 12;
+    private const double MeanErrorAcceptanceThreshold = 0.35;
+    private const double MaxErrorAcceptanceThreshold = 0.60;
+    private const double OutlierThresholdScale = 1.8;
+
     public override OperatorType OperatorType => OperatorType.CameraCalibration;
 
     public CameraCalibrationOperator(ILogger<CameraCalibrationOperator> logger) : base(logger)
@@ -49,279 +50,14 @@ public class CameraCalibrationOperator : OperatorBase
         var mode = GetStringParam(@operator, "Mode", "SingleImage");
         var imageFolder = GetStringParam(@operator, "ImageFolder", "");
         var calibrationOutputPath = GetStringParam(@operator, "CalibrationOutputPath", "calibration_result.json");
-
         var patternSize = new Size(boardWidth, boardHeight);
+
         if (mode.Equals("FolderCalibration", StringComparison.OrdinalIgnoreCase))
         {
             return ExecuteFolderCalibration(patternType, patternSize, squareSize, imageFolder, calibrationOutputPath, cancellationToken);
         }
 
-        return ExecuteSingleImageCalibration(inputs, patternType, patternSize, squareSize);
-    }
-
-    private Task<OperatorExecutionOutput> ExecuteSingleImageCalibration(
-        Dictionary<string, object>? inputs,
-        string patternType,
-        Size patternSize,
-        double squareSize)
-    {
-        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
-        }
-
-        var src = imageWrapper.GetMat();
-        if (src.Empty())
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
-        }
-
-        var resultImage = src.Clone();
-        using var gray = new Mat();
-        if (src.Channels() == 1)
-        {
-            src.CopyTo(gray);
-        }
-        else
-        {
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        }
-
-        if (!TryFindCalibrationCorners(gray, patternType, patternSize, out var corners) || corners.Length == 0)
-        {
-            var notFoundData = new Dictionary<string, object>
-            {
-                { "CalibrationData", "" },
-                { "Found", false },
-                { "Message", "Calibration pattern was not detected." }
-            };
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, notFoundData)));
-        }
-
-        if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
-        {
-            Cv2.CornerSubPix(
-                gray,
-                corners,
-                new Size(11, 11),
-                new Size(-1, -1),
-                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
-        }
-
-        Cv2.DrawChessboardCorners(resultImage, patternSize, corners, true);
-
-        var objectPoints = CreateObjectPoints(patternSize, squareSize);
-        using var objectMat = Mat.FromArray(objectPoints);
-        using var imageMat = Mat.FromArray(corners);
-        var objectPointMats = new List<Mat> { objectMat };
-        var imagePointMats = new List<Mat> { imageMat };
-
-        using var cameraMatrix = new Mat();
-        using var distCoeffs = new Mat();
-        var reprojError = Cv2.CalibrateCamera(
-            objectPointMats,
-            imagePointMats,
-            gray.Size(),
-            cameraMatrix,
-            distCoeffs,
-            out var rvecs,
-            out var tvecs,
-            CalibrationFlags.None,
-            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 50, 1e-6));
-
-        DisposeMatArray(rvecs);
-        DisposeMatArray(tvecs);
-
-        var payload = new CalibrationPayload
-        {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = src.Width,
-            ImageHeight = src.Height,
-            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
-            DistCoeffs = FlattenMat(distCoeffs),
-            ReprojectionError = reprojError,
-            ImageCount = 1,
-            FailedFiles = new List<string>(),
-            Found = true,
-            Corners = corners.Select(c => new Point2Payload(c.X, c.Y)).ToList(),
-            ObjectPoints = objectPoints.Select(p => new Point3Payload(p.X, p.Y, p.Z)).ToList(),
-            Timestamp = DateTime.UtcNow
-        };
-
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-        Cv2.PutText(
-            resultImage,
-            $"Corners: {corners.Length}, Err: {reprojError:F4}",
-            new Point(10, 30),
-            HersheyFonts.HersheySimplex,
-            0.7,
-            new Scalar(0, 255, 0),
-            2);
-
-        var outputData = new Dictionary<string, object>
-        {
-            { "CalibrationData", json },
-            { "Found", true },
-            { "CornerCount", corners.Length },
-            { "ReprojectionError", reprojError },
-            { "Message", $"Calibration succeeded with {corners.Length} corners." }
-        };
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, outputData)));
-    }
-
-    private Task<OperatorExecutionOutput> ExecuteFolderCalibration(
-        string patternType,
-        Size patternSize,
-        double squareSize,
-        string imageFolder,
-        string outputPath,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(imageFolder) || !Directory.Exists(imageFolder))
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("ImageFolder does not exist."));
-        }
-
-        var imageFiles = Directory.GetFiles(imageFolder, "*.png")
-            .Concat(Directory.GetFiles(imageFolder, "*.jpg"))
-            .Concat(Directory.GetFiles(imageFolder, "*.jpeg"))
-            .Concat(Directory.GetFiles(imageFolder, "*.bmp"))
-            .ToArray();
-
-        if (imageFiles.Length == 0)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("No calibration image was found in folder."));
-        }
-
-        var objectPoints = new List<Mat>();
-        var imagePoints = new List<Mat>();
-        var failedFiles = new List<string>();
-        Size imageSize = default;
-
-        foreach (var file in imageFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                using var img = Cv2.ImRead(file, ImreadModes.Grayscale);
-                if (img.Empty())
-                {
-                    failedFiles.Add(Path.GetFileName(file));
-                    continue;
-                }
-
-                if (imageSize == default)
-                {
-                    imageSize = img.Size();
-                }
-
-                if (!TryFindCalibrationCorners(img, patternType, patternSize, out var corners) || corners.Length == 0)
-                {
-                    failedFiles.Add(Path.GetFileName(file));
-                    continue;
-                }
-
-                if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
-                {
-                    Cv2.CornerSubPix(
-                        img,
-                        corners,
-                        new Size(11, 11),
-                        new Size(-1, -1),
-                        new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
-                }
-
-                objectPoints.Add(Mat.FromArray(CreateObjectPoints(patternSize, squareSize)));
-                imagePoints.Add(Mat.FromArray(corners));
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to process calibration image {File}.", file);
-                failedFiles.Add(Path.GetFileName(file));
-            }
-        }
-
-        if (objectPoints.Count < 3)
-        {
-            DisposeMatList(objectPoints);
-            DisposeMatList(imagePoints);
-            return Task.FromResult(OperatorExecutionOutput.Failure($"Need at least 3 valid images, got {objectPoints.Count}."));
-        }
-
-        using var cameraMatrix = new Mat();
-        using var distCoeffs = new Mat();
-        var reprojError = Cv2.CalibrateCamera(
-            objectPoints,
-            imagePoints,
-            imageSize,
-            cameraMatrix,
-            distCoeffs,
-            out var rvecs,
-            out var tvecs,
-            CalibrationFlags.None,
-            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 50, 1e-6));
-
-        DisposeMatArray(rvecs);
-        DisposeMatArray(tvecs);
-        DisposeMatList(objectPoints);
-        DisposeMatList(imagePoints);
-
-        var payload = new CalibrationPayload
-        {
-            PatternType = patternType,
-            BoardWidth = patternSize.Width,
-            BoardHeight = patternSize.Height,
-            SquareSize = squareSize,
-            ImageWidth = imageSize.Width,
-            ImageHeight = imageSize.Height,
-            CameraMatrix = ToJaggedMatrix3x3(cameraMatrix),
-            DistCoeffs = FlattenMat(distCoeffs),
-            ReprojectionError = reprojError,
-            ImageCount = imageFiles.Length - failedFiles.Count,
-            FailedFiles = failedFiles,
-            Found = true,
-            Timestamp = DateTime.UtcNow
-        };
-
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-        try
-        {
-            File.WriteAllText(outputPath, json);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to save calibration file to {Path}.", outputPath);
-        }
-
-        using var previewBase = Cv2.ImRead(imageFiles.First(), ImreadModes.Color);
-        var resultImage = previewBase.Empty()
-            ? new Mat(imageSize.Height, imageSize.Width, MatType.CV_8UC3, Scalar.Black)
-            : previewBase.Clone();
-
-        Cv2.PutText(
-            resultImage,
-            $"Images: {payload.ImageCount}/{imageFiles.Length}, Err: {reprojError:F4}",
-            new Point(10, 30),
-            HersheyFonts.HersheySimplex,
-            0.7,
-            new Scalar(0, 255, 0),
-            2);
-
-        var additionalData = new Dictionary<string, object>
-        {
-            { "CalibrationData", json },
-            { "ReprojectionError", reprojError },
-            { "ImageCount", payload.ImageCount },
-            { "TotalImages", imageFiles.Length },
-            { "OutputPath", outputPath },
-            { "Message", $"Calibration completed with {payload.ImageCount}/{imageFiles.Length} images." }
-        };
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
+        return ExecuteSingleImagePreview(inputs, patternType, patternSize);
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -353,6 +89,332 @@ public class CameraCalibrationOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private Task<OperatorExecutionOutput> ExecuteSingleImagePreview(
+        Dictionary<string, object>? inputs,
+        string patternType,
+        Size patternSize)
+    {
+        if (!TryGetInputImage(inputs, "Image", out var imageWrapper) || imageWrapper == null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is required."));
+        }
+
+        var src = imageWrapper.GetMat();
+        if (src.Empty())
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
+        }
+
+        var resultImage = src.Clone();
+        using var gray = new Mat();
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
+
+        var diagnostics = new List<string>
+        {
+            "SingleImage mode is preview only. Use FolderCalibration to produce an accepted calibration bundle."
+        };
+        var found = TryFindCalibrationCorners(gray, patternType, patternSize, out var corners) && corners.Length > 0;
+        if (found)
+        {
+            if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+            {
+                Cv2.CornerSubPix(
+                    gray,
+                    corners,
+                    new Size(11, 11),
+                    new Size(-1, -1),
+                    new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.1));
+            }
+
+            Cv2.DrawChessboardCorners(resultImage, patternSize, corners, true);
+            diagnostics.Add($"Pattern detected with {corners.Length} corners.");
+            Cv2.PutText(resultImage, $"Preview corners: {corners.Length}", new Point(10, 30), HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 255, 0), 2);
+        }
+        else
+        {
+            diagnostics.Add("Calibration pattern was not detected.");
+            Cv2.PutText(resultImage, "Preview only: pattern not found", new Point(10, 30), HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 165, 255), 2);
+        }
+
+        var bundle = new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.CameraIntrinsics,
+            TransformModel = TransformModelV2.Preview,
+            SourceFrame = "image_pixel",
+            TargetFrame = "camera_normalized",
+            Unit = "px",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = src.Width,
+                Height = src.Height
+            },
+            Distortion = new CalibrationDistortionV2
+            {
+                Model = DistortionModelV2.BrownConrady,
+                Coefficients = Array.Empty<double>()
+            },
+            Quality = CalibrationBundleV2Helpers.CreatePreviewQuality(
+                diagnostics: diagnostics,
+                sampleCount: found ? corners.Length : 0),
+            ProducerOperator = nameof(CameraCalibrationOperator)
+        };
+
+        var calibrationJson = CalibrationBundleV2Json.Serialize(bundle);
+        var output = new Dictionary<string, object>
+        {
+            ["CalibrationData"] = calibrationJson,
+            ["Found"] = found,
+            ["Accepted"] = false,
+            ["CornerCount"] = found ? corners.Length : 0,
+            ["Message"] = "SingleImage mode generates preview diagnostics only."
+        };
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
+    }
+
+    private Task<OperatorExecutionOutput> ExecuteFolderCalibration(
+        string patternType,
+        Size patternSize,
+        double squareSize,
+        string imageFolder,
+        string outputPath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(imageFolder) || !Directory.Exists(imageFolder))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("ImageFolder does not exist."));
+        }
+
+        var imageFiles = EnumerateImageFiles(imageFolder);
+        if (imageFiles.Length == 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("No calibration image was found in folder."));
+        }
+
+        var failedFiles = new List<string>();
+        var samples = new List<CalibrationSample>();
+        Size? imageSize = null;
+
+        foreach (var file in imageFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var img = Cv2.ImRead(file, ImreadModes.Grayscale);
+                if (img.Empty())
+                {
+                    failedFiles.Add($"{Path.GetFileName(file)}: unreadable");
+                    continue;
+                }
+
+                if (imageSize == null)
+                {
+                    imageSize = img.Size();
+                }
+                else if (img.Size() != imageSize.Value)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure(
+                        $"Mixed image resolution detected. Expected {imageSize.Value.Width}x{imageSize.Value.Height}, but {Path.GetFileName(file)} is {img.Width}x{img.Height}."));
+                }
+
+                if (!TryFindCalibrationCorners(img, patternType, patternSize, out var corners) || corners.Length == 0)
+                {
+                    failedFiles.Add($"{Path.GetFileName(file)}: pattern not found");
+                    continue;
+                }
+
+                if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
+                {
+                    Cv2.CornerSubPix(
+                        img,
+                        corners,
+                        new Size(11, 11),
+                        new Size(-1, -1),
+                        new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.001));
+                }
+
+                samples.Add(new CalibrationSample(
+                    Path.GetFileName(file),
+                    CreateObjectPoints(patternSize, squareSize),
+                    corners));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to process calibration image {File}.", file);
+                failedFiles.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            }
+        }
+
+        if (imageSize == null)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("No readable image was found in folder."));
+        }
+
+        if (samples.Count < MinValidFolderSamples)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(
+                $"Need at least {MinValidFolderSamples} valid images. Found {samples.Count}."));
+        }
+
+        if (!TrySolveCalibration(samples, imageSize.Value, out var solveResult, out var solveError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Calibration failed: {solveError}"));
+        }
+
+        var outlierThreshold = Math.Max(MaxErrorAcceptanceThreshold, solveResult.MeanError * OutlierThresholdScale);
+        var inlierSamples = new List<CalibrationSample>();
+        var outlierFiles = new List<string>();
+        for (var i = 0; i < samples.Count; i++)
+        {
+            if (solveResult.ViewErrors[i] <= outlierThreshold)
+            {
+                inlierSamples.Add(samples[i]);
+            }
+            else
+            {
+                outlierFiles.Add(samples[i].Source);
+            }
+        }
+
+        var finalResult = solveResult;
+        if (outlierFiles.Count > 0 && inlierSamples.Count >= MinValidFolderSamples)
+        {
+            if (TrySolveCalibration(inlierSamples, imageSize.Value, out var refinedResult, out var refinedError))
+            {
+                finalResult = refinedResult;
+                samples = inlierSamples;
+            }
+            else
+            {
+                Logger.LogWarning("Refined calibration failed after outlier rejection: {Error}", refinedError);
+            }
+        }
+
+        var accepted =
+            samples.Count >= MinValidFolderSamples &&
+            finalResult.MeanError <= MeanErrorAcceptanceThreshold &&
+            finalResult.MaxError <= MaxErrorAcceptanceThreshold;
+
+        var diagnostics = new List<string>
+        {
+            $"Total images: {imageFiles.Length}",
+            $"Detected valid samples: {samples.Count}",
+            $"Rejected during detection: {failedFiles.Count}",
+            $"Rejected as outliers: {outlierFiles.Count}",
+            $"Mean reprojection error: {finalResult.MeanError:F4} px",
+            $"Max reprojection error: {finalResult.MaxError:F4} px"
+        };
+
+        if (failedFiles.Count > 0)
+        {
+            diagnostics.Add($"Bad samples: {string.Join(", ", failedFiles.Take(10))}");
+        }
+
+        if (outlierFiles.Count > 0)
+        {
+            diagnostics.Add($"Outlier samples: {string.Join(", ", outlierFiles.Take(10))}");
+        }
+
+        if (!accepted)
+        {
+            diagnostics.Add($"Quality gate failed. Thresholds: mean<={MeanErrorAcceptanceThreshold:F2}, max<={MaxErrorAcceptanceThreshold:F2}, minSamples>={MinValidFolderSamples}.");
+        }
+        else
+        {
+            diagnostics.Add("Quality gate passed.");
+        }
+
+        var bundle = new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.CameraIntrinsics,
+            TransformModel = TransformModelV2.Projection,
+            SourceFrame = "image_pixel",
+            TargetFrame = "camera_normalized",
+            Unit = "px",
+            ImageSize = new CalibrationImageSizeV2
+            {
+                Width = imageSize.Value.Width,
+                Height = imageSize.Value.Height
+            },
+            Intrinsics = new CalibrationIntrinsicsV2
+            {
+                CameraMatrix = finalResult.CameraMatrix
+            },
+            Distortion = new CalibrationDistortionV2
+            {
+                Model = DistortionModelV2.BrownConrady,
+                Coefficients = finalResult.DistCoeffs
+            },
+            Quality = new CalibrationQualityV2
+            {
+                Accepted = accepted,
+                MeanError = finalResult.MeanError,
+                MaxError = finalResult.MaxError,
+                InlierCount = samples.Count,
+                TotalSampleCount = imageFiles.Length,
+                Diagnostics = diagnostics
+            },
+            ProducerOperator = nameof(CameraCalibrationOperator)
+        };
+
+        var calibrationJson = CalibrationBundleV2Json.Serialize(bundle);
+        TryWriteOutputFile(outputPath, calibrationJson);
+
+        using var previewBase = Cv2.ImRead(imageFiles[0], ImreadModes.Color);
+        var resultImage = previewBase.Empty()
+            ? new Mat(imageSize.Value.Height, imageSize.Value.Width, MatType.CV_8UC3, Scalar.Black)
+            : previewBase.Clone();
+        Cv2.PutText(
+            resultImage,
+            $"Accepted: {accepted}  Mean: {finalResult.MeanError:F3}px  Max: {finalResult.MaxError:F3}px",
+            new Point(10, 30),
+            HersheyFonts.HersheySimplex,
+            0.65,
+            accepted ? new Scalar(0, 255, 0) : new Scalar(0, 165, 255),
+            2);
+
+        var output = new Dictionary<string, object>
+        {
+            ["CalibrationData"] = calibrationJson,
+            ["Accepted"] = accepted,
+            ["ReprojectionError"] = finalResult.MeanError,
+            ["MaxReprojectionError"] = finalResult.MaxError,
+            ["ImageCount"] = samples.Count,
+            ["TotalImages"] = imageFiles.Length,
+            ["OutputPath"] = outputPath,
+            ["Message"] = accepted
+                ? $"Calibration accepted with {samples.Count}/{imageFiles.Length} samples."
+                : "Calibration completed but did not pass quality acceptance."
+        };
+
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
+    }
+
+    private static string[] EnumerateImageFiles(string folder)
+    {
+        return Directory.GetFiles(folder, "*.*")
+            .Where(path =>
+            {
+                var ext = Path.GetExtension(path);
+                return ext.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".tif", StringComparison.OrdinalIgnoreCase) ||
+                       ext.Equals(".tiff", StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool TryFindCalibrationCorners(Mat gray, string patternType, Size patternSize, out Point2f[] corners)
@@ -390,34 +452,147 @@ public class CameraCalibrationOperator : OperatorBase
         return points;
     }
 
-    private static double[][] ToJaggedMatrix3x3(Mat cameraMatrix)
+    private static bool TrySolveCalibration(
+        IReadOnlyList<CalibrationSample> samples,
+        Size imageSize,
+        out CalibrationSolveResult result,
+        out string error)
     {
-        return new[]
+        result = new CalibrationSolveResult(Array.Empty<double[]>(), Array.Empty<double>(), Array.Empty<double>(), 0, 0);
+        error = string.Empty;
+
+        var objectPointMats = new List<Mat>(samples.Count);
+        var imagePointMats = new List<Mat>(samples.Count);
+        Mat[]? rvecs = null;
+        Mat[]? tvecs = null;
+
+        try
         {
-            new[] { cameraMatrix.At<double>(0, 0), cameraMatrix.At<double>(0, 1), cameraMatrix.At<double>(0, 2) },
-            new[] { cameraMatrix.At<double>(1, 0), cameraMatrix.At<double>(1, 1), cameraMatrix.At<double>(1, 2) },
-            new[] { cameraMatrix.At<double>(2, 0), cameraMatrix.At<double>(2, 1), cameraMatrix.At<double>(2, 2) }
-        };
+            foreach (var sample in samples)
+            {
+                objectPointMats.Add(Mat.FromArray(sample.ObjectPoints));
+                imagePointMats.Add(Mat.FromArray(sample.ImagePoints));
+            }
+
+            using var cameraMatrix = new Mat();
+            using var distCoeffs = new Mat();
+            var rms = Cv2.CalibrateCamera(
+                objectPointMats,
+                imagePointMats,
+                imageSize,
+                cameraMatrix,
+                distCoeffs,
+                out rvecs,
+                out tvecs,
+                CalibrationFlags.None,
+                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 80, 1e-7));
+
+            var viewErrors = ComputePerViewErrors(samples, rvecs, tvecs, cameraMatrix, distCoeffs);
+            var mean = viewErrors.Length == 0 ? 0 : viewErrors.Average();
+            var max = viewErrors.Length == 0 ? 0 : viewErrors.Max();
+
+            result = new CalibrationSolveResult(
+                CalibrationBundleV2Helpers.ToJaggedMatrix(cameraMatrix),
+                CalibrationBundleV2Helpers.ToFlatVector(distCoeffs),
+                viewErrors,
+                mean,
+                max);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        finally
+        {
+            DisposeMatList(objectPointMats);
+            DisposeMatList(imagePointMats);
+            DisposeMatArray(rvecs);
+            DisposeMatArray(tvecs);
+        }
     }
 
-    private static double[] FlattenMat(Mat mat)
+    private static double[] ComputePerViewErrors(
+        IReadOnlyList<CalibrationSample> samples,
+        IReadOnlyList<Mat>? rvecs,
+        IReadOnlyList<Mat>? tvecs,
+        Mat cameraMatrix,
+        Mat distCoeffs)
+    {
+        if (rvecs == null || tvecs == null || rvecs.Count != samples.Count || tvecs.Count != samples.Count)
+        {
+            return Enumerable.Repeat(double.PositiveInfinity, samples.Count).ToArray();
+        }
+
+        var errors = new double[samples.Count];
+        for (var i = 0; i < samples.Count; i++)
+        {
+            using var projectedMat = new Mat();
+            Cv2.ProjectPoints(
+                InputArray.Create(samples[i].ObjectPoints),
+                rvecs[i],
+                tvecs[i],
+                cameraMatrix,
+                distCoeffs,
+                projectedMat);
+
+            var projectedPoints = ReadPoint2fVector(projectedMat);
+
+            if (projectedPoints.Length != samples[i].ImagePoints.Length)
+            {
+                errors[i] = double.PositiveInfinity;
+                continue;
+            }
+
+            double sumSq = 0;
+            for (var p = 0; p < projectedPoints.Length; p++)
+            {
+                var dx = projectedPoints[p].X - samples[i].ImagePoints[p].X;
+                var dy = projectedPoints[p].Y - samples[i].ImagePoints[p].Y;
+                sumSq += dx * dx + dy * dy;
+            }
+
+            errors[i] = Math.Sqrt(sumSq / projectedPoints.Length);
+        }
+
+        return errors;
+    }
+
+    private static Point2f[] ReadPoint2fVector(Mat mat)
     {
         if (mat.Empty())
         {
-            return Array.Empty<double>();
+            return Array.Empty<Point2f>();
         }
 
-        var result = new double[mat.Rows * mat.Cols];
-        var index = 0;
-        for (var r = 0; r < mat.Rows; r++)
+        var count = Math.Max(mat.Rows, mat.Cols);
+        var points = new Point2f[count];
+        for (var i = 0; i < count; i++)
         {
-            for (var c = 0; c < mat.Cols; c++)
-            {
-                result[index++] = mat.At<double>(r, c);
-            }
+            points[i] = mat.Rows >= mat.Cols ? mat.At<Point2f>(i, 0) : mat.At<Point2f>(0, i);
         }
 
-        return result;
+        return points;
+    }
+
+    private void TryWriteOutputFile(string outputPath, string json)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(outputPath, json);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save calibration file to {Path}.", outputPath);
+        }
     }
 
     private static void DisposeMatList(IEnumerable<Mat> mats)
@@ -428,7 +603,7 @@ public class CameraCalibrationOperator : OperatorBase
         }
     }
 
-    private static void DisposeMatArray(Mat[]? mats)
+    private static void DisposeMatArray(IEnumerable<Mat>? mats)
     {
         if (mats == null)
         {
@@ -437,30 +612,16 @@ public class CameraCalibrationOperator : OperatorBase
 
         foreach (var mat in mats)
         {
-            mat?.Dispose();
+            mat.Dispose();
         }
     }
 
-    private sealed class CalibrationPayload
-    {
-        public string PatternType { get; set; } = string.Empty;
-        public int BoardWidth { get; set; }
-        public int BoardHeight { get; set; }
-        public double SquareSize { get; set; }
-        public int ImageWidth { get; set; }
-        public int ImageHeight { get; set; }
-        public double[][] CameraMatrix { get; set; } = Array.Empty<double[]>();
-        public double[] DistCoeffs { get; set; } = Array.Empty<double>();
-        public double ReprojectionError { get; set; }
-        public int ImageCount { get; set; }
-        public List<string> FailedFiles { get; set; } = new();
-        public bool Found { get; set; }
-        public List<Point2Payload>? Corners { get; set; }
-        public List<Point3Payload>? ObjectPoints { get; set; }
-        public DateTime Timestamp { get; set; }
-    }
+    private sealed record CalibrationSample(string Source, Point3f[] ObjectPoints, Point2f[] ImagePoints);
 
-    private readonly record struct Point2Payload(double X, double Y);
-
-    private readonly record struct Point3Payload(double X, double Y, double Z);
+    private sealed record CalibrationSolveResult(
+        double[][] CameraMatrix,
+        double[] DistCoeffs,
+        double[] ViewErrors,
+        double MeanError,
+        double MaxError);
 }

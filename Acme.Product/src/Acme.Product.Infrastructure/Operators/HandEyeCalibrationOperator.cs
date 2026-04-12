@@ -10,11 +10,11 @@ using OpenCvSharp;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
-    DisplayName = "手眼标定",
+    DisplayName = "Hand-Eye Calibration",
     Description = "Solves eye-in-hand or simplified eye-to-hand calibration from robot poses and calibration-board poses.",
     Category = "Calibration",
     IconName = "hand-eye-calibration",
-    Keywords = new[] { "handeye", "robot", "calibration", "AX=XB", "手眼标定" },
+    Keywords = new[] { "handeye", "robot", "calibration", "AX=XB" },
     Version = "1.0.0"
 )]
 [AlgorithmInfo(
@@ -26,8 +26,7 @@ namespace Acme.Product.Infrastructure.Operators;
 )]
 [InputPort("RobotPoses", "Robot Poses", PortDataType.Any, IsRequired = true)]
 [InputPort("CalibrationBoardPoses", "Calibration Board Poses", PortDataType.Any, IsRequired = true)]
-[OutputPort("HandEyeMatrix", "Hand Eye Matrix", PortDataType.Any)]
-[OutputPort("InverseHandEyeMatrix", "Inverse Hand Eye Matrix", PortDataType.Any)]
+[OutputPort("CalibrationData", "Calibration Data", PortDataType.String)]
 [OutputPort("ReprojectionError", "Reprojection Error", PortDataType.Float)]
 [OutputPort("CalibrationQuality", "Calibration Quality", PortDataType.String)]
 [OutputPort("MatrixConvention", "Matrix Convention", PortDataType.String)]
@@ -57,11 +56,12 @@ public sealed class HandEyeCalibrationOperator : OperatorBase
             return OperatorExecutionOutput.Failure(inputError);
         }
 
+        var calibrationType = ParseCalibrationType(@operator);
         RobotHandEyeCalibrationResult result;
         try
         {
             result = await RunCpuBoundWork(
-                () => HandEyeCalibrationSolver.Solve(robotPoses, boardPoses, ParseCalibrationType(@operator), ParseMethod(@operator)),
+                () => HandEyeCalibrationSolver.Solve(robotPoses, boardPoses, calibrationType, ParseMethod(@operator)),
                 cancellationToken);
         }
         catch (Exception ex)
@@ -75,10 +75,10 @@ public sealed class HandEyeCalibrationOperator : OperatorBase
             return OperatorExecutionOutput.Failure(result.ErrorMessage ?? "Hand-eye calibration failed.");
         }
 
+        var calibrationData = CalibrationBundleV2Json.Serialize(CreateCalibrationBundle(result, robotPoses.Count, calibrationType));
         var output = new Dictionary<string, object>
         {
-            ["HandEyeMatrix"] = result.HandEyeMatrix,
-            ["InverseHandEyeMatrix"] = result.InverseHandEyeMatrix,
+            ["CalibrationData"] = calibrationData,
             ["ReprojectionError"] = result.Validation.MeanError,
             ["CalibrationQuality"] = result.Validation.Quality,
             ["MatrixConvention"] = result.MatrixConvention,
@@ -110,8 +110,8 @@ public sealed class HandEyeCalibrationOperator : OperatorBase
         out List<Matrix4x4> boardPoses,
         out string error)
     {
-        robotPoses = [];
-        boardPoses = [];
+        robotPoses = new List<Matrix4x4>();
+        boardPoses = new List<Matrix4x4>();
         error = string.Empty;
 
         if (inputs == null)
@@ -164,6 +164,46 @@ public sealed class HandEyeCalibrationOperator : OperatorBase
             "eye_in_hand" => RobotHandEyeCalibrationType.EyeInHand,
             "eye_to_hand" => RobotHandEyeCalibrationType.EyeToHand,
             _ => throw new InvalidOperationException("CalibrationType must be 'eye_in_hand' or 'eye_to_hand'.")
+        };
+    }
+
+    private static CalibrationBundleV2 CreateCalibrationBundle(
+        RobotHandEyeCalibrationResult result,
+        int sampleCount,
+        RobotHandEyeCalibrationType calibrationType)
+    {
+        var accepted = !string.Equals(result.Validation.Quality, "poor", StringComparison.OrdinalIgnoreCase);
+        var diagnostics = new List<string>
+        {
+            $"quality={result.Validation.Quality}",
+            $"method={result.Method}",
+            $"calibration_type={calibrationType}"
+        };
+        diagnostics.AddRange(result.Validation.Suggestions.Take(3));
+
+        return new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.HandEye,
+            TransformModel = TransformModelV2.Rigid3D,
+            SourceFrame = "camera",
+            TargetFrame = calibrationType == RobotHandEyeCalibrationType.EyeInHand ? "tool" : "base",
+            Unit = "m",
+            Transform3D = new CalibrationTransform3DV2
+            {
+                Model = TransformModelV2.Rigid3D,
+                Matrix = CalibrationBundleV2PoseHelpers.ToJaggedMatrix4x4(result.HandEyeMatrix),
+                InverseMatrix = CalibrationBundleV2PoseHelpers.ToJaggedMatrix4x4(result.InverseHandEyeMatrix)
+            },
+            Quality = new CalibrationQualityV2
+            {
+                Accepted = accepted,
+                MeanError = result.Validation.MeanError,
+                MaxError = result.Validation.MaxError,
+                InlierCount = sampleCount,
+                TotalSampleCount = sampleCount,
+                Diagnostics = diagnostics
+            },
+            ProducerOperator = nameof(HandEyeCalibrationOperator)
         };
     }
 

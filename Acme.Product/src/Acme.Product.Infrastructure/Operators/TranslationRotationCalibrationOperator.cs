@@ -1,38 +1,38 @@
-﻿// TranslationRotationCalibrationOperator.cs
-// 平移旋转标定算子
-// 求解平移与旋转参数用于坐标系标定
-// 作者：蘅芜君
 using System.Globalization;
 using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Calibration;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "平移旋转标定",
-    Description = "Fits image-to-robot transform from calibration point pairs.",
+    Description = "Fits robust 2D rigid or similarity transform from image-to-robot point pairs.",
     Category = "标定",
     IconName = "calibration",
-    Keywords = new[] { "calibration", "hand-eye", "translation", "rotation" }
+    Keywords = new[] { "calibration", "translation", "rotation", "svd", "similarity" }
 )]
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = false)]
-[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
-[OutputPort("RotationCenter", "Rotation Center", PortDataType.Point)]
+[OutputPort("CalibrationData", "Calibration Data", PortDataType.String)]
 [OutputPort("CalibrationError", "Calibration Error", PortDataType.Float)]
+[OutputPort("MaxCalibrationError", "Max Calibration Error", PortDataType.Float)]
 [OperatorParam("CalibrationPoints", "Calibration Points", "string", DefaultValue = "[]")]
 [OperatorParam("Method", "Method", "enum", DefaultValue = "LeastSquares", Options = new[] { "LeastSquares|LeastSquares", "SVD|SVD" })]
 [OperatorParam("SavePath", "Save Path", "file", DefaultValue = "")]
 public class TranslationRotationCalibrationOperator : OperatorBase
 {
+    private const double DegenerateThreshold = 1e-9;
+
     public override OperatorType OperatorType => OperatorType.TranslationRotationCalibration;
 
-    public TranslationRotationCalibrationOperator(ILogger<TranslationRotationCalibrationOperator> logger) : base(logger)
+    public TranslationRotationCalibrationOperator(ILogger<TranslationRotationCalibrationOperator> logger)
+        : base(logger)
     {
     }
 
@@ -47,32 +47,81 @@ public class TranslationRotationCalibrationOperator : OperatorBase
 
         if (!TryParseCalibrationPoints(pointsJson, out var points) || points.Count < 3)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("CalibrationPoints must contain at least 3 valid points"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("CalibrationPoints must contain at least 3 valid points."));
         }
 
-        double[][] matrix;
-        if (method.Equals("SVD", StringComparison.OrdinalIgnoreCase))
+        if (!TryValidatePointGeometry(points, out var geometryError))
         {
-            matrix = SolveRigidTransform(points);
+            return Task.FromResult(OperatorExecutionOutput.Failure(geometryError));
         }
-        else
+
+        var solveMethod = method.Equals("SVD", StringComparison.OrdinalIgnoreCase)
+            ? SolveMethod.RigidSvd
+            : SolveMethod.SimilarityLeastSquares;
+
+        if (!TrySolveTransform(points, solveMethod, out var transformMatrix, out var solvedScale, out var solveError))
         {
-            matrix = SolveAffineLeastSquares(points);
+            return Task.FromResult(OperatorExecutionOutput.Failure(solveError));
         }
 
-        var error = ComputeRmsError(points, matrix);
-        var rotationCenter = new Position(points.Average(p => p.ImageX), points.Average(p => p.ImageY));
+        var errorStats = ComputeErrorStats(points, transformMatrix);
 
+        var diagnostics = new List<string>
+        {
+            $"method={solveMethod}",
+            $"sample_count={points.Count}",
+            $"estimated_scale={solvedScale.ToString("G17", CultureInfo.InvariantCulture)}"
+        };
+        if (points.Any(p => Math.Abs(p.Angle) > 1e-9))
+        {
+            diagnostics.Add("input_angle_present=true");
+        }
+
+        var transformModel = solveMethod == SolveMethod.RigidSvd
+            ? TransformModelV2.Rigid
+            : TransformModelV2.Similarity;
+        var accepted = errorStats.RmsError <= 0.15 && errorStats.MaxError <= 0.30;
+        diagnostics.Add($"accepted={accepted}");
+
+        var bundle = new CalibrationBundleV2
+        {
+            CalibrationKind = CalibrationKindV2.RigidTransform2D,
+            TransformModel = transformModel,
+            SourceFrame = "image",
+            TargetFrame = "robot",
+            Unit = "mm",
+            Transform2D = new CalibrationTransform2DV2
+            {
+                Model = transformModel,
+                Matrix = transformMatrix,
+                PixelSizeX = solvedScale,
+                PixelSizeY = solvedScale
+            },
+            Quality = new CalibrationQualityV2
+            {
+                Accepted = accepted,
+                MeanError = errorStats.RmsError,
+                MaxError = errorStats.MaxError,
+                InlierCount = points.Count,
+                TotalSampleCount = points.Count,
+                Diagnostics = diagnostics
+            },
+            ProducerOperator = nameof(TranslationRotationCalibrationOperator)
+        };
+
+        var calibrationData = CalibrationBundleV2Json.Serialize(bundle);
         if (!string.IsNullOrWhiteSpace(savePath))
         {
-            TrySaveCalibration(savePath, method, matrix, error, points);
+            TrySaveCalibrationBundle(savePath, calibrationData);
         }
 
         var output = new Dictionary<string, object>
         {
-            { "TransformMatrix", matrix },
-            { "RotationCenter", rotationCenter },
-            { "CalibrationError", error }
+            ["CalibrationData"] = calibrationData,
+            ["Accepted"] = accepted,
+            ["TransformModel"] = transformModel.ToString(),
+            ["CalibrationError"] = errorStats.RmsError,
+            ["MaxCalibrationError"] = errorStats.MaxError
         };
 
         if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
@@ -95,18 +144,23 @@ public class TranslationRotationCalibrationOperator : OperatorBase
         var validMethods = new[] { "LeastSquares", "SVD" };
         if (!validMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid("Method must be LeastSquares or SVD");
+            return ValidationResult.Invalid("Method must be LeastSquares or SVD.");
         }
 
         var pointsJson = GetStringParam(@operator, "CalibrationPoints", string.Empty);
         if (string.IsNullOrWhiteSpace(pointsJson))
         {
-            return ValidationResult.Invalid("CalibrationPoints cannot be empty");
+            return ValidationResult.Invalid("CalibrationPoints cannot be empty.");
         }
 
         if (!TryParseCalibrationPoints(pointsJson, out var points) || points.Count < 3)
         {
-            return ValidationResult.Invalid("CalibrationPoints must contain at least 3 valid points");
+            return ValidationResult.Invalid("CalibrationPoints must contain at least 3 valid points.");
+        }
+
+        if (!TryValidatePointGeometry(points, out var geometryError))
+        {
+            return ValidationResult.Invalid(geometryError);
         }
 
         return ValidationResult.Valid();
@@ -139,6 +193,11 @@ public class TranslationRotationCalibrationOperator : OperatorBase
                     !TryGetNumber(item, "imageY", out var imageY) ||
                     !TryGetNumber(item, "robotX", out var robotX) ||
                     !TryGetNumber(item, "robotY", out var robotY))
+                {
+                    continue;
+                }
+
+                if (!IsFinite(imageX) || !IsFinite(imageY) || !IsFinite(robotX) || !IsFinite(robotY))
                 {
                     continue;
                 }
@@ -182,90 +241,192 @@ public class TranslationRotationCalibrationOperator : OperatorBase
         return false;
     }
 
-    private static double[][] SolveAffineLeastSquares(IReadOnlyList<CalibrationPoint> points)
+    private static bool TryValidatePointGeometry(IReadOnlyList<CalibrationPoint> points, out string error)
     {
-        var ata = new double[3, 3];
-        var atx = new double[3];
-        var aty = new double[3];
+        error = string.Empty;
+        if (points.Count < 3)
+        {
+            error = "At least 3 point pairs are required.";
+            return false;
+        }
+
+        var uniqueSrc = points
+            .Select(p => $"{p.ImageX:F12}|{p.ImageY:F12}")
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        var uniqueDst = points
+            .Select(p => $"{p.RobotX:F12}|{p.RobotY:F12}")
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        if (uniqueSrc < 2 || uniqueDst < 2)
+        {
+            error = "Point set is degenerate: at least two unique source and destination points are required.";
+            return false;
+        }
+
+        var srcCx = points.Average(p => p.ImageX);
+        var srcCy = points.Average(p => p.ImageY);
+        var srcVar = points.Sum(p =>
+        {
+            var dx = p.ImageX - srcCx;
+            var dy = p.ImageY - srcCy;
+            return dx * dx + dy * dy;
+        }) / points.Count;
+        if (srcVar <= DegenerateThreshold)
+        {
+            error = "Point set is degenerate: source points have near-zero variance.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TrySolveTransform(
+        IReadOnlyList<CalibrationPoint> points,
+        SolveMethod method,
+        out double[][] matrix,
+        out double solvedScale,
+        out string error)
+    {
+        matrix = Array.Empty<double[]>();
+        solvedScale = 1.0;
+        error = string.Empty;
+
+        var srcCx = points.Average(p => p.ImageX);
+        var srcCy = points.Average(p => p.ImageY);
+        var dstCx = points.Average(p => p.RobotX);
+        var dstCy = points.Average(p => p.RobotY);
+
+        var h00 = 0.0;
+        var h01 = 0.0;
+        var h10 = 0.0;
+        var h11 = 0.0;
+        var srcVar = 0.0;
 
         foreach (var p in points)
         {
-            var row = new[] { p.ImageX, p.ImageY, 1.0 };
-            for (var i = 0; i < 3; i++)
-            {
-                for (var j = 0; j < 3; j++)
-                {
-                    ata[i, j] += row[i] * row[j];
-                }
+            var sx = p.ImageX - srcCx;
+            var sy = p.ImageY - srcCy;
+            var dx = p.RobotX - dstCx;
+            var dy = p.RobotY - dstCy;
 
-                atx[i] += row[i] * p.RobotX;
-                aty[i] += row[i] * p.RobotY;
+            h00 += sx * dx;
+            h01 += sx * dy;
+            h10 += sy * dx;
+            h11 += sy * dy;
+            srcVar += sx * sx + sy * sy;
+        }
+
+        srcVar /= points.Count;
+        if (srcVar <= DegenerateThreshold)
+        {
+            error = "Cannot solve transform from degenerate source points.";
+            return false;
+        }
+
+        using var h = new Mat(2, 2, MatType.CV_64FC1);
+        h.Set(0, 0, h00);
+        h.Set(0, 1, h01);
+        h.Set(1, 0, h10);
+        h.Set(1, 1, h11);
+
+        using var w = new Mat();
+        using var u = new Mat();
+        using var vt = new Mat();
+        Cv2.SVDecomp(h, w, u, vt);
+
+        if (w.Empty() || w.Rows * w.Cols < 2)
+        {
+            error = "SVD decomposition failed.";
+            return false;
+        }
+
+        var singular0 = w.At<double>(0, 0);
+        var singular1 = w.At<double>(1, 0);
+        if (singular0 <= DegenerateThreshold || singular1 <= DegenerateThreshold)
+        {
+            error = "Point set is singular or near-collinear; cannot derive a stable transform.";
+            return false;
+        }
+
+        using var v = new Mat();
+        using var ut = new Mat();
+        Cv2.Transpose(vt, v);
+        Cv2.Transpose(u, ut);
+        using var r = new Mat();
+        using var empty = new Mat();
+        Cv2.Gemm(v, ut, 1.0, empty, 0.0, r);
+
+        if (Cv2.Determinant(r) < 0)
+        {
+            for (var row = 0; row < 2; row++)
+            {
+                v.Set(row, 1, -v.At<double>(row, 1));
+            }
+
+            using var adjusted = new Mat();
+            Cv2.Gemm(v, ut, 1.0, empty, 0.0, adjusted);
+            adjusted.CopyTo(r);
+        }
+
+        var r00 = r.At<double>(0, 0);
+        var r01 = r.At<double>(0, 1);
+        var r10 = r.At<double>(1, 0);
+        var r11 = r.At<double>(1, 1);
+
+        solvedScale = 1.0;
+        if (method == SolveMethod.SimilarityLeastSquares)
+        {
+            var det = Cv2.Determinant(r) >= 0 ? 1.0 : -1.0;
+            var trace = singular0 + det * singular1;
+            solvedScale = trace / srcVar;
+            if (!IsFinite(solvedScale) || solvedScale <= DegenerateThreshold)
+            {
+                error = "Solved scale is invalid; check calibration point geometry.";
+                return false;
             }
         }
 
-        var px = Solve3x3(ata, atx);
-        var py = Solve3x3(ata, aty);
+        var tx = dstCx - solvedScale * (r00 * srcCx + r01 * srcCy);
+        var ty = dstCy - solvedScale * (r10 * srcCx + r11 * srcCy);
 
-        return new[]
+        matrix = new[]
         {
-            new[] { px[0], px[1], px[2] },
-            new[] { py[0], py[1], py[2] }
+            new[] { solvedScale * r00, solvedScale * r01, tx },
+            new[] { solvedScale * r10, solvedScale * r11, ty }
         };
+        error = string.Empty;
+        return true;
     }
 
-    private static double[][] SolveRigidTransform(IReadOnlyList<CalibrationPoint> points)
+    private static CalibrationErrorStats ComputeErrorStats(IReadOnlyList<CalibrationPoint> points, double[][] matrix)
     {
-        var cx = points.Average(p => p.ImageX);
-        var cy = points.Average(p => p.ImageY);
-        var rx = points.Average(p => p.RobotX);
-        var ry = points.Average(p => p.RobotY);
-
-        var sxx = 0.0;
-        var sxy = 0.0;
-
-        foreach (var p in points)
-        {
-            var px = p.ImageX - cx;
-            var py = p.ImageY - cy;
-            var qx = p.RobotX - rx;
-            var qy = p.RobotY - ry;
-
-            sxx += px * qx + py * qy;
-            sxy += px * qy - py * qx;
-        }
-
-        var theta = Math.Atan2(sxy, sxx);
-        var cos = Math.Cos(theta);
-        var sin = Math.Sin(theta);
-
-        var tx = rx - (cos * cx - sin * cy);
-        var ty = ry - (sin * cx + cos * cy);
-
-        return new[]
-        {
-            new[] { cos, -sin, tx },
-            new[] { sin, cos, ty }
-        };
-    }
-
-    private static double ComputeRmsError(IReadOnlyList<CalibrationPoint> points, double[][] matrix)
-    {
-        var sum = 0.0;
+        var sumSquared = 0.0;
+        var maxError = 0.0;
 
         foreach (var p in points)
         {
             var x = matrix[0][0] * p.ImageX + matrix[0][1] * p.ImageY + matrix[0][2];
             var y = matrix[1][0] * p.ImageX + matrix[1][1] * p.ImageY + matrix[1][2];
-
             var dx = x - p.RobotX;
             var dy = y - p.RobotY;
-            sum += dx * dx + dy * dy;
+            var distance = Math.Sqrt(dx * dx + dy * dy);
+            sumSquared += distance * distance;
+            if (distance > maxError)
+            {
+                maxError = distance;
+            }
         }
 
-        return Math.Sqrt(sum / Math.Max(1, points.Count));
+        return new CalibrationErrorStats
+        {
+            RmsError = Math.Sqrt(sumSquared / Math.Max(1, points.Count)),
+            MaxError = maxError
+        };
     }
 
-    private void TrySaveCalibration(string savePath, string method, double[][] matrix, double error, IReadOnlyList<CalibrationPoint> points)
+    private void TrySaveCalibrationBundle(string savePath, string calibrationData)
     {
         try
         {
@@ -275,21 +436,11 @@ public class TranslationRotationCalibrationOperator : OperatorBase
                 Directory.CreateDirectory(dir);
             }
 
-            var payload = new
-            {
-                Method = method,
-                TransformMatrix = matrix,
-                CalibrationError = error,
-                Points = points,
-                Timestamp = DateTime.UtcNow
-            };
-
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(savePath, json);
+            File.WriteAllText(savePath, calibrationData);
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to save calibration to {Path}", savePath);
+            Logger.LogWarning(ex, "Failed to save calibration bundle to {Path}", savePath);
         }
     }
 
@@ -300,71 +451,27 @@ public class TranslationRotationCalibrationOperator : OperatorBase
             var x = (int)Math.Round(points[i].ImageX);
             var y = (int)Math.Round(points[i].ImageY);
             Cv2.Circle(image, new Point(x, y), 4, new Scalar(0, 255, 0), -1);
-            Cv2.PutText(image, (i + 1).ToString(), new Point(x + 5, y - 5), HersheyFonts.HersheySimplex, 0.45, new Scalar(0, 255, 255), 1);
+            Cv2.PutText(image, (i + 1).ToString(CultureInfo.InvariantCulture), new Point(x + 5, y - 5), HersheyFonts.HersheySimplex, 0.45, new Scalar(0, 255, 255), 1);
         }
     }
 
-    private static double[] Solve3x3(double[,] a, double[] b)
+    private static bool IsFinite(double value)
     {
-        var m = new double[3, 4];
-        for (var r = 0; r < 3; r++)
-        {
-            for (var c = 0; c < 3; c++)
-            {
-                m[r, c] = a[r, c];
-            }
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
 
-            m[r, 3] = b[r];
-        }
-
-        for (var pivot = 0; pivot < 3; pivot++)
-        {
-            var best = pivot;
-            for (var r = pivot + 1; r < 3; r++)
-            {
-                if (Math.Abs(m[r, pivot]) > Math.Abs(m[best, pivot]))
-                {
-                    best = r;
-                }
-            }
-
-            if (Math.Abs(m[best, pivot]) < 1e-12)
-            {
-                return new[] { 1.0, 0.0, 0.0 };
-            }
-
-            if (best != pivot)
-            {
-                for (var c = pivot; c < 4; c++)
-                {
-                    (m[pivot, c], m[best, c]) = (m[best, c], m[pivot, c]);
-                }
-            }
-
-            var div = m[pivot, pivot];
-            for (var c = pivot; c < 4; c++)
-            {
-                m[pivot, c] /= div;
-            }
-
-            for (var r = 0; r < 3; r++)
-            {
-                if (r == pivot)
-                {
-                    continue;
-                }
-
-                var factor = m[r, pivot];
-                for (var c = pivot; c < 4; c++)
-                {
-                    m[r, c] -= factor * m[pivot, c];
-                }
-            }
-        }
-
-        return new[] { m[0, 3], m[1, 3], m[2, 3] };
+    private enum SolveMethod
+    {
+        SimilarityLeastSquares = 0,
+        RigidSvd = 1
     }
 
     private sealed record CalibrationPoint(double ImageX, double ImageY, double RobotX, double RobotY, double Angle);
-}
 
+    private sealed class CalibrationErrorStats
+    {
+        public double RmsError { get; init; }
+
+        public double MaxError { get; init; }
+    }
+}

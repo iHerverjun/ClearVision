@@ -1,63 +1,30 @@
-# 坐标转换 / CoordinateTransform
+# CoordinateTransform
 
-## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
-|------|------|
-| 类名 (Class) | `CoordinateTransformOperator` |
-| 枚举值 (Enum) | `OperatorType.CoordinateTransform` |
-| 分类 (Category) | 标定 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+## 定位
+- 消费 `CalibrationBundleV2` 的 `Transform2D` 做像素到物理坐标转换。
 
-## 算法原理 / Algorithm Principle
-> 中文：像素坐标到物理坐标转换。
-> English: 像素坐标到物理坐标转换.
+## 输入
+- `PixelX`
+- `PixelY`
+- `CalibrationData`
 
-## 实现策略 / Implementation Strategy
-> 中文：TODO：补充实现策略与方案对比。
-> English: TODO: Add implementation strategy and alternatives comparison.
+## 输出
+- `PhysicalX`
+- `PhysicalY`
+- `Image`（可选可视化）
 
-## 核心 API 调用链 / Core API Call Chain
-- TODO：补充关键 API 调用链
+## 支持模型
+- `scaleOffset`
+- `similarity`
+- `affine`
+- `homography`
 
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `PixelX` | `double` | 0 | - | - |
-| `PixelY` | `double` | 0 | - | - |
-| `PixelSize` | `double` | 0.01 | [0.0001, 100] | - |
-| `CalibrationFile` | `file` | "" | - | - |
+## 关键门槛
+- `schemaVersion = 2`
+- `quality.accepted = true`
+- `transform2D.matrix` 维度必须与模型匹配
+- 数值必须为有限值
 
-## 输入/输出端口 / Input/Output Ports
-### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `Image` | 输入图像 | `Image` | No | - |
-| `PixelX` | 像素X | `Float` | No | - |
-| `PixelY` | 像素Y | `Float` | No | - |
-
-### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `Image` | 结果图像 | `Image` | - |
-| `PhysicalX` | 物理X(mm) | `Float` | - |
-| `PhysicalY` | 物理Y(mm) | `Float` | - |
-
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | O(?) |
-| 典型耗时 (Typical Latency) | ~?ms (1920x1080) |
-| 内存特征 (Memory Profile) | ? |
-
-## 适用场景 / Use Cases
-- 适合 (Suitable)：TODO
-- 不适合 (Not Suitable)：TODO
-
-## 已知限制 / Known Limitations
-1. TODO
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.0 | 2026-04-09 | 自动生成文档骨架 / Generated skeleton |
+## 注意
+- 正式主路径是 `CalibrationLoader -> CalibrationData -> CoordinateTransform`。
+- 不再以旧文件路径或旧 `Origin/Scale` 作为正式验收口径。
