@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T18:31:04.9508036+08:00",
+  "generatedAt": "2026-04-12T22:27:39.4611441+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -4148,7 +4148,7 @@
       "id": "DatabaseWrite",
       "type": 29,
       "displayName": "数据库写入",
-      "description": "检测结果存储到数据库",
+      "description": "将输入数据写入 SQLite / SQL Server / MySQL 表。",
       "category": "数据处理",
       "version": "1.0.0",
       "tags": [
@@ -4156,13 +4156,19 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子负责把流程结果写入文件、数据库或外部系统，或从外围资源获取输入。",
+      "algorithm": "该算子把输入数据持久化到数据库表中，当前正式支持 SQLite、SQLServer、…",
       "inputPorts": [
         {
           "name": "Data",
           "displayName": "数据",
           "dataType": "Any",
           "isRequired": true
+        },
+        {
+          "name": "RecordId",
+          "displayName": "记录ID",
+          "dataType": "String",
+          "isRequired": false
         }
       ],
       "outputPorts": [
@@ -9255,7 +9261,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "List",
@@ -9279,7 +9285,7 @@
         },
         {
           "name": "Index",
-          "displayName": "索引",
+          "displayName": "原始索引",
           "dataType": "Integer",
           "isRequired": null
         }
@@ -9331,6 +9337,17 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "LabelFilter",
+          "displayName": "标签过滤",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -9356,7 +9373,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "Json",
@@ -9374,7 +9391,7 @@
         },
         {
           "name": "IsSuccess",
-          "displayName": "是否成功",
+          "displayName": "是否命中路径",
           "dataType": "Boolean",
           "isRequired": null
         }
@@ -9386,6 +9403,39 @@
           "dataType": "string",
           "description": null,
           "defaultValue": "$.data",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "OutputType",
+          "displayName": "输出类型",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "Any",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "DefaultValue",
+          "displayName": "默认值",
+          "dataType": "string",
+          "description": null,
+          "defaultValue": "",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "Required",
+          "displayName": "是否必需",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -10350,7 +10400,7 @@
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。",
+      "algorithm": "该算子把多路输入聚合成列表，并在可解析为有限数值的输入上计算统计结果。",
       "inputPorts": [
         {
           "name": "Value1",
@@ -10401,6 +10451,12 @@
           "displayName": "均值",
           "dataType": "Float",
           "isRequired": null
+        },
+        {
+          "name": "NumericCount",
+          "displayName": "数值数量",
+          "dataType": "Integer",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -10434,13 +10490,13 @@
         }
       ],
       "quality": {
-        "totalScore": 66,
-        "level": "C",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 35,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=35"
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Aggregator.md"
     },
@@ -11647,13 +11703,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 94,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 60,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/BoxFilter.md"
     },
@@ -12525,13 +12581,13 @@
       "displayName": "点位对齐",
       "description": "Pixel-space alignment helper for offsets and repeatability checks. Physical-world interpretation requires calibration.",
       "category": "数据处理",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "CurrentPoint",
@@ -12600,13 +12656,13 @@
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/PointAlignment.md"
     },
@@ -12616,13 +12672,13 @@
       "displayName": "点位修正",
       "description": "Pixel-space rigid correction helper. Do not use it as a physical-world conversion substitute without calibration.",
       "category": "数据处理",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。",
+      "algorithm": null,
       "inputPorts": [
         {
           "name": "DetectedPoint",
@@ -12672,6 +12728,12 @@
           "name": "TransformMatrix",
           "displayName": "Transform Matrix",
           "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "TransformUnit",
+          "displayName": "Transform Unit",
+          "dataType": "String",
           "isRequired": null
         }
       ],
@@ -12726,16 +12788,27 @@
           "max": "1000000",
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "MaxAllowedDistance",
+          "displayName": "Max Allowed Distance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "1000000",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
-        "totalScore": 94,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/PointCorrection.md"
     },

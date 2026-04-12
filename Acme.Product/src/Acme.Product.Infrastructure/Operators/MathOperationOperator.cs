@@ -1,28 +1,12 @@
-// MathOperationOperator.cs
-// 数值计算算子 - Sprint 3 Task 3.1
-// 支持：Add/Subtract/Multiply/Divide/Abs/Min/Max/Power/Sqrt/Round/Modulo
-// 作者：蘅芜君
-
+using System.Globalization;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 数值计算算子
-/// 
-/// 功能：
-/// - 双操作数：Add, Subtract, Multiply, Divide, Min, Max, Power, Modulo
-/// - 单操作数：Abs, Sqrt, Round
-/// - 输出：Result（Float）、IsPositive（Boolean）
-/// 
-/// 使用场景：
-/// - 圆A.Radius → Subtract.ValueA，圆B.Radius → Subtract.ValueB → Abs → ConditionalBranch
-/// - 尺寸公差计算
-/// </summary>
 [OperatorMeta(
     DisplayName = "数值计算",
     Description = "支持加减乘除、取绝对值、开方等常用运算",
@@ -39,7 +23,9 @@ public class MathOperationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.MathOperation;
 
-    public MathOperationOperator(ILogger<MathOperationOperator> logger) : base(logger) { }
+    public MathOperationOperator(ILogger<MathOperationOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
@@ -48,50 +34,52 @@ public class MathOperationOperator : OperatorBase
     {
         if (inputs == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("MathOperation 算子需要输入数据"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("MathOperation requires input data."));
         }
 
-        // 获取参数
-        var operation = GetStringParam(@operator, "Operation", "Add");
-        
-        // 获取输入值
-        double valueA = 0;
-        double valueB = 0;
-        
-        if (inputs.TryGetValue("ValueA", out var valAObj) && valAObj != null)
+        var operation = GetStringParam(@operator, "Operation", "Add").Trim();
+        var requiresSecondOperand = RequiresSecondOperand(operation);
+
+        if (!TryGetRequiredFiniteInputDouble(inputs, "ValueA", out var valueA, out var valueAError))
         {
-            double.TryParse(valAObj.ToString(), out valueA);
-        }
-        
-        if (inputs.TryGetValue("ValueB", out var valBObj) && valBObj != null)
-        {
-            double.TryParse(valBObj.ToString(), out valueB);
+            return Task.FromResult(OperatorExecutionOutput.Failure(valueAError));
         }
 
-        // 执行计算
+        var valueB = 0.0;
+        if (requiresSecondOperand &&
+            !TryGetRequiredFiniteInputDouble(inputs, "ValueB", out valueB, out var valueBError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(valueBError));
+        }
+
         double result;
         try
         {
-            result = operation.ToLower() switch
+            result = operation.ToLowerInvariant() switch
             {
                 "add" => valueA + valueB,
                 "subtract" => valueA - valueB,
                 "multiply" => valueA * valueB,
-                "divide" => valueB != 0 ? valueA / valueB : throw new DivideByZeroException("除数不能为零"),
+                "divide" => valueB != 0 ? valueA / valueB : throw new DivideByZeroException("Divisor cannot be zero."),
                 "abs" => Math.Abs(valueA),
                 "min" => Math.Min(valueA, valueB),
                 "max" => Math.Max(valueA, valueB),
                 "power" => Math.Pow(valueA, valueB),
-                "sqrt" => valueA >= 0 ? Math.Sqrt(valueA) : throw new ArgumentException("负数不能开平方根"),
+                "sqrt" => valueA >= 0 ? Math.Sqrt(valueA) : throw new ArgumentException("Cannot calculate sqrt for a negative number."),
                 "round" => Math.Round(valueA),
-                "modulo" => valueB != 0 ? valueA % valueB : throw new DivideByZeroException("模运算除数不能为零"),
-                _ => throw new ArgumentException($"不支持的操作: {operation}")
+                "modulo" => valueB != 0 ? valueA % valueB : throw new DivideByZeroException("Modulo divisor cannot be zero."),
+                _ => throw new ArgumentException($"Unsupported operation: {operation}")
             };
+
+            if (!double.IsFinite(result))
+            {
+                throw new ArithmeticException("Computation result must be a finite number.");
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[MathOperation] 计算失败: {Operation}({ValueA}, {ValueB})", operation, valueA, valueB);
-            return Task.FromResult(OperatorExecutionOutput.Failure($"计算失败: {ex.Message}"));
+            Logger.LogError(ex, "[MathOperation] Computation failed: {Operation}({ValueA}, {ValueB})", operation, valueA, valueB);
+            return Task.FromResult(OperatorExecutionOutput.Failure($"Computation failed: {ex.Message}"));
         }
 
         Logger.LogDebug("[MathOperation] {ValueA} {Operation} {ValueB} = {Result}", valueA, operation, valueB, result);
@@ -113,18 +101,111 @@ public class MathOperationOperator : OperatorBase
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var operation = GetStringParam(@operator, "Operation", "Add");
-
-        var validOperations = new[] 
-        { 
-            "Add", "Subtract", "Multiply", "Divide", 
-            "Abs", "Min", "Max", "Power", "Sqrt", "Round", "Modulo" 
+        var validOperations = new[]
+        {
+            "Add", "Subtract", "Multiply", "Divide",
+            "Abs", "Min", "Max", "Power", "Sqrt", "Round", "Modulo"
         };
 
         if (!validOperations.Contains(operation, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid($"Operation 必须是以下之一: {string.Join(", ", validOperations)}");
+            return ValidationResult.Invalid($"Operation must be one of: {string.Join(", ", validOperations)}");
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static bool RequiresSecondOperand(string operation)
+    {
+        return operation.ToLowerInvariant() switch
+        {
+            "add" => true,
+            "subtract" => true,
+            "multiply" => true,
+            "divide" => true,
+            "min" => true,
+            "max" => true,
+            "power" => true,
+            "modulo" => true,
+            _ => false
+        };
+    }
+
+    private static bool TryGetRequiredFiniteInputDouble(
+        Dictionary<string, object> inputs,
+        string key,
+        out double value,
+        out string errorMessage)
+    {
+        value = 0;
+        errorMessage = string.Empty;
+
+        if (!inputs.TryGetValue(key, out var rawValue) || rawValue == null)
+        {
+            errorMessage = $"Input '{key}' is required.";
+            return false;
+        }
+
+        if (!TryConvertToDouble(rawValue, out value))
+        {
+            errorMessage = $"Input '{key}' must be a valid number.";
+            return false;
+        }
+
+        if (!double.IsFinite(value))
+        {
+            errorMessage = $"Input '{key}' must be a finite number.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryConvertToDouble(object raw, out double value)
+    {
+        value = 0;
+
+        switch (raw)
+        {
+            case double d:
+                value = d;
+                return true;
+            case float f:
+                value = f;
+                return true;
+            case byte b:
+                value = b;
+                return true;
+            case sbyte sb:
+                value = sb;
+                return true;
+            case short s:
+                value = s;
+                return true;
+            case ushort us:
+                value = us;
+                return true;
+            case int i:
+                value = i;
+                return true;
+            case uint ui:
+                value = ui;
+                return true;
+            case long l:
+                value = l;
+                return true;
+            case ulong ul:
+                value = ul;
+                return true;
+            case decimal m:
+                value = (double)m;
+                return true;
+            case string text:
+                return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
+            case IFormattable formattable:
+                return double.TryParse(formattable.ToString(null, CultureInfo.InvariantCulture), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
+            default:
+                return double.TryParse(raw.ToString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
+        }
     }
 }

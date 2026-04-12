@@ -19,7 +19,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "数据处理",
     IconName = "point-correction",
     Keywords = new[] { "correction", "compensation", "robot", "pick place" },
-    Version = "1.0.1"
+    Version = "1.0.3"
 )]
 [InputPort("DetectedPoint", "Detected Point", PortDataType.Point, IsRequired = true)]
 [InputPort("DetectedAngle", "Detected Angle", PortDataType.Float, IsRequired = false)]
@@ -29,9 +29,11 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("CorrectionY", "Correction Y", PortDataType.Float)]
 [OutputPort("CorrectionAngle", "Correction Angle", PortDataType.Float)]
 [OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OutputPort("TransformUnit", "Transform Unit", PortDataType.String)]
 [OperatorParam("CorrectionMode", "Correction Mode", "enum", DefaultValue = "TranslationOnly", Options = new[] { "TranslationOnly|TranslationOnly", "TranslationRotation|TranslationRotation" })]
 [OperatorParam("OutputUnit", "Output Unit", "enum", DefaultValue = "Pixel", Options = new[] { "Pixel|Pixel", "mm|mm" })]
 [OperatorParam("PixelSize", "Pixel Size", "double", DefaultValue = 1.0, Min = 1E-09, Max = 1000000.0)]
+[OperatorParam("MaxAllowedDistance", "Max Allowed Distance", "double", DefaultValue = 0.0, Min = 0.0, Max = 1000000.0)]
 public class PointCorrectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.PointCorrection;
@@ -62,24 +64,74 @@ public class PointCorrectionOperator : OperatorBase
 
         var mode = GetStringParam(@operator, "CorrectionMode", "TranslationOnly");
         var outputUnit = GetStringParam(@operator, "OutputUnit", "Pixel");
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 1.0, 1e-9, 1_000_000);
+        if (!mode.Equals("TranslationOnly", StringComparison.OrdinalIgnoreCase) &&
+            !mode.Equals("TranslationRotation", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("CorrectionMode must be TranslationOnly or TranslationRotation"));
+        }
 
-        var detectedAngle = ResolveInputOrParameter(inputs, @operator, "DetectedAngle", 0.0);
-        var referenceAngle = ResolveInputOrParameter(inputs, @operator, "ReferenceAngle", 0.0);
+        if (!outputUnit.Equals("Pixel", StringComparison.OrdinalIgnoreCase) &&
+            !outputUnit.Equals("mm", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("OutputUnit must be Pixel or mm"));
+        }
 
-        var correctionX = referencePoint.X - detectedPoint.X;
-        var correctionY = referencePoint.Y - detectedPoint.Y;
+        if (!TryGetFiniteDoubleParameter(@operator, "PixelSize", 1.0, out var pixelSize))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("PixelSize must be a positive finite number"));
+        }
+
+        if (!double.IsFinite(pixelSize) || pixelSize <= 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("PixelSize must be a positive finite number"));
+        }
+
+        if (!TryGetFiniteDoubleParameter(@operator, "MaxAllowedDistance", 0.0, out var maxAllowedDistance))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("MaxAllowedDistance must be a finite number greater than or equal to 0"));
+        }
+
+        if (!double.IsFinite(maxAllowedDistance) || maxAllowedDistance < 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("MaxAllowedDistance must be a finite number greater than or equal to 0"));
+        }
+
+        if (!TryResolveFiniteInputOrParameter(inputs, @operator, "DetectedAngle", 0.0, out var detectedAngle, out var detectedAngleError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(detectedAngleError ?? "DetectedAngle must be a finite number"));
+        }
+
+        if (!TryResolveFiniteInputOrParameter(inputs, @operator, "ReferenceAngle", 0.0, out var referenceAngle, out var referenceAngleError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(referenceAngleError ?? "ReferenceAngle must be a finite number"));
+        }
+
+        var detectedToReferenceDistance = Math.Sqrt(
+            (referencePoint.X - detectedPoint.X) * (referencePoint.X - detectedPoint.X) +
+            (referencePoint.Y - detectedPoint.Y) * (referencePoint.Y - detectedPoint.Y));
+
+        var distanceForThreshold = outputUnit.Equals("mm", StringComparison.OrdinalIgnoreCase)
+            ? detectedToReferenceDistance * pixelSize
+            : detectedToReferenceDistance;
+
+        if (maxAllowedDistance > 0 && distanceForThreshold > maxAllowedDistance)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure($"DetectedPoint is too far from ReferencePoint. Distance={distanceForThreshold:F6}, MaxAllowedDistance={maxAllowedDistance:F6}"));
+        }
+
+        var correctionXPixel = referencePoint.X - detectedPoint.X;
+        var correctionYPixel = referencePoint.Y - detectedPoint.Y;
         var correctionAngle = 0.0;
 
         var matrix = new double[2][]
         {
-            [1.0, 0.0, correctionX],
-            [0.0, 1.0, correctionY]
+            [1.0, 0.0, correctionXPixel],
+            [0.0, 1.0, correctionYPixel]
         };
 
         if (mode.Equals("TranslationRotation", StringComparison.OrdinalIgnoreCase))
         {
-            correctionAngle = referenceAngle - detectedAngle;
+            correctionAngle = NormalizeAngle(referenceAngle - detectedAngle);
             var rad = correctionAngle * Math.PI / 180.0;
             var cos = Math.Cos(rad);
             var sin = Math.Sin(rad);
@@ -87,8 +139,8 @@ public class PointCorrectionOperator : OperatorBase
             var tx = referencePoint.X - (cos * detectedPoint.X - sin * detectedPoint.Y);
             var ty = referencePoint.Y - (sin * detectedPoint.X + cos * detectedPoint.Y);
 
-            correctionX = tx;
-            correctionY = ty;
+            correctionXPixel = tx;
+            correctionYPixel = ty;
             matrix =
             [
                 [cos, -sin, tx],
@@ -96,12 +148,12 @@ public class PointCorrectionOperator : OperatorBase
             ];
         }
 
+        var correctionX = correctionXPixel;
+        var correctionY = correctionYPixel;
         if (outputUnit.Equals("mm", StringComparison.OrdinalIgnoreCase))
         {
             correctionX *= pixelSize;
             correctionY *= pixelSize;
-            matrix[0][2] *= pixelSize;
-            matrix[1][2] *= pixelSize;
         }
 
         var output = new Dictionary<string, object>
@@ -109,7 +161,8 @@ public class PointCorrectionOperator : OperatorBase
             { "CorrectionX", correctionX },
             { "CorrectionY", correctionY },
             { "CorrectionAngle", correctionAngle },
-            { "TransformMatrix", matrix }
+            { "TransformMatrix", matrix },
+            { "TransformUnit", "Pixel" }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -131,24 +184,64 @@ public class PointCorrectionOperator : OperatorBase
             return ValidationResult.Invalid("OutputUnit must be Pixel or mm");
         }
 
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 1.0);
-        if (pixelSize <= 0)
+        if (!TryGetFiniteDoubleParameter(@operator, "PixelSize", 1.0, out var pixelSize))
         {
-            return ValidationResult.Invalid("PixelSize must be greater than 0");
+            return ValidationResult.Invalid("PixelSize must be a positive finite number");
+        }
+
+        if (!double.IsFinite(pixelSize) || pixelSize <= 0)
+        {
+            return ValidationResult.Invalid("PixelSize must be a positive finite number");
+        }
+
+        if (!TryGetFiniteDoubleParameter(@operator, "MaxAllowedDistance", 0.0, out var maxAllowedDistance))
+        {
+            return ValidationResult.Invalid("MaxAllowedDistance must be a finite number greater than or equal to 0");
+        }
+
+        if (!double.IsFinite(maxAllowedDistance) || maxAllowedDistance < 0)
+        {
+            return ValidationResult.Invalid("MaxAllowedDistance must be a finite number greater than or equal to 0");
         }
 
         return ValidationResult.Valid();
     }
 
-    private static double ResolveInputOrParameter(Dictionary<string, object>? inputs, Operator @operator, string key, double fallback)
+    private static bool TryResolveFiniteInputOrParameter(
+        Dictionary<string, object>? inputs,
+        Operator @operator,
+        string key,
+        double fallback,
+        out double value,
+        out string? error)
     {
-        if (inputs != null && inputs.TryGetValue(key, out var raw) && TryConvertToDouble(raw, out var value))
+        value = fallback;
+        error = null;
+
+        if (inputs != null && inputs.TryGetValue(key, out var inputRaw))
         {
-            return value;
+            if (!TryConvertToFiniteDouble(inputRaw, out value))
+            {
+                error = $"{key} must be a finite number";
+                return false;
+            }
+
+            return true;
         }
 
         var paramValue = @operator.Parameters.FirstOrDefault(p => p.Name.Equals(key, StringComparison.OrdinalIgnoreCase))?.Value;
-        return TryConvertToDouble(paramValue, out var converted) ? converted : fallback;
+        if (paramValue == null)
+        {
+            return true;
+        }
+
+        if (!TryConvertToFiniteDouble(paramValue, out value))
+        {
+            error = $"{key} must be a finite number";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryParsePoint(object? obj, out Position point)
@@ -162,25 +255,20 @@ public class PointCorrectionOperator : OperatorBase
         switch (obj)
         {
             case Position p:
-                point = p;
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point2f p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point2d p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
         }
 
         if (obj is IDictionary<string, object> dict &&
             TryGetDouble(dict, "X", out var x) &&
             TryGetDouble(dict, "Y", out var y))
         {
-            point = new Position(x, y);
-            return true;
+            return TryCreateFinitePoint(x, y, out point);
         }
 
         if (obj is IDictionary legacy)
@@ -197,15 +285,27 @@ public class PointCorrectionOperator : OperatorBase
     private static bool TryGetDouble(IDictionary<string, object> dict, string key, out double value)
     {
         value = 0;
-        if (!dict.TryGetValue(key, out var raw) || raw == null)
+        if (!TryGetCaseInsensitiveValue(dict, key, out var raw) || raw == null)
         {
             return false;
         }
 
-        return TryConvertToDouble(raw, out value);
+        return TryConvertToFiniteDouble(raw, out value);
     }
 
-    private static bool TryConvertToDouble(object? raw, out double value)
+    private static bool TryCreateFinitePoint(double x, double y, out Position point)
+    {
+        point = new Position(0, 0);
+        if (!double.IsFinite(x) || !double.IsFinite(y))
+        {
+            return false;
+        }
+
+        point = new Position(x, y);
+        return true;
+    }
+
+    private static bool TryConvertToFiniteDouble(object? raw, out double value)
     {
         value = 0;
         if (raw == null)
@@ -213,14 +313,73 @@ public class PointCorrectionOperator : OperatorBase
             return false;
         }
 
-        return raw switch
+        var converted = raw switch
         {
-            double d => (value = d) == d,
-            float f => (value = f) == f,
-            int i => (value = i) == i,
-            long l => (value = l) == l,
-            _ => double.TryParse(raw.ToString(), out value)
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            _ => double.TryParse(raw.ToString(), out var parsed) ? parsed : double.NaN
         };
+
+        if (!double.IsFinite(converted))
+        {
+            return false;
+        }
+
+        value = converted;
+        return true;
+    }
+
+    private static double NormalizeAngle(double angleDegrees)
+    {
+        var normalized = angleDegrees % 360.0;
+        if (normalized >= 180.0)
+        {
+            normalized -= 360.0;
+        }
+        else if (normalized < -180.0)
+        {
+            normalized += 360.0;
+        }
+
+        return normalized;
+    }
+
+    private static bool TryGetFiniteDoubleParameter(Operator @operator, string name, double defaultValue, out double value)
+    {
+        value = defaultValue;
+
+        var parameterValue = @operator.Parameters
+            .FirstOrDefault(parameter => parameter.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.Value;
+
+        if (parameterValue == null)
+        {
+            return true;
+        }
+
+        return TryConvertToFiniteDouble(parameterValue, out value);
+    }
+
+    private static bool TryGetCaseInsensitiveValue(IDictionary<string, object> dict, string key, out object? value)
+    {
+        if (dict.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        foreach (var pair in dict)
+        {
+            if (pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 }
 

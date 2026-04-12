@@ -1,60 +1,28 @@
-# 数组索引器 / ArrayIndexer
+# ArrayIndexer
 
-## 基本信息 / Basic Info
-| 项目 (Field) | 值 (Value) |
-|------|------|
-| 类名 (Class) | `ArrayIndexerOperator` |
-| 枚举值 (Enum) | `OperatorType.ArrayIndexer` |
-| 分类 (Category) | 数据处理 |
-| 成熟度 (Maturity) | 稳定 Stable |
-| 作者 (Author) | 蘅芜君 |
+## 基本信息
+- 类名: `ArrayIndexerOperator`
+- 枚举: `OperatorType.ArrayIndexer`
+- 分类: `数据处理`
 
-## 算法原理 / Algorithm Principle
-该算子主要执行流程控制、数据整理、变量处理或类型转换，用于把上下游节点连接得更稳定。
+## 输入与输出
+- 输入:
+- `List` (`Any`, 必填): 可枚举集合或 `DetectionList`。
+- 输出:
+- `Item` (`Any`): 选中的元素。
+- `Found` (`Boolean`): 是否找到元素。
+- `Index` (`Integer`): 选中元素在原始输入列表中的索引。
 
-> English: This section is completed from the current source implementation and focuses on actual runtime behavior in code.
+## 参数契约
+- `Mode` (`enum`, 默认 `Index`): `Index/MaxConfidence/MaxArea/MinArea/First/Last`。
+- `Index` (`int`, 默认 `0`): `Mode=Index` 时使用。
+- `LabelFilter` (`string`, 默认空): 仅在标签匹配的子集内选择。
 
-## 实现策略 / Implementation Strategy
-- 实现遵循统一算子框架：参数读取、输入检查、核心处理与结果封装相互分离。
+## 行为说明
+- 严格只接受 `List` 输入，不再兼容旧输入键 `Items`。
+- `LabelFilter` 先过滤，再按 `Mode` 选择目标元素。
+- `Index` 输出固定为原始输入列表索引，不是过滤后子集索引。
+- `MaxConfidence/MaxArea/MinArea` 使用单次遍历选择，不再全排序。
 
-## 核心 API 调用链 / Core API Call Chain
-1. `GetStringParam / GetIntParam / GetDoubleParam / GetBoolParam / GetFloatParam`
-
-## 参数说明 / Parameters
-| 参数名 (Name) | 类型 (Type) | 默认值 (Default) | 范围 (Range) | 说明 (Description) |
-|--------|------|--------|------|------|
-| `Mode` | `enum` | `"Index"` | Index/按索引；MaxConfidence/最大置信度；MaxArea/最大面积；MinArea/最小面积；First/第一个；Last/最后一个 | 工作模式选择。 |
-| `Index` | `int` | `0` | - | 该参数用于控制当前实现行为，建议结合现场样本调节。 |
-
-## 输入/输出端口 / Input/Output Ports
-### 输入 / Inputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 必填 (Required) | 说明 (Description) |
-|------|------|------|------|------|
-| `List` | 列表 | `Any` | Yes | 提供流程数据输入。 |
-
-### 输出 / Outputs
-| 名称 (Name) | 显示名 (DisplayName) | 数据类型 (DataType) | 说明 (Description) |
-|------|------|------|------|
-| `Item` | 元素 | `Any` | 输出流程数据结果。 |
-## 性能特征 / Performance
-| 指标 (Metric) | 值 (Value) |
-|------|------|
-| 时间复杂度 (Time Complexity) | 通常为 `O(1)` 或与输入集合长度线性相关。 |
-| 典型耗时 (Typical Latency) | 仓库中未提供固定 benchmark；实际延迟受图像尺寸、参数规模、缓存命中率和外部依赖影响。 |
-| 内存特征 (Memory Profile) | 主要由中间结果、缓存结构和输出封装决定。 |
-
-## 适用场景 / Use Cases
-- 适合做变量整理、条件判断、结果汇总和类型转换。
-- 适合把上游复杂输出整理为下游更容易消费的结构。
-- 不适合作为图像算法替代品。
-- 不适合承载大量高频大对象搬运。
-
-## 已知限制 / Known Limitations
-1. 声明输出 `Item` 与当前运行时附加字段不完全一致，集成时应以实际输出字典为准。
-
-## 变更记录 / Changelog
-| 版本 (Version) | 日期 (Date) | 变更内容 (Changes) |
-|------|------|----------|
-| 1.0.2 | 2026-03-14 | 第二轮基于源码深化实现行为、性能与限制说明 |
-| 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
-| 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
+## 变更记录
+- `1.1.0` (2026-04-12): 收口 `List` 单输入、声明 `LabelFilter`、`Index` 语义改为原始索引、极值选择改为单次遍历。

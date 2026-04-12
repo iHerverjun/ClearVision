@@ -72,16 +72,21 @@ public class BoundingBoxFilterOperator : OperatorBase
         var rw = GetIntParam(@operator, "RegionW", 0);
         var rh = GetIntParam(@operator, "RegionH", 0);
         var region = new Rect(rx, ry, Math.Max(0, rw), Math.Max(0, rh));
+        var normalizedMode = mode.Trim().ToLowerInvariant();
+        if (normalizedMode is not ("area" or "class" or "region" or "score"))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("FilterMode must be Area/Class/Region/Score"));
+        }
 
-        var filtered = mode.ToLowerInvariant() switch
+        var filtered = normalizedMode switch
         {
             "area" => detections.Where(d => d.Area >= minArea && d.Area <= maxArea),
             "class" => targetClasses.Count == 0 ? detections : detections.Where(d => targetClasses.Contains(d.Label)),
             "region" => region.Width > 0 && region.Height > 0
-                ? detections.Where(d => region.Contains(new Point((int)d.CenterX, (int)d.CenterY)))
+                ? detections.Where(d => IsCenterInsideRegion(d, region))
                 : Enumerable.Empty<DetectionResultValue>(),
             "score" => detections.Where(d => d.Confidence >= minScore),
-            _ => detections
+            _ => Enumerable.Empty<DetectionResultValue>()
         };
 
         // Apply score threshold as a common post-filter if configured.
@@ -92,14 +97,14 @@ public class BoundingBoxFilterOperator : OperatorBase
 
         var resultDetections = filtered.ToList();
         var outputList = new DetectionListValue(resultDetections);
-        var incomingVisualizationDetections = BuildVisualizationDetections(detections, minScore);
-        var keptVisualizationDetections = BuildVisualizationDetections(resultDetections, minScore);
 
         if (TryGetInputImage(inputs, out var imageWrapper) && imageWrapper != null)
         {
             var src = imageWrapper.GetMat();
             if (!src.Empty())
             {
+                var incomingVisualizationDetections = BuildVisualizationDetections(detections, minScore);
+                var keptVisualizationDetections = BuildVisualizationDetections(resultDetections, minScore);
                 var resultImage = src.Clone();
                 DrawDetections(resultImage, incomingVisualizationDetections, new Scalar(255, 120, 0), 1, "IN");
 
@@ -147,7 +152,31 @@ public class BoundingBoxFilterOperator : OperatorBase
             return ValidationResult.Invalid("MinScore must be within [0, 1]");
         }
 
+        var minArea = GetDoubleParam(@operator, "MinArea", 0, 0);
+        var maxArea = GetDoubleParam(@operator, "MaxArea", 9999999, 0);
+        if (minArea > maxArea)
+        {
+            return ValidationResult.Invalid("MinArea must be less than or equal to MaxArea");
+        }
+
         return ValidationResult.Valid();
+    }
+
+    private static bool IsCenterInsideRegion(DetectionResultValue detection, Rect region)
+    {
+        if (region.Width <= 0 || region.Height <= 0)
+        {
+            return false;
+        }
+
+        var left = region.X;
+        var top = region.Y;
+        var right = region.X + region.Width;
+        var bottom = region.Y + region.Height;
+
+        var centerX = detection.CenterX;
+        var centerY = detection.CenterY;
+        return centerX >= left && centerY >= top && centerX < right && centerY < bottom;
     }
 
     private static Rect ClampRect(Rect rect, int width, int height)
@@ -272,15 +301,17 @@ public class BoundingBoxFilterOperator : OperatorBase
 
         if (obj is IEnumerable enumerable)
         {
+            var hasAnyItem = false;
             foreach (var item in enumerable)
             {
+                hasAnyItem = true;
                 if (TryParseDetection(item, out var detection))
                 {
                     detections.Add(detection);
                 }
             }
 
-            return detections.Count > 0;
+            return !hasAnyItem || detections.Count > 0;
         }
 
         return false;

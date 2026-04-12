@@ -41,44 +41,63 @@ public class UnitConvertOperator : OperatorBase
     {
         if (!TryGetInputDouble(inputs, "Value", out var value))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Input 'Value' is required"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input 'Value' is required and must be a valid number."));
+        }
+
+        if (!double.IsFinite(value))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Input 'Value' must be a finite number."));
         }
 
         var fromUnit = NormalizeUnit(GetStringParam(@operator, "FromUnit", "Pixel"));
         var toUnit = NormalizeUnit(GetStringParam(@operator, "ToUnit", "mm"));
-        var scale = GetDoubleParam(@operator, "Scale", 1.0, 1e-9);
+        if (!TryGetFiniteDoubleParameter(@operator, "Scale", 1.0, out var scale))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Scale must be a finite number greater than 0."));
+        }
+
         var useCalibration = GetBoolParam(@operator, "UseCalibration", false);
+        var pixelSize = 0.0;
 
         if (!IsSupportedUnit(fromUnit) || !IsSupportedUnit(toUnit))
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Unsupported unit. Supported: Pixel/mm/um/inch"));
         }
 
-        var requiresPixelSize = fromUnit == "pixel" || toUnit == "pixel";
-        var pixelSize = 0.0;
+        if (!IsPositiveFinite(scale))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Scale must be a finite number greater than 0."));
+        }
 
+        if (useCalibration)
+        {
+            if (!TryGetInputDouble(inputs, "PixelSize", out pixelSize) || !IsPositiveFinite(pixelSize))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure("UseCalibration=true requires finite 'PixelSize' input greater than 0."));
+            }
+        }
+
+        var requiresPixelSize = fromUnit == "pixel" || toUnit == "pixel";
         if (requiresPixelSize)
         {
-            if (useCalibration)
-            {
-                if (!TryGetInputDouble(inputs, "PixelSize", out pixelSize))
-                {
-                    return Task.FromResult(OperatorExecutionOutput.Failure("UseCalibration=true requires 'PixelSize' input"));
-                }
-            }
-            else
+            if (!useCalibration)
             {
                 pixelSize = scale;
             }
 
-            if (pixelSize <= 0)
+            if (!IsPositiveFinite(pixelSize))
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("Pixel size must be greater than 0"));
+                return Task.FromResult(OperatorExecutionOutput.Failure("Pixel size must be a finite number greater than 0."));
             }
         }
 
         var mmValue = ConvertToMillimeter(value, fromUnit, pixelSize);
         var result = ConvertFromMillimeter(mmValue, toUnit, pixelSize);
+
+        if (!double.IsFinite(mmValue) || !double.IsFinite(result))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Conversion result must be finite."));
+        }
 
         var output = new Dictionary<string, object>
         {
@@ -104,10 +123,14 @@ public class UnitConvertOperator : OperatorBase
             return ValidationResult.Invalid("FromUnit/ToUnit must be Pixel/mm/um/inch");
         }
 
-        var scale = GetDoubleParam(@operator, "Scale", 1.0);
-        if (scale <= 0)
+        if (!TryGetFiniteDoubleParameter(@operator, "Scale", 1.0, out var scale))
         {
-            return ValidationResult.Invalid("Scale must be greater than 0");
+            return ValidationResult.Invalid("Scale must be a finite number greater than 0.");
+        }
+
+        if (!IsPositiveFinite(scale))
+        {
+            return ValidationResult.Invalid("Scale must be a finite number greater than 0.");
         }
 
         return ValidationResult.Valid();
@@ -123,12 +146,38 @@ public class UnitConvertOperator : OperatorBase
 
         return raw switch
         {
-            double d => (value = d) == d,
-            float f => (value = f) == f,
+            double d => (value = d) == d || double.IsNaN(d),
+            float f => (value = f) == f || float.IsNaN(f),
+            decimal m => (value = (double)m) == (double)m,
             int i => (value = i) == i,
+            uint ui => (value = ui) == ui,
+            short s => (value = s) == s,
+            ushort us => (value = us) == us,
             long l => (value = l) == l,
+            ulong ul => (value = ul) == ul,
             _ => double.TryParse(raw.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out value)
         };
+    }
+
+    private static bool IsPositiveFinite(double value)
+    {
+        return double.IsFinite(value) && value > 0;
+    }
+
+    private static bool TryGetFiniteDoubleParameter(Operator @operator, string name, double defaultValue, out double value)
+    {
+        value = defaultValue;
+
+        var parameterValue = @operator.Parameters
+            .FirstOrDefault(parameter => parameter.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.Value;
+
+        if (parameterValue == null)
+        {
+            return true;
+        }
+
+        return TryGetInputDouble(new Dictionary<string, object> { [name] = parameterValue }, name, out value);
     }
 
     private static string NormalizeUnit(string unit)

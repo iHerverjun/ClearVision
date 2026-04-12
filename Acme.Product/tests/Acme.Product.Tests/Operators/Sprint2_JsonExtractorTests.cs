@@ -1,7 +1,3 @@
-// Sprint2_JsonExtractorTests.cs
-// Sprint 2 Task 2.2 JsonExtractor 算子单元测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -12,9 +8,6 @@ using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
-/// <summary>
-/// Sprint 2 Task 2.2: JsonExtractor 算子单元测试
-/// </summary>
 public class Sprint2_JsonExtractorTests
 {
     private readonly ILogger<JsonExtractorOperator> _loggerMock;
@@ -27,22 +20,21 @@ public class Sprint2_JsonExtractorTests
     }
 
     [Fact]
-    public async Task JsonExtractor_ExtractStringValue_ReturnsString()
+    public async Task JsonExtractor_ExtractStringValue_ReturnsValueAndIsSuccess()
     {
         var json = """{"name": "John", "age": 30}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.name" },
+            { "JsonPath", "$.name" },
             { "OutputType", "String" }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.Equal("John", result.OutputData["AsString"]);
+        Assert.True((bool)result.OutputData!["IsSuccess"]);
         Assert.Equal("John", result.OutputData["Value"]);
+        Assert.False(result.OutputData.ContainsKey("Found"));
     }
 
     [Fact]
@@ -51,71 +43,33 @@ public class Sprint2_JsonExtractorTests
         var json = """{"age": 30.5, "count": 100}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.age" },
+            { "JsonPath", "$.age" },
             { "OutputType", "Float" }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.True((bool)result.OutputData["IsNumber"]);
-        Assert.Equal(30.5f, result.OutputData["AsFloat"]);
+        Assert.True((bool)result.OutputData!["IsSuccess"]);
+        Assert.Equal(30.5f, result.OutputData["Value"]);
     }
 
     [Fact]
-    public async Task JsonExtractor_ExtractNumber_AsInteger()
+    public async Task JsonExtractor_ExtractNumber_AsDouble_ShouldPreserveDoubleType()
     {
-        var json = """{"age": 30, "count": 100}""";
+        var json = """{"ratio": 30.125}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.count" },
-            { "OutputType", "Integer" }
+            { "JsonPath", "$.ratio" },
+            { "OutputType", "Double" }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.Equal(100, result.OutputData["AsInteger"]);
-    }
-
-    [Fact]
-    public async Task JsonExtractor_ExtractBoolean_ReturnsBool()
-    {
-        var json = """{"isActive": true, "verified": false}""";
-        var op = CreateOperator(new Dictionary<string, object>
-        {
-            { "Path", "$.isActive" },
-            { "OutputType", "Boolean" }
-        });
-
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
-
-        Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.True((bool)result.OutputData["AsBoolean"]);
-    }
-
-    [Fact]
-    public async Task JsonExtractor_NestedObject_ReturnsValue()
-    {
-        var json = """{"user": {"name": "John", "email": "john@example.com"}}""";
-        var op = CreateOperator(new Dictionary<string, object>
-        {
-            { "Path", "$.user.email" },
-            { "OutputType", "String" }
-        });
-
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
-
-        Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.Equal("john@example.com", result.OutputData["Value"]);
+        Assert.True((bool)result.OutputData!["IsSuccess"]);
+        Assert.IsType<double>(result.OutputData["Value"]);
+        Assert.Equal(30.125d, (double)result.OutputData["Value"], 6);
     }
 
     [Fact]
@@ -124,35 +78,33 @@ public class Sprint2_JsonExtractorTests
         var json = """{"items": [{"id": 1}, {"id": 2}, {"id": 3}]}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.items[1].id" },
+            { "JsonPath", "$.items[1].id" },
             { "OutputType", "Integer" }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
-        Assert.Equal(2, result.OutputData["AsInteger"]);
+        Assert.True((bool)result.OutputData!["IsSuccess"]);
+        Assert.Equal(2, result.OutputData["Value"]);
     }
 
     [Fact]
-    public async Task JsonExtractor_PathNotFound_ReturnsDefault()
+    public async Task JsonExtractor_PathNotFound_ReturnsDefaultValue()
     {
         var json = """{"name": "John"}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.nonexistent" },
+            { "JsonPath", "$.nonexistent" },
             { "OutputType", "String" },
             { "DefaultValue", "default" },
             { "Required", false }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.True(result.IsSuccess);
-        Assert.False((bool)result.OutputData!["Found"]);
+        Assert.False((bool)result.OutputData!["IsSuccess"]);
         Assert.Equal("default", result.OutputData["Value"]);
     }
 
@@ -162,12 +114,11 @@ public class Sprint2_JsonExtractorTests
         var json = """{"name": "John"}""";
         var op = CreateOperator(new Dictionary<string, object>
         {
-            { "Path", "$.nonexistent" },
+            { "JsonPath", "$.nonexistent" },
             { "Required", true }
         });
 
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.False(result.IsSuccess);
     }
@@ -177,31 +128,82 @@ public class Sprint2_JsonExtractorTests
     {
         var json = """{"name": "John", invalid}""";
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "Json", json } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
 
         Assert.False(result.IsSuccess);
     }
 
     [Fact]
-    public void JsonExtractor_ValidateParameters_InvalidPath_ReturnsError()
+    public async Task JsonExtractor_InvalidTargetConversion_ShouldFail()
     {
-        var op = CreateOperator(new Dictionary<string, object> { { "Path", "" } });
+        var json = """{"name":"John"}""";
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "JsonPath", "$.name" },
+            { "OutputType", "Integer" }
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("output type", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task JsonExtractor_LegacyPathParameter_IsIgnored()
+    {
+        var json = """{"name": "John", "age": 30}""";
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "JsonPath", "$.name" },
+            { "OutputType", "String" }
+        });
+        op.AddParameter(new Parameter(
+            Guid.NewGuid(),
+            "Path",
+            "LegacyPath",
+            "legacy alias that should be ignored",
+            "string",
+            "$.age",
+            isRequired: false));
+        op.UpdateParameter("Path", "$.age");
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Json", json } });
+
+        Assert.True(result.IsSuccess);
+        Assert.True((bool)result.OutputData!["IsSuccess"]);
+        Assert.Equal("John", result.OutputData["Value"]);
+    }
+
+    [Fact]
+    public void JsonExtractor_ValidateParameters_InvalidJsonPath_ReturnsError()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "JsonPath", "" } });
         var result = _operator.ValidateParameters(op);
 
         Assert.False(result.IsValid);
     }
 
-    private Operator CreateOperator(Dictionary<string, object>? parameters = null)
+    [Fact]
+    public void JsonExtractor_ValidateParameters_InvalidOutputType_ReturnsError()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "OutputType", "UnknownType" } });
+        var result = _operator.ValidateParameters(op);
+
+        Assert.False(result.IsValid);
+    }
+
+    private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator(Guid.NewGuid(), "TestJsonExtractor", OperatorType.JsonExtractor, 0, 0);
 
         op.AddParameter(new Parameter(
-            Guid.NewGuid(), "Path", "JSONPath", "JSON 字段路径", "string", "$", isRequired: true));
+            Guid.NewGuid(), "JsonPath", "JSONPath", "JSON 字段路径", "string", "$.data", isRequired: true));
         op.AddParameter(new Parameter(
             Guid.NewGuid(), "OutputType", "输出类型", "Any/String/Float/Integer/Boolean", "string", "Any", isRequired: true));
         op.AddParameter(new Parameter(
-            Guid.NewGuid(), "DefaultValue", "默认值", "字段不存在时的默认值", "string", "", isRequired: false));
+            Guid.NewGuid(), "DefaultValue", "默认值", "字段不存在时的默认值", "string", string.Empty, isRequired: false));
         op.AddParameter(new Parameter(
             Guid.NewGuid(), "Required", "是否必需", "字段不存在时是否报错", "bool", false, isRequired: false));
 

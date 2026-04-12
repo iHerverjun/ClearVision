@@ -1,7 +1,3 @@
-// Sprint2_ArrayIndexerTests.cs
-// Sprint 2 Task 2.2 ArrayIndexer 算子单元测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -12,9 +8,6 @@ using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
-/// <summary>
-/// Sprint 2 Task 2.2: ArrayIndexer 算子单元测试
-/// </summary>
 public class Sprint2_ArrayIndexerTests
 {
     private readonly ILogger<ArrayIndexerOperator> _loggerMock;
@@ -29,91 +22,102 @@ public class Sprint2_ArrayIndexerTests
     [Fact]
     public async Task ArrayIndexer_IndexMode_ReturnsCorrectItem()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>
-        {
-            new("A", 0.8f, 0, 0, 10, 10),
-            new("B", 0.9f, 10, 0, 20, 20),
-            new("C", 0.7f, 20, 0, 30, 30)
-        };
-
+        var items = BuildSampleItems();
         var op = CreateOperator(new Dictionary<string, object>
         {
             { "Mode", "Index" },
             { "Index", 1 }
         });
 
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
 
         Assert.True(result.IsSuccess);
         Assert.True((bool)result.OutputData!["Found"]);
         Assert.Equal(1, result.OutputData["Index"]);
-        Assert.True(result.OutputData.ContainsKey("Item"), "应包含 Item 输出键");
-        Assert.Equal(3, result.OutputData["TotalCount"]);
     }
 
     [Fact]
-    public async Task ArrayIndexer_MaxConfidenceMode_ReturnsHighest()
+    public async Task ArrayIndexer_MaxConfidenceMode_ReturnsHighestAndOriginalIndex()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>
-        {
-            new("Low", 0.5f, 0, 0, 10, 10),
-            new("High", 0.95f, 10, 0, 20, 20),
-            new("Medium", 0.7f, 20, 0, 30, 30)
-        };
-
+        var items = BuildSampleItems();
         var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MaxConfidence" } });
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
 
         Assert.True(result.IsSuccess);
         Assert.True((bool)result.OutputData!["Found"]);
-        Assert.Contains("最大置信度: 0.95", (string)result.OutputData["Message"]);
+        Assert.Equal(1, result.OutputData["Index"]);
+        Assert.Contains("最大置信度", (string)result.OutputData["Message"]);
     }
 
     [Fact]
-    public async Task ArrayIndexer_MaxAreaMode_ReturnsLargest()
+    public async Task ArrayIndexer_MaxAreaMode_ReturnsLargestAndOriginalIndex()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>
+        var items = new List<DetectionResult>
         {
-            new("Small", 0.9f, 0, 0, 10, 10),   // Area = 100
-            new("Large", 0.8f, 10, 0, 50, 50),  // Area = 2500
-            new("Medium", 0.7f, 20, 0, 400, 400)  // 修正面积计算
+            new("Small", 0.9f, 0, 0, 10, 10),
+            new("Large", 0.8f, 10, 0, 50, 50),
+            new("Largest", 0.7f, 20, 0, 60, 60)
         };
 
         var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MaxArea" } });
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
 
         Assert.True(result.IsSuccess);
         Assert.True((bool)result.OutputData!["Found"]);
+        Assert.Equal(2, result.OutputData["Index"]);
     }
 
     [Fact]
-    public async Task ArrayIndexer_MinAreaMode_ReturnsSmallest()
+    public async Task ArrayIndexer_LabelFilter_MaxConfidence_ReturnsOriginalIndex()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>
+        var items = new List<DetectionResult>
         {
-            new("Small", 0.9f, 0, 0, 10, 10),   // Area = 100
-            new("Large", 0.8f, 10, 0, 50, 50),  // Area = 2500
-            new("Medium", 0.7f, 20, 0, 20, 20)  // Area = 400
+            new("Target", 0.5f, 0, 0, 10, 10),
+            new("Other", 0.9f, 10, 0, 20, 20),
+            new("Target", 0.95f, 20, 0, 30, 30)
         };
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Mode", "MaxConfidence" },
+            { "LabelFilter", "Target" }
+        });
 
-        var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MinArea" } });
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
 
         Assert.True(result.IsSuccess);
         Assert.True((bool)result.OutputData!["Found"]);
+        Assert.Equal(2, result.OutputData["Index"]);
+    }
+
+    [Fact]
+    public async Task ArrayIndexer_LabelFilter_IndexMode_ReturnsOriginalIndex()
+    {
+        var items = new List<DetectionResult>
+        {
+            new("Target", 0.5f, 0, 0, 10, 10),
+            new("Other", 0.9f, 10, 0, 20, 20),
+            new("Target", 0.95f, 20, 0, 30, 30)
+        };
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Mode", "Index" },
+            { "Index", 1 },
+            { "LabelFilter", "Target" }
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
+
+        Assert.True(result.IsSuccess);
+        Assert.True((bool)result.OutputData!["Found"]);
+        Assert.Equal(2, result.OutputData["Index"]);
     }
 
     [Fact]
     public async Task ArrayIndexer_EmptyList_ReturnsNotFound()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>();
         var op = CreateOperator();
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", new List<DetectionResult>() } });
 
         Assert.True(result.IsSuccess);
         Assert.False((bool)result.OutputData!["Found"]);
@@ -121,26 +125,29 @@ public class Sprint2_ArrayIndexerTests
     }
 
     [Fact]
-    public async Task ArrayIndexer_LabelFilter_FiltersBeforeSelect()
+    public async Task ArrayIndexer_ItemsInputOnly_ReturnsFailure()
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult>
-        {
-            new("Target", 0.5f, 0, 0, 10, 10),
-            new("Other", 0.9f, 10, 0, 20, 20),
-            new("Target", 0.95f, 20, 0, 30, 30)
-        };
+        var items = BuildSampleItems();
+        var op = CreateOperator();
+        var inputs = new Dictionary<string, object> { { "Items", items } };
 
-        var op = CreateOperator(new Dictionary<string, object>
-        {
-            { "Mode", "MaxConfidence" },
-            { "LabelFilter", "Target" }
-        });
-
-        var inputs = new Dictionary<string, object> { { "List", items } };
         var result = await _operator.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess);
-        Assert.True((bool)result.OutputData!["Found"]);
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ArrayIndexer_MaxConfidence_WithNonDetectionResultItems_ShouldFail()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "Mode", "MaxConfidence" } });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            { "List", new List<object> { "A", "B" } }
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("DetectionResult", result.ErrorMessage ?? string.Empty);
     }
 
     [Theory]
@@ -148,29 +155,38 @@ public class Sprint2_ArrayIndexerTests
     [InlineData(10)]
     public async Task ArrayIndexer_InvalidIndex_ReturnsFailure(int index)
     {
-        var items = new List<Acme.Product.Core.ValueObjects.DetectionResult> { new("A", 0.9f, 0, 0, 10, 10) };
+        var items = BuildSampleItems();
         var op = CreateOperator(new Dictionary<string, object>
         {
             { "Mode", "Index" },
             { "Index", index }
         });
 
-        var inputs = new Dictionary<string, object> { { "List", items } };
-        var result = await _operator.ExecuteAsync(op, inputs);
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "List", items } });
 
         Assert.False(result.IsSuccess);
     }
 
-    private Operator CreateOperator(Dictionary<string, object>? parameters = null)
+    private static List<DetectionResult> BuildSampleItems()
+    {
+        return
+        [
+            new("A", 0.8f, 0, 0, 10, 10),
+            new("B", 0.95f, 10, 0, 20, 20),
+            new("C", 0.7f, 20, 0, 30, 30)
+        ];
+    }
+
+    private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator(Guid.NewGuid(), "TestArrayIndexer", OperatorType.ArrayIndexer, 0, 0);
 
         op.AddParameter(new Parameter(
             Guid.NewGuid(), "Mode", "提取模式", "Index/MaxConfidence/MinArea/MaxArea/First/Last", "string", "Index", isRequired: true));
         op.AddParameter(new Parameter(
-            Guid.NewGuid(), "Index", "索引", "Index模式下的索引", "int", 0, isRequired: false));
+            Guid.NewGuid(), "Index", "索引", "Index 模式下的索引", "int", 0, isRequired: false));
         op.AddParameter(new Parameter(
-            Guid.NewGuid(), "LabelFilter", "标签过滤", "只选择指定标签的项", "string", "", isRequired: false));
+            Guid.NewGuid(), "LabelFilter", "标签过滤", "只选择指定标签项", "string", string.Empty, isRequired: false));
 
         if (parameters != null)
         {

@@ -19,7 +19,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "数据处理",
     IconName = "align-point",
     Keywords = new[] { "alignment", "offset", "reference point", "distance" },
-    Version = "1.0.1"
+    Version = "1.0.3"
 )]
 [InputPort("CurrentPoint", "Current Point", PortDataType.Point, IsRequired = true)]
 [InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
@@ -57,7 +57,22 @@ public class PointAlignmentOperator : OperatorBase
         }
 
         var outputUnit = GetStringParam(@operator, "OutputUnit", "Pixel");
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 1.0, 1e-9, 1_000_000);
+        if (outputUnit is not "Pixel" and not "mm" &&
+            !outputUnit.Equals("Pixel", StringComparison.OrdinalIgnoreCase) &&
+            !outputUnit.Equals("mm", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("OutputUnit must be Pixel or mm"));
+        }
+
+        if (!TryGetFiniteDoubleParameter(@operator, "PixelSize", 1.0, out var pixelSize))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("PixelSize must be a positive finite number"));
+        }
+
+        if (!double.IsFinite(pixelSize) || pixelSize <= 0)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("PixelSize must be a positive finite number"));
+        }
 
         var offsetX = currentPoint.X - referencePoint.X;
         var offsetY = currentPoint.Y - referencePoint.Y;
@@ -89,10 +104,14 @@ public class PointAlignmentOperator : OperatorBase
             return ValidationResult.Invalid("OutputUnit must be Pixel or mm");
         }
 
-        var pixelSize = GetDoubleParam(@operator, "PixelSize", 1.0);
-        if (pixelSize <= 0)
+        if (!TryGetFiniteDoubleParameter(@operator, "PixelSize", 1.0, out var pixelSize))
         {
-            return ValidationResult.Invalid("PixelSize must be greater than 0");
+            return ValidationResult.Invalid("PixelSize must be a positive finite number");
+        }
+
+        if (!double.IsFinite(pixelSize) || pixelSize <= 0)
+        {
+            return ValidationResult.Invalid("PixelSize must be a positive finite number");
         }
 
         return ValidationResult.Valid();
@@ -109,25 +128,20 @@ public class PointAlignmentOperator : OperatorBase
         switch (obj)
         {
             case Position p:
-                point = p;
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point2f p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
             case Point2d p:
-                point = new Position(p.X, p.Y);
-                return true;
+                return TryCreateFinitePoint(p.X, p.Y, out point);
         }
 
         if (obj is IDictionary<string, object> dict &&
             TryGetDouble(dict, "X", out var x) &&
             TryGetDouble(dict, "Y", out var y))
         {
-            point = new Position(x, y);
-            return true;
+            return TryCreateFinitePoint(x, y, out point);
         }
 
         if (obj is IDictionary legacy)
@@ -144,19 +158,81 @@ public class PointAlignmentOperator : OperatorBase
     private static bool TryGetDouble(IDictionary<string, object> dict, string key, out double value)
     {
         value = 0;
-        if (!dict.TryGetValue(key, out var raw) || raw == null)
+        if (!TryGetCaseInsensitiveValue(dict, key, out var raw) || raw == null)
         {
             return false;
         }
 
-        return raw switch
+        return TryConvertToFiniteDouble(raw, out value);
+    }
+
+    private static bool TryCreateFinitePoint(double x, double y, out Position point)
+    {
+        point = new Position(0, 0);
+        if (!double.IsFinite(x) || !double.IsFinite(y))
         {
-            double d => (value = d) == d,
-            float f => (value = f) == f,
-            int i => (value = i) == i,
-            long l => (value = l) == l,
-            _ => double.TryParse(raw.ToString(), out value)
+            return false;
+        }
+
+        point = new Position(x, y);
+        return true;
+    }
+
+    private static bool TryConvertToFiniteDouble(object raw, out double value)
+    {
+        value = 0;
+        var converted = raw switch
+        {
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            _ => double.TryParse(raw.ToString(), out var parsed) ? parsed : double.NaN
         };
+
+        if (!double.IsFinite(converted))
+        {
+            return false;
+        }
+
+        value = converted;
+        return true;
+    }
+
+    private static bool TryGetFiniteDoubleParameter(Operator @operator, string name, double defaultValue, out double value)
+    {
+        value = defaultValue;
+
+        var parameterValue = @operator.Parameters
+            .FirstOrDefault(parameter => parameter.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?.Value;
+
+        if (parameterValue == null)
+        {
+            return true;
+        }
+
+        return TryConvertToFiniteDouble(parameterValue, out value);
+    }
+
+    private static bool TryGetCaseInsensitiveValue(IDictionary<string, object> dict, string key, out object? value)
+    {
+        if (dict.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        foreach (var pair in dict)
+        {
+            if (pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 }
 

@@ -1,13 +1,10 @@
-// AggregatorOperator.cs
-// 聚合算子
-// 对多路输入数据进行合并、汇总与统计处理
-// 作者：蘅芜君
+using System.Globalization;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -25,57 +22,76 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("MaxValue", "最大值", PortDataType.Float)]
 [OutputPort("MinValue", "最小值", PortDataType.Float)]
 [OutputPort("Average", "均值", PortDataType.Float)]
+[OutputPort("NumericCount", "数值数量", PortDataType.Integer)]
 [OperatorParam("Mode", "聚合模式", "enum", DefaultValue = "Merge", Options = new[] { "Merge|合并列表", "Max|提取最大值", "Min|提取最小值", "Average|计算均值" })]
 public class AggregatorOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.Aggregator;
 
-    public AggregatorOperator(ILogger<AggregatorOperator> logger) : base(logger) { }
+    public AggregatorOperator(ILogger<AggregatorOperator> logger) : base(logger)
+    {
+    }
 
-    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(Operator @operator, Dictionary<string, object>? inputs, CancellationToken cancellationToken)
+    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        CancellationToken cancellationToken)
     {
         var mode = GetStringParam(@operator, "Mode", "Merge");
-        var list = new List<object>();
+        var modeKey = mode.Trim().ToLowerInvariant();
+        var validModes = new[] { "merge", "max", "min", "average" };
+        if (!validModes.Contains(modeKey, StringComparer.Ordinal))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Mode must be Merge, Max, Min or Average."));
+        }
+
+        var mergedList = new List<object>();
         foreach (var key in new[] { "Value1", "Value2", "Value3" })
         {
             if (inputs != null && inputs.TryGetValue(key, out var value) && value != null)
             {
-                list.Add(value);
+                mergedList.Add(value);
             }
         }
 
-        var numeric = list.Select(v => double.TryParse(v.ToString(), out var n) ? n : (double?)null)
-            .Where(v => v.HasValue)
-            .Select(v => v!.Value)
-            .ToList();
+        var numericValues = new List<double>();
+        foreach (var item in mergedList)
+        {
+            if (TryConvertToFiniteDouble(item, out var parsed))
+            {
+                numericValues.Add(parsed);
+            }
+        }
 
-        var max = numeric.Count > 0 ? numeric.Max() : 0;
-        var min = numeric.Count > 0 ? numeric.Min() : 0;
-        var avg = numeric.Count > 0 ? numeric.Average() : 0;
+        var numericCount = numericValues.Count;
+        var max = numericCount > 0 ? numericValues.Max() : 0.0;
+        var min = numericCount > 0 ? numericValues.Min() : 0.0;
+        var average = numericCount > 0 ? numericValues.Average() : 0.0;
+
+        if (modeKey is "max" or "min" or "average")
+        {
+            if (numericCount == 0)
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure($"Mode '{mode}' requires at least one finite numeric input."));
+            }
+        }
 
         var output = new Dictionary<string, object>
         {
-            ["MergedList"] = list,
+            ["MergedList"] = mergedList,
             ["MaxValue"] = max,
             ["MinValue"] = min,
-            ["Average"] = avg
+            ["Average"] = average,
+            ["NumericCount"] = numericCount
         };
 
-        switch (mode.ToLowerInvariant())
+        output["Result"] = modeKey switch
         {
-            case "max":
-                output["Result"] = max;
-                break;
-            case "min":
-                output["Result"] = min;
-                break;
-            case "average":
-                output["Result"] = avg;
-                break;
-            default:
-                output["Result"] = list;
-                break;
-        }
+            "max" => max,
+            "min" => min,
+            "average" => average,
+            _ => mergedList
+        };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
@@ -87,5 +103,30 @@ public class AggregatorOperator : OperatorBase
         return validModes.Contains(mode, StringComparer.OrdinalIgnoreCase)
             ? ValidationResult.Valid()
             : ValidationResult.Invalid("Mode must be Merge, Max, Min or Average.");
+    }
+
+    private static bool TryConvertToFiniteDouble(object value, out double parsed)
+    {
+        parsed = 0;
+
+        var success = value switch
+        {
+            double d => (parsed = d) == d || double.IsNaN(d),
+            float f => (parsed = f) == f || float.IsNaN(f),
+            byte b => (parsed = b) == b,
+            sbyte sb => (parsed = sb) == sb,
+            short s => (parsed = s) == s,
+            ushort us => (parsed = us) == us,
+            int i => (parsed = i) == i,
+            uint ui => (parsed = ui) == ui,
+            long l => (parsed = l) == l,
+            ulong ul => (parsed = ul) == ul,
+            decimal m => (parsed = (double)m) == (double)m,
+            string text => double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed),
+            IFormattable formattable => double.TryParse(formattable.ToString(null, CultureInfo.InvariantCulture), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed),
+            _ => double.TryParse(value.ToString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed)
+        };
+
+        return success && double.IsFinite(parsed);
     }
 }

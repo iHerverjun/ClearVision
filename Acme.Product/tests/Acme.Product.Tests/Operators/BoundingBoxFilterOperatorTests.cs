@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
+using System.Collections;
 using System.Reflection;
 using Xunit;
 
@@ -56,6 +57,80 @@ public class BoundingBoxFilterOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidMode_ShouldFailAtRuntime()
+    {
+        var op = CreateOperator(new Dictionary<string, object> { { "FilterMode", "Invalid" } });
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("defect", 0.9f, 10, 10, 20, 20)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("FilterMode");
+    }
+
+    [Fact]
+    public void ValidateParameters_WithMinAreaGreaterThanMaxArea_ShouldReturnInvalid()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "MinArea", 100 },
+            { "MaxArea", 10 }
+        });
+
+        var validation = _operator.ValidateParameters(op);
+
+        validation.IsValid.Should().BeFalse();
+        validation.Errors.Should().Contain(error => error.Contains("MinArea", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithRegionFilter_ShouldUseDoubleCenterAndRightBottomExclusiveBoundary()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FilterMode", "Region" },
+            { "RegionX", 10 },
+            { "RegionY", 10 },
+            { "RegionW", 20 },
+            { "RegionH", 20 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("in-left-top", 0.9f, 9.6f, 9.6f, 1f, 1f),   // center (10.1, 10.1), include
+            new DetectionResult("in-near-right", 0.9f, 28.6f, 10f, 1f, 1f), // center (29.1, 10.5), include
+            new DetectionResult("out-right", 0.9f, 29.5f, 10f, 1f, 1f),      // center (30.0, 10.5), exclude
+            new DetectionResult("out-bottom", 0.9f, 10f, 29.5f, 1f, 1f)      // center (10.5, 30.0), exclude
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(2);
+        var kept = result.OutputData["Detections"].Should().BeOfType<DetectionList>().Subject;
+        kept.Detections.Select(d => d.Label).Should().Contain(new[] { "in-left-top", "in-near-right" });
+        kept.Detections.Select(d => d.Label).Should().NotContain(new[] { "out-right", "out-bottom" });
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEmptyNonGenericCollection_ShouldReturnSuccessAndEmptyResult()
+    {
+        var op = CreateOperator(new Dictionary<string, object>());
+        var detections = new ArrayList();
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(0);
+        result.OutputData["Detections"].Should().BeOfType<DetectionList>().Subject.Count.Should().Be(0);
     }
 
     [Fact]
@@ -114,6 +189,31 @@ public class BoundingBoxFilterOperatorTests
 
         var previewImage = (ImageWrapper)result.OutputData["Image"];
         previewImage.GetBytes().Should().NotEqual(sourceBytes);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithoutImage_ShouldNotEmitVisualizationMetadata()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FilterMode", "Score" },
+            { "MinScore", 0.5 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("wire", 0.9f, 10, 10, 20, 20)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            { "Detections", detections }
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!.ContainsKey("ReceivedVisualizationCount").Should().BeFalse();
+        result.OutputData.ContainsKey("VisualizationCount").Should().BeFalse();
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

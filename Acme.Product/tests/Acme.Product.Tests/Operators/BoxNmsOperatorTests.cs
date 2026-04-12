@@ -5,6 +5,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Collections;
 using Xunit;
 
 namespace Acme.Product.Tests.Operators;
@@ -111,6 +112,77 @@ public class BoxNmsOperatorTests
 
         var diagnostics = result.OutputData["Diagnostics"].Should().BeAssignableTo<Dictionary<string, object>>().Subject;
         diagnostics["SuppressedCount"].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithValueIdenticalSuppressedBoxes_ShouldPreserveSuppressedInstances()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "IouThreshold", 0.5 },
+            { "ScoreThreshold", 0.1 },
+            { "MaxDetections", 10 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("defect", 0.9f, 10, 10, 20, 20),
+            new DetectionResult("defect", 0.8f, 10, 10, 20, 20),
+            new DetectionResult("defect", 0.8f, 10, 10, 20, 20)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(1);
+        result.OutputData["SuppressedCount"].Should().Be(2);
+        var suppressed = result.OutputData["SuppressedDetections"].Should().BeOfType<DetectionList>().Subject;
+        suppressed.Count.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenScoresTie_ShouldUseStableOrderingForTrim()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "IouThreshold", 0.99 },
+            { "ScoreThreshold", 0.1 },
+            { "MaxDetections", 2 }
+        });
+
+        var detections = new DetectionList(new[]
+        {
+            new DetectionResult("defect", 0.9f, 30, 10, 10, 10),
+            new DetectionResult("defect", 0.9f, 20, 10, 10, 10),
+            new DetectionResult("defect", 0.9f, 10, 10, 10, 10)
+        });
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object> { { "Detections", detections } });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        var kept = result.OutputData!["Detections"].Should().BeOfType<DetectionList>().Subject;
+        kept.Detections.Select(d => d.X).Should().Equal(10f, 20f);
+        var suppressed = result.OutputData["SuppressedDetections"].Should().BeOfType<DetectionList>().Subject;
+        suppressed.Detections.Single().X.Should().Be(30f);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithEmptyNonGenericCollection_ShouldReturnSuccessAndEmptyResult()
+    {
+        var op = CreateOperator(new Dictionary<string, object>());
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            { "Detections", new ArrayList() }
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Count"].Should().Be(0);
+        result.OutputData["InputCount"].Should().Be(0);
+        result.OutputData["SuppressedCount"].Should().Be(0);
     }
 
     [Fact]
