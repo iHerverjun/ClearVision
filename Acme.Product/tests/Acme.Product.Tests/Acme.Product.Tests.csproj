@@ -24,6 +24,9 @@
     <!-- E2E 测试 (Playwright) -->
     <PackageReference Include="Microsoft.Playwright" Version="1.41.2" />
     <PackageReference Include="Microsoft.Playwright.NUnit" Version="1.41.2" />
+    <PackageReference Include="DotNet.Testcontainers" Version="1.6.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="MySqlConnector" Version="2.3.7" />
   </ItemGroup>
 
   <ItemGroup>

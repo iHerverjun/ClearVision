@@ -1,213 +1,344 @@
-// DatabaseWriteOperator.cs
-// 验证表名是否合法（防止SQL注入）
-// 作者：蘅芜君
-
+using System.Collections.Concurrent;
+using System.Data.Common;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
-using Microsoft.Data.Sqlite;
+using Acme.Product.Infrastructure.Operators.DatabaseWrite;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 数据库写入算子 - 支持SQLite (可扩展SQLServer/MySQL)
-/// </summary>
 [OperatorMeta(
     DisplayName = "数据库写入",
-    Description = "检测结果存储到数据库",
+    Description = "将输入数据写入 SQLite / SQL Server / MySQL 表。",
     Category = "数据",
     IconName = "database",
-    Keywords = new[] { "数据库", "存储", "写入", "记录", "SQL", "Database", "Store", "Write" }
-)]
+    Keywords = new[] { "数据库", "写入", "存储", "SQL", "SQLite", "SQLServer", "MySQL", "Upsert" })]
 [InputPort("Data", "数据", PortDataType.Any, IsRequired = true)]
+[InputPort("RecordId", "记录ID", PortDataType.String, IsRequired = false)]
 [OutputPort("Status", "状态", PortDataType.Boolean)]
 [OutputPort("RecordId", "记录ID", PortDataType.String)]
 [OperatorParam("ConnectionString", "连接字符串", "string", DefaultValue = "")]
 [OperatorParam("TableName", "表名", "string", DefaultValue = "InspectionResults")]
 [OperatorParam("DbType", "数据库类型", "enum", DefaultValue = "SQLite", Options = new[] { "SQLite|SQLite", "SQLServer|SQLServer", "MySQL|MySQL" })]
-public class DatabaseWriteOperator : OperatorBase
+public sealed class DatabaseWriteOperator : OperatorBase
 {
-    /// <summary>
-    /// 有效的表名正则表达式（防止SQL注入）
-    /// </summary>
+    private const int CommandTimeoutSeconds = 5;
+    private const int RetryAttempts = 3;
+    private const int MaxRecordIdLength = 128;
+
     private static readonly Regex ValidTableNameRegex = new(
         @"^[a-zA-Z_][a-zA-Z0-9_]*$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _tableExistsCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, bool> TableExistsCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> TableEnsureLocks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = false };
+    private static readonly IReadOnlyDictionary<string, IDatabaseWriteProvider> ProviderByDbType =
+        new Dictionary<string, IDatabaseWriteProvider>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SQLite"] = new SqliteDatabaseWriteProvider(),
+            ["SQLServer"] = new SqlServerDatabaseWriteProvider(),
+            ["MySQL"] = new MySqlDatabaseWriteProvider()
+        };
 
     public override OperatorType OperatorType => OperatorType.DatabaseWrite;
 
-    public DatabaseWriteOperator(ILogger<DatabaseWriteOperator> logger) : base(logger) { }
+    public DatabaseWriteOperator(ILogger<DatabaseWriteOperator> logger) : base(logger)
+    {
+    }
 
-    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+    protected override async Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
         if (inputs == null || !inputs.TryGetValue("Data", out var data) || data == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入数据"));
+            return OperatorExecutionOutput.Failure("Input 'Data' is required.");
         }
 
-        // 获取参数
-        var connectionString = GetStringParam(@operator, "ConnectionString", "");
-        var tableName = GetStringParam(@operator, "TableName", "InspectionResults");
-        var dbType = GetStringParam(@operator, "DbType", "SQLite");
-
-        if (string.IsNullOrEmpty(connectionString))
+        var dbType = GetRawStringParameter(@operator, "DbType", "SQLite");
+        if (!TryGetProvider(dbType, out var provider))
         {
-            // 使用默认SQLite连接
-            connectionString = "Data Source=inspection_results.db";
-            dbType = "SQLite";
+            return OperatorExecutionOutput.Failure("DbType must be one of: SQLite, SQLServer, MySQL.");
         }
 
-        if (string.IsNullOrEmpty(tableName))
+        var connectionString = GetRawStringParameter(@operator, "ConnectionString", string.Empty);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return OperatorExecutionOutput.Failure("ConnectionString cannot be empty.");
+        }
+
+        var tableName = GetRawStringParameter(@operator, "TableName", "InspectionResults");
+        if (string.IsNullOrWhiteSpace(tableName))
         {
             tableName = "InspectionResults";
         }
 
-        // SQL注入防护：表名白名单校验
         if (!IsValidTableName(tableName))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure(
-                $"表名 '{tableName}' 包含非法字符。表名只能包含字母、数字和下划线，且必须以字母或下划线开头。"));
+            return OperatorExecutionOutput.Failure(
+                $"TableName '{tableName}' is invalid. Only letters, digits and underscore are allowed, and it must start with a letter or underscore.");
         }
 
-        // 生成记录ID
-        var recordId = Guid.NewGuid().ToString("N");
-
-        // 将数据序列化为JSON
-        var dataJson = JsonSerializer.Serialize(data, new JsonSerializerOptions
+        var (recordIdSuccess, recordId, recordIdErrorMessage) = ResolveRecordId(inputs);
+        if (!recordIdSuccess)
         {
-            WriteIndented = false
+            return OperatorExecutionOutput.Failure(recordIdErrorMessage ?? "Invalid RecordId.");
+        }
+
+        var dataJson = JsonSerializer.Serialize(data, SerializerOptions);
+        var timestampUtc = DateTime.UtcNow;
+
+        var writeResult = await WriteToDatabaseAsync(
+            provider,
+            connectionString,
+            tableName,
+            recordId,
+            dataJson,
+            timestampUtc,
+            cancellationToken);
+
+        if (!writeResult.success)
+        {
+            return OperatorExecutionOutput.Failure($"Database write failed: {writeResult.errorMessage}");
+        }
+
+        return OperatorExecutionOutput.Success(new Dictionary<string, object>
+        {
+            ["Status"] = true,
+            ["RecordId"] = recordId,
+            ["TableName"] = tableName,
+            ["DbType"] = provider.DbType,
+            ["Timestamp"] = timestampUtc
         });
-
-        // 写入数据库
-        var (success, errorMessage) = WriteToDatabase(dbType, connectionString, tableName, recordId, dataJson);
-
-        if (!success)
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"数据库写入失败: {errorMessage}"));
-        }
-
-        return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
-        {
-            { "Status", success },
-            { "RecordId", recordId },
-            { "TableName", tableName },
-            { "DbType", dbType },
-            { "Timestamp", DateTime.UtcNow }
-        }));
-    }
-
-    /// <summary>
-    /// 验证表名是否合法（防止SQL注入）
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>是否合法</returns>
-    private static bool IsValidTableName(string tableName)
-    {
-        if (string.IsNullOrWhiteSpace(tableName))
-            return false;
-
-        return ValidTableNameRegex.IsMatch(tableName);
-    }
-
-    private (bool success, string? errorMessage) WriteToDatabase(string dbType, string connectionString, string tableName, string recordId, string dataJson)
-    {
-        try
-        {
-            // 目前仅实现SQLite支持，其他数据库类型可在此扩展
-            if (!dbType.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
-            {
-                // 其他数据库类型暂不实现，返回成功以兼容元数据
-                return (true, null);
-            }
-
-            using var connection = new SqliteConnection(connectionString);
-            connection.Open();
-
-            // 确保表存在
-            CreateTableIfNotExists(connection, tableName);
-
-            // 插入数据
-            using var cmd = connection.CreateCommand();
-            // 表名已通过白名单验证，可以安全使用
-            cmd.CommandText = $@"INSERT INTO {tableName} (Id, Data, Timestamp) VALUES (@Id, @Data, @Timestamp)";
-            cmd.Parameters.AddWithValue("@Id", recordId);
-            cmd.Parameters.AddWithValue("@Data", dataJson);
-            cmd.Parameters.AddWithValue("@Timestamp", DateTime.UtcNow);
-            cmd.ExecuteNonQuery();
-
-            Logger.LogInformation("[DatabaseWrite] 成功写入记录: {RecordId} 到表: {TableName}", recordId, tableName);
-
-            return (true, null);
-        }
-        catch (SqliteException ex)
-        {
-            Logger.LogError(ex, "[DatabaseWrite] SQLite错误 {ErrorCode}: {Message}", ex.SqliteErrorCode, ex.Message);
-            return (false, $"SQLite错误 {ex.SqliteErrorCode}: {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "[DatabaseWrite] 数据库写入失败");
-            return (false, ex.Message);
-        }
-    }
-
-    private void CreateTableIfNotExists(SqliteConnection connection, string tableName)
-    {
-        if (_tableExistsCache.ContainsKey(tableName))
-            return;
-
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = $@"CREATE TABLE IF NOT EXISTS {tableName} (
-            Id TEXT PRIMARY KEY,
-            Data TEXT NOT NULL,
-            Timestamp DATETIME NOT NULL
-        )";
-        cmd.ExecuteNonQuery();
-
-        // 开启 WAL 模式提升单点 IO 性能
-        using var pragmaCmd = connection.CreateCommand();
-        pragmaCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
-        pragmaCmd.ExecuteNonQuery();
-
-        _tableExistsCache.TryAdd(tableName, true);
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var connectionString = GetStringParam(@operator, "ConnectionString", "");
-        var tableName = GetStringParam(@operator, "TableName", "InspectionResults");
-        var dbType = GetStringParam(@operator, "DbType", "SQLite");
-
-        if (@operator.Parameters.Any(p => p.Name == "ConnectionString") && string.IsNullOrEmpty(connectionString))
+        var dbType = GetRawStringParameter(@operator, "DbType", "SQLite");
+        if (!TryGetProvider(dbType, out _))
         {
-            return ValidationResult.Invalid("连接字符串不能为空");
+            return ValidationResult.Invalid("DbType must be one of: SQLite, SQLServer, MySQL.");
         }
 
-        if (string.IsNullOrEmpty(tableName))
+        var connectionString = GetRawStringParameter(@operator, "ConnectionString", string.Empty);
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
-            return ValidationResult.Invalid("表名不能为空");
+            return ValidationResult.Invalid("ConnectionString cannot be empty.");
+        }
+
+        var tableName = GetRawStringParameter(@operator, "TableName", "InspectionResults");
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            return ValidationResult.Invalid("TableName cannot be empty.");
         }
 
         if (!IsValidTableName(tableName))
         {
-            return ValidationResult.Invalid($"表名 '{tableName}' 包含非法字符。表名只能包含字母、数字和下划线，且必须以字母或下划线开头。");
-        }
-
-        var validDbTypes = new[] { "SQLite", "SQLServer", "MySQL" };
-        if (!validDbTypes.Contains(dbType, StringComparer.OrdinalIgnoreCase))
-        {
-            return ValidationResult.Invalid("数据库类型必须是 SQLite、SQLServer 或 MySQL");
+            return ValidationResult.Invalid(
+                $"TableName '{tableName}' is invalid. Only letters, digits and underscore are allowed, and it must start with a letter or underscore.");
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static bool IsValidTableName(string tableName)
+    {
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            return false;
+        }
+
+        return ValidTableNameRegex.IsMatch(tableName);
+    }
+
+    private static bool TryGetProvider(string dbType, out IDatabaseWriteProvider provider)
+    {
+        if (ProviderByDbType.TryGetValue(dbType, out var resolvedProvider))
+        {
+            provider = resolvedProvider;
+            return true;
+        }
+
+        provider = null!;
+        return false;
+    }
+
+    private static string GetRawStringParameter(Operator @operator, string name, string defaultValue)
+    {
+        var parameter = @operator.Parameters
+            .FirstOrDefault(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (parameter == null)
+        {
+            return defaultValue;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameter.ValueJson))
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<string>(parameter.ValueJson) ?? defaultValue;
+            }
+            catch (JsonException)
+            {
+                // Fall through to generic object formatting below.
+            }
+        }
+
+        return parameter.Value?.ToString()?.Trim() ?? defaultValue;
+    }
+
+    private static (bool success, string recordId, string? errorMessage) ResolveRecordId(Dictionary<string, object> inputs)
+    {
+        if (!inputs.TryGetValue("RecordId", out var recordIdValue) || recordIdValue == null)
+        {
+            return (true, Guid.NewGuid().ToString("N"), null);
+        }
+
+        var candidate = Convert.ToString(recordIdValue)?.Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return (false, string.Empty, "Input 'RecordId' cannot be empty when provided.");
+        }
+
+        if (candidate.Length > MaxRecordIdLength)
+        {
+            return (false, string.Empty, $"Input 'RecordId' exceeds {MaxRecordIdLength} characters.");
+        }
+
+        return (true, candidate, null);
+    }
+
+    private async Task<(bool success, string? errorMessage)> WriteToDatabaseAsync(
+        IDatabaseWriteProvider provider,
+        string connectionString,
+        string tableName,
+        string recordId,
+        string dataJson,
+        DateTime timestampUtc,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= RetryAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await using var connection = provider.CreateConnection(connectionString);
+                await connection.OpenAsync(cancellationToken);
+                await provider.InitializeConnectionAsync(connection, cancellationToken);
+
+                await EnsureTableExistsAsync(provider, connection, connectionString, tableName, cancellationToken);
+                await ExecuteUpsertAsync(provider, connection, tableName, recordId, dataJson, timestampUtc, cancellationToken);
+
+                Logger.LogInformation(
+                    "[DatabaseWrite] Record {RecordId} was persisted to {DbType}.{TableName}.",
+                    recordId,
+                    provider.DbType,
+                    tableName);
+
+                return (true, null);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (attempt < RetryAttempts && provider.IsTransient(ex))
+            {
+                var delay = TimeSpan.FromMilliseconds(200 * attempt);
+                Logger.LogWarning(
+                    ex,
+                    "[DatabaseWrite] Transient {DbType} failure on attempt {Attempt}/{RetryAttempts}, retrying after {DelayMs} ms.",
+                    provider.DbType,
+                    attempt,
+                    RetryAttempts,
+                    delay.TotalMilliseconds);
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(
+                    ex,
+                    "[DatabaseWrite] Failed to persist record {RecordId} into {DbType}.{TableName}.",
+                    recordId,
+                    provider.DbType,
+                    tableName);
+                return (false, ex.Message);
+            }
+        }
+
+        return (false, "Database write failed after all retry attempts.");
+    }
+
+    private static async Task ExecuteUpsertAsync(
+        IDatabaseWriteProvider provider,
+        DbConnection connection,
+        string tableName,
+        string recordId,
+        string dataJson,
+        DateTime timestampUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var upsertCommand = provider.CreateUpsertCommand(connection, tableName, recordId, dataJson, timestampUtc);
+        upsertCommand.CommandTimeout = CommandTimeoutSeconds;
+        await upsertCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task EnsureTableExistsAsync(
+        IDatabaseWriteProvider provider,
+        DbConnection connection,
+        string connectionString,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var cacheKey = BuildTableCacheKey(provider.DbType, connectionString, tableName);
+        if (TableExistsCache.ContainsKey(cacheKey))
+        {
+            return;
+        }
+
+        var guard = TableEnsureLocks.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
+        await guard.WaitAsync(cancellationToken);
+
+        try
+        {
+            if (TableExistsCache.ContainsKey(cacheKey))
+            {
+                return;
+            }
+
+            await using var ensureTableCommand = provider.CreateEnsureTableCommand(connection, tableName);
+            ensureTableCommand.CommandTimeout = CommandTimeoutSeconds;
+            await ensureTableCommand.ExecuteNonQueryAsync(cancellationToken);
+            TableExistsCache.TryAdd(cacheKey, true);
+        }
+        finally
+        {
+            guard.Release();
+            if (TableExistsCache.ContainsKey(cacheKey))
+            {
+                TableEnsureLocks.TryRemove(cacheKey, out _);
+            }
+        }
+    }
+
+    private static string BuildTableCacheKey(string dbType, string connectionString, string tableName)
+    {
+        var hash = ComputeConnectionHash(connectionString);
+        return $"{dbType}|{hash}|{tableName}";
+    }
+
+    private static string ComputeConnectionHash(string connectionString)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(connectionString));
+        return Convert.ToHexString(bytes);
     }
 }

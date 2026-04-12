@@ -38,8 +38,10 @@
     <!-- 密码哈希 -->
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     
-    <!-- SQLite -->
+    <!-- SQLite / SQL Server / MySQL -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="MySqlConnector" Version="2.3.7" />
     
     <!-- ONNX Runtime -->
     <!-- 【P3-O3.1 GPU加速】CPU版本（默认） -->
