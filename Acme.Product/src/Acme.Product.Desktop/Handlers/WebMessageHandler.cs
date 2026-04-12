@@ -254,12 +254,12 @@ public class WebMessageHandler : IDisposable
                     HandleCancelGenerateFlowCommand(messageJson);
                     break;
 
-                case "handeye:solve":
-                    await HandleHandEyeSolveCommand(messageJson);
+                case "planar2d:solve":
+                    await HandlePlanarScaleOffsetSolveCommand(messageJson);
                     break;
 
-                case "handeye:save":
-                    await HandleHandEyeSaveCommand(messageJson);
+                case "planar2d:save":
+                    await HandlePlanarScaleOffsetSaveCommand(messageJson);
                     break;
 
                 default:
@@ -974,19 +974,19 @@ public class WebMessageHandler : IDisposable
     }
 
     /// <summary>
-    /// 处理手眼标定解算请求
+    /// 处理二维平面比例偏移标定解算请求
     /// </summary>
-    private async Task HandleHandEyeSolveCommand(string messageJson)
+    private async Task HandlePlanarScaleOffsetSolveCommand(string messageJson)
     {
         try
         {
             using var doc = JsonDocument.Parse(messageJson);
             var payload = doc.RootElement.GetProperty("payload");
 
-            var points = new List<CalibrationPoint>();
+            var points = new List<PlanarScaleOffsetCalibrationPoint>();
             foreach (var pointElement in payload.EnumerateArray())
             {
-                points.Add(new CalibrationPoint
+                points.Add(new PlanarScaleOffsetCalibrationPoint
                 {
                     PixelX = pointElement.GetProperty("pixelX").GetDouble(),
                     PixelY = pointElement.GetProperty("pixelY").GetDouble(),
@@ -996,51 +996,57 @@ public class WebMessageHandler : IDisposable
             }
 
             using var scope = _scopeFactory.CreateScope();
-            var calibService = scope.ServiceProvider.GetRequiredService<IHandEyeCalibrationService>();
+            var calibService = scope.ServiceProvider.GetRequiredService<IPlanarScaleOffsetCalibrationService>();
             var result = await calibService.SolveAsync(points);
 
             // 发送结果回前端
-            SendProgressMessage("handeye:solve:result", result);
+            SendProgressMessage("planar2d:solve:result", result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "处理手眼标定解算失败");
-            SendProgressMessage("handeye:solve:result", new { success = false, message = ex.Message });
+            _logger.LogError(ex, "处理二维平面比例偏移标定解算失败");
+            SendProgressMessage("planar2d:solve:result", new { success = false, message = ex.Message });
         }
     }
 
     /// <summary>
-    /// 处理手眼标定保存请求
+    /// 处理二维平面比例偏移标定保存请求
     /// </summary>
-    private async Task HandleHandEyeSaveCommand(string messageJson)
+    private async Task HandlePlanarScaleOffsetSaveCommand(string messageJson)
     {
         try
         {
             using var doc = JsonDocument.Parse(messageJson);
             var payload = doc.RootElement.GetProperty("payload");
             var resultElement = payload.GetProperty("result");
-            var fileName = payload.GetProperty("fileName").GetString() ?? "hand_eye_calib.json";
+            var fileName = payload.GetProperty("fileName").GetString() ?? "planar_scale_offset_calib.json";
 
-            var result = new HandEyeCalibrationResult
+            var result = new PlanarScaleOffsetCalibrationResult
             {
                 Success = resultElement.GetProperty("success").GetBoolean(),
+                Accepted = resultElement.TryGetProperty("accepted", out var acceptedElement) && acceptedElement.GetBoolean(),
+                Message = resultElement.TryGetProperty("message", out var messageElement) ? messageElement.GetString() ?? string.Empty : string.Empty,
                 OriginX = resultElement.GetProperty("originX").GetDouble(),
                 OriginY = resultElement.GetProperty("originY").GetDouble(),
                 ScaleX = resultElement.GetProperty("scaleX").GetDouble(),
-                ScaleY = resultElement.GetProperty("scaleY").GetDouble()
+                ScaleY = resultElement.GetProperty("scaleY").GetDouble(),
+                MeanErrorX = resultElement.TryGetProperty("meanErrorX", out var meanErrorXElement) ? meanErrorXElement.GetDouble() : 0.0,
+                MeanErrorY = resultElement.TryGetProperty("meanErrorY", out var meanErrorYElement) ? meanErrorYElement.GetDouble() : 0.0,
+                Rmse = resultElement.TryGetProperty("rmse", out var rmseElement) ? rmseElement.GetDouble() : 0.0,
+                PointCount = resultElement.TryGetProperty("pointCount", out var pointCountElement) ? pointCountElement.GetInt32() : 0
             };
 
             using var scope = _scopeFactory.CreateScope();
-            var calibService = scope.ServiceProvider.GetRequiredService<IHandEyeCalibrationService>();
+            var calibService = scope.ServiceProvider.GetRequiredService<IPlanarScaleOffsetCalibrationService>();
             var isSaved = await calibService.SaveCalibrationAsync(result, fileName);
 
             // 发送结果回前端
-            SendProgressMessage("handeye:save:result", new { success = isSaved });
+            SendProgressMessage("planar2d:save:result", new { success = isSaved });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "保存手眼标定文件失败");
-            SendProgressMessage("handeye:save:result", new { success = false, message = ex.Message });
+            _logger.LogError(ex, "保存二维平面比例偏移标定文件失败");
+            SendProgressMessage("planar2d:save:result", new { success = false, message = ex.Message });
         }
     }
 

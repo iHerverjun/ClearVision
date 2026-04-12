@@ -132,7 +132,7 @@ static class Program
             builder.Services.AddSingleton<Acme.Product.Core.Interfaces.IProjectFlowStorage, Acme.Product.Infrastructure.Services.JsonFileProjectFlowStorage>();
 
             // 注册手眼标定服务
-            builder.Services.AddTransient<IHandEyeCalibrationService, HandEyeCalibrationService>();
+            builder.Services.AddTransient<IPlanarScaleOffsetCalibrationService, PlanarScaleOffsetCalibrationService>();
 
             builder.Services.ConfigureHttpJsonOptions(options =>
             {

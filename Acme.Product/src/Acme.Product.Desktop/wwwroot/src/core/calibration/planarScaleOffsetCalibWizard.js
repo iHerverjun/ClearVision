@@ -1,13 +1,13 @@
 /**
- * handEyeCalibWizard.js
- * 手眼标定三步向导组件
+ * planarScaleOffsetCalibWizard.js
+ * 二维平面比例偏移标定三步向导组件
  *
  * Step 1: 采集标定点
  * Step 2: 验证与求解
  * Step 3: 保存标定文件
  */
 
-export class HandEyeCalibWizard {
+export class PlanarScaleOffsetCalibWizard {
     constructor(cameraManager = null, options = {}) {
         this.cameraManager = cameraManager;
         this.captureFrame = typeof options.captureFrame === 'function' ? options.captureFrame : null;
@@ -37,7 +37,7 @@ export class HandEyeCalibWizard {
         modal.innerHTML = `
             <div class="calib-wizard-header">
                 <div class="calib-wizard-title">
-                    <span>🔡</span> 手眼标定向导 (N点平移缩放标定)
+                    <span>🔡</span> 二维平面比例偏移标定向导
                 </div>
                 <button class="calib-wizard-close" type="button" id="calib-btn-close" aria-label="关闭">×</button>
             </div>
@@ -151,12 +151,12 @@ export class HandEyeCalibWizard {
                         <div class="calib-save-icon">✓</div>
                         <h3 style="margin: 0; font-size: 20px; color: var(--text-primary);">标定数据已就绪</h3>
                         <p style="color: var(--text-secondary); font-size: 14px; margin: 0 0 10px 0;">
-                            保存后，您可以在流程中配置 CoordinateTransform(HandEye) 算子关联此文件。
+                            保存后，您可以通过 CalibrationLoader 将该二维平面标定结果接入 CoordinateTransform 或 PixelToWorldTransform。
                         </p>
 
                         <div class="calib-save-input-group">
                             <label>保存标定文件:</label>
-                            <input type="text" id="calib-filename" value="hand_eye_calib.json">
+                            <input type="text" id="calib-filename" value="planar_scale_offset_calib.json">
                         </div>
                     </div>
                 </div>
@@ -451,7 +451,7 @@ export class HandEyeCalibWizard {
 
         if (window.chrome?.webview) {
             window.chrome.webview.postMessage({
-                messageType: 'handeye:solve',
+                messageType: 'planar2d:solve',
                 payload: this.points
             });
             return;
@@ -495,17 +495,31 @@ export class HandEyeCalibWizard {
         this.els.valOx.innerHTML = `${parseFloat(result.originX).toFixed(3)} <span class="calib-metric-unit">mm</span>`;
         this.els.valOy.innerHTML = `${parseFloat(result.originY).toFixed(3)} <span class="calib-metric-unit">mm</span>`;
 
-        this.els.btnNext.disabled = false;
+        this.els.btnNext.disabled = !result.accepted;
+        if (!result.accepted) {
+            this.els.badge.textContent = '需要复核';
+            this.els.badge.style.background = '#fef3c7';
+            this.els.badge.style.color = '#92400e';
+        } else {
+            this.els.badge.textContent = '已通过';
+            this.els.badge.style.background = '#dcfce7';
+            this.els.badge.style.color = '#166534';
+        }
     }
 
     saveCalibration() {
-        const fileName = this.els.inpFilename.value.trim() || 'hand_eye_calib.json';
+        if (!this.solveResult?.accepted) {
+            alert('当前二维平面标定结果未通过验收门槛，不能保存为生产可用标定文件。');
+            return;
+        }
+
+        const fileName = this.els.inpFilename.value.trim() || 'planar_scale_offset_calib.json';
         this.els.btnNext.disabled = true;
         this.els.btnNext.textContent = '保存中...';
 
         if (window.chrome?.webview) {
             window.chrome.webview.postMessage({
-                messageType: 'handeye:save',
+                messageType: 'planar2d:save',
                 payload: {
                     fileName,
                     result: this.solveResult
@@ -540,9 +554,9 @@ export class HandEyeCalibWizard {
     onWebMessageReceived(event) {
         try {
             const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-            if (data.messageType === 'handeye:solve:result') {
+            if (data.messageType === 'planar2d:solve:result') {
                 this.handleSolveResult(data.payload);
-            } else if (data.messageType === 'handeye:save:result') {
+            } else if (data.messageType === 'planar2d:save:result') {
                 this.handleSaveResult(data.payload);
             }
         } catch (error) {

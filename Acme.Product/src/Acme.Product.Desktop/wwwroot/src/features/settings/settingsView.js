@@ -1309,18 +1309,18 @@ class SettingsView {
                 try {
                     const binding = this.getSelectedCameraBinding();
                     if (!binding) {
-                        showToast('请先在相机列表中明确选中一台相机，再启动手眼标定向导', 'warning');
+                        showToast('请先在相机列表中明确选中一台相机，再启动二维平面标定向导', 'warning');
                         return;
                     }
 
-                    const module = await import('../../core/calibration/handEyeCalibWizard.js');
-                    const wizard = new module.HandEyeCalibWizard(null, {
+                    const module = await import('../../core/calibration/planarScaleOffsetCalibWizard.js');
+                    const wizard = new module.PlanarScaleOffsetCalibWizard(null, {
                         captureFrame: (cameraBindingId) => this.captureCameraPreview(cameraBindingId),
                         getCameraBindingId: () => binding.id
                     });
                     wizard.show();
                 } catch (e) {
-                    showToast('无法加载手眼标定向导: ' + e.message, 'error');
+                    showToast('无法加载二维平面标定向导: ' + e.message, 'error');
                 }
             });
         }
@@ -1686,14 +1686,14 @@ class SettingsView {
         const calibBtn = this.container.querySelector('#btn-hand-eye-calib');
         if (calibBtn) {
             calibBtn.disabled = !cam;
-            calibBtn.title = cam ? `对 ${cam.displayName || cam.serialNumber || cam.id} 启动手眼标定` : '请先在列表中选择一台相机';
+            calibBtn.title = cam ? `对 ${cam.displayName || cam.serialNumber || cam.id} 启动二维平面标定` : '请先在列表中选择一台相机';
         }
 
         const selectionHint = this.container.querySelector('#camera-selection-hint');
         if (selectionHint) {
             selectionHint.textContent = cam
-                ? `当前已选中：${cam.displayName || cam.serialNumber || cam.id}。你现在可以直接预览该相机，并在此基础上启动手眼标定。`
-                : '请先在上方绑定列表中选择一台相机，再进行预览、手眼标定或参数保存。';
+                ? `当前已选中：${cam.displayName || cam.serialNumber || cam.id}。你现在可以直接预览该相机，并在此基础上启动二维平面标定。`
+                : '请先在上方绑定列表中选择一台相机，再进行预览、二维平面标定或参数保存。';
         }
     }
 
@@ -2325,7 +2325,7 @@ class SettingsView {
                         相机预览
                     </button>
                     <button class="cv-btn settings-btn-light" id="btn-hand-eye-calib" disabled title="请先在列表中选择一台相机">
-                        手眼标定向导
+                        二维平面标定向导
                     </button>
                 </div>
             </div>
@@ -2360,7 +2360,7 @@ class SettingsView {
                 </div>
                 <div class="settings-card-body">
                     <div id="camera-selection-hint" class="settings-field-hint" style="display:block; margin-bottom:16px;">
-                        请先在上方绑定列表中选择一台相机，再进行预览、手眼标定或参数保存。
+                        请先在上方绑定列表中选择一台相机，再进行预览、二维平面标定或参数保存。
                     </div>
                     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:24px; margin-bottom: 24px;">
                         <div class="settings-fieldset">

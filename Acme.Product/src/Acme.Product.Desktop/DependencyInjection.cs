@@ -269,7 +269,7 @@ public static class DependencyInjection
         // 应用服务 - Sprint 4新增
         services.AddScoped<IOperatorService, OperatorService>();
         services.AddScoped<IImageAcquisitionService, ImageAcquisitionService>();
-        services.AddScoped<IHandEyeCalibrationService, HandEyeCalibrationService>();
+        services.AddScoped<IPlanarScaleOffsetCalibrationService, PlanarScaleOffsetCalibrationService>();
         services.AddScoped<DemoProjectService>();
         services.AddScoped<IResultAnalysisService, ResultAnalysisService>();
 
