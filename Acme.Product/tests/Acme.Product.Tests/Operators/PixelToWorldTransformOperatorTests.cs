@@ -1,6 +1,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
+using Acme.Product.Tests.TestData;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -34,9 +35,9 @@ public class PixelToWorldTransformOperatorTests
     public async Task ExecuteAsync_WithValidCalibration_ShouldReturnSuccess()
     {
         var op = new Operator("PixelToWorldTransform", OperatorType.PixelToWorldTransform, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] = """{"CameraMatrix":[[500,0,160],[0,500,120],[0,0,1]],"DistCoeffs":[0,0,0,0,0],"ImageWidth":320,"ImageHeight":240}""";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson();
         inputs["Points"] = new List<Acme.Product.Core.ValueObjects.Position> { new(100, 100) };
 
         var result = await _operator.ExecuteAsync(op, inputs);
@@ -48,9 +49,9 @@ public class PixelToWorldTransformOperatorTests
     {
         var op = new Operator("PixelToWorldTransform", OperatorType.PixelToWorldTransform, 0, 0);
         op.Parameters.Add(TestHelpers.CreateParameter("TransformMode", "PixelToWorld"));
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] = """{"CameraMatrix":[[500,0,160],[0,500,120],[0,0,1]],"DistCoeffs":[0,0,0,0,0]}""";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson();
         inputs["Points"] = new List<Acme.Product.Core.ValueObjects.Position> { new(160, 120) };
 
         var result = await _operator.ExecuteAsync(op, inputs);
@@ -63,9 +64,9 @@ public class PixelToWorldTransformOperatorTests
     {
         var op = new Operator("PixelToWorldTransform", OperatorType.PixelToWorldTransform, 0, 0);
         op.Parameters.Add(TestHelpers.CreateParameter("TransformMode", "WorldToPixel"));
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] = """{"CameraMatrix":[[500,0,160],[0,500,120],[0,0,1]],"DistCoeffs":[0,0,0,0,0]}""";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson();
         inputs["Points"] = new List<Acme.Product.Core.ValueObjects.Position> { new(0, 0) };
 
         var result = await _operator.ExecuteAsync(op, inputs);

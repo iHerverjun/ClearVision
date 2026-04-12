@@ -134,15 +134,14 @@ public class Sprint4_FlowLinterTests
         // 2. 测试 Sequential 模式 -> 不应报 Warning
         forEachOp.UpdateParameter("IoMode", "Sequential");
         var result2 = _linter.Lint(flow);
-        Assert.False(result2.Issues.Any(i => i.Code == "SAFETY_002"));
+        Assert.DoesNotContain(result2.Issues, i => i.Code == "SAFETY_002");
     }
 
     [Fact]
-    public void FlowLinter_SAFETY_003_CoordTransformEmptyFile_ReturnsError()
+    public void FlowLinter_SAFETY_003_CoordTransformMissingCalibrationData_ReturnsError()
     {
         var flow = new OperatorFlow("TestFlow");
         var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 0, 0);
-        coordOp.AddParameter(new Parameter(Guid.NewGuid(), "CalibrationFile", "File", "", "string", ""));
         flow.AddOperator(coordOp);
 
         var result = _linter.Lint(flow);
@@ -151,16 +150,90 @@ public class Sprint4_FlowLinterTests
         Assert.Contains(result.Issues, i => i.Code == "SAFETY_003");
     }
 
+    [Fact]
+    public void FlowLinter_SAFETY_003_CoordTransformWithCalibrationData_ShouldNotReportError()
+    {
+        var flow = new OperatorFlow("TestFlow");
+        var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 0, 0);
+        coordOp.AddParameter(new Parameter(Guid.NewGuid(), "CalibrationData", "CalibrationData", "", "string", CreateAcceptedCalibrationBundleJson()));
+        flow.AddOperator(coordOp);
+
+        var result = _linter.Lint(flow);
+
+        Assert.DoesNotContain(result.Issues, i => i.Code == "SAFETY_003");
+    }
+
+    [Fact]
+    public void FlowLinter_SAFETY_003_CoordTransformWithConnectedCalibrationLoader_ShouldNotReportError()
+    {
+        var flow = new OperatorFlow("TestFlow");
+        var loader = new Operator(Guid.NewGuid(), "Loader", OperatorType.CalibrationLoader, 0, 0);
+        loader.LoadOutputPort(Guid.NewGuid(), "CalibrationData", PortDataType.String);
+
+        var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 100, 0);
+        coordOp.LoadInputPort(Guid.NewGuid(), "CalibrationData", PortDataType.String, true);
+
+        flow.AddOperator(loader);
+        flow.AddOperator(coordOp);
+        flow.AddConnection(new OperatorConnection(
+            loader.Id,
+            loader.OutputPorts.First().Id,
+            coordOp.Id,
+            coordOp.InputPorts.First().Id));
+
+        var result = _linter.Lint(flow);
+
+        Assert.DoesNotContain(result.Issues, i => i.Code == "SAFETY_003");
+    }
+
+    [Fact]
+    public void FlowLinter_SAFETY_003_CoordTransformWithPreviewCalibrationConnection_ReturnsError()
+    {
+        var flow = new OperatorFlow("TestFlow");
+        var previewProducer = new Operator(Guid.NewGuid(), "PreviewCalib", OperatorType.CameraCalibration, 0, 0);
+        previewProducer.LoadOutputPort(Guid.NewGuid(), "CalibrationData", PortDataType.String);
+        previewProducer.AddParameter(new Parameter(Guid.NewGuid(), "Mode", "Mode", "", "string", "SingleImage"));
+
+        var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 100, 0);
+        coordOp.LoadInputPort(Guid.NewGuid(), "CalibrationData", PortDataType.String, true);
+
+        flow.AddOperator(previewProducer);
+        flow.AddOperator(coordOp);
+        flow.AddConnection(new OperatorConnection(
+            previewProducer.Id,
+            previewProducer.OutputPorts.First().Id,
+            coordOp.Id,
+            coordOp.InputPorts.First().Id));
+
+        var result = _linter.Lint(flow);
+
+        Assert.Contains(result.Issues, i => i.Code == "SAFETY_003");
+    }
+
     #endregion
 
     #region 第三层：参数值合理性
 
     [Fact]
-    public void FlowLinter_PARAM_001_PixelSizeOutOfRange_ReturnsError()
+    public void FlowLinter_PARAM_001_InvalidCalibrationBundleSchema_ReturnsError()
     {
         var flow = new OperatorFlow("TestFlow");
         var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 0, 0);
-        coordOp.AddParameter(new Parameter(Guid.NewGuid(), "PixelSize", "Size", "", "double", 15.0)); // Too large
+        coordOp.AddParameter(new Parameter(Guid.NewGuid(), "CalibrationData", "CalibrationData", "", "string", "{\"schemaVersion\":1}"));
+        flow.AddOperator(coordOp);
+
+        var result = _linter.Lint(flow);
+
+        Assert.True(result.HasErrors);
+        Assert.Contains(result.Issues, i => i.Code == "PARAM_001");
+    }
+
+    [Fact]
+    public void FlowLinter_PARAM_001_NotAcceptedCalibrationBundle_ReturnsError()
+    {
+        var flow = new OperatorFlow("TestFlow");
+        var coordOp = new Operator(Guid.NewGuid(), "Coord", OperatorType.CoordinateTransform, 0, 0);
+        coordOp.AddParameter(new Parameter(Guid.NewGuid(), "CalibrationData", "CalibrationData", "", "string", CreatePreviewCalibrationBundleJson()));
         flow.AddOperator(coordOp);
 
         var result = _linter.Lint(flow);
@@ -230,5 +303,58 @@ public class Sprint4_FlowLinterTests
         flow.AddConnection(new OperatorConnection(op1.Id, op1.OutputPorts.First().Id, op2.Id, op2.InputPorts.First().Id));
 
         return flow;
+    }
+
+    private static string CreateAcceptedCalibrationBundleJson()
+    {
+        return """
+               {
+                 "schemaVersion": 2,
+                 "calibrationKind": "planarTransform2D",
+                 "transformModel": "scaleOffset",
+                 "sourceFrame": "image",
+                 "targetFrame": "world",
+                 "unit": "mm",
+                 "transform2D": {
+                   "model": "scaleOffset",
+                   "matrix": [
+                     [1.0, 0.0, 0.0],
+                     [0.0, 1.0, 0.0]
+                   ]
+                 },
+                 "quality": {
+                   "accepted": true,
+                   "meanError": 0.01,
+                   "maxError": 0.02,
+                   "inlierCount": 10,
+                   "totalSampleCount": 10,
+                   "diagnostics": []
+                 },
+                 "producerOperator": "test"
+               }
+               """;
+    }
+
+    private static string CreatePreviewCalibrationBundleJson()
+    {
+        return """
+               {
+                 "schemaVersion": 2,
+                 "calibrationKind": "planarTransform2D",
+                 "transformModel": "preview",
+                 "sourceFrame": "image",
+                 "targetFrame": "world",
+                 "unit": "mm",
+                 "quality": {
+                   "accepted": false,
+                   "meanError": 0.0,
+                   "maxError": 0.0,
+                   "inlierCount": 0,
+                   "totalSampleCount": 0,
+                   "diagnostics": ["preview-only"]
+                 },
+                 "producerOperator": "test"
+               }
+               """;
     }
 }

@@ -1,6 +1,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
+using Acme.Product.Tests.TestData;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -34,10 +35,9 @@ public class UndistortOperatorTests
     public async Task ExecuteAsync_With1dCameraMatrixCalibration_ShouldReturnSuccess()
     {
         var op = new Operator("Undistort", OperatorType.Undistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] =
-            "{\"CameraMatrix\":[500,0,160,0,500,120,0,0,1],\"DistCoeffs\":[0,0,0,0,0],\"ImageWidth\":320,\"ImageHeight\":240}";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedCameraBundleJson();
 
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
@@ -48,10 +48,9 @@ public class UndistortOperatorTests
     public async Task ExecuteAsync_With2dCameraMatrixCalibration_ShouldReturnSuccess()
     {
         var op = new Operator("Undistort", OperatorType.Undistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] =
-            "{\"CameraMatrix\":[[500,0,160],[0,500,120],[0,0,1]],\"DistCoeffs\":[0,0,0,0,0],\"ImageWidth\":320,\"ImageHeight\":240}";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedCameraBundleJson();
 
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
@@ -62,7 +61,7 @@ public class UndistortOperatorTests
     public async Task ExecuteAsync_WithoutCameraMatrix_ShouldReturnFailure()
     {
         var op = new Operator("Undistort", OperatorType.Undistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
         inputs["CalibrationData"] = "{\"DistCoeffs\":[0,0,0,0,0]}";
 

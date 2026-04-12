@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
+using Acme.Product.Tests.TestData;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -27,19 +28,23 @@ public class CoordinateTransformOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithNullInputs_ShouldReturnSuccess()
+    public async Task ExecuteAsync_WithNullInputs_ShouldReturnFailure()
     {
         var op = new Operator("测试", OperatorType.CoordinateTransform, 0, 0);
         var result = await _operator.ExecuteAsync(op, null);
-        result.IsSuccess.Should().BeTrue();
+        result.IsSuccess.Should().BeFalse();
     }
 
     [Fact]
     public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
     {
         var op = new Operator("测试", OperatorType.CoordinateTransform, 0, 0);
+        op.Parameters.Add(TestHelpers.CreateParameter("CalibrationData", CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson(), "string"));
+        op.Parameters.Add(TestHelpers.CreateParameter("PixelX", 100.0, "double"));
+        op.Parameters.Add(TestHelpers.CreateParameter("PixelY", 50.0, "double"));
         using var image = TestHelpers.CreateTestImage();
         var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson();
         var result = await _operator.ExecuteAsync(op, inputs);
         result.IsSuccess.Should().BeTrue();
         result.OutputData.Should().ContainKey("Image");

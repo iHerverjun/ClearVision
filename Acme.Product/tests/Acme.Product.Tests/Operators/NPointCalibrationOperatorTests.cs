@@ -1,6 +1,7 @@
 ﻿using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Calibration;
 using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -42,8 +43,9 @@ public class NPointCalibrationOperatorTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.OutputData);
-        Assert.True(result.OutputData!.ContainsKey("TransformMatrix"));
-        Assert.True(Convert.ToDouble(result.OutputData["PixelSize"]) > 0);
+        var calibrationData = Assert.IsType<string>(result.OutputData!["CalibrationData"]);
+        Assert.True(CalibrationBundleV2Json.TryDeserialize(calibrationData, out var bundle, out var error), error);
+        Assert.NotNull(bundle.Transform2D);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Numerics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.Operators;
 using Acme.Product.Infrastructure.Calibration;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
@@ -12,7 +13,7 @@ namespace Acme.Product.Tests.Operators;
 public sealed class HandEyeCalibrationOperatorTests
 {
     [Fact]
-    public async Task ExecuteAsync_WithSyntheticEyeInHandSamples_ShouldRecoverHandEyeMatrix()
+    public async Task ExecuteAsync_WithSyntheticEyeInHandSamples_ShouldRecoverHandEyeTransform()
     {
         var sut = new HandEyeCalibrationOperator(Substitute.For<ILogger<HandEyeCalibrationOperator>>());
         var op = CreateCalibrationOperator();
@@ -25,7 +26,7 @@ public sealed class HandEyeCalibrationOperatorTests
         });
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
-        var estimated = result.OutputData!["HandEyeMatrix"].Should().BeOfType<Matrix4x4>().Subject;
+        var estimated = ExtractHandEyeTransform(result);
 
         TranslationError(estimated, expectedCameraToTool).Should().BeLessThan(0.005);
         RotationErrorDegrees(estimated, expectedCameraToTool).Should().BeLessThan(0.5);
@@ -54,7 +55,7 @@ public sealed class HandEyeCalibrationOperatorTests
         {
             ["RobotPoses"] = robotPoses,
             ["CalibrationBoardPoses"] = boardPoses,
-            ["HandEyeMatrix"] = calibrationResult.OutputData!["HandEyeMatrix"]
+            ["CalibrationData"] = calibrationResult.OutputData!["CalibrationData"]
         });
 
         validationResult.IsSuccess.Should().BeTrue(validationResult.ErrorMessage);
@@ -151,4 +152,13 @@ public sealed class HandEyeCalibrationOperatorTests
     }
 
     private static float DegreesToRadians(float degrees) => degrees * (MathF.PI / 180f);
+
+    private static Matrix4x4 ExtractHandEyeTransform(OperatorExecutionOutput result)
+    {
+        var calibrationData = result.OutputData!["CalibrationData"].Should().BeOfType<string>().Subject;
+        CalibrationBundleV2Json.TryDeserialize(calibrationData, out var bundle, out var error).Should().BeTrue(error);
+        bundle.Transform3D.Should().NotBeNull();
+        CalibrationBundleV2PoseHelpers.TryToMatrix4x4(bundle.Transform3D!.Matrix, out var matrix, out var matrixError).Should().BeTrue(matrixError);
+        return matrix;
+    }
 }

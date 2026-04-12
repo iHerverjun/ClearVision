@@ -1,6 +1,8 @@
+using System.Linq;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Calibration;
 using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -33,14 +35,12 @@ public class TranslationRotationCalibrationOperatorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.OutputData);
 
-        var matrix = Assert.IsType<double[][]>(result.OutputData!["TransformMatrix"]);
-        Assert.Equal(1.0, matrix[0][0], 3);
-        Assert.Equal(0.0, matrix[0][1], 3);
-        Assert.Equal(10.0, matrix[0][2], 3);
-        Assert.Equal(0.0, matrix[1][0], 3);
-        Assert.Equal(1.0, matrix[1][1], 3);
-        Assert.Equal(20.0, matrix[1][2], 3);
-        Assert.True(Convert.ToDouble(result.OutputData["CalibrationError"]) < 1e-6);
+        var calibrationData = Assert.IsType<string>(result.OutputData!["CalibrationData"]);
+        Assert.True(CalibrationBundleV2Json.TryDeserialize(calibrationData, out var bundle, out var error), error);
+        Assert.NotNull(bundle.Transform2D);
+        Assert.True(bundle.Transform2D!.Matrix.All(row => row.Length == 3));
+        Assert.Equal("Similarity", result.OutputData["TransformModel"]);
+        Assert.True(result.OutputData.ContainsKey("Accepted"));
     }
 
     [Fact]

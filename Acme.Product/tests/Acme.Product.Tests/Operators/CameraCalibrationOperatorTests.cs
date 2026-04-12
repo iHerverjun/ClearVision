@@ -33,7 +33,7 @@ public class CameraCalibrationOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SingleImage_ShouldOutputCameraMatrixInCalibrationData()
+    public async Task ExecuteAsync_SingleImage_ShouldOutputCalibrationData()
     {
         var op = new Operator("Calib", OperatorType.CameraCalibration, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("PatternType", "Chessboard", "string"));
@@ -53,9 +53,11 @@ public class CameraCalibrationOperatorTests
         calibrationJson.Should().NotBeNullOrWhiteSpace();
 
         using var doc = JsonDocument.Parse(calibrationJson!);
-        doc.RootElement.TryGetProperty("CameraMatrix", out var matrixElement).Should().BeTrue();
-        matrixElement.ValueKind.Should().Be(JsonValueKind.Array);
-        matrixElement.GetArrayLength().Should().Be(3);
+        var root = doc.RootElement;
+
+        root.GetProperty("schemaVersion").GetInt32().Should().Be(2);
+        root.GetProperty("transformModel").GetString().Should().Be("preview");
+        root.GetProperty("quality").GetProperty("accepted").GetBoolean().Should().BeFalse();
     }
 
     [Fact]

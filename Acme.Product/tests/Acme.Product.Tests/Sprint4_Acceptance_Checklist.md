@@ -35,10 +35,10 @@
 **第二层：语义安全**
 - ✅ SAFETY_001（Error）: 通信类算子上游必须有 ConditionalBranch 或 ResultJudgment
 - ✅ SAFETY_002（Warning）: ForEach(Parallel) 子图含通信算子时警告
-- ✅ SAFETY_003（Error）: CoordinateTransform(HandEye) 的 CalibrationFile 不能为空
+- ✅ SAFETY_003（Error）: 标定消费者必须提供 `CalibrationData`（CalibrationBundleV2）
 
 **第三层：参数值合理性**
-- ✅ PARAM_001（Error）: CoordinateTransform.PixelSize 超出 (0, 10.0] mm
+- ✅ PARAM_001（Error）: 标定消费者 `CalibrationData` 必须是 `schemaVersion=2` 且 `Quality.Accepted=true`
 - ✅ PARAM_002（Warning）: 任意数值参数超出 minValue~maxValue
 - ✅ PARAM_003（Error）: DeepLearning.Confidence 超出 (0, 1]
 - ✅ PARAM_004（Warning）: MathOperation.Divide 且无上游保证 ValueB ≠ 0

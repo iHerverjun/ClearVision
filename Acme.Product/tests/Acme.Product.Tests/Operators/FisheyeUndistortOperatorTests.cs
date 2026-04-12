@@ -1,6 +1,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
+using Acme.Product.Tests.TestData;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -34,7 +35,7 @@ public class FisheyeUndistortOperatorTests
     public async Task ExecuteAsync_WithoutCalibrationData_ShouldReturnFailure()
     {
         var op = new Operator("FisheyeUndistort", OperatorType.FisheyeUndistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
 
         var result = await _operator.ExecuteAsync(op, inputs);
@@ -45,25 +46,25 @@ public class FisheyeUndistortOperatorTests
     public async Task ExecuteAsync_WithValidFisheyeCalibration_ShouldReturnSuccess()
     {
         var op = new Operator("FisheyeUndistort", OperatorType.FisheyeUndistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] = """{"CameraMatrix":[[500,0,160],[0,500,120],[0,0,1]],"DistCoeffs":[0.1,0.01,0,0],"Model":"Kannala-Brandt","IsFisheye":true}""";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedCameraBundleJson(fisheye: true);
 
         var result = await _operator.ExecuteAsync(op, inputs);
-        result.IsSuccess.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         result.OutputData.Should().ContainKey("Image");
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithStandardCalibration_ShouldReturnSuccess()
+    public async Task ExecuteAsync_WithStandardCalibration_ShouldReturnFailure()
     {
         var op = new Operator("FisheyeUndistort", OperatorType.FisheyeUndistort, 0, 0);
-        using var image = TestHelpers.CreateTestImage();
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
         var inputs = TestHelpers.CreateImageInputs(image);
-        inputs["CalibrationData"] = """{"CameraMatrix":[[500,0,160],[0,500,120],[0,0,1]],"DistCoeffs":[0.1,0.01,0,0,0]}""";
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedCameraBundleJson();
 
         var result = await _operator.ExecuteAsync(op, inputs);
-        result.IsSuccess.Should().BeTrue();
+        result.IsSuccess.Should().BeFalse();
     }
 
     [Fact]
