@@ -1,0 +1,196 @@
+{
+  "GeneratedAtUtc": "2026-04-12T09:55:15.9210525Z",
+  "GateProfile": "standard",
+  "WarmupIterations": 5,
+  "MeasuredIterations": 24,
+  "BudgetScale": 1.5,
+  "Entries": [
+    {
+      "Name": "AngleMeasurement",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.41828333333333334,
+      "P95Ms": 0.8125,
+      "P99Ms": 1.0878,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "CaliperTool",
+      "BudgetMs": 50,
+      "Scale": 1.5,
+      "AllowedMs": 75,
+      "MeanMs": 0.28332916666666663,
+      "P95Ms": 0.5199,
+      "P99Ms": 0.5789,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "CircleMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 6.7485083333333336,
+      "P95Ms": 7.6863,
+      "P99Ms": 7.763,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "ContourMeasurement",
+      "BudgetMs": 40,
+      "Scale": 1.5,
+      "AllowedMs": 60,
+      "MeanMs": 0.4873041666666667,
+      "P95Ms": 0.5479,
+      "P99Ms": 0.6341,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "ColorMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.5542666666666666,
+      "P95Ms": 0.7433,
+      "P99Ms": 0.7449,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GapMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0.9208000000000002,
+      "P95Ms": 1.0393,
+      "P99Ms": 1.0405,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeoMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.006133333333333334,
+      "P95Ms": 0.0068,
+      "P99Ms": 0.0125,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeometricFitting",
+      "BudgetMs": 35,
+      "Scale": 1.5,
+      "AllowedMs": 52.5,
+      "MeanMs": 0.31783749999999994,
+      "P95Ms": 0.5151,
+      "P99Ms": 0.6222,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "GeometricTolerance",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 0.005233333333333333,
+      "P95Ms": 0.0057,
+      "P99Ms": 0.012,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "HistogramAnalysis",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.6889666666666666,
+      "P95Ms": 0.779,
+      "P99Ms": 0.8672,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "LineLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.004599999999999999,
+      "P95Ms": 0.0052,
+      "P99Ms": 0.0099,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "LineMeasurement",
+      "BudgetMs": 20,
+      "Scale": 1.5,
+      "AllowedMs": 30,
+      "MeanMs": 5.662325,
+      "P95Ms": 7.0579,
+      "P99Ms": 7.1172,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "MeasureDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.6596291666666666,
+      "P95Ms": 0.8168,
+      "P99Ms": 0.8498,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "PixelStatistics",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.5660041666666666,
+      "P95Ms": 0.6304,
+      "P99Ms": 0.647,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "PointLineDistance",
+      "BudgetMs": 10,
+      "Scale": 1.5,
+      "AllowedMs": 15,
+      "MeanMs": 0.006758333333333335,
+      "P95Ms": 0.0075,
+      "P99Ms": 0.0086,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "SharpnessEvaluation",
+      "BudgetMs": 15,
+      "Scale": 1.5,
+      "AllowedMs": 22.5,
+      "MeanMs": 1.8586791666666667,
+      "P95Ms": 2.2221,
+      "P99Ms": 2.2737,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    },
+    {
+      "Name": "WidthMeasurement",
+      "BudgetMs": 30,
+      "Scale": 1.5,
+      "AllowedMs": 45,
+      "MeanMs": 0.8823249999999999,
+      "P95Ms": 0.9945,
+      "P99Ms": 1.2454,
+      "Status": "PASS",
+      "Notes": "Within budget."
+    }
+  ]
+}
