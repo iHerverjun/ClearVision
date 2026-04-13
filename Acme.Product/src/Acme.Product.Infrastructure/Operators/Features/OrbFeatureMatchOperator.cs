@@ -111,7 +111,7 @@ public class OrbFeatureMatchOperator : FeatureMatchOperatorBase
             else if (!string.IsNullOrEmpty(templatePath))
             {
                 // 从缓存或文件加载模板
-                var cached = GetOrLoadTemplate(templatePath, img =>
+                var cached = GetOrLoadTemplate(templatePath, $"ORB:{maxFeatures}:{scaleFactor:F3}:{nLevels}:{edgeThreshold}", img =>
                 {
                     KeyPoint[] kpts;
                     Mat descs = new Mat();

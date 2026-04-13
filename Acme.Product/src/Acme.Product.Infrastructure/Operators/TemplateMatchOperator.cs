@@ -21,7 +21,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "匹配定位",
     IconName = "template",
     Keywords = new[] { "模板匹配", "定位", "找图", "Template", "Match", "Locate" },
-    Version = "1.1.1"
+    Version = "1.2.0"
 )]
 [InputPort("Image", "输入图像", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "模板图像", PortDataType.Image, IsRequired = true)]
@@ -29,6 +29,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Image", "结果图像", PortDataType.Image)]
 [OutputPort("Position", "匹配位置", PortDataType.Point)]
 [OutputPort("Score", "匹配分数", PortDataType.Float)]
+[OutputPort("NormalizedScore", "规范化分数", PortDataType.Float)]
+[OutputPort("RawResponse", "原始响应值", PortDataType.Float)]
 [OutputPort("IsMatch", "是否匹配", PortDataType.Boolean)]
 [OutputPort("Matches", "匹配列表", PortDataType.Any)]
 [OutputPort("MatchCount", "匹配数量", PortDataType.Integer)]
@@ -131,12 +133,11 @@ public class TemplateMatchOperator : OperatorBase
             }
 
             var matchMethod = ResolveMatchMethod(method);
-            var isSqDiff = matchMethod == TemplateMatchModes.SqDiff || matchMethod == TemplateMatchModes.SqDiffNormed;
 
             using var result = new Mat();
             Cv2.MatchTemplate(preparedSearch, preparedTemplate, result, matchMethod);
 
-            var matches = FindMatches(result, preparedTemplate.Size(), maxMatches, threshold, isSqDiff, searchMask);
+            var matches = FindMatches(result, preparedTemplate.Size(), maxMatches, threshold, matchMethod, searchMask);
             if (roi.X != 0 || roi.Y != 0)
             {
                 matches = matches.Select(match => match.Offset(roi.X, roi.Y)).ToList();
@@ -150,7 +151,7 @@ public class TemplateMatchOperator : OperatorBase
                 Cv2.DrawMarker(resultImage, new Point((int)Math.Round(match.Center.X), (int)Math.Round(match.Center.Y)), new Scalar(0, 0, 255), MarkerTypes.Cross, 20, 2);
                 Cv2.PutText(
                     resultImage,
-                    $"{match.Score:F3}",
+                    $"{match.NormalizedScore:F3}",
                     new Point(match.TopLeft.X, Math.Max(16, match.TopLeft.Y - 8)),
                     HersheyFonts.HersheySimplex,
                     0.5,
@@ -171,6 +172,8 @@ public class TemplateMatchOperator : OperatorBase
                 ["IsMatch"] = true,
                 ["Found"] = true,
                 ["Score"] = bestMatch!.Score,
+                ["NormalizedScore"] = bestMatch.NormalizedScore,
+                ["RawResponse"] = bestMatch.RawResponse,
                 ["Method"] = methodDescriptor,
                 ["FailureReason"] = string.Empty,
                 ["Position"] = position,
@@ -182,6 +185,8 @@ public class TemplateMatchOperator : OperatorBase
                     ["Position"] = m.Center,
                     ["TopLeft"] = new Position(m.TopLeft.X, m.TopLeft.Y),
                     ["Score"] = m.Score,
+                    ["NormalizedScore"] = m.NormalizedScore,
+                    ["RawResponse"] = m.RawResponse,
                     ["Width"] = preparedTemplate.Width,
                     ["Height"] = preparedTemplate.Height
                 }).ToList(),
@@ -360,13 +365,15 @@ public class TemplateMatchOperator : OperatorBase
         Size templateSize,
         int maxMatches,
         double threshold,
-        bool isSqDiff,
+        TemplateMatchModes matchMethod,
         Mat? searchMask)
     {
-        using var scoreMap = BuildScoreMap(result, isSqDiff);
+        using var scoreMap = BuildThresholdScoreMap(result, matchMethod, templateSize);
+        using var normalizedScoreMap = BuildNormalizedScoreMap(result, matchMethod, templateSize);
         if (searchMask != null && !searchMask.Empty())
         {
             ApplySearchMask(scoreMap, searchMask, templateSize);
+            ApplySearchMask(normalizedScoreMap, searchMask, templateSize);
         }
 
         using var working = scoreMap.Clone();
@@ -381,7 +388,12 @@ public class TemplateMatchOperator : OperatorBase
                 break;
             }
 
-            candidates.Add(CreateCandidate(maxLoc, templateSize, maxVal));
+            candidates.Add(CreateCandidate(
+                maxLoc,
+                templateSize,
+                maxVal,
+                normalizedScoreMap.At<float>(maxLoc.Y, maxLoc.X),
+                result.At<float>(maxLoc.Y, maxLoc.X)));
             SuppressCandidateRegion(working, maxLoc, maxVal, threshold, templateSize);
         }
 
@@ -390,17 +402,82 @@ public class TemplateMatchOperator : OperatorBase
             .ToList();
     }
 
-    private static Mat BuildScoreMap(Mat result, bool isSqDiff)
+    private static Mat BuildThresholdScoreMap(Mat result, TemplateMatchModes matchMethod, Size templateSize)
     {
-        var scoreMap = new Mat();
-        if (isSqDiff)
+        return matchMethod switch
         {
-            Cv2.Subtract(Scalar.All(1.0), result, scoreMap);
-            return scoreMap;
+            TemplateMatchModes.SqDiff => BuildSqDiffScoreMap(result, templateSize.Width * templateSize.Height),
+            TemplateMatchModes.SqDiffNormed => BuildInvertedNormedMap(result),
+            _ => result.Clone()
+        };
+    }
+
+    private static Mat BuildNormalizedScoreMap(Mat result, TemplateMatchModes matchMethod, Size templateSize)
+    {
+        return matchMethod switch
+        {
+            TemplateMatchModes.SqDiff => BuildSqDiffScoreMap(result, templateSize.Width * templateSize.Height),
+            TemplateMatchModes.SqDiffNormed => BuildInvertedNormedMap(result),
+            TemplateMatchModes.CCoeffNormed => BuildShiftedNormedMap(result),
+            TemplateMatchModes.CCorrNormed => ClampToUnitRange(result),
+            _ => BuildMinMaxNormalizedMap(result, invert: false)
+        };
+    }
+
+    private static Mat BuildSqDiffScoreMap(Mat result, int templateArea)
+    {
+        var safeArea = Math.Max(1, templateArea);
+        var maxPossibleResponse = safeArea * 255.0 * 255.0;
+        var normalized = new Mat();
+        result.ConvertTo(normalized, MatType.CV_32FC1, -1.0 / maxPossibleResponse, 1.0);
+        ClampInPlace(normalized);
+        return normalized;
+    }
+
+    private static Mat BuildMinMaxNormalizedMap(Mat result, bool invert)
+    {
+        var normalized = new Mat();
+        Cv2.Normalize(result, normalized, 0, 1, NormTypes.MinMax, MatType.CV_32FC1);
+        if (!invert)
+        {
+            return normalized;
         }
 
-        result.CopyTo(scoreMap);
-        return scoreMap;
+        var inverted = new Mat();
+        Cv2.Subtract(Scalar.All(1.0), normalized, inverted);
+        normalized.Dispose();
+        return inverted;
+    }
+
+    private static Mat BuildInvertedNormedMap(Mat result)
+    {
+        using var clamped = ClampToUnitRange(result);
+        var normalized = new Mat();
+        Cv2.Subtract(Scalar.All(1.0), clamped, normalized);
+        return normalized;
+    }
+
+    private static Mat BuildShiftedNormedMap(Mat result)
+    {
+        using var shifted = new Mat();
+        Cv2.Add(result, Scalar.All(1.0), shifted);
+        var normalized = new Mat();
+        shifted.ConvertTo(normalized, MatType.CV_32FC1, 0.5);
+        ClampInPlace(normalized);
+        return normalized;
+    }
+
+    private static Mat ClampToUnitRange(Mat result)
+    {
+        var normalized = result.Clone();
+        ClampInPlace(normalized);
+        return normalized;
+    }
+
+    private static void ClampInPlace(Mat map)
+    {
+        Cv2.Min(map, Scalar.All(1.0), map);
+        Cv2.Max(map, Scalar.All(0.0), map);
     }
 
     private static void ApplySearchMask(Mat scoreMap, Mat searchMask, Size templateSize)
@@ -436,7 +513,12 @@ public class TemplateMatchOperator : OperatorBase
         }
     }
 
-    private static TemplateMatchCandidate CreateCandidate(Point topLeft, Size templateSize, double score)
+    private static TemplateMatchCandidate CreateCandidate(
+        Point topLeft,
+        Size templateSize,
+        double score,
+        double normalizedScore,
+        double rawResponse)
     {
         var bounds = new Rect(topLeft.X, topLeft.Y, templateSize.Width, templateSize.Height);
         var center = new Position(topLeft.X + (templateSize.Width / 2.0), topLeft.Y + (templateSize.Height / 2.0));
@@ -445,6 +527,8 @@ public class TemplateMatchOperator : OperatorBase
             new Point(bounds.Right, bounds.Bottom),
             center,
             score,
+            normalizedScore,
+            rawResponse,
             bounds);
     }
 
@@ -566,6 +650,8 @@ public class TemplateMatchOperator : OperatorBase
             ["IsMatch"] = false,
             ["Found"] = false,
             ["Score"] = 0.0,
+            ["NormalizedScore"] = 0.0,
+            ["RawResponse"] = 0.0,
             ["Method"] = methodDescriptor,
             ["FailureReason"] = failureReason,
             ["Position"] = position,
@@ -581,7 +667,14 @@ public class TemplateMatchOperator : OperatorBase
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output));
     }
 
-    private sealed record TemplateMatchCandidate(Point TopLeft, Point BottomRight, Position Center, double Score, Rect Bounds)
+    private sealed record TemplateMatchCandidate(
+        Point TopLeft,
+        Point BottomRight,
+        Position Center,
+        double Score,
+        double NormalizedScore,
+        double RawResponse,
+        Rect Bounds)
     {
         public TemplateMatchCandidate Offset(int offsetX, int offsetY)
         {
@@ -589,7 +682,7 @@ public class TemplateMatchOperator : OperatorBase
             var offsetBottomRight = new Point(BottomRight.X + offsetX, BottomRight.Y + offsetY);
             var offsetCenter = new Position(Center.X + offsetX, Center.Y + offsetY);
             var offsetBounds = new Rect(Bounds.X + offsetX, Bounds.Y + offsetY, Bounds.Width, Bounds.Height);
-            return new TemplateMatchCandidate(offsetTopLeft, offsetBottomRight, offsetCenter, Score, offsetBounds);
+            return new TemplateMatchCandidate(offsetTopLeft, offsetBottomRight, offsetCenter, Score, NormalizedScore, RawResponse, offsetBounds);
         }
     }
 }

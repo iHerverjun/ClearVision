@@ -37,12 +37,14 @@ internal readonly struct FeaturePoint
     public readonly short X;
     public readonly short Y;
     public readonly byte Direction;
+    public readonly ushort Strength;
 
-    public FeaturePoint(short x, short y, byte direction)
+    public FeaturePoint(short x, short y, byte direction, ushort strength = 0)
     {
         X = x;
         Y = y;
         Direction = direction;
+        Strength = strength;
     }
 }
 
@@ -137,6 +139,15 @@ public sealed class GradientShapeMatcher : IDisposable
         using var gray = EnsureGray(sceneImage);
         var (sceneDirections, sceneMagnitudes) = ComputeSceneGradients(gray);
         Rect region = searchRegion ?? new Rect(0, 0, gray.Width, gray.Height);
+        region = new Rect(
+            Math.Clamp(region.X, 0, gray.Width),
+            Math.Clamp(region.Y, 0, gray.Height),
+            Math.Clamp(region.Width, 0, gray.Width - Math.Clamp(region.X, 0, gray.Width)),
+            Math.Clamp(region.Height, 0, gray.Height - Math.Clamp(region.Y, 0, gray.Height)));
+        if (region.Width <= 0 || region.Height <= 0)
+        {
+            return ShapeMatchResult.Empty;
+        }
 
         return FindBestMatch(sceneDirections, sceneMagnitudes, region, minScore);
     }
@@ -192,7 +203,7 @@ public sealed class GradientShapeMatcher : IDisposable
                 short relX = (short)(x - centerX);
                 short relY = (short)(y - centerY);
 
-                features.Add(new FeaturePoint(relX, relY, direction));
+                features.Add(new FeaturePoint(relX, relY, direction, (ushort)Math.Min(magnitude, ushort.MaxValue)));
             }
         }
 
@@ -205,21 +216,53 @@ public sealed class GradientShapeMatcher : IDisposable
             return features;
 
         double minDistSq = minDistance * minDistance;
+        int gridSize = Math.Max(1, (int)Math.Ceiling(minDistance));
         var sparse = new List<FeaturePoint>(features.Count / 4);
-        var occupied = new HashSet<long>();
-        int gridSize = (int)Math.Ceiling(minDistance);
+        var occupied = new Dictionary<long, List<FeaturePoint>>();
 
-        foreach (var f in features)
+        foreach (var feature in features.OrderByDescending(f => f.Strength))
         {
-            int gx = f.X / gridSize;
-            int gy = f.Y / gridSize;
-            long key = ((long)gx << 32) | (uint)gy;
+            int gx = (int)Math.Floor((double)feature.X / gridSize);
+            int gy = (int)Math.Floor((double)feature.Y / gridSize);
+            bool suppressed = false;
 
-            if (!occupied.Contains(key))
+            for (int ny = gy - 1; ny <= gy + 1 && !suppressed; ny++)
             {
-                sparse.Add(f);
-                occupied.Add(key);
+                for (int nx = gx - 1; nx <= gx + 1; nx++)
+                {
+                    long key = ((long)nx << 32) | (uint)ny;
+                    if (!occupied.TryGetValue(key, out var existing))
+                    {
+                        continue;
+                    }
+
+                    foreach (var kept in existing)
+                    {
+                        int dx = feature.X - kept.X;
+                        int dy = feature.Y - kept.Y;
+                        if ((dx * dx) + (dy * dy) < minDistSq)
+                        {
+                            suppressed = true;
+                            break;
+                        }
+                    }
+                }
             }
+
+            if (suppressed)
+            {
+                continue;
+            }
+
+            sparse.Add(feature);
+            long gridKey = ((long)gx << 32) | (uint)gy;
+            if (!occupied.TryGetValue(gridKey, out var bucket))
+            {
+                bucket = new List<FeaturePoint>();
+                occupied[gridKey] = bucket;
+            }
+
+            bucket.Add(feature);
         }
 
         return sparse;
@@ -249,7 +292,7 @@ public sealed class GradientShapeMatcher : IDisposable
             short ry = (short)Math.Round(newY);
             byte newDir = (byte)((f.Direction + directionOffset) % NumDirections);
 
-            rotatedFeatures[i] = new FeaturePoint(rx, ry, newDir);
+            rotatedFeatures[i] = new FeaturePoint(rx, ry, newDir, f.Strength);
 
             if (rx < minX) minX = rx;
             if (rx > maxX) maxX = rx;

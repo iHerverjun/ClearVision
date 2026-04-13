@@ -187,6 +187,93 @@ public class ShapeMatchingOperatorTests
         accepted.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithTwoSamePoseTargets_ShouldReturnTwoMatches()
+    {
+        var op = new Operator("ShapeMultiSamePose", OperatorType.ShapeMatching, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinScore", "MinScore", "double", 0.6, 0.1, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("MaxMatches", "MaxMatches", "int", 2, 1, 50, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStart", "AngleStart", "double", 0.0, -180.0, 180.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleExtent", "AngleExtent", "double", 0.0, 0.0, 360.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStep", "AngleStep", "double", 1.0, 0.1, 10.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMin", "ScaleMin", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMax", "ScaleMax", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleStep", "ScaleStep", "double", 0.1, 0.01, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("NumLevels", "NumLevels", "int", 1, 1, 6, true));
+
+        using var template = CreateTightRotationTemplate();
+        using var sceneMat = new Mat(260, 260, MatType.CV_8UC3, Scalar.Black);
+        CopyTemplate(sceneMat, template.MatReadOnly, 28, 36);
+        CopyTemplate(sceneMat, template.MatReadOnly, 164, 152);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Image"] = new ImageWrapper(sceneMat),
+            ["Template"] = template
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["MatchCount"].Should().Be(2);
+
+        var matches = result.OutputData["Matches"]
+            .Should().BeAssignableTo<IEnumerable<object>>()
+            .Subject
+            .Cast<Dictionary<string, object>>()
+            .OrderBy(match => Convert.ToDouble(match["CenterX"]))
+            .ToList();
+
+        matches.Should().HaveCount(2);
+        Convert.ToDouble(matches[0]["CenterX"]).Should().BeApproximately(52.0, 2.0);
+        Convert.ToDouble(matches[0]["CenterY"]).Should().BeApproximately(60.0, 2.0);
+        Convert.ToDouble(matches[1]["CenterX"]).Should().BeApproximately(188.0, 2.0);
+        Convert.ToDouble(matches[1]["CenterY"]).Should().BeApproximately(176.0, 2.0);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithTwoSamePoseTargets_ShouldReturnStableMultiMatchOrdering()
+    {
+        var op = new Operator("ShapeMultiStable", OperatorType.ShapeMatching, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinScore", "MinScore", "double", 0.6, 0.1, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("MaxMatches", "MaxMatches", "int", 2, 1, 50, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStart", "AngleStart", "double", 0.0, -180.0, 180.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleExtent", "AngleExtent", "double", 0.0, 0.0, 360.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStep", "AngleStep", "double", 1.0, 0.1, 10.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMin", "ScaleMin", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMax", "ScaleMax", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleStep", "ScaleStep", "double", 0.1, 0.01, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("NumLevels", "NumLevels", "int", 1, 1, 6, true));
+
+        using var template = CreateTightRotationTemplate();
+        using var sceneMat = new Mat(260, 260, MatType.CV_8UC3, Scalar.Black);
+        CopyTemplate(sceneMat, template.MatReadOnly, 24, 30);
+        CopyTemplate(sceneMat, template.MatReadOnly, 170, 164);
+
+        List<(double X, double Y)>? baseline = null;
+        for (var iteration = 0; iteration < 3; iteration++)
+        {
+            var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+            {
+                ["Image"] = sceneMat.ToBytes(".png"),
+                ["Template"] = template.GetBytes(".png")
+            });
+
+            result.IsSuccess.Should().BeTrue();
+            result.OutputData!["MatchCount"].Should().Be(2);
+
+            var current = result.OutputData["Matches"]
+                .Should().BeAssignableTo<IEnumerable<object>>()
+                .Subject
+                .Cast<Dictionary<string, object>>()
+                .OrderBy(match => Convert.ToDouble(match["CenterX"]))
+                .Select(match => (Convert.ToDouble(match["CenterX"]), Convert.ToDouble(match["CenterY"])))
+                .ToList();
+
+            baseline ??= current;
+            current.Should().BeEquivalentTo(baseline);
+        }
+    }
+
     private static ImageWrapper CreateTemplateImage()
     {
         var mat = new Mat(40, 40, MatType.CV_8UC3, Scalar.Black);
@@ -247,5 +334,11 @@ public class ShapeMatchingOperatorTests
         var resized = new Mat();
         Cv2.Resize(src, resized, new Size(0, 0), scale, scale, InterpolationFlags.Linear);
         return resized;
+    }
+
+    private static void CopyTemplate(Mat scene, Mat template, int x, int y)
+    {
+        using var roi = new Mat(scene, new Rect(x, y, template.Width, template.Height));
+        template.CopyTo(roi);
     }
 }

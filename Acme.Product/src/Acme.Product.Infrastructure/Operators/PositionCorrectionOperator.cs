@@ -1,8 +1,9 @@
-﻿// PositionCorrectionOperator.cs
+// PositionCorrectionOperator.cs
 // 位置修正算子
 // 基于偏差模型对目标位置进行校正
 // 作者：蘅芜君
 using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -10,7 +11,6 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -19,7 +19,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Category = "定位",
     IconName = "position",
     Keywords = new[] { "position correction", "roi offset", "translation", "rotation" },
-    Version = "1.0.1"
+    Version = "1.0.2"
 )]
 [InputPort("ReferencePoint", "Reference Point", PortDataType.Point, IsRequired = true)]
 [InputPort("BasePoint", "Base Point", PortDataType.Point, IsRequired = true)]
@@ -30,6 +30,11 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("OffsetX", "Offset X", PortDataType.Float)]
 [OutputPort("OffsetY", "Offset Y", PortDataType.Float)]
 [OutputPort("Angle", "Angle", PortDataType.Float)]
+[OutputPort("AppliedOffsetX", "Applied Offset X", PortDataType.Float)]
+[OutputPort("AppliedOffsetY", "Applied Offset Y", PortDataType.Float)]
+[OutputPort("TransformMatrix", "Transform Matrix", PortDataType.Any)]
+[OutputPort("RotationCenter", "Rotation Center", PortDataType.Point)]
+[OutputPort("CompensationMode", "Compensation Mode", PortDataType.String)]
 [OperatorParam("CorrectionMode", "Correction Mode", "enum", DefaultValue = "Translation", Options = new[] { "Translation|Translation", "TranslationRotation|TranslationRotation" })]
 [OperatorParam("ReferenceAngle", "Reference Angle", "double", DefaultValue = 0.0, Min = -360.0, Max = 360.0)]
 [OperatorParam("CurrentAngle", "Current Angle", "double", DefaultValue = 0.0, Min = -360.0, Max = 360.0)]
@@ -63,16 +68,15 @@ public class PositionCorrectionOperator : OperatorBase
 
         var correctionMode = GetStringParam(@operator, "CorrectionMode", "Translation");
         var referenceAngle = GetDoubleParam(@operator, "ReferenceAngle", 0.0, -360.0, 360.0);
-
         var roiX = GetInputOrParamDouble(inputs, @operator, "RoiX", 0.0);
         var roiY = GetInputOrParamDouble(inputs, @operator, "RoiY", 0.0);
 
         var offsetX = referencePoint.X - basePoint.X;
         var offsetY = referencePoint.Y - basePoint.Y;
-
         var correctedX = roiX + offsetX;
         var correctedY = roiY + offsetY;
         var angleDelta = 0.0;
+        var transformMatrix = BuildTranslationMatrix(offsetX, offsetY);
 
         if (correctionMode.Equals("TranslationRotation", StringComparison.OrdinalIgnoreCase))
         {
@@ -82,7 +86,7 @@ public class PositionCorrectionOperator : OperatorBase
                 currentAngle = baseAngle;
             }
 
-            angleDelta = referenceAngle - currentAngle;
+            angleDelta = NormalizeAngle(referenceAngle - currentAngle);
 
             var rad = angleDelta * Math.PI / 180.0;
             var cos = Math.Cos(rad);
@@ -90,12 +94,12 @@ public class PositionCorrectionOperator : OperatorBase
 
             var localX = roiX - basePoint.X;
             var localY = roiY - basePoint.Y;
-
             var rotatedX = localX * cos - localY * sin;
             var rotatedY = localX * sin + localY * cos;
 
             correctedX = referencePoint.X + rotatedX;
             correctedY = referencePoint.Y + rotatedY;
+            transformMatrix = BuildRigidTransformMatrix(basePoint, referencePoint, cos, sin);
         }
 
         var output = new Dictionary<string, object>
@@ -104,7 +108,12 @@ public class PositionCorrectionOperator : OperatorBase
             { "CorrectedY", (int)Math.Round(correctedY) },
             { "OffsetX", offsetX },
             { "OffsetY", offsetY },
-            { "Angle", angleDelta }
+            { "Angle", angleDelta },
+            { "AppliedOffsetX", correctedX - roiX },
+            { "AppliedOffsetY", correctedY - roiY },
+            { "TransformMatrix", transformMatrix },
+            { "RotationCenter", new Position(basePoint.X, basePoint.Y) },
+            { "CompensationMode", correctionMode }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -171,8 +180,8 @@ public class PositionCorrectionOperator : OperatorBase
         if (obj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
 
             if (TryGetDouble(normalized, "X", out var parsedX) &&
                 TryGetDouble(normalized, "Y", out var parsedY))
@@ -227,5 +236,37 @@ public class PositionCorrectionOperator : OperatorBase
             _ => double.TryParse(raw.ToString(), out value)
         };
     }
-}
 
+    private static double[][] BuildTranslationMatrix(double offsetX, double offsetY)
+    {
+        return
+        [
+            [1.0, 0.0, offsetX],
+            [0.0, 1.0, offsetY]
+        ];
+    }
+
+    private static double[][] BuildRigidTransformMatrix(Position basePoint, Position referencePoint, double cos, double sin)
+    {
+        return
+        [
+            [cos, -sin, referencePoint.X - (cos * basePoint.X) + (sin * basePoint.Y)],
+            [sin, cos, referencePoint.Y - (sin * basePoint.X) - (cos * basePoint.Y)]
+        ];
+    }
+
+    private static double NormalizeAngle(double angleDegrees)
+    {
+        var normalized = angleDegrees % 360.0;
+        if (normalized >= 180.0)
+        {
+            normalized -= 360.0;
+        }
+        else if (normalized < -180.0)
+        {
+            normalized += 360.0;
+        }
+
+        return normalized;
+    }
+}

@@ -1,15 +1,14 @@
 // EdgeIntersectionOperator.cs
-// 边缘交点算子
-// 计算两条边缘或线段的交点坐标
-// 作者：蘅芜君
+// 边线交点算子
+// 计算两条边线或线段的交点坐标
 using System.Collections;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -24,6 +23,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Point", "Point", PortDataType.Point)]
 [OutputPort("Angle", "Angle", PortDataType.Float)]
 [OutputPort("HasIntersection", "Has Intersection", PortDataType.Boolean)]
+[OutputPort("SegmentsIntersect", "Segments Intersect", PortDataType.Boolean)]
+[OperatorParam("IntersectionMode", "Intersection Mode", "enum", DefaultValue = "InfiniteLine", Options = new[] { "InfiniteLine|InfiniteLine", "SegmentOnly|SegmentOnly" })]
 public class EdgeIntersectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.EdgeIntersection;
@@ -52,6 +53,13 @@ public class EdgeIntersectionOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input 'Line2' is missing or invalid"));
         }
 
+        if (line1.Length <= 1e-6f || line2.Length <= 1e-6f)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Line1 and Line2 must be non-degenerate line segments"));
+        }
+
+        var intersectionMode = GetStringParam(@operator, "IntersectionMode", "InfiniteLine");
+
         var v1x = line1.EndX - line1.StartX;
         var v1y = line1.EndY - line1.StartY;
         var v2x = line2.EndX - line2.StartX;
@@ -72,10 +80,10 @@ public class EdgeIntersectionOperator : OperatorBase
 
         var denominator = (line1.StartX - line1.EndX) * (line2.StartY - line2.EndY) -
                           (line1.StartY - line1.EndY) * (line2.StartX - line2.EndX);
-        var hasIntersection = Math.Abs(denominator) > 1e-9;
+        var hasLineIntersection = Math.Abs(denominator) > 1e-9;
 
         Position intersection;
-        if (hasIntersection)
+        if (hasLineIntersection)
         {
             var pxNumerator = (line1.StartX * line1.EndY - line1.StartY * line1.EndX) * (line2.StartX - line2.EndX) -
                               (line1.StartX - line1.EndX) * (line2.StartX * line2.EndY - line2.StartY * line2.EndX);
@@ -88,11 +96,17 @@ public class EdgeIntersectionOperator : OperatorBase
             intersection = new Position(0, 0);
         }
 
+        var segmentsIntersect = hasLineIntersection && DoSegmentsIntersect(line1, line2);
+        var hasIntersection = intersectionMode.Equals("SegmentOnly", StringComparison.OrdinalIgnoreCase)
+            ? segmentsIntersect
+            : hasLineIntersection;
+
         var output = new Dictionary<string, object>
         {
             { "Point", intersection },
             { "Angle", angle },
-            { "HasIntersection", hasIntersection }
+            { "HasIntersection", hasIntersection },
+            { "SegmentsIntersect", segmentsIntersect }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -100,6 +114,13 @@ public class EdgeIntersectionOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
+        var mode = GetStringParam(@operator, "IntersectionMode", "InfiniteLine");
+        if (!mode.Equals("InfiniteLine", StringComparison.OrdinalIgnoreCase) &&
+            !mode.Equals("SegmentOnly", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("IntersectionMode must be InfiniteLine or SegmentOnly");
+        }
+
         return ValidationResult.Valid();
     }
 
@@ -132,8 +153,8 @@ public class EdgeIntersectionOperator : OperatorBase
         if (raw is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(e => e.Key != null)
-                .ToDictionary(e => e.Key!.ToString() ?? string.Empty, e => e.Value ?? 0f, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0f, StringComparer.OrdinalIgnoreCase);
             return TryParseLine(normalized, out line);
         }
 
@@ -156,5 +177,42 @@ public class EdgeIntersectionOperator : OperatorBase
             long l => (value = l) == l,
             _ => float.TryParse(raw.ToString(), out value)
         };
+    }
+
+    private static bool DoSegmentsIntersect(LineData first, LineData second)
+    {
+        var a = new Position(first.StartX, first.StartY);
+        var b = new Position(first.EndX, first.EndY);
+        var c = new Position(second.StartX, second.StartY);
+        var d = new Position(second.EndX, second.EndY);
+
+        var orientation1 = Orientation(a, b, c);
+        var orientation2 = Orientation(a, b, d);
+        var orientation3 = Orientation(c, d, a);
+        var orientation4 = Orientation(c, d, b);
+
+        if (((orientation1 > 0 && orientation2 < 0) || (orientation1 < 0 && orientation2 > 0)) &&
+            ((orientation3 > 0 && orientation4 < 0) || (orientation3 < 0 && orientation4 > 0)))
+        {
+            return true;
+        }
+
+        return Math.Abs(orientation1) <= 1e-9 && OnSegment(a, c, b) ||
+               Math.Abs(orientation2) <= 1e-9 && OnSegment(a, d, b) ||
+               Math.Abs(orientation3) <= 1e-9 && OnSegment(c, a, d) ||
+               Math.Abs(orientation4) <= 1e-9 && OnSegment(c, b, d);
+    }
+
+    private static double Orientation(Position a, Position b, Position c)
+    {
+        return ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
+    }
+
+    private static bool OnSegment(Position a, Position p, Position b)
+    {
+        return p.X >= Math.Min(a.X, b.X) - 1e-9 &&
+               p.X <= Math.Max(a.X, b.X) + 1e-9 &&
+               p.Y >= Math.Min(a.Y, b.Y) - 1e-9 &&
+               p.Y <= Math.Max(a.Y, b.Y) + 1e-9;
     }
 }

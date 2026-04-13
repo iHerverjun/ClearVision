@@ -369,6 +369,82 @@ public class TemplateMatchOperatorTests
         result.OutputData["Method"].Should().Be("CCoeffNormed:Edge");
     }
 
+    [Theory]
+    [InlineData("SqDiff")]
+    [InlineData("SqDiffNormed")]
+    public async Task ExecuteAsync_WithSqDiffMethods_ShouldExposeCanonicalAndRawScores(string method)
+    {
+        var op = new Operator($"template_{method}", OperatorType.TemplateMatching, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", method, "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 0.98, "double"));
+
+        using var src = new Mat(160, 160, MatType.CV_8UC3, Scalar.Black);
+        using var template = CreatePatternTemplate();
+        CopyTemplate(src, template, 52, 48);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Image"] = src.ToBytes(".png"),
+            ["Template"] = template.ToBytes(".png")
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData.Should().ContainKeys("Score", "NormalizedScore", "RawResponse");
+
+        var score = Convert.ToDouble(result.OutputData["Score"]);
+        var normalizedScore = Convert.ToDouble(result.OutputData["NormalizedScore"]);
+        var rawResponse = Convert.ToDouble(result.OutputData["RawResponse"]);
+
+        score.Should().BeApproximately(normalizedScore, 1e-6);
+        normalizedScore.Should().BeGreaterThan(0.98);
+        rawResponse.Should().BeGreaterThanOrEqualTo(0.0);
+        if (method == "SqDiffNormed")
+        {
+            rawResponse.Should().BeInRange(0.0, 0.02);
+        }
+        else
+        {
+            rawResponse.Should().BeLessThan(10.0);
+        }
+
+        var match = result.OutputData["Matches"]
+            .Should().BeAssignableTo<IEnumerable<object>>()
+            .Subject
+            .Cast<Dictionary<string, object>>()
+            .Single();
+
+        Convert.ToDouble(match["NormalizedScore"]).Should().BeApproximately(normalizedScore, 1e-6);
+        Convert.ToDouble(match["RawResponse"]).Should().BeApproximately(rawResponse, 1e-6);
+    }
+
+    [Theory]
+    [InlineData("SqDiff")]
+    [InlineData("SqDiffNormed")]
+    public async Task ExecuteAsync_WithSqDiffMethodsAndMismatchedTemplate_ShouldRespectThreshold(string method)
+    {
+        var op = new Operator($"template_{method}_negative", OperatorType.TemplateMatching, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", method, "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 0.95, "double"));
+
+        using var src = new Mat(120, 120, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Circle(src, new Point(60, 60), 18, Scalar.White, -1);
+
+        using var template = new Mat(40, 40, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(template, new Rect(4, 4, 32, 32), Scalar.White, -1);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Image"] = src.ToBytes(".png"),
+            ["Template"] = template.ToBytes(".png")
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["IsMatch"].Should().Be(false);
+        Convert.ToDouble(result.OutputData["NormalizedScore"]).Should().Be(0.0);
+        Convert.ToDouble(result.OutputData["RawResponse"]).Should().Be(0.0);
+    }
+
     private static Mat CreatePatternTemplate()
     {
         var mat = new Mat(32, 32, MatType.CV_8UC3, Scalar.Black);

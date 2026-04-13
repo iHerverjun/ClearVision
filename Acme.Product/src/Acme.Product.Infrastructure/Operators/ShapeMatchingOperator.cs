@@ -16,7 +16,7 @@ namespace Acme.Product.Infrastructure.Operators;
     Description = "Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher.",
     Category = "Matching",
     IconName = "shape-match",
-    Version = "1.1.2"
+    Version = "1.2.0"
 )]
 [InputPort("Image", "Search Image", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "Template Image", PortDataType.Image, IsRequired = false)]
@@ -379,6 +379,7 @@ public class ShapeMatchingOperator : OperatorBase
     {
         var matches = new List<MatchResult>();
         var locker = new object();
+        var perTransformLimit = Math.Clamp(candidateLimit / 4, 2, 8);
 
         var transforms = angles.SelectMany(angle => scales.Select(scale => (angle, scale))).ToList();
         Parallel.ForEach(transforms, transform =>
@@ -393,39 +394,17 @@ public class ShapeMatchingOperator : OperatorBase
 
                 using var matchResult = new Mat();
                 Cv2.MatchTemplate(srcGray, transformedTemplate, matchResult, TemplateMatchModes.CCoeffNormed);
-                Cv2.MinMaxLoc(matchResult, out _, out var maxVal, out _, out var maxLoc);
-
-                if (maxVal < minScore)
-                {
-                    return;
-                }
-
-                // Subpixel peak refinement: fit a parabola on each axis around the discrete maximum.
-                // This improves translation precision without changing the legacy integer X/Y outputs.
-                var refinedX = (double)maxLoc.X;
-                var refinedY = (double)maxLoc.Y;
-                if (TryRefineSubpixelPeak(matchResult, maxLoc, out var dx, out var dy))
-                {
-                    refinedX += dx;
-                    refinedY += dy;
-                }
-
-                var candidate = new MatchResult
-                {
-                    X = maxLoc.X,
-                    Y = maxLoc.Y,
-                    SubpixelX = refinedX,
-                    SubpixelY = refinedY,
-                    Angle = transform.angle,
-                    Scale = transform.scale,
-                    Score = maxVal,
-                    Width = transformedTemplate.Width,
-                    Height = transformedTemplate.Height
-                };
+                var candidates = FindPeaksForTransform(
+                    matchResult,
+                    transformedTemplate.Size(),
+                    transform.angle,
+                    transform.scale,
+                    minScore,
+                    perTransformLimit);
 
                 lock (locker)
                 {
-                    matches.Add(candidate);
+                    matches.AddRange(candidates);
                 }
             }
             catch (Exception ex)
@@ -574,6 +553,91 @@ public class ShapeMatchingOperator : OperatorBase
         return true;
     }
 
+    private static List<MatchResult> FindPeaksForTransform(
+        Mat matchResult,
+        Size templateSize,
+        double angle,
+        double scale,
+        double minScore,
+        int maxCandidates)
+    {
+        using var working = matchResult.Clone();
+        var candidates = new List<MatchResult>();
+
+        for (var index = 0; index < maxCandidates; index++)
+        {
+            Cv2.MinMaxLoc(working, out _, out var maxVal, out _, out var maxLoc);
+            if (maxVal < minScore)
+            {
+                break;
+            }
+
+            var refinedX = (double)maxLoc.X;
+            var refinedY = (double)maxLoc.Y;
+            if (TryRefineSubpixelPeak(matchResult, maxLoc, out var dx, out var dy))
+            {
+                refinedX += dx;
+                refinedY += dy;
+            }
+
+            candidates.Add(new MatchResult
+            {
+                X = maxLoc.X,
+                Y = maxLoc.Y,
+                SubpixelX = refinedX,
+                SubpixelY = refinedY,
+                Angle = angle,
+                Scale = scale,
+                Score = maxVal,
+                Width = templateSize.Width,
+                Height = templateSize.Height
+            });
+
+            SuppressPeakRegion(working, maxLoc, maxVal, minScore, templateSize);
+        }
+
+        return candidates;
+    }
+
+    private static void SuppressPeakRegion(Mat working, Point peakLocation, double peakScore, double minScore, Size templateSize)
+    {
+        var suppressionFloor = Math.Max(minScore, peakScore - Math.Max(0.02, (peakScore - minScore) * 0.25));
+        using var highResponseMask = new Mat();
+        Cv2.Compare(working, new Scalar(suppressionFloor), highResponseMask, CmpType.GE);
+
+        var paddingX = Math.Max(1, templateSize.Width / 4);
+        var paddingY = Math.Max(1, templateSize.Height / 4);
+        Rect suppressBounds;
+        if (highResponseMask.At<byte>(peakLocation.Y, peakLocation.X) != 0)
+        {
+            using var floodMask = new Mat(highResponseMask.Rows + 2, highResponseMask.Cols + 2, MatType.CV_8UC1, Scalar.Black);
+            Cv2.FloodFill(highResponseMask, floodMask, peakLocation, Scalar.All(128), out var componentBounds);
+            suppressBounds = ExpandRect(componentBounds, paddingX, paddingY, working.Width, working.Height);
+        }
+        else
+        {
+            suppressBounds = ExpandRect(new Rect(peakLocation.X, peakLocation.Y, 1, 1), paddingX, paddingY, working.Width, working.Height);
+        }
+
+        if (suppressBounds.Width <= 0 || suppressBounds.Height <= 0)
+        {
+            working.Set(peakLocation.Y, peakLocation.X, 0f);
+            return;
+        }
+
+        using var region = new Mat(working, suppressBounds);
+        region.SetTo(0f);
+    }
+
+    private static Rect ExpandRect(Rect rect, int paddingX, int paddingY, int maxWidth, int maxHeight)
+    {
+        var left = Math.Max(0, rect.X - paddingX);
+        var top = Math.Max(0, rect.Y - paddingY);
+        var right = Math.Min(maxWidth, rect.Right + paddingX);
+        var bottom = Math.Min(maxHeight, rect.Bottom + paddingY);
+        return new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
+
     private static bool TrySolveLinearSystem6x6(Span<double> A, Span<double> b, Span<double> x)
     {
         // Solve A*x=b using Gaussian elimination with partial pivoting.
@@ -677,7 +741,13 @@ public class ShapeMatchingOperator : OperatorBase
 
     private static List<MatchResult> NonMaximumSuppression(List<MatchResult> matches, float iouThreshold)
     {
-        var sorted = matches.OrderByDescending(m => m.Score).ToList();
+        var sorted = matches
+            .OrderByDescending(m => m.Score)
+            .ThenBy(m => m.Y)
+            .ThenBy(m => m.X)
+            .ThenBy(m => m.Angle)
+            .ThenBy(m => m.Scale)
+            .ToList();
         var result = new List<MatchResult>();
 
         while (sorted.Count > 0)

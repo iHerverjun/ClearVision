@@ -10,6 +10,7 @@ using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using System.Security.Cryptography;
 
 namespace Acme.Product.Infrastructure.Operators;
 
@@ -62,11 +63,13 @@ namespace Acme.Product.Infrastructure.Operators;
 public class PlanarMatchingOperator : OperatorBase
 {
     private static readonly string[] SupportedDetectorTypes = { "ORB", "AKAZE", "BRISK" };
+    private const int TemplateCacheCapacity = 20;
 
     public override OperatorType OperatorType => OperatorType.PlanarMatching;
 
     // 模板特征缓存
-    private static readonly Dictionary<string, TemplateFeatures> TemplateCache = new();
+    private static readonly Dictionary<string, TemplateFeatures> TemplateCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly LinkedList<string> TemplateCacheOrder = new();
     private static readonly object CacheLock = new();
 
     public PlanarMatchingOperator(ILogger<PlanarMatchingOperator> logger) : base(logger)
@@ -132,12 +135,12 @@ public class PlanarMatchingOperator : OperatorBase
             }
         }
 
+        TemplateFeatures? templateFeatures = null;
+        MatchResult? bestMatch = null;
         try
         {
             // 获取模板
             var templatePath = GetStringParam(@operator, "TemplatePath", "");
-            TemplateFeatures? templateFeatures = null;
-
             if (TryGetInputImage(inputs, "Template", out var templateWrapper) && templateWrapper != null)
             {
                 var templateMat = templateWrapper.GetMat();
@@ -151,13 +154,18 @@ public class PlanarMatchingOperator : OperatorBase
                 templateFeatures = GetOrLoadTemplateFeatures(templatePath, detectorType, maxFeatures, scaleFactor, nLevels);
             }
 
+            var detectorDiagnostics = CreateDetectorDiagnostics(detectorType, maxFeatures, scaleFactor, nLevels);
+
             if (templateFeatures == null || templateFeatures.KeyPoints.Length < minMatchCount)
             {
-                return Task.FromResult(CreateFailureOutput(searchImage, $"FeatureHomography:{detectorType}", "Template features not available or insufficient."));
+                return Task.FromResult(CreateFailureOutput(
+                    searchImage,
+                    $"FeatureHomography:{detectorType}",
+                    "Template features not available or insufficient.",
+                    detectorDiagnostics));
             }
 
             // 多尺度搜索
-            MatchResult? bestMatch = null;
             var scales = BuildScaleCandidates(enableMultiScale, scaleRange);
 
             foreach (var scale in scales)
@@ -192,10 +200,15 @@ public class PlanarMatchingOperator : OperatorBase
 
                 if (bestMatch == null || MatchResultComparer.Instance.Compare(match, bestMatch) > 0)
                 {
+                    bestMatch?.Dispose();
                     bestMatch = match;
                 }
+                else
+                {
+                    match.Dispose();
+                }
 
-                if (enableEarlyExit && match.VerificationPassed && match.Score >= scoreThreshold)
+                if (enableEarlyExit && bestMatch.VerificationPassed && bestMatch.Score >= scoreThreshold)
                 {
                     break;
                 }
@@ -213,13 +226,15 @@ public class PlanarMatchingOperator : OperatorBase
             if (bestMatch != null && bestMatch.VerificationPassed && bestMatch.Score >= scoreThreshold)
             {
                 // 调整坐标到原图（考虑ROI）
-                return Task.FromResult(CreateSuccessOutput(searchImage, bestMatch, templateFeatures, processingTime));
+                return Task.FromResult(CreateSuccessOutput(searchImage, bestMatch, processingTime, detectorDiagnostics));
             }
             var failureReason = bestMatch?.FailureReason ?? "No valid match found.";
-            return Task.FromResult(CreateDetailedFailureOutput(searchImage, failureReason, bestMatch, processingTime));
+            return Task.FromResult(CreateDetailedFailureOutput(searchImage, failureReason, bestMatch, processingTime, detectorDiagnostics));
         }
         finally
         {
+            bestMatch?.Dispose();
+            templateFeatures?.Dispose();
             if (needDisposeRoi)
             {
                 searchRoi.Dispose();
@@ -265,7 +280,7 @@ public class PlanarMatchingOperator : OperatorBase
     {
         // 提取搜索图像特征
         var method = $"FeatureHomography:{detectorType}";
-        var searchFeatures = ExtractFeatures(searchImage, detectorType, maxFeatures, scaleFactor, nLevels);
+        using var searchFeatures = ExtractFeatures(searchImage, detectorType, maxFeatures, scaleFactor, nLevels, includeTemplateImage: false);
         if (searchFeatures == null || searchFeatures.KeyPoints.Length < minMatchCount)
         {
             return new MatchResult
@@ -376,7 +391,13 @@ public class PlanarMatchingOperator : OperatorBase
         #endif
     }
 
-    private TemplateFeatures? ExtractFeatures(Mat image, string detectorType, int maxFeatures, double scaleFactor, int nLevels)
+    private TemplateFeatures? ExtractFeatures(
+        Mat image,
+        string detectorType,
+        int maxFeatures,
+        double scaleFactor,
+        int nLevels,
+        bool includeTemplateImage = true)
     {
         try
         {
@@ -425,11 +446,19 @@ public class PlanarMatchingOperator : OperatorBase
                 return null;
             }
 
+            if (keypoints.Length > maxFeatures)
+            {
+                var (filteredKeypoints, filteredDescriptors) = FilterTopFeatures(keypoints, descriptors, maxFeatures);
+                descriptors.Dispose();
+                keypoints = filteredKeypoints;
+                descriptors = filteredDescriptors;
+            }
+
             return new TemplateFeatures
             {
                 KeyPoints = keypoints,
                 Descriptors = descriptors,
-                TemplateImage = image.Clone(),
+                TemplateImage = includeTemplateImage ? image.Clone() : new Mat(),
                 ImageWidth = image.Width,
                 ImageHeight = image.Height
             };
@@ -439,6 +468,27 @@ public class PlanarMatchingOperator : OperatorBase
             Logger.LogError(ex, "Feature extraction failed");
             return null;
         }
+    }
+
+    private static (KeyPoint[] KeyPoints, Mat Descriptors) FilterTopFeatures(KeyPoint[] keypoints, Mat descriptors, int maxFeatures)
+    {
+        var selectedIndices = Enumerable.Range(0, keypoints.Length)
+            .OrderByDescending(index => keypoints[index].Response)
+            .Take(maxFeatures)
+            .ToArray();
+
+        var filteredKeypoints = new KeyPoint[selectedIndices.Length];
+        var filteredDescriptors = new Mat(selectedIndices.Length, descriptors.Cols, descriptors.Type());
+        for (var outputIndex = 0; outputIndex < selectedIndices.Length; outputIndex++)
+        {
+            var inputIndex = selectedIndices[outputIndex];
+            filteredKeypoints[outputIndex] = keypoints[inputIndex];
+            using var srcRow = descriptors.Row(inputIndex);
+            using var dstRow = filteredDescriptors.Row(outputIndex);
+            srcRow.CopyTo(dstRow);
+        }
+
+        return (filteredKeypoints, filteredDescriptors);
     }
 
     private List<DMatch> MatchFeatures(Mat templateDescriptors, Mat searchDescriptors, string detectorType, double matchRatio)
@@ -499,14 +549,15 @@ public class PlanarMatchingOperator : OperatorBase
 
     private TemplateFeatures? GetOrLoadTemplateFeatures(string templatePath, string detectorType, int maxFeatures, double scaleFactor, int nLevels)
     {
-        var cacheKey = $"{templatePath}_{detectorType}_{maxFeatures}_{scaleFactor:F3}_{nLevels}";
+        var cacheKey = BuildTemplateCacheKey(templatePath, detectorType, maxFeatures, scaleFactor, nLevels);
 
         lock (CacheLock)
         {
             if (TemplateCache.TryGetValue(cacheKey, out var cached))
             {
+                TouchTemplateCacheEntry(cacheKey, cached);
                 Logger.LogDebug("Template cache hit: {CacheKey}", cacheKey);
-                return cached;
+                return cached.Clone();
             }
         }
 
@@ -526,24 +577,40 @@ public class PlanarMatchingOperator : OperatorBase
             }
 
             var features = ExtractFeatures(templateImage, detectorType, maxFeatures, scaleFactor, nLevels);
-            if (features != null)
+            if (features == null)
             {
-                lock (CacheLock)
-                {
-                    // 限制缓存大小
-                    while (TemplateCache.Count >= 20)
-                    {
-                        var oldestKey = TemplateCache.Keys.First();
-                        TemplateCache[oldestKey].Descriptors?.Dispose();
-                        TemplateCache[oldestKey].TemplateImage?.Dispose();
-                        TemplateCache.Remove(oldestKey);
-                    }
-
-                    TemplateCache[cacheKey] = features;
-                }
+                return null;
             }
 
-            return features;
+            lock (CacheLock)
+            {
+                if (TemplateCache.TryGetValue(cacheKey, out var existing))
+                {
+                    features.Dispose();
+                    TouchTemplateCacheEntry(cacheKey, existing);
+                    return existing.Clone();
+                }
+                    // 限制缓存大小
+                    while (TemplateCache.Count >= TemplateCacheCapacity)
+                    {
+                        var oldestKey = TemplateCacheOrder.First?.Value;
+                        if (oldestKey == null)
+                        {
+                            break;
+                        }
+
+                        if (TemplateCache.Remove(oldestKey, out var evicted))
+                        {
+                            TemplateCacheOrder.RemoveFirst();
+                            evicted.Dispose();
+                        }
+                    }
+
+                    features.OrderNode = TemplateCacheOrder.AddLast(cacheKey);
+                    TemplateCache[cacheKey] = features;
+                }
+
+            return features.Clone();
         }
         catch (Exception ex)
         {
@@ -552,7 +619,11 @@ public class PlanarMatchingOperator : OperatorBase
         }
     }
 
-    private OperatorExecutionOutput CreateSuccessOutput(Mat image, MatchResult match, TemplateFeatures template, long processingTime)
+    private OperatorExecutionOutput CreateSuccessOutput(
+        Mat image,
+        MatchResult match,
+        long processingTime,
+        IReadOnlyDictionary<string, object> detectorDiagnostics)
     {
         var resultImage = image.Clone();
 
@@ -597,7 +668,8 @@ public class PlanarMatchingOperator : OperatorBase
             { "ProcessingTimeMs", processingTime },
             { "Center", match.Center },
             { "Corners", corners.Select(c => new Position(c.X, c.Y)).ToList() },
-            { "Homography", match.Homography },
+            { "Homography", match.Homography.Empty() ? new Mat() : match.Homography.Clone() },
+            { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) },
             { "MatchResult", new Dictionary<string, object>
                 {
                     { "Method", match.Method },
@@ -606,7 +678,8 @@ public class PlanarMatchingOperator : OperatorBase
                     { "InlierCount", match.InlierCount },
                     { "InlierRatio", match.InlierRatio },
                     { "VerificationPassed", true },
-                    { "FailureReason", string.Empty }
+                    { "FailureReason", string.Empty },
+                    { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) }
                 }
             },
             { "Message", "Match successful" }
@@ -615,7 +688,11 @@ public class PlanarMatchingOperator : OperatorBase
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, resultData));
     }
 
-    private OperatorExecutionOutput CreateFailureOutput(Mat image, string method, string reason)
+    private OperatorExecutionOutput CreateFailureOutput(
+        Mat image,
+        string method,
+        string reason,
+        IReadOnlyDictionary<string, object> detectorDiagnostics)
     {
         var resultImage = image.Clone();
         Cv2.PutText(resultImage, $"NG: {reason}", new Point(10, 30),
@@ -638,6 +715,7 @@ public class PlanarMatchingOperator : OperatorBase
             { "SearchFeatures", 0 },
             { "MeanReprojectionError", double.PositiveInfinity },
             { "AreaRatio", 0.0 },
+            { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) },
             { "MatchResult", new Dictionary<string, object>
                 {
                     { "Method", method },
@@ -646,14 +724,20 @@ public class PlanarMatchingOperator : OperatorBase
                     { "InlierCount", 0 },
                     { "InlierRatio", 0.0 },
                     { "VerificationPassed", false },
-                    { "FailureReason", reason }
+                    { "FailureReason", reason },
+                    { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) }
                 }
             },
             { "Message", reason }
         }));
     }
 
-    private OperatorExecutionOutput CreateDetailedFailureOutput(Mat image, string reason, MatchResult? match, long processingTime)
+    private OperatorExecutionOutput CreateDetailedFailureOutput(
+        Mat image,
+        string reason,
+        MatchResult? match,
+        long processingTime,
+        IReadOnlyDictionary<string, object> detectorDiagnostics)
     {
         var resultImage = image.Clone();
         Cv2.PutText(resultImage, $"NG: {reason}", new Point(10, 30),
@@ -683,6 +767,7 @@ public class PlanarMatchingOperator : OperatorBase
             { "Score", match?.Score ?? 0.0 },
             { "MeanReprojectionError", match?.MeanReprojectionError ?? double.PositiveInfinity },
             { "AreaRatio", match?.AreaRatio ?? 0.0 },
+            { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) },
             { "MatchResult", new Dictionary<string, object>
                 {
                     { "Method", match?.Method ?? "FeatureHomography" },
@@ -691,13 +776,52 @@ public class PlanarMatchingOperator : OperatorBase
                     { "InlierCount", match?.InlierCount ?? 0 },
                     { "InlierRatio", match?.InlierRatio ?? 0.0 },
                     { "VerificationPassed", false },
-                    { "FailureReason", reason }
+                    { "FailureReason", reason },
+                    { "DetectorParameterDiagnostics", new Dictionary<string, object>(detectorDiagnostics) }
                 }
             },
             { "Message", reason }
         };
 
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, resultData));
+    }
+
+    private static string BuildTemplateCacheKey(string templatePath, string detectorType, int maxFeatures, double scaleFactor, int nLevels)
+    {
+        var fingerprint = ComputeFileFingerprint(templatePath);
+        return $"{templatePath}|{fingerprint}|{detectorType}|{maxFeatures}|{scaleFactor:F3}|{nLevels}";
+    }
+
+    private static string ComputeFileFingerprint(string templatePath)
+    {
+        using var stream = File.OpenRead(templatePath);
+        var hash = SHA256.HashData(stream);
+        return Convert.ToHexString(hash);
+    }
+
+    private static void TouchTemplateCacheEntry(string cacheKey, TemplateFeatures entry)
+    {
+        if (entry.OrderNode != null)
+        {
+            TemplateCacheOrder.Remove(entry.OrderNode);
+        }
+
+        entry.OrderNode = TemplateCacheOrder.AddLast(cacheKey);
+    }
+
+    private static Dictionary<string, object> CreateDetectorDiagnostics(string detectorType, int maxFeatures, double scaleFactor, int nLevels)
+    {
+        var isOrb = string.Equals(detectorType, "ORB", StringComparison.Ordinal);
+        return new Dictionary<string, object>
+        {
+            { "DetectorType", detectorType },
+            { "MaxFeaturesApplied", true },
+            { "ScaleFactorApplied", isOrb },
+            { "NLevelsApplied", isOrb },
+            { "Notes", isOrb
+                ? "ORB applies MaxFeatures, ScaleFactor, and NLevels."
+                : "MaxFeatures is applied by response-based post-filtering. ScaleFactor and NLevels remain ORB-only in phase 1." }
+        };
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -735,16 +859,35 @@ public class PlanarMatchingOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private class TemplateFeatures
+    private sealed class TemplateFeatures : IDisposable
     {
         public KeyPoint[] KeyPoints { get; set; } = Array.Empty<KeyPoint>();
         public Mat Descriptors { get; set; } = new Mat();
         public Mat TemplateImage { get; set; } = new Mat();
         public int ImageWidth { get; set; }
         public int ImageHeight { get; set; }
+        public LinkedListNode<string>? OrderNode { get; set; }
+
+        public TemplateFeatures Clone()
+        {
+            return new TemplateFeatures
+            {
+                KeyPoints = KeyPoints.ToArray(),
+                Descriptors = Descriptors.Clone(),
+                TemplateImage = TemplateImage.Empty() ? new Mat() : TemplateImage.Clone(),
+                ImageWidth = ImageWidth,
+                ImageHeight = ImageHeight
+            };
+        }
+
+        public void Dispose()
+        {
+            Descriptors.Dispose();
+            TemplateImage.Dispose();
+        }
     }
 
-    private class MatchResult
+    private sealed class MatchResult : IDisposable
     {
         public bool IsSuccess { get; set; }
         public string Method { get; set; } = "FeatureHomography:ORB";
@@ -832,6 +975,11 @@ public class PlanarMatchingOperator : OperatorBase
 
             Homography.Dispose();
             Homography = adjusted;
+        }
+
+        public void Dispose()
+        {
+            Homography.Dispose();
         }
     }
 

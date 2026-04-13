@@ -100,6 +100,10 @@ public sealed class MatchingIndustrialAcceptanceTests
         correctionResult.IsSuccess.Should().BeTrue();
         Convert.ToInt32(correctionResult.OutputData!["CorrectedX"]).Should().BeGreaterThan(60);
         Convert.ToInt32(correctionResult.OutputData["CorrectedY"]).Should().BeGreaterThan(70);
+        correctionResult.OutputData.Should().ContainKey("AppliedOffsetX");
+        correctionResult.OutputData.Should().ContainKey("AppliedOffsetY");
+        correctionResult.OutputData.Should().ContainKey("TransformMatrix");
+        correctionResult.OutputData["CompensationMode"].Should().Be("Translation");
     }
 
     [Fact]

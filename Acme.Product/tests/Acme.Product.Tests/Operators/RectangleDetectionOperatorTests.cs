@@ -15,14 +15,12 @@ public class RectangleDetectionOperatorTests
     [Fact]
     public void OperatorType_ShouldBeRectangleDetection()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.RectangleDetection, sut.OperatorType);
+        Assert.Equal(OperatorType.RectangleDetection, CreateSut().OperatorType);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithRectangleImage_ShouldDetectAtLeastOneRectangle()
+    public async Task ExecuteAsync_WithRectangleImage_ShouldExposeNormalizedGeometry()
     {
-        var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
         {
             { "MinArea", 500 },
@@ -32,39 +30,49 @@ public class RectangleDetectionOperatorTests
         });
 
         using var image = CreateRectangleImage();
-        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+        var result = await CreateSut().ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
         Assert.True(Convert.ToInt32(result.OutputData!["Count"]) >= 1);
-        Assert.True(Convert.ToDouble(result.OutputData["Width"]) > 0);
-        Assert.True(Convert.ToDouble(result.OutputData["Height"]) > 0);
+        Assert.True(Convert.ToDouble(result.OutputData["LongSide"]) >= Convert.ToDouble(result.OutputData["ShortSide"]));
+        Assert.InRange(Convert.ToDouble(result.OutputData["NormalizedAngle"]), -90.0, 90.0);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithMultipleNoisyRectangles_ShouldDetectMoreThanOne()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "MinArea", 300 },
+            { "MaxArea", 200000 },
+            { "AngleTolerance", 25.0 },
+            { "ApproxEpsilon", 0.02 }
+        });
+
+        using var image = CreateMultipleRectangleImage();
+        var result = await CreateSut().ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(Convert.ToInt32(result.OutputData!["Count"]) >= 2);
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidAreaRange_ShouldReturnInvalid()
     {
-        var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object>
+        var validation = CreateSut().ValidateParameters(CreateOperator(new Dictionary<string, object>
         {
             { "MinArea", 1000 },
             { "MaxArea", 100 }
-        });
-
-        var validation = sut.ValidateParameters(op);
+        }));
 
         Assert.False(validation.IsValid);
     }
 
-    private static RectangleDetectionOperator CreateSut()
-    {
-        return new RectangleDetectionOperator(Substitute.For<ILogger<RectangleDetectionOperator>>());
-    }
+    private static RectangleDetectionOperator CreateSut() => new(Substitute.For<ILogger<RectangleDetectionOperator>>());
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("RectangleDetection", OperatorType.RectangleDetection, 0, 0);
-
         if (parameters != null)
         {
             foreach (var (name, value) in parameters)
@@ -78,8 +86,22 @@ public class RectangleDetectionOperatorTests
 
     private static ImageWrapper CreateRectangleImage()
     {
-        var mat = new Mat(200, 220, MatType.CV_8UC3, Scalar.Black);
-        Cv2.Rectangle(mat, new Rect(50, 60, 100, 70), Scalar.White, 2);
+        var mat = new Mat(220, 240, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(50, 60, 100, 70), Scalar.White, 3);
+        return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateMultipleRectangleImage()
+    {
+        var mat = new Mat(240, 260, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(20, 30, 90, 60), Scalar.White, 3);
+        Cv2.Rectangle(mat, new Rect(140, 110, 80, 50), Scalar.White, 3);
+        var rng = new Random(42);
+        for (var i = 0; i < 120; i++)
+        {
+            mat.Set(rng.Next(mat.Rows), rng.Next(mat.Cols), new Vec3b(255, 255, 255));
+        }
+
         return new ImageWrapper(mat);
     }
 }

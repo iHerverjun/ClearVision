@@ -1,7 +1,3 @@
-// GradientShapeMatchOperator.cs
-// 梯度形状匹配算子
-// 作者：蘅芜君
-
 using System.Security.Cryptography;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
@@ -13,12 +9,9 @@ using OpenCvSharp;
 
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 梯度形状匹配算子。
-/// </summary>
 [OperatorMeta(
     DisplayName = "梯度形状匹配",
-    Description = "基于梯度方向的形状匹配，支持旋转不变性。",
+    Description = "基于梯度方向特征的形状匹配，支持可选 ROI 搜索。",
     Category = "匹配定位",
     IconName = "shape-match"
 )]
@@ -31,10 +24,15 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Score", "匹配分数", PortDataType.Float)]
 [OperatorParam("TemplatePath", "模板路径", "file", DefaultValue = "")]
 [OperatorParam("MinScore", "最小分数(%)", "double", DefaultValue = 80.0, Min = 0.0, Max = 100.0)]
-[OperatorParam("AngleRange", "角度范围(°)", "int", DefaultValue = 180, Min = 0, Max = 180)]
+[OperatorParam("AngleRange", "角度范围(度)", "int", DefaultValue = 180, Min = 0, Max = 180)]
 [OperatorParam("AngleStep", "角度步长", "int", DefaultValue = 1, Min = 1, Max = 10)]
 [OperatorParam("MagnitudeThreshold", "梯度阈值", "int", DefaultValue = 30, Min = 0, Max = 255)]
 [OperatorParam("EnableCache", "启用缓存", "bool", DefaultValue = true)]
+[OperatorParam("UseRoi", "使用 ROI", "bool", DefaultValue = false)]
+[OperatorParam("RoiX", "ROI X", "int", DefaultValue = 0, Min = 0, Max = 100000)]
+[OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0, Min = 0, Max = 100000)]
+[OperatorParam("RoiWidth", "ROI Width", "int", DefaultValue = 0, Min = 0, Max = 100000)]
+[OperatorParam("RoiHeight", "ROI Height", "int", DefaultValue = 0, Min = 0, Max = 100000)]
 public class GradientShapeMatchOperator : OperatorBase
 {
     private const int MaxMatcherCacheEntries = 8;
@@ -64,6 +62,11 @@ public class GradientShapeMatchOperator : OperatorBase
         var angleStep = GetIntParam(@operator, "AngleStep", 1, min: 1, max: 10);
         var magnitudeThreshold = GetIntParam(@operator, "MagnitudeThreshold", 30, min: 0, max: 255);
         var enableCache = GetBoolParam(@operator, "EnableCache", true);
+        var useRoi = GetBoolParam(@operator, "UseRoi", false);
+        var roiX = GetIntParam(@operator, "RoiX", 0, min: 0);
+        var roiY = GetIntParam(@operator, "RoiY", 0, min: 0);
+        var roiWidth = GetIntParam(@operator, "RoiWidth", 0, min: 0);
+        var roiHeight = GetIntParam(@operator, "RoiHeight", 0, min: 0);
 
         Mat? templateFromInput = null;
         if (TryGetInputImage(inputs, "Template", out var templateWrapper) && templateWrapper != null)
@@ -72,76 +75,92 @@ public class GradientShapeMatchOperator : OperatorBase
         }
 
         var srcImage = imageWrapper.GetMat();
+        var searchRegion = BuildSearchRegion(useRoi, roiX, roiY, roiWidth, roiHeight, srcImage.Width, srcImage.Height);
 
         try
         {
             var cacheKey = BuildCacheKey(templatePath, templateFromInput, angleRange, angleStep, magnitudeThreshold);
-            var entry = GetOrCreateMatcher(cacheKey, enableCache, templatePath, templateFromInput, angleRange, angleStep, magnitudeThreshold);
-            if (entry == null)
+            var lease = GetOrCreateMatcher(cacheKey, enableCache, templatePath, templateFromInput, angleRange, angleStep, magnitudeThreshold);
+            if (lease == null)
             {
                 return Task.FromResult(OperatorExecutionOutput.Failure("未提供模板图像或路径"));
             }
 
-            var result = entry.Matcher.Match(srcImage, minScore);
-
-            var resultImage = srcImage.Clone();
-            var boxColor = result.IsValid ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
-
-            if (result.IsValid)
+            try
             {
-                var halfWidth = Math.Max(1, entry.TemplateWidth / 2);
-                var halfHeight = Math.Max(1, entry.TemplateHeight / 2);
-                Cv2.Rectangle(
-                    resultImage,
-                    new Point(result.Position.X - halfWidth, result.Position.Y - halfHeight),
-                    new Point(result.Position.X + halfWidth, result.Position.Y + halfHeight),
-                    boxColor,
-                    2);
-                Cv2.DrawMarker(resultImage, result.Position, boxColor, MarkerTypes.Cross, 20, 2);
+                var result = lease.Entry.Matcher.Match(srcImage, minScore, searchRegion);
+                var resultImage = srcImage.Clone();
+                var boxColor = result.IsValid ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
+
+                if (result.IsValid)
+                {
+                    var halfWidth = Math.Max(1, lease.Entry.TemplateWidth / 2);
+                    var halfHeight = Math.Max(1, lease.Entry.TemplateHeight / 2);
+                    Cv2.Rectangle(
+                        resultImage,
+                        new Point(result.Position.X - halfWidth, result.Position.Y - halfHeight),
+                        new Point(result.Position.X + halfWidth, result.Position.Y + halfHeight),
+                        boxColor,
+                        2);
+                    Cv2.DrawMarker(resultImage, result.Position, boxColor, MarkerTypes.Cross, 20, 2);
+                }
+
+                Cv2.PutText(resultImage, $"{(result.IsValid ? "OK" : "NG")}: Score={result.Score:F1}%", new Point(10, 30), HersheyFonts.HersheySimplex, 0.6, boxColor, 2);
+
+                if (result.IsValid)
+                {
+                    Cv2.PutText(
+                        resultImage,
+                        $"Angle: {result.Angle:F1}deg",
+                        new Point(result.Position.X - Math.Max(30, lease.Entry.TemplateWidth / 2), result.Position.Y - Math.Max(20, lease.Entry.TemplateHeight / 2) - 5),
+                        HersheyFonts.HersheySimplex,
+                        0.5,
+                        boxColor,
+                        1);
+                }
+
+                var position = new Position(result.Position.X, result.Position.Y);
+                var output = new Dictionary<string, object>
+                {
+                    ["IsMatch"] = result.IsValid,
+                    ["Score"] = result.Score,
+                    ["Position"] = position,
+                    ["X"] = position.X,
+                    ["Y"] = position.Y,
+                    ["Angle"] = result.Angle,
+                    ["TemplateWidth"] = lease.Entry.TemplateWidth,
+                    ["TemplateHeight"] = lease.Entry.TemplateHeight,
+                    ["DisplayWidth"] = lease.Entry.TemplateWidth,
+                    ["DisplayHeight"] = lease.Entry.TemplateHeight,
+                    ["CacheEnabled"] = enableCache,
+                    ["SearchRegion"] = new Dictionary<string, object>
+                    {
+                        ["Enabled"] = useRoi,
+                        ["X"] = searchRegion.X,
+                        ["Y"] = searchRegion.Y,
+                        ["Width"] = searchRegion.Width,
+                        ["Height"] = searchRegion.Height
+                    }
+                };
+
+                if (!result.IsValid)
+                {
+                    output["Message"] = "No gradient shape match above threshold.";
+                }
+
+                return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
             }
-
-            string info = $"{(result.IsValid ? "OK" : "NG")}: Score={result.Score:F1}%";
-            Cv2.PutText(resultImage, info, new Point(10, 30), HersheyFonts.HersheySimplex, 0.6, boxColor, 2);
-
-            if (result.IsValid)
+            finally
             {
-                string angleInfo = $"Angle: {result.Angle:F1}°";
-                Cv2.PutText(
-                    resultImage,
-                    angleInfo,
-                    new Point(result.Position.X - Math.Max(30, entry.TemplateWidth / 2), result.Position.Y - Math.Max(20, entry.TemplateHeight / 2) - 5),
-                    HersheyFonts.HersheySimplex,
-                    0.5,
-                    boxColor,
-                    1);
+                if (!lease.FromCache)
+                {
+                    lease.Entry.Matcher.Dispose();
+                }
             }
-
-            var position = new Position(result.Position.X, result.Position.Y);
-            var output = new Dictionary<string, object>
-            {
-                ["IsMatch"] = result.IsValid,
-                ["Score"] = result.Score,
-                ["Position"] = position,
-                ["X"] = position.X,
-                ["Y"] = position.Y,
-                ["Angle"] = result.Angle,
-                ["TemplateWidth"] = entry.TemplateWidth,
-                ["TemplateHeight"] = entry.TemplateHeight,
-                ["DisplayWidth"] = entry.TemplateWidth,
-                ["DisplayHeight"] = entry.TemplateHeight,
-                ["CacheEnabled"] = enableCache
-            };
-
-            if (!result.IsValid)
-            {
-                output["Message"] = "No gradient shape match above threshold.";
-            }
-
-            return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
         }
         catch (Exception ex)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"形状匹配失败: {ex.Message}"));
+            return Task.FromResult(OperatorExecutionOutput.Failure($"梯度形状匹配失败: {ex.Message}"));
         }
     }
 
@@ -159,10 +178,20 @@ public class GradientShapeMatchOperator : OperatorBase
             return ValidationResult.Invalid("角度范围必须在 0-180 之间");
         }
 
+        if (GetBoolParam(@operator, "UseRoi", false))
+        {
+            var roiWidth = GetIntParam(@operator, "RoiWidth", 0);
+            var roiHeight = GetIntParam(@operator, "RoiHeight", 0);
+            if (roiWidth <= 0 || roiHeight <= 0)
+            {
+                return ValidationResult.Invalid("启用 ROI 时，RoiWidth 和 RoiHeight 必须大于 0");
+            }
+        }
+
         return ValidationResult.Valid();
     }
 
-    private MatcherCacheEntry? GetOrCreateMatcher(
+    private MatcherLease? GetOrCreateMatcher(
         string cacheKey,
         bool enableCache,
         string templatePath,
@@ -173,11 +202,12 @@ public class GradientShapeMatchOperator : OperatorBase
     {
         if (enableCache && TryGetCachedMatcher(cacheKey, out var cached))
         {
-            return cached;
+            return new MatcherLease(cached!, true);
         }
 
         Mat? templateImage = null;
         var shouldDispose = false;
+        GradientShapeMatcher? matcher = null;
         try
         {
             if (templateFromInput != null)
@@ -195,16 +225,22 @@ public class GradientShapeMatchOperator : OperatorBase
                 return null;
             }
 
-            var matcher = new GradientShapeMatcher(magnitudeThreshold, angleStep);
+            matcher = new GradientShapeMatcher(magnitudeThreshold, angleStep);
             matcher.Train(templateImage, angleRange);
 
             var entry = new MatcherCacheEntry(matcher, templateImage.Width, templateImage.Height);
             if (enableCache)
             {
                 AddOrUpdateCache(cacheKey, entry);
+                return new MatcherLease(entry, true);
             }
 
-            return entry;
+            return new MatcherLease(entry, false);
+        }
+        catch
+        {
+            matcher?.Dispose();
+            throw;
         }
         finally
         {
@@ -213,6 +249,20 @@ public class GradientShapeMatchOperator : OperatorBase
                 templateImage?.Dispose();
             }
         }
+    }
+
+    private static Rect BuildSearchRegion(bool useRoi, int roiX, int roiY, int roiWidth, int roiHeight, int imageWidth, int imageHeight)
+    {
+        if (!useRoi)
+        {
+            return new Rect(0, 0, imageWidth, imageHeight);
+        }
+
+        var x = Math.Clamp(roiX, 0, imageWidth);
+        var y = Math.Clamp(roiY, 0, imageHeight);
+        var width = Math.Clamp(roiWidth, 0, imageWidth - x);
+        var height = Math.Clamp(roiHeight, 0, imageHeight - y);
+        return new Rect(x, y, width, height);
     }
 
     private static string BuildCacheKey(string templatePath, Mat? templateFromInput, int angleRange, int angleStep, int magnitudeThreshold)
@@ -287,4 +337,6 @@ public class GradientShapeMatchOperator : OperatorBase
     }
 
     private sealed record MatcherCacheEntry(GradientShapeMatcher Matcher, int TemplateWidth, int TemplateHeight);
+
+    private sealed record MatcherLease(MatcherCacheEntry Entry, bool FromCache);
 }

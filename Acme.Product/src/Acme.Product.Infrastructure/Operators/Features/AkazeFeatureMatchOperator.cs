@@ -110,7 +110,7 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
             else if (!string.IsNullOrEmpty(templatePath))
             {
                 // 从缓存或文件加载模板
-                var cached = GetOrLoadTemplate(templatePath, img =>
+                var cached = GetOrLoadTemplate(templatePath, $"AKAZE:{threshold:F6}", img =>
                 {
                     KeyPoint[] kpts;
                     Mat descs = new Mat();

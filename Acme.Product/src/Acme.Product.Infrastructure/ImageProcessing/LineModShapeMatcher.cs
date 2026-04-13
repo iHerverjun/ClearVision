@@ -830,7 +830,9 @@ public sealed class LineModShapeMatcher : IDisposable
         });
 
         // 线性化响应图 - 创建 T×T 个线性内存块
-        var linearMaps = LinearizeResponseMaps(tempMaps, SpreadT);
+        int linearWidth = (width + SpreadT - 1) / SpreadT;
+        int linearHeight = (height + SpreadT - 1) / SpreadT;
+        var linearMaps = LinearizeResponseMaps(tempMaps, SpreadT, linearWidth, linearHeight);
 
         // 释放临时响应图
         foreach (var map in tempMaps)
@@ -838,7 +840,7 @@ public sealed class LineModShapeMatcher : IDisposable
             map.Dispose();
         }
 
-        return new DisposableResponseMaps(linearMaps, SpreadT, true);
+        return new DisposableResponseMaps(linearMaps, SpreadT, width, height, linearWidth, linearHeight, true);
     }
 
     /// <summary>
@@ -856,7 +858,7 @@ public sealed class LineModShapeMatcher : IDisposable
     ///   ...
     ///   内存 15 (3,3 起始): [D H L P T X ...]
     /// </summary>
-    private Mat[] LinearizeResponseMaps(Mat[] responseMaps, int T)
+    private Mat[] LinearizeResponseMaps(Mat[] responseMaps, int T, int linearWidth, int linearHeight)
     {
         int width = responseMaps[0].Cols;
         int height = responseMaps[0].Rows;
@@ -870,7 +872,7 @@ public sealed class LineModShapeMatcher : IDisposable
             // 创建 T×T 个线性内存，每个大小为 W×H
             // 使用单通道 8UC1 矩阵存储所有 T×T 个内存块
             // 矩阵行数 = T×T，列数 = W×H
-            linearMaps[ori] = new Mat(T * T, W * H, MatType.CV_8UC1);
+            linearMaps[ori] = new Mat(T * T, linearWidth * linearHeight, MatType.CV_8UC1, Scalar.All(0));
 
             unsafe
             {
@@ -954,10 +956,9 @@ public sealed class LineModShapeMatcher : IDisposable
 
         // 获取线性化后的尺寸
         // 线性化矩阵: 行数 = T×T, 列数 = (W×H) 其中 W=width/T, H=height/T
-        int linearW = maps[0].Cols / T;  // 降采样后的宽度
-        int linearH = maps[0].Cols / T;  // 同上 (列数 = W×H，但我们需要 W 和 H)
+        int linearWidth = responseMaps.LinearWidth;
+        int linearHeight = responseMaps.LinearHeight;
         // 实际上 maps[0].Cols = W × H，所以我们需要重新计算
-        int totalLinearSize = maps[0].Cols;
 
         // 计算模板在降采样后的尺寸
         int minX = template.Features.Min(f => f.X);
@@ -969,17 +970,21 @@ public sealed class LineModShapeMatcher : IDisposable
         int hf = (maxY - minY + T - 1) / T + 1;  // 模板高度 / T
 
         // 计算场景尺寸 (反向推导)
-        int sceneLinearW = (int)Math.Sqrt(totalLinearSize);  // 近似，实际需要正确计算
-        int W = (int)Math.Sqrt(totalLinearSize);
-        int H = totalLinearSize / W;
+        int sceneLinearW = linearWidth;
+        int W = linearWidth;
+        int searchWidth = linearWidth - ((maxX - minX + 1 + T - 1) / T) + 1;
+        int H = linearHeight;
+        int searchHeight = linearHeight - ((maxY - minY + 1 + T - 1) / T) + 1;
 
         // 可搜索范围 (以 T 为步长)
         int spanX = W - wf;
         int spanY = H - hf;
-        if (spanX <= 0 || spanY <= 0)
+        if (searchWidth <= 0 || searchHeight <= 0)
             return results;
 
-        int templatePositions = spanY * W + spanX + 1;
+        int templatePositions = searchWidth > 0 && searchHeight > 0
+            ? searchWidth * searchHeight
+            : 0;
 
         // 归一化阈值
         float maxScore = 4.0f * template.Features.Count;
@@ -989,13 +994,13 @@ public sealed class LineModShapeMatcher : IDisposable
         var featureInfo = template.Features.Select(f => new
         {
             Label = f.Label,
-            X = f.X,
-            Y = f.Y,
-            GridX = f.X % T,
-            GridY = f.Y % T,
-            GridIndex = (f.Y % T) * T + (f.X % T),
-            LmX = f.X / T,
-            LmY = f.Y / T
+            NormalizedX = f.X - minX,
+            NormalizedY = f.Y - minY,
+            GridX = (f.X - minX) % T,
+            GridY = (f.Y - minY) % T,
+            GridIndex = ((f.Y - minY) % T) * T + ((f.X - minX) % T),
+            LmX = (f.X - minX) / T,
+            LmY = (f.Y - minY) / T
         }).ToList();
 
         // 创建累加缓冲区
@@ -1008,20 +1013,19 @@ public sealed class LineModShapeMatcher : IDisposable
             int step = (int)maps[feat.Label].Step();
             byte* linearMem = mapPtr + feat.GridIndex * step;
 
-            int featLmIndex = feat.LmY * W + feat.LmX;
 
             // 累加该特征点在所有搜索位置的响应值
             for (int pos = 0; pos < templatePositions; pos++)
             {
                 // 计算该位置对应的线性内存偏移
-                int posY = pos / W;
-                int posX = pos % W;
+                int posY = pos / searchWidth;
+                int posX = pos % searchWidth;
 
                 // 检查边界
-                if (posX + feat.LmX >= W || posY + feat.LmY >= H)
+                if (posX + feat.LmX >= linearWidth || posY + feat.LmY >= linearHeight)
                     continue;
 
-                int lmOffset = (posY + feat.LmY) * W + (posX + feat.LmX);
+                int lmOffset = (posY + feat.LmY) * linearWidth + (posX + feat.LmX);
                 similarityScores[pos] += linearMem[lmOffset];
             }
         }
@@ -1032,8 +1036,8 @@ public sealed class LineModShapeMatcher : IDisposable
         {
             if (similarityScores[pos] >= scoreThreshold)
             {
-                int posY = pos / W;
-                int posX = pos % W;
+                int posY = pos / searchWidth;
+                int posX = pos % searchWidth;
                 // 转换回原始坐标 (乘以 T)
                 localResults.Add((posX * T, posY * T, similarityScores[pos] / maxScore));
             }
@@ -1307,13 +1311,28 @@ public sealed class LineModShapeMatcher : IDisposable
     {
         public Mat[] Maps { get; }
         public int T { get; }
+        public int OriginalWidth { get; }
+        public int OriginalHeight { get; }
+        public int LinearWidth { get; }
+        public int LinearHeight { get; }
         public bool IsLinearized { get; }
         private bool _disposed;
 
-        public DisposableResponseMaps(Mat[] maps, int t, bool isLinearized = false)
+        public DisposableResponseMaps(
+            Mat[] maps,
+            int t,
+            int originalWidth,
+            int originalHeight,
+            int linearWidth,
+            int linearHeight,
+            bool isLinearized = false)
         {
             Maps = maps;
             T = t;
+            OriginalWidth = originalWidth;
+            OriginalHeight = originalHeight;
+            LinearWidth = linearWidth;
+            LinearHeight = linearHeight;
             IsLinearized = isLinearized;
         }
 
@@ -1331,7 +1350,7 @@ public sealed class LineModShapeMatcher : IDisposable
             if (!IsLinearized)
                 throw new InvalidOperationException("响应图未线性化");
 
-            int mapW = Maps[0].Cols / T;  // 原始宽度 / T
+            int mapW = LinearWidth;
 
             // 计算在 T×T 网格中的位置
             int gridX = (featureX + offsetX) % T;

@@ -1,7 +1,6 @@
 // QuadrilateralFindOperator.cs
 // 四边形查找算子
-// 在图像中检测并输出四边形轮廓结果
-// 作者：蘅芜君
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -9,7 +8,6 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -22,6 +20,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [InputPort("Image", "Image", PortDataType.Image, IsRequired = true)]
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OutputPort("Vertices", "Vertices", PortDataType.PointList)]
+[OutputPort("OrderedVertices", "Ordered Vertices", PortDataType.PointList)]
 [OutputPort("Count", "Count", PortDataType.Integer)]
 [OutputPort("Area", "Area", PortDataType.Float)]
 [OutputPort("Center", "Center", PortDataType.Point)]
@@ -68,12 +67,16 @@ public class QuadrilateralFindOperator : OperatorBase
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         }
 
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(gray, blurred, new Size(5, 5), 0);
         using var edge = new Mat();
-        Cv2.Canny(gray, edge, 60, 180);
-        Cv2.FindContours(edge, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+        Cv2.Canny(blurred, edge, 60, 180);
+        using var closed = new Mat();
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(3, 3));
+        Cv2.MorphologyEx(edge, closed, MorphTypes.Close, kernel);
+        Cv2.FindContours(closed, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-        var quads = new List<(Point[] points, double area, Position center)>();
-
+        var quads = new List<(Point[] Points, Point[] OrderedPoints, double Area, Position Center)>();
         foreach (var contour in contours)
         {
             var area = Cv2.ContourArea(contour);
@@ -100,28 +103,28 @@ public class QuadrilateralFindOperator : OperatorBase
                 ? new Position(moments.M10 / moments.M00, moments.M01 / moments.M00)
                 : new Position(0, 0);
 
-            quads.Add((approx, area, center));
+            quads.Add((approx, OrderVertices(approx), area, center));
         }
 
-        quads = quads.OrderByDescending(q => q.area).ToList();
+        quads = quads.OrderByDescending(quad => quad.Area).ToList();
         var primary = quads.FirstOrDefault();
 
         var resultImage = src.Clone();
         foreach (var quad in quads)
         {
-            Cv2.Polylines(resultImage, new[] { quad.points }, true, new Scalar(0, 255, 0), 2);
+            Cv2.Polylines(resultImage, new[] { quad.OrderedPoints }, true, new Scalar(0, 255, 0), 2);
         }
 
-        var vertices = primary.points == null
-            ? new List<Position>()
-            : primary.points.Select(p => new Position(p.X, p.Y)).ToList();
+        var vertices = primary.Points == null ? new List<Position>() : primary.Points.Select(point => new Position(point.X, point.Y)).ToList();
+        var orderedVertices = primary.OrderedPoints == null ? new List<Position>() : primary.OrderedPoints.Select(point => new Position(point.X, point.Y)).ToList();
 
         var output = new Dictionary<string, object>
         {
             { "Vertices", vertices },
+            { "OrderedVertices", orderedVertices },
             { "Count", quads.Count },
-            { "Area", primary.area },
-            { "Center", primary.center ?? new Position(0, 0) }
+            { "Area", primary.Area },
+            { "Center", primary.Center ?? new Position(0, 0) }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
@@ -137,5 +140,48 @@ public class QuadrilateralFindOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static Point[] OrderVertices(Point[] points)
+    {
+        if (points.Length != 4)
+        {
+            return points;
+        }
+
+        var centroidX = points.Average(point => point.X);
+        var centroidY = points.Average(point => point.Y);
+        var ordered = points
+            .Select(point => new { Point = point, Angle = Math.Atan2(point.Y - centroidY, point.X - centroidX) })
+            .OrderBy(item => item.Angle)
+            .Select(item => item.Point)
+            .ToArray();
+
+        if (SignedArea(ordered) < 0)
+        {
+            Array.Reverse(ordered);
+        }
+
+        var startIndex = Enumerable.Range(0, ordered.Length)
+            .OrderBy(index => ordered[index].Y)
+            .ThenBy(index => ordered[index].X)
+            .First();
+
+        return Enumerable.Range(0, ordered.Length)
+            .Select(offset => ordered[(startIndex + offset) % ordered.Length])
+            .ToArray();
+    }
+
+    private static double SignedArea(IReadOnlyList<Point> polygon)
+    {
+        double area = 0;
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var current = polygon[index];
+            var next = polygon[(index + 1) % polygon.Count];
+            area += (current.X * next.Y) - (next.X * current.Y);
+        }
+
+        return area * 0.5;
     }
 }

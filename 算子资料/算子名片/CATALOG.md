@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-12 22:28:26 +08:00`
+> 生成时间 / Generated At: `2026-04-13 19:14:52 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -35,11 +35,11 @@
 | 颜色处理 | 2 | 1.3% |
 
 ## 质量评分 / Quality Score
-- 平均分 / Average: **87.6**
+- 平均分 / Average: **88.4**
 | 等级 (Level) | 数量 (Count) |
 |------|------:|
-| A | 103 |
-| B | 32 |
+| A | 110 |
+| B | 25 |
 | C | 20 |
 
 ## 分类索引 / Grouped Index
@@ -108,13 +108,13 @@
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AkazeFeatureMatch` | AKAZE特征匹配 | 2 | 5 | 5 | 73 (B) | `1.0.0` | 该算子基于局部特征点匹配完成模板定位，核心流程是： | [AkazeFeatureMatch](./AkazeFeatureMatch.md) |
-| `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 6 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./GradientShapeMatch.md) |
+| `OperatorType.GradientShapeMatch` | 梯度形状匹配 | 2 | 5 | 11 | 83 (B) | `1.0.0` | 该算子不是直接在原始灰度图上做相关性匹配，而是使用自定义 GradientShape… | [GradientShapeMatch](./GradientShapeMatch.md) |
 | `OperatorType.LocalDeformableMatching` | Local Deformable Matching | 2 | 6 | 15 | 90 (A) | `1.0.4` | - | [LocalDeformableMatching](./LocalDeformableMatching.md) |
 | `OperatorType.OrbFeatureMatch` | ORB特征匹配 | 2 | 5 | 7 | 73 (B) | `1.0.0` | 该算子与 AkazeFeatureMatchOperator 属于同一类局部特征匹配… | [OrbFeatureMatch](./OrbFeatureMatch.md) |
 | `OperatorType.PlanarMatching` | Planar Matching | 2 | 13 | 19 | 90 (A) | `1.1.1` | - | [PlanarMatching](./PlanarMatching.md) |
 | `OperatorType.PyramidShapeMatch` | 金字塔形状匹配 | 2 | 5 | 15 | 83 (B) | `1.0.0` | 该算子围绕模板、特征或几何相似性执行定位匹配，用于判断目标是否存在以及位姿大致位置。 | [PyramidShapeMatch](./PyramidShapeMatch.md) |
-| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.1.2` | 虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮… | [ShapeMatching](./ShapeMatching.md) |
-| `OperatorType.TemplateMatching` | 模板匹配 | 3 | 6 | 9 | 96 (A) | `1.1.1` | 该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全… | [TemplateMatching](./TemplateMatching.md) |
+| `OperatorType.ShapeMatching` | 旋转尺度模板匹配 | 2 | 2 | 10 | 100 (A) | `1.2.0` | 虽然名称叫“形状匹配”，当前实现本质上仍是灰度模板的旋转/尺度搜索，而不是轮廓描述子… | [ShapeMatching](./ShapeMatching.md) |
+| `OperatorType.TemplateMatching` | 模板匹配 | 3 | 8 | 9 | 96 (A) | `1.2.0` | 该算子在搜索图像上滑动模板并生成响应图，然后从响应图中提取多个候选并做 IoU NM… | [TemplateMatching](./TemplateMatching.md) |
 
 ### 变量 (4)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -137,11 +137,11 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.BlobLabeling` | 连通域标注 | 2 | 3 | 3 | 100 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [BlobLabeling](./BlobLabeling.md) |
 | `OperatorType.CornerDetection` | 角点检测 | 1 | 3 | 5 | 94 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CornerDetection](./CornerDetection.md) |
-| `OperatorType.EdgeIntersection` | 边线交点 | 2 | 3 | 0 | 89 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [EdgeIntersection](./EdgeIntersection.md) |
+| `OperatorType.EdgeIntersection` | 边线交点 | 2 | 4 | 1 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [EdgeIntersection](./EdgeIntersection.md) |
 | `OperatorType.ParallelLineFind` | 平行线查找 | 1 | 6 | 4 | 94 (A) | `1.0.0` | 该算子从边缘图中提取直线段候选，再基于几何关系输出线结构或测量结果。 | [ParallelLineFind](./ParallelLineFind.md) |
-| `OperatorType.PositionCorrection` | 位置修正 | 4 | 5 | 3 | 94 (A) | `1.0.1` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [PositionCorrection](./PositionCorrection.md) |
-| `OperatorType.QuadrilateralFind` | 四边形查找 | 1 | 5 | 4 | 94 (A) | `1.0.0` | 该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。 | [QuadrilateralFind](./QuadrilateralFind.md) |
-| `OperatorType.RectangleDetection` | 矩形检测 | 1 | 7 | 4 | 94 (A) | `1.0.0` | 该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。 | [RectangleDetection](./RectangleDetection.md) |
+| `OperatorType.PositionCorrection` | 位置修正 | 4 | 10 | 3 | 94 (A) | `1.0.2` | 该算子围绕标定、坐标映射或几何重采样展开，目标是在不同空间之间建立稳定映射关系。 | [PositionCorrection](./PositionCorrection.md) |
+| `OperatorType.QuadrilateralFind` | 四边形查找 | 1 | 6 | 4 | 94 (A) | `1.0.0` | 该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。 | [QuadrilateralFind](./QuadrilateralFind.md) |
+| `OperatorType.RectangleDetection` | 矩形检测 | 1 | 10 | 4 | 94 (A) | `1.0.0` | 该算子从二值结果中提取轮廓点集，并以轮廓为单位继续做几何分析或筛选。 | [RectangleDetection](./RectangleDetection.md) |
 
 ### 拆分组合 (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -218,7 +218,7 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.BlobAnalysis` | Blob分析 | 2 | 4 | 17 | 100 (A) | `1.1.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [BlobAnalysis](./BlobAnalysis.md) |
 | `OperatorType.ContourDetection` | 轮廓检测 | 1 | 3 | 8 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourDetection](./ContourDetection.md) |
-| `OperatorType.EdgeDetection` | Edge Detection | 1 | 2 | 8 | 76 (B) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [EdgeDetection](./EdgeDetection.md) |
+| `OperatorType.EdgeDetection` | Edge Detection | 1 | 2 | 8 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [EdgeDetection](./EdgeDetection.md) |
 | `OperatorType.SubpixelEdgeDetection` | Subpixel Edge Detection | 1 | 2 | 5 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [SubpixelEdgeDetection](./SubpixelEdgeDetection.md) |
 
 ### 识别 (2)
@@ -281,25 +281,25 @@
 | `OperatorType.BilateralFilter` | 双边滤波 | 1 | 1 | 3 | 94 (A) | `1.0.0` | 该算子使用双边滤波同时考虑空间距离与像素差异，在保边前提下降低噪声。 | [BilateralFilter](./BilateralFilter.md) |
 | `OperatorType.ClaheEnhancement` | CLAHE增强 | 1 | 1 | 5 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ClaheEnhancement](./ClaheEnhancement.md) |
 | `OperatorType.ColorConversion` | 颜色空间转换 | 1 | 1 | 2 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ColorConversion](./ColorConversion.md) |
-| `OperatorType.Filtering` | Gaussian Blur | 1 | 1 | 4 | 76 (B) | `1.0.0` | Gaussian Blur (OpenCV) | [Filtering](./Filtering.md) |
+| `OperatorType.Filtering` | Gaussian Blur | 1 | 1 | 4 | 94 (A) | `1.0.0` | Gaussian Blur (OpenCV) | [Filtering](./Filtering.md) |
 | `OperatorType.FrameAveraging` | 帧平均 | 1 | 2 | 2 | 94 (A) | `1.0.0` | 该算子做的是时间域融合，不是空间域滤波。它会保留最近 N 帧图像，在时间轴上对同一像… | [FrameAveraging](./FrameAveraging.md) |
 | `OperatorType.HistogramEqualization` | 直方图均衡化 | 1 | 1 | 4 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [HistogramEqualization](./HistogramEqualization.md) |
 | `OperatorType.ImageAdd` | 图像加法 | 2 | 1 | 6 | 100 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageAdd](./ImageAdd.md) |
-| `OperatorType.ImageBlend` | 图像融合 | 2 | 1 | 3 | 76 (B) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageBlend](./ImageBlend.md) |
+| `OperatorType.ImageBlend` | 图像融合 | 2 | 1 | 3 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageBlend](./ImageBlend.md) |
 | `OperatorType.ImageCrop` | 图像裁剪 | 1 | 1 | 4 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageCrop](./ImageCrop.md) |
-| `OperatorType.ImageDiff` | 图像对比 | 2 | 2 | 0 | 71 (B) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageDiff](./ImageDiff.md) |
+| `OperatorType.ImageDiff` | 图像对比 | 2 | 2 | 0 | 89 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageDiff](./ImageDiff.md) |
 | `OperatorType.ImageNormalize` | 图像归一化 | 1 | 1 | 3 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageNormalize](./ImageNormalize.md) |
 | `OperatorType.ImageResize` | 图像缩放 | 1 | 1 | 5 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageResize](./ImageResize.md) |
 | `OperatorType.ImageRotate` | 图像旋转 | 1 | 1 | 5 | 94 (A) | `1.0.0` | 该算子基于仿射模型执行旋转、缩放或平移等二维几何变换。 | [ImageRotate](./ImageRotate.md) |
 | `OperatorType.ImageSubtract` | Image Subtract | 2 | 4 | 1 | 89 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [ImageSubtract](./ImageSubtract.md) |
-| `OperatorType.LaplacianSharpen` | 拉普拉斯锐化 | 1 | 1 | 3 | 76 (B) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [LaplacianSharpen](./LaplacianSharpen.md) |
+| `OperatorType.LaplacianSharpen` | 拉普拉斯锐化 | 1 | 1 | 3 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [LaplacianSharpen](./LaplacianSharpen.md) |
 | `OperatorType.MeanFilter` | 均值滤波 | 1 | 1 | 2 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [MeanFilter](./MeanFilter.md) |
 | `OperatorType.MedianBlur` | 中值滤波 | 1 | 1 | 1 | 94 (A) | `1.0.0` | 该算子通过局部中值替换中心像素，特别适合抑制椒盐噪声和孤立异常点。 | [MedianBlur](./MedianBlur.md) |
-| `OperatorType.MorphologicalOperation` | Morphological Operation | 1 | 1 | 7 | 76 (B) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [MorphologicalOperation](./MorphologicalOperation.md) |
+| `OperatorType.MorphologicalOperation` | Morphological Operation | 1 | 1 | 7 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [MorphologicalOperation](./MorphologicalOperation.md) |
 | `OperatorType.Morphology` | Morphology (Legacy) | 1 | 1 | 6 | 94 (A) | `1.0.0` | 该算子主要做图像预处理、增强、分割、变换或格式调整，为后续节点提供更稳定输入。 | [Morphology](./Morphology.md) |
 | `OperatorType.PerspectiveTransform` | 透视变换 | 3 | 1 | 20 | 100 (A) | `1.0.0` | 该算子利用单应性矩阵对图像做透视变换，用于视角校正或几何对齐。 | [PerspectiveTransform](./PerspectiveTransform.md) |
 | `OperatorType.ShadingCorrection` | 光照校正 | 2 | 1 | 2 | 94 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [ShadingCorrection](./ShadingCorrection.md) |
-| `OperatorType.Thresholding` | Threshold | 1 | 1 | 4 | 76 (B) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [Thresholding](./Thresholding.md) |
+| `OperatorType.Thresholding` | Threshold | 1 | 1 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [Thresholding](./Thresholding.md) |
 
 ### 颜色处理 (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |

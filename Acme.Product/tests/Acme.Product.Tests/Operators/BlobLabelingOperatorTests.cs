@@ -15,50 +15,67 @@ public class BlobLabelingOperatorTests
     [Fact]
     public void OperatorType_ShouldBeBlobLabeling()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.BlobLabeling, sut.OperatorType);
+        Assert.Equal(OperatorType.BlobLabeling, CreateSut().OperatorType);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithTwoBlobs_ShouldReturnLabels()
+    public async Task ExecuteAsync_WithImageBlobs_ShouldReturnLabels()
     {
-        var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object>
-        {
-            { "LabelBy", "Area" },
-            { "DrawLabels", true }
-        });
-
+        var op = CreateOperator(new Dictionary<string, object> { { "LabelBy", "Area" }, { "DrawLabels", true } });
         using var image = CreateBlobImage();
-        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        var result = await CreateSut().ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
         Assert.True(Convert.ToInt32(result.OutputData!["Count"]) >= 1);
         Assert.True(result.OutputData.ContainsKey("Labels"));
     }
 
     [Fact]
-    public void ValidateParameters_WithInvalidLabelBy_ShouldReturnInvalid()
+    public async Task ExecuteAsync_WithProvidedBlobs_ShouldPreferInputBlobs()
     {
-        var sut = CreateSut();
-        var op = CreateOperator(new Dictionary<string, object> { { "LabelBy", "Color" } });
-        Assert.False(sut.ValidateParameters(op).IsValid);
+        var op = CreateOperator(new Dictionary<string, object> { { "LabelBy", "Position" } });
+        using var image = new ImageWrapper(new Mat(120, 160, MatType.CV_8UC3, Scalar.Black));
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["Blobs"] = new List<Dictionary<string, object>>
+        {
+            new() { { "X", 10 }, { "Y", 10 }, { "Width", 20 }, { "Height", 20 } },
+            new() { { "X", 80 }, { "Y", 70 }, { "Width", 30 }, { "Height", 25 } }
+        };
+
+        var result = await CreateSut().ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, Convert.ToInt32(result.OutputData!["Count"]));
     }
 
-    private static BlobLabelingOperator CreateSut()
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidThresholds_ShouldFail()
     {
-        return new BlobLabelingOperator(Substitute.For<ILogger<BlobLabelingOperator>>());
+        var op = CreateOperator(new Dictionary<string, object> { { "Thresholds", "[{\"Name\":\"A\",\"Min\":10,\"Max\":1}]" } });
+        using var image = CreateBlobImage();
+
+        var result = await CreateSut().ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        Assert.False(result.IsSuccess);
     }
+
+    [Fact]
+    public void ValidateParameters_WithInvalidLabelBy_ShouldReturnInvalid()
+    {
+        Assert.False(CreateSut().ValidateParameters(CreateOperator(new Dictionary<string, object> { { "LabelBy", "Color" } })).IsValid);
+    }
+
+    private static BlobLabelingOperator CreateSut() => new(Substitute.For<ILogger<BlobLabelingOperator>>());
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("BlobLabeling", OperatorType.BlobLabeling, 0, 0);
         if (parameters != null)
         {
-            foreach (var (k, v) in parameters)
+            foreach (var (key, value) in parameters)
             {
-                op.AddParameter(new Parameter(Guid.NewGuid(), k, k, string.Empty, "string", v));
+                op.AddParameter(new Parameter(Guid.NewGuid(), key, key, string.Empty, "string", value));
             }
         }
 
@@ -73,4 +90,3 @@ public class BlobLabelingOperatorTests
         return new ImageWrapper(mat);
     }
 }
-

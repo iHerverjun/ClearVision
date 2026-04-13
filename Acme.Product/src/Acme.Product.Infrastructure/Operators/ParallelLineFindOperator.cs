@@ -1,7 +1,7 @@
 // ParallelLineFindOperator.cs
 // 平行线查找算子
 // 在图像中检测满足约束的平行线对
-// 作者：蘅芜君
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -9,7 +9,6 @@ using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
@@ -69,16 +68,23 @@ public class ParallelLineFindOperator : OperatorBase
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         }
 
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(gray, blurred, new Size(5, 5), 0);
         using var edge = new Mat();
-        Cv2.Canny(gray, edge, 60, 180);
-        var lines = Cv2.HoughLinesP(edge, 1, Math.PI / 180, 80, minLength, 10);
+        Cv2.Canny(blurred, edge, 60, 180);
+        using var closed = new Mat();
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new Size(3, 3));
+        Cv2.MorphologyEx(edge, closed, MorphTypes.Close, kernel);
 
+        var lines = Cv2.HoughLinesP(closed, 1, Math.PI / 180, 80, minLength, 10);
         var candidates = (lines ?? Array.Empty<LineSegmentPoint>())
-            .Select(l => new LineData(l.P1.X, l.P1.Y, l.P2.X, l.P2.Y))
-            .Where(l => l.Length >= minLength)
+            .Select(line => CreateCandidate(new LineData(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y)))
+            .Where(candidate => candidate.Line.Length >= minLength)
             .ToList();
 
-        var bestPair = default((LineData line1, LineData line2)?);
+        candidates = PruneCandidates(candidates, angleTolerance);
+
+        var bestPair = default((ParallelLineCandidate line1, ParallelLineCandidate line2)?);
         var bestScore = double.MaxValue;
         var bestDistance = 0.0;
         var bestAngle = 0.0;
@@ -87,26 +93,32 @@ public class ParallelLineFindOperator : OperatorBase
         {
             for (var j = i + 1; j < candidates.Count; j++)
             {
-                var a = candidates[i];
-                var b = candidates[j];
+                var first = candidates[i];
+                var second = candidates[j];
 
-                var angleDiff = AngleDifference(a.Angle, b.Angle);
+                var angleDiff = AngleDifference((float)first.Angle, (float)second.Angle);
                 if (angleDiff > angleTolerance)
                 {
                     continue;
                 }
 
-                var distance = DistancePointToLine(a.MidX, a.MidY, b);
+                var distance = Math.Abs(first.SignedOffset - second.SignedOffset);
                 if (distance < minDistance || distance > maxDistance)
                 {
                     continue;
                 }
 
-                var score = Math.Abs(angleDiff) + Math.Abs(distance - (minDistance + maxDistance) / 2.0);
+                var overlapRatio = ComputeOverlapRatio(first, second);
+                if (overlapRatio < 0.25)
+                {
+                    continue;
+                }
+
+                var score = ComputePairScore(first, second, angleDiff, distance, overlapRatio, minDistance, maxDistance);
                 if (score < bestScore)
                 {
                     bestScore = score;
-                    bestPair = (a, b);
+                    bestPair = (first, second);
                     bestDistance = distance;
                     bestAngle = angleDiff;
                 }
@@ -121,9 +133,8 @@ public class ParallelLineFindOperator : OperatorBase
         if (bestPair.HasValue)
         {
             pairCount = 1;
-            line1 = bestPair.Value.line1;
-            line2 = bestPair.Value.line2;
-
+            line1 = bestPair.Value.line1.Line;
+            line2 = bestPair.Value.line2.Line;
             Cv2.Line(resultImage, new Point((int)line1.StartX, (int)line1.StartY), new Point((int)line1.EndX, (int)line1.EndY), new Scalar(0, 255, 0), 2);
             Cv2.Line(resultImage, new Point((int)line2.StartX, (int)line2.StartY), new Point((int)line2.EndX, (int)line2.EndY), new Scalar(255, 0, 0), 2);
         }
@@ -174,17 +185,92 @@ public class ParallelLineFindOperator : OperatorBase
         return diff;
     }
 
-    private static double DistancePointToLine(double px, double py, LineData line)
+    private static ParallelLineCandidate CreateCandidate(LineData line)
     {
-        var a = line.EndY - line.StartY;
-        var b = line.StartX - line.EndX;
-        var c = line.EndX * line.StartY - line.StartX * line.EndY;
-        var denominator = Math.Sqrt(a * a + b * b);
-        if (denominator < 1e-9)
+        var directionX = line.EndX - line.StartX;
+        var directionY = line.EndY - line.StartY;
+        var length = Math.Max(1e-6f, line.Length);
+        var unitX = directionX / length;
+        var unitY = directionY / length;
+
+        if (unitX < 0 || (Math.Abs(unitX) < 1e-6 && unitY < 0))
         {
-            return 0;
+            unitX = -unitX;
+            unitY = -unitY;
         }
 
-        return Math.Abs(a * px + b * py + c) / denominator;
+        var angle = Math.Atan2(unitY, unitX) * 180.0 / Math.PI;
+        if (angle < 0)
+        {
+            angle += 180.0;
+        }
+
+        var normalX = -unitY;
+        var normalY = unitX;
+        var projectionStart = (unitX * line.StartX) + (unitY * line.StartY);
+        var projectionEnd = (unitX * line.EndX) + (unitY * line.EndY);
+
+        return new ParallelLineCandidate(
+            line,
+            angle,
+            (normalX * line.MidX) + (normalY * line.MidY),
+            Math.Min(projectionStart, projectionEnd),
+            Math.Max(projectionStart, projectionEnd));
     }
+
+    private static List<ParallelLineCandidate> PruneCandidates(IReadOnlyList<ParallelLineCandidate> candidates, double angleTolerance)
+    {
+        const int maxCandidates = 48;
+        var kept = new List<ParallelLineCandidate>();
+
+        foreach (var candidate in candidates.OrderByDescending(c => c.Line.Length))
+        {
+            var redundant = kept.Any(existing =>
+                AngleDifference((float)candidate.Angle, (float)existing.Angle) <= Math.Max(1.0, angleTolerance * 0.35) &&
+                Math.Abs(candidate.SignedOffset - existing.SignedOffset) <= 4.0 &&
+                Math.Abs(candidate.Line.MidX - existing.Line.MidX) <= 12.0 &&
+                Math.Abs(candidate.Line.MidY - existing.Line.MidY) <= 12.0);
+
+            if (redundant)
+            {
+                continue;
+            }
+
+            kept.Add(candidate);
+            if (kept.Count >= maxCandidates)
+            {
+                break;
+            }
+        }
+
+        return kept;
+    }
+
+    private static double ComputeOverlapRatio(ParallelLineCandidate first, ParallelLineCandidate second)
+    {
+        var overlapStart = Math.Max(first.ProjectionMin, second.ProjectionMin);
+        var overlapEnd = Math.Min(first.ProjectionMax, second.ProjectionMax);
+        var overlap = Math.Max(0.0, overlapEnd - overlapStart);
+        var shorter = Math.Max(1e-6, Math.Min(first.Line.Length, second.Line.Length));
+        return overlap / shorter;
+    }
+
+    private static double ComputePairScore(
+        ParallelLineCandidate first,
+        ParallelLineCandidate second,
+        double angleDiff,
+        double distance,
+        double overlapRatio,
+        double minDistance,
+        double maxDistance)
+    {
+        var preferredDistance = (minDistance + maxDistance) / 2.0;
+        var lengthBonus = Math.Min(first.Line.Length, second.Line.Length) * 0.05;
+        return (angleDiff * 6.0) +
+               (Math.Abs(distance - preferredDistance) * 0.15) +
+               ((1.0 - overlapRatio) * 30.0) -
+               lengthBonus;
+    }
+
+    private sealed record ParallelLineCandidate(LineData Line, double Angle, double SignedOffset, double ProjectionMin, double ProjectionMax);
 }

@@ -14,57 +14,69 @@ public class EdgeIntersectionOperatorTests
     [Fact]
     public void OperatorType_ShouldBeEdgeIntersection()
     {
-        var sut = CreateSut();
-        Assert.Equal(OperatorType.EdgeIntersection, sut.OperatorType);
+        Assert.Equal(OperatorType.EdgeIntersection, CreateSut().OperatorType);
     }
 
     [Fact]
     public async Task ExecuteAsync_WithCrossLines_ShouldReturnIntersection()
     {
-        var sut = CreateSut();
-        var op = CreateOperator();
-        var inputs = new Dictionary<string, object>
+        var result = await CreateSut().ExecuteAsync(CreateOperator(), new Dictionary<string, object>
         {
             { "Line1", new LineData(0, 0, 10, 10) },
             { "Line2", new LineData(0, 10, 10, 0) }
-        };
-
-        var result = await sut.ExecuteAsync(op, inputs);
+        });
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
         Assert.True((bool)result.OutputData!["HasIntersection"]);
+        Assert.True((bool)result.OutputData["SegmentsIntersect"]);
         var point = Assert.IsType<Position>(result.OutputData["Point"]);
         Assert.Equal(5.0, point.X, 3);
         Assert.Equal(5.0, point.Y, 3);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithParallelLines_ShouldReturnNoIntersection()
+    public async Task ExecuteAsync_WithDisjointSegmentsInSegmentMode_ShouldExposeInfiniteLineButRejectSegmentHit()
     {
-        var sut = CreateSut();
-        var op = CreateOperator();
-        var inputs = new Dictionary<string, object>
+        var op = CreateOperator(new Dictionary<string, object> { { "IntersectionMode", "SegmentOnly" } });
+        var result = await CreateSut().ExecuteAsync(op, new Dictionary<string, object>
         {
-            { "Line1", new LineData(0, 0, 10, 0) },
-            { "Line2", new LineData(0, 5, 10, 5) }
-        };
-
-        var result = await sut.ExecuteAsync(op, inputs);
+            { "Line1", new LineData(0, 0, 1, 0) },
+            { "Line2", new LineData(2, -1, 2, 1) }
+        });
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.OutputData);
         Assert.False((bool)result.OutputData!["HasIntersection"]);
+        Assert.False((bool)result.OutputData["SegmentsIntersect"]);
+        var point = Assert.IsType<Position>(result.OutputData["Point"]);
+        Assert.Equal(2.0, point.X, 3);
+        Assert.Equal(0.0, point.Y, 3);
     }
 
-    private static EdgeIntersectionOperator CreateSut()
+    [Fact]
+    public async Task ExecuteAsync_WithDegenerateLine_ShouldFail()
     {
-        return new EdgeIntersectionOperator(Substitute.For<ILogger<EdgeIntersectionOperator>>());
+        var result = await CreateSut().ExecuteAsync(CreateOperator(), new Dictionary<string, object>
+        {
+            { "Line1", new LineData(1, 1, 1, 1) },
+            { "Line2", new LineData(0, 10, 10, 0) }
+        });
+
+        Assert.False(result.IsSuccess);
     }
 
-    private static Operator CreateOperator()
+    private static EdgeIntersectionOperator CreateSut() => new(Substitute.For<ILogger<EdgeIntersectionOperator>>());
+
+    private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
-        return new Operator("EdgeIntersection", OperatorType.EdgeIntersection, 0, 0);
+        var op = new Operator("EdgeIntersection", OperatorType.EdgeIntersection, 0, 0);
+        if (parameters != null)
+        {
+            foreach (var (key, value) in parameters)
+            {
+                op.AddParameter(new Parameter(Guid.NewGuid(), key, key, string.Empty, "string", value));
+            }
+        }
+
+        return op;
     }
 }
-
