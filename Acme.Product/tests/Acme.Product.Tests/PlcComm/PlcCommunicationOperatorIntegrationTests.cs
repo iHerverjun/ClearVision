@@ -94,6 +94,50 @@ public class PlcCommunicationOperatorIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task MitsubishiMcCommunicationOperator_ReadAsync_WaitForValue_ShouldPollUntilMatched()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var serverTask = ServeMcReadSequenceAsync(
+            listener,
+            cts.Token,
+            new byte[] { 0x00, 0x00 },
+            new byte[] { 0x01, 0x00 });
+
+        var sut = new MitsubishiMcCommunicationOperator(NullLogger<MitsubishiMcCommunicationOperator>.Instance);
+        var @operator = CreateOperator(
+            "MC Read Polling",
+            OperatorType.MitsubishiMcCommunication,
+            ("IpAddress", IPAddress.Loopback.ToString(), "string"),
+            ("Port", port, "int"),
+            ("Address", "D100", "string"),
+            ("Length", 1, "int"),
+            ("DataType", "Word", "string"),
+            ("Operation", "Read", "string"),
+            ("PollingMode", "WaitForValue", "string"),
+            ("PollingCondition", "Equal", "string"),
+            ("PollingValue", "1", "string"),
+            ("PollingTimeout", 3000, "int"),
+            ("PollingInterval", 20, "int"));
+
+        var result = await sut.ExecuteAsync(@operator, cancellationToken: cts.Token);
+        var requestCount = await serverTask;
+
+        result.IsSuccess.Should().BeTrue();
+        result.ErrorMessage.Should().BeNull();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Status"].Should().Be(true);
+        result.OutputData["Value"].Should().Be((ushort)1);
+        result.OutputData["PollingMatched"].Should().Be(true);
+        result.OutputData["PollingReadCount"].Should().Be(2);
+        result.OutputData["ConnectionSource"].Should().Be("OperatorParameters");
+        requestCount.Should().Be(2);
+    }
+
+    [Fact]
     public async Task OmronFinsCommunicationOperator_ReadAsync_ShouldReturnConvertedWordValue()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -221,6 +265,22 @@ public class PlcCommunicationOperatorIntegrationTests : IDisposable
 
         _ = await ReadMcFrameAsync(stream, ct);
         await WriteInChunksAsync(stream, BuildMcReadResponse(data), ct, 2, 2, 3, 1);
+    }
+
+    private static async Task<int> ServeMcReadSequenceAsync(TcpListener listener, CancellationToken ct, params byte[][] responses)
+    {
+        using var server = await listener.AcceptTcpClientAsync(ct);
+        using var stream = server.GetStream();
+
+        var readCount = 0;
+        foreach (var responsePayload in responses)
+        {
+            _ = await ReadMcFrameAsync(stream, ct);
+            readCount++;
+            await WriteInChunksAsync(stream, BuildMcReadResponse(responsePayload), ct, 2, 2, 3, 1);
+        }
+
+        return readCount;
     }
 
     private static async Task<byte[]> ServeFinsWriteAndCaptureAsync(TcpListener listener, CancellationToken ct)

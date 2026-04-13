@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-13T19:14:52.1190277+08:00",
+  "generatedAt": "2026-04-13T23:21:39.1176099+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -34,6 +34,18 @@
       "count": 1,
       "operators": [
         "DistanceTransform"
+      ]
+    },
+    "Communication": {
+      "count": 1,
+      "operators": [
+        "MitsubishiMcCommunication"
+      ]
+    },
+    "Flow Control": {
+      "count": 1,
+      "operators": [
+        "ResultJudgment"
       ]
     },
     "Frequency": {
@@ -178,13 +190,12 @@
       ]
     },
     "流程控制": {
-      "count": 6,
+      "count": 5,
       "operators": [
         "Comparator",
         "ConditionalBranch",
         "Delay",
         "ForEach",
-        "ResultJudgment",
         "TryCatch"
       ]
     },
@@ -220,10 +231,9 @@
       ]
     },
     "通信": {
-      "count": 8,
+      "count": 7,
       "operators": [
         "HttpRequest",
-        "MitsubishiMcCommunication",
         "ModbusCommunication",
         "MqttPublish",
         "OmronFinsCommunication",
@@ -5878,6 +5888,17 @@
           "options": null
         },
         {
+          "name": "UseGlobalFallback",
+          "displayName": "允许全局回退",
+          "dataType": "bool",
+          "description": "启用后缺失的IP/Port可回退到全局通信配置",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
           "name": "CpuType",
           "displayName": "CPU类型",
           "dataType": "enum",
@@ -6129,9 +6150,9 @@
     {
       "id": "MitsubishiMcCommunication",
       "type": 51,
-      "displayName": "三菱MC通信",
-      "description": "三菱MC协议PLC读写通信（FX5U/Q/iQ-R/iQ-F）",
-      "category": "通信",
+      "displayName": "Mitsubishi MC Communication",
+      "description": "Mitsubishi MC protocol PLC read/write communication.",
+      "category": "Communication",
       "version": "1.0.0",
       "tags": [
         "功能域:通信",
@@ -6142,7 +6163,7 @@
       "inputPorts": [
         {
           "name": "Data",
-          "displayName": "数据",
+          "displayName": "Data",
           "dataType": "Any",
           "isRequired": false
         }
@@ -6150,13 +6171,13 @@
       "outputPorts": [
         {
           "name": "Response",
-          "displayName": "响应",
+          "displayName": "Response",
           "dataType": "String",
           "isRequired": null
         },
         {
           "name": "Status",
-          "displayName": "状态",
+          "displayName": "Status",
           "dataType": "Boolean",
           "isRequired": null
         }
@@ -6164,10 +6185,10 @@
       "parameters": [
         {
           "name": "IpAddress",
-          "displayName": "IP地址",
+          "displayName": "IP Address",
           "dataType": "string",
           "description": null,
-          "defaultValue": "192.168.3.1",
+          "defaultValue": "192.168.3.39",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -6175,7 +6196,7 @@
         },
         {
           "name": "Port",
-          "displayName": "端口",
+          "displayName": "Port",
           "dataType": "int",
           "description": null,
           "defaultValue": "5002",
@@ -6185,8 +6206,19 @@
           "options": null
         },
         {
+          "name": "UseGlobalFallback",
+          "displayName": "Use Global Fallback",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
           "name": "Address",
-          "displayName": "PLC地址",
+          "displayName": "PLC Address",
           "dataType": "string",
           "description": null,
           "defaultValue": "D100",
@@ -6197,18 +6229,18 @@
         },
         {
           "name": "Length",
-          "displayName": "读取长度",
+          "displayName": "Read Length",
           "dataType": "int",
           "description": null,
           "defaultValue": "1",
           "min": "1",
-          "max": "960",
+          "max": "999",
           "isRequired": true,
           "options": null
         },
         {
           "name": "DataType",
-          "displayName": "数据类型",
+          "displayName": "Data Type",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Word",
@@ -6218,37 +6250,37 @@
           "options": [
             {
               "value": "Bit",
-              "label": "位 (Bool)"
+              "label": "Bit(Bool)"
             },
             {
               "value": "Word",
-              "label": "字 (Word/UInt16)"
+              "label": "Word(UInt16)"
             },
             {
               "value": "Int16",
-              "label": "短整型 (Int16)"
+              "label": "Int16"
             },
             {
               "value": "DWord",
-              "label": "双字 (DWord/UInt32)"
+              "label": "DWord(UInt32)"
             },
             {
               "value": "Int32",
-              "label": "整型 (Int32)"
+              "label": "Int32"
             },
             {
               "value": "Float",
-              "label": "浮点 (Float)"
+              "label": "Float"
             },
             {
               "value": "Double",
-              "label": "双精度 (Double)"
+              "label": "Double"
             }
           ]
         },
         {
           "name": "Operation",
-          "displayName": "操作",
+          "displayName": "Operation",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Read",
@@ -6258,17 +6290,17 @@
           "options": [
             {
               "value": "Read",
-              "label": "读取"
+              "label": "Read"
             },
             {
               "value": "Write",
-              "label": "写入"
+              "label": "Write"
             }
           ]
         },
         {
           "name": "WriteValue",
-          "displayName": "写入值",
+          "displayName": "Write Value",
           "dataType": "string",
           "description": null,
           "defaultValue": "",
@@ -6279,9 +6311,9 @@
         },
         {
           "name": "PollingMode",
-          "displayName": "轮询模式",
+          "displayName": "Polling Mode",
           "dataType": "enum",
-          "description": "读取时是否启用轮询等待",
+          "description": "Whether to poll while reading.",
           "defaultValue": "None",
           "min": null,
           "max": null,
@@ -6289,19 +6321,19 @@
           "options": [
             {
               "value": "None",
-              "label": "不等待"
+              "label": "None"
             },
             {
               "value": "WaitForValue",
-              "label": "等待指定值"
+              "label": "Wait For Value"
             }
           ]
         },
         {
           "name": "PollingCondition",
-          "displayName": "等待条件",
+          "displayName": "Polling Condition",
           "dataType": "enum",
-          "description": "等待的条件类型",
+          "description": "Condition for polling.",
           "defaultValue": "Equal",
           "min": null,
           "max": null,
@@ -6309,35 +6341,35 @@
           "options": [
             {
               "value": "Equal",
-              "label": "等于"
+              "label": "Equal"
             },
             {
               "value": "NotEqual",
-              "label": "不等于"
+              "label": "Not Equal"
             },
             {
               "value": "GreaterThan",
-              "label": "大于"
+              "label": "Greater Than"
             },
             {
               "value": "LessThan",
-              "label": "小于"
+              "label": "Less Than"
             },
             {
               "value": "GreaterOrEqual",
-              "label": "大于等于"
+              "label": "Greater Or Equal"
             },
             {
               "value": "LessOrEqual",
-              "label": "小于等于"
+              "label": "Less Or Equal"
             }
           ]
         },
         {
           "name": "PollingValue",
-          "displayName": "等待值",
+          "displayName": "Polling Value",
           "dataType": "string",
-          "description": "等待的目标值（如触发信号值）",
+          "description": "Target value for polling.",
           "defaultValue": "1",
           "min": null,
           "max": null,
@@ -6346,9 +6378,9 @@
         },
         {
           "name": "PollingTimeout",
-          "displayName": "等待超时(ms)",
+          "displayName": "Polling Timeout (ms)",
           "dataType": "int",
-          "description": "最长等待时间（毫秒）",
+          "description": "Maximum wait duration in milliseconds.",
           "defaultValue": "30000",
           "min": "100",
           "max": "300000",
@@ -6357,9 +6389,9 @@
         },
         {
           "name": "PollingInterval",
-          "displayName": "轮询间隔(ms)",
+          "displayName": "Polling Interval (ms)",
           "dataType": "int",
-          "description": "每次读取间隔（毫秒）",
+          "description": "Interval between polling reads in milliseconds.",
           "defaultValue": "50",
           "min": "10",
           "max": "5000",
@@ -6433,6 +6465,17 @@
           "defaultValue": "9600",
           "min": "1",
           "max": "65535",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "UseGlobalFallback",
+          "displayName": "允许全局回退",
+          "dataType": "bool",
+          "description": "启用后缺失的IP/Port可回退到全局通信配置",
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
           "isRequired": true,
           "options": null
         },
@@ -6633,9 +6676,9 @@
     {
       "id": "ResultJudgment",
       "type": 60,
-      "displayName": "结果判定",
-      "description": "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
-      "category": "流程控制",
+      "displayName": "Result Judgment",
+      "description": "Generic business judgment with numeric/string condition checks.",
+      "category": "Flow Control",
       "version": "1.0.0",
       "tags": [
         "功能域:流程",
@@ -6646,33 +6689,45 @@
       "inputPorts": [
         {
           "name": "Value",
-          "displayName": "输入值",
+          "displayName": "Value",
           "dataType": "Any",
-          "isRequired": true
+          "isRequired": false
         },
         {
           "name": "Confidence",
-          "displayName": "置信度",
+          "displayName": "Confidence",
           "dataType": "Float",
           "isRequired": false
         }
       ],
       "outputPorts": [
         {
+          "name": "JudgmentResult",
+          "displayName": "Judgment Result",
+          "dataType": "String",
+          "isRequired": null
+        },
+        {
           "name": "IsOk",
-          "displayName": "是否OK",
+          "displayName": "Is OK",
+          "dataType": "Boolean",
+          "isRequired": null
+        },
+        {
+          "name": "ConditionResult",
+          "displayName": "Condition Result",
           "dataType": "Boolean",
           "isRequired": null
         },
         {
           "name": "JudgmentValue",
-          "displayName": "判定值",
+          "displayName": "Judgment Value",
           "dataType": "String",
           "isRequired": null
         },
         {
           "name": "Details",
-          "displayName": "详细信息",
+          "displayName": "Details",
           "dataType": "String",
           "isRequired": null
         }
@@ -6680,9 +6735,9 @@
       "parameters": [
         {
           "name": "FieldName",
-          "displayName": "判定字段",
+          "displayName": "Field Name",
           "dataType": "string",
-          "description": "要从上游输入中读取的字段名，如 DefectCount, Distance",
+          "description": null,
           "defaultValue": "Value",
           "min": null,
           "max": null,
@@ -6691,7 +6746,7 @@
         },
         {
           "name": "Condition",
-          "displayName": "判定条件",
+          "displayName": "Condition",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Equal",
@@ -6701,48 +6756,40 @@
           "options": [
             {
               "value": "Equal",
-              "label": "等于 (Equal)"
+              "label": "Equal"
+            },
+            {
+              "value": "NotEqual",
+              "label": "Not Equal"
             },
             {
               "value": "GreaterThan",
-              "label": "大于 (GreaterThan)"
+              "label": "Greater Than"
             },
             {
               "value": "LessThan",
-              "label": "小于 (LessThan)"
+              "label": "Less Than"
             },
             {
               "value": "GreaterOrEqual",
-              "label": "大于等于 (GreaterOrEqual)"
+              "label": "Greater Or Equal"
             },
             {
               "value": "LessOrEqual",
-              "label": "小于等于 (LessOrEqual)"
+              "label": "Less Or Equal"
             },
             {
               "value": "Range",
-              "label": "范围内 (Range)"
-            },
-            {
-              "value": "Contains",
-              "label": "包含 (Contains)"
-            },
-            {
-              "value": "StartsWith",
-              "label": "开头是 (StartsWith)"
-            },
-            {
-              "value": "EndsWith",
-              "label": "结尾是 (EndsWith)"
+              "label": "Range"
             }
           ]
         },
         {
           "name": "ExpectValue",
-          "displayName": "期望值",
+          "displayName": "Expected Value",
           "dataType": "string",
-          "description": "判定目标值，如 4（螺钉数）、0（缺陷数）、9.5（尺寸下限）",
-          "defaultValue": "4",
+          "description": null,
+          "defaultValue": "1",
           "min": null,
           "max": null,
           "isRequired": true,
@@ -6750,9 +6797,9 @@
         },
         {
           "name": "ExpectValueMin",
-          "displayName": "范围最小值",
+          "displayName": "Expected Min",
           "dataType": "string",
-          "description": "用于Range条件，设置范围下限",
+          "description": null,
           "defaultValue": "",
           "min": null,
           "max": null,
@@ -6761,9 +6808,9 @@
         },
         {
           "name": "ExpectValueMax",
-          "displayName": "范围最大值",
+          "displayName": "Expected Max",
           "dataType": "string",
-          "description": "用于Range条件，设置范围上限",
+          "description": null,
           "defaultValue": "",
           "min": null,
           "max": null,
@@ -6772,9 +6819,9 @@
         },
         {
           "name": "MinConfidence",
-          "displayName": "最小置信度",
+          "displayName": "Min Confidence",
           "dataType": "double",
-          "description": "置信度低于此值时判定为NG（0表示不检查置信度）",
+          "description": null,
           "defaultValue": "0",
           "min": "0",
           "max": "1",
@@ -6782,24 +6829,24 @@
           "options": null
         },
         {
-          "name": "OkOutputValue",
-          "displayName": "OK输出值",
-          "dataType": "string",
-          "description": "判定为OK时输出的值（用于PLC写入）",
-          "defaultValue": "1",
-          "min": null,
-          "max": null,
+          "name": "NumericAbsTolerance",
+          "displayName": "Numeric Absolute Tolerance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "0.0001",
+          "min": "0",
+          "max": "1000000",
           "isRequired": true,
           "options": null
         },
         {
-          "name": "NgOutputValue",
-          "displayName": "NG输出值",
-          "dataType": "string",
-          "description": "判定为NG时输出的值（用于PLC写入）",
-          "defaultValue": "0",
-          "min": null,
-          "max": null,
+          "name": "NumericRelTolerance",
+          "displayName": "Numeric Relative Tolerance",
+          "dataType": "double",
+          "description": null,
+          "defaultValue": "1E-06",
+          "min": "0",
+          "max": "1",
           "isRequired": true,
           "options": null
         }
@@ -9211,13 +9258,13 @@
         }
       ],
       "quality": {
-        "totalScore": 90,
+        "totalScore": 94,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
         "parameterValidationScore": 100,
-        "errorHandlingScore": 60,
-        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=60"
+        "errorHandlingScore": 75,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/DualModalVoting.md"
     },

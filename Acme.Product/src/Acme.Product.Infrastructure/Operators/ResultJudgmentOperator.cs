@@ -1,237 +1,244 @@
-// ResultJudgmentOperator.cs
-// 结果判定算子 - 通用判定逻辑（数量// 功能实现范围// 功能实现阈值）
-// 作者：蘅芜君
-
+using System.Globalization;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 结果判定算子 - 通用判定逻辑（数量/范围/阈值）
-/// </summary>/// <remarks>/// 支持多种判定条件：
-/// - Equal: 等于期望值
-/// - GreaterThan: 大于期望值
-/// - LessThan: 小于期望值
-/// - Range: 在指定范围内 [Min, Max]
-/// - GreaterOrEqual: 大于等于期望值
-/// - LessOrEqual: 小于等于期望值
-/// </remarks>
 [OperatorMeta(
-    DisplayName = "结果判定",
-    Description = "通用判定逻辑（数量/范围/阈值），输出OK/NG结果",
-    Category = "流程控制",
-    IconName = "judgment"
+    DisplayName = "Result Judgment",
+    Description = "Generic business judgment with numeric/string condition checks.",
+    Category = "Flow Control",
+    IconName = "result-judgment",
+    Keywords = new[] { "judgment", "ok", "ng", "condition", "threshold" }
 )]
-[InputPort("Value", "输入值", PortDataType.Any, IsRequired = true)]
-[InputPort("Confidence", "置信度", PortDataType.Float, IsRequired = false)]
-[OutputPort("IsOk", "是否OK", PortDataType.Boolean)]
-[OutputPort("JudgmentValue", "判定值", PortDataType.String)]
-[OutputPort("Details", "详细信息", PortDataType.String)]
-[OperatorParam("FieldName", "判定字段", "string", Description = "要从上游输入中读取的字段名，如 DefectCount, Distance", DefaultValue = "Value")]
-[OperatorParam("Condition", "判定条件", "enum", DefaultValue = "Equal", Options = new[] { "Equal|等于 (Equal)", "GreaterThan|大于 (GreaterThan)", "LessThan|小于 (LessThan)", "GreaterOrEqual|大于等于 (GreaterOrEqual)", "LessOrEqual|小于等于 (LessOrEqual)", "Range|范围内 (Range)", "Contains|包含 (Contains)", "StartsWith|开头是 (StartsWith)", "EndsWith|结尾是 (EndsWith)" })]
-[OperatorParam("ExpectValue", "期望值", "string", Description = "判定目标值，如 4（螺钉数）、0（缺陷数）、9.5（尺寸下限）", DefaultValue = "4")]
-[OperatorParam("ExpectValueMin", "范围最小值", "string", Description = "用于Range条件，设置范围下限", DefaultValue = "")]
-[OperatorParam("ExpectValueMax", "范围最大值", "string", Description = "用于Range条件，设置范围上限", DefaultValue = "")]
-[OperatorParam("MinConfidence", "最小置信度", "double", Description = "置信度低于此值时判定为NG（0表示不检查置信度）", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
-[OperatorParam("OkOutputValue", "OK输出值", "string", Description = "判定为OK时输出的值（用于PLC写入）", DefaultValue = "1")]
-[OperatorParam("NgOutputValue", "NG输出值", "string", Description = "判定为NG时输出的值（用于PLC写入）", DefaultValue = "0")]
-public class ResultJudgmentOperator : OperatorBase
+[InputPort("Value", "Value", PortDataType.Any, IsRequired = false)]
+[InputPort("Confidence", "Confidence", PortDataType.Float, IsRequired = false)]
+[OutputPort("JudgmentResult", "Judgment Result", PortDataType.String)]
+[OutputPort("IsOk", "Is OK", PortDataType.Boolean)]
+[OutputPort("ConditionResult", "Condition Result", PortDataType.Boolean)]
+[OutputPort("JudgmentValue", "Judgment Value", PortDataType.String)]
+[OutputPort("Details", "Details", PortDataType.String)]
+[OperatorParam("FieldName", "Field Name", "string", DefaultValue = "Value")]
+[OperatorParam("Condition", "Condition", "enum", DefaultValue = "Equal", Options = new[]
+{
+    "Equal|Equal",
+    "NotEqual|Not Equal",
+    "GreaterThan|Greater Than",
+    "LessThan|Less Than",
+    "GreaterOrEqual|Greater Or Equal",
+    "LessOrEqual|Less Or Equal",
+    "Range|Range"
+})]
+[OperatorParam("ExpectValue", "Expected Value", "string", DefaultValue = "1")]
+[OperatorParam("ExpectValueMin", "Expected Min", "string", DefaultValue = "")]
+[OperatorParam("ExpectValueMax", "Expected Max", "string", DefaultValue = "")]
+[OperatorParam("MinConfidence", "Min Confidence", "double", DefaultValue = 0.0, Min = 0.0, Max = 1.0)]
+[OperatorParam("NumericAbsTolerance", "Numeric Absolute Tolerance", "double", DefaultValue = 1e-4, Min = 0.0, Max = 1000000.0)]
+[OperatorParam("NumericRelTolerance", "Numeric Relative Tolerance", "double", DefaultValue = 1e-6, Min = 0.0, Max = 1.0)]
+public sealed class ResultJudgmentOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ResultJudgment;
 
-    public ResultJudgmentOperator(ILogger<ResultJudgmentOperator> logger) : base(logger) { }
+    public ResultJudgmentOperator(ILogger<ResultJudgmentOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 获取参数
         var fieldName = GetStringParam(@operator, "FieldName", "Value");
         var condition = GetStringParam(@operator, "Condition", "Equal");
-        var expectValue = GetStringParam(@operator, "ExpectValue", "");
-        var expectValueMin = GetStringParam(@operator, "ExpectValueMin", "");
-        var expectValueMax = GetStringParam(@operator, "ExpectValueMax", "");
+        var expectValue = GetStringParam(@operator, "ExpectValue", string.Empty);
+        var expectValueMin = GetStringParam(@operator, "ExpectValueMin", string.Empty);
+        var expectValueMax = GetStringParam(@operator, "ExpectValueMax", string.Empty);
         var minConfidence = GetDoubleParam(@operator, "MinConfidence", 0.0, 0.0, 1.0);
-        var okOutputValue = GetStringParam(@operator, "OkOutputValue", "1");
-        var ngOutputValue = GetStringParam(@operator, "NgOutputValue", "0");
+        var absTol = GetDoubleParam(@operator, "NumericAbsTolerance", 1e-4, 0.0, 1_000_000.0);
+        var relTol = GetDoubleParam(@operator, "NumericRelTolerance", 1e-6, 0.0, 1.0);
 
-        // 从输入中获取实际值
-        object? actualValueObj = null;
-        if (inputs != null && inputs.TryGetValue(fieldName, out var val) && val != null)
+        inputs ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var actualValue = ResolveActualValue(inputs, fieldName);
+
+        if (TryParseDoubleInvariant(GetInputValue(inputs, "Confidence"), out var confidence)
+            && confidence < minConfidence)
         {
-            actualValueObj = val;
-            Logger.LogInformation("[ResultJudgment] 从字段 '{FieldName}' 获取到值: {Value} (类型: {Type})", fieldName, actualValueObj, actualValueObj.GetType().Name);
-        }
-        else if (inputs != null && inputs.TryGetValue("Value", out var fallbackVal) && fallbackVal != null)
-        {
-            actualValueObj = fallbackVal;
-            Logger.LogInformation("[ResultJudgment] 字段 '{FieldName}' 未找到，从 'Value' 获取到值: {Value} (类型: {Type})", fieldName, actualValueObj, actualValueObj.GetType().Name);
-        }
-        else
-        {
-            return Task.FromResult(CreateNgOutput($"未找到判定字段: {fieldName}", ngOutputValue));
+            var lowConfidenceOutput = CreateOutput(false, "MinConfidenceGate", "Confidence below MinConfidence", actualValue);
+            return Task.FromResult(OperatorExecutionOutput.Success(lowConfidenceOutput));
         }
 
-        Logger.LogInformation("[ResultJudgment] 判定参数: 条件={Condition}, 期望值={ExpectValue}", condition, expectValue);
+        var (isOk, details) = EvaluateCondition(
+            actualValue,
+            condition,
+            expectValue,
+            expectValueMin,
+            expectValueMax,
+            absTol,
+            relTol);
 
-        // 检查置信度（如果输入中有Confidence字段）
-        if (inputs.TryGetValue("Confidence", out var confidenceObj) && confidenceObj is double confidence)
-        {
-            if (confidence < minConfidence)
-            {
-                return Task.FromResult(CreateNgOutput($"置信度 {confidence:F2} 低于最小阈值 {minConfidence:F2}", ngOutputValue, actualValueObj));
-            }
-        }
-
-        // 执行判定
-        var (isOk, details) = EvaluateCondition(actualValueObj, condition, expectValue, expectValueMin, expectValueMax);
-
-        // 准备输出
-        var outputValue = isOk ? okOutputValue : ngOutputValue;
-
-        var outputData = new Dictionary<string, object>
-        {
-            { "JudgmentValue", outputValue },
-            { "Details", details },
-            { "IsOk", isOk },
-            { "FieldName", fieldName },
-            { "Condition", condition },
-            { "ExpectValue", expectValue }
-        };
-
-        Logger.LogInformation(
-            "[ResultJudgment] 判定完成: {FieldName}={ActualValue}, 条件={Condition}, 结果={IsOk}",
-            fieldName, actualValueObj, condition, isOk);
-
-        return Task.FromResult(OperatorExecutionOutput.Success(outputData));
-    }
-
-    private (bool isOk, string details) EvaluateCondition(
-        object? actualValue,
-        string condition,
-        string expectValue,
-        string expectValueMin,
-        string expectValueMax)
-    {
-        var actualStr = actualValue?.ToString() ?? "";
-
-        // 尝试数值比较
-        bool isNumeric = double.TryParse(actualStr, out var actualNum);
-        bool expectIsNumeric = double.TryParse(expectValue, out var expectNum);
-        bool minIsNumeric = double.TryParse(expectValueMin, out var expectMin);
-        bool maxIsNumeric = double.TryParse(expectValueMax, out var expectMax);
-
-        switch (condition.ToLower())
-        {
-            case "equal":
-                if (isNumeric && expectIsNumeric)
-                {
-                    var isOk = Math.Abs(actualNum - expectNum) < 0.0001;
-                    return (isOk, $"数值比较: {actualNum} == {expectNum} ? {isOk}");
-                }
-                else
-                {
-                    var isOk = actualStr == expectValue;
-                    return (isOk, $"字符串比较: '{actualStr}' == '{expectValue}' ? {isOk}");
-                }
-
-            case "greaterthan":
-                if (isNumeric && expectIsNumeric)
-                {
-                    var isOk = actualNum > expectNum;
-                    return (isOk, $"数值比较: {actualNum} > {expectNum} ? {isOk}");
-                }
-                return (false, "GreaterThan需要数值类型");
-
-            case "lessthan":
-                if (isNumeric && expectIsNumeric)
-                {
-                    var isOk = actualNum < expectNum;
-                    return (isOk, $"数值比较: {actualNum} < {expectNum} ? {isOk}");
-                }
-                return (false, "LessThan需要数值类型");
-
-            case "greaterorequal":
-                if (isNumeric && expectIsNumeric)
-                {
-                    var isOk = actualNum >= expectNum;
-                    return (isOk, $"数值比较: {actualNum} >= {expectNum} ? {isOk}");
-                }
-                return (false, "GreaterOrEqual需要数值类型");
-
-            case "lessorequal":
-                if (isNumeric && expectIsNumeric)
-                {
-                    var isOk = actualNum <= expectNum;
-                    return (isOk, $"数值比较: {actualNum} <= {expectNum} ? {isOk}");
-                }
-                return (false, "LessOrEqual需要数值类型");
-
-            case "range":
-                if (isNumeric && minIsNumeric && maxIsNumeric)
-                {
-                    var isOk = actualNum >= expectMin && actualNum <= expectMax;
-                    return (isOk, $"范围比较: {expectMin} <= {actualNum} <= {expectMax} ? {isOk}");
-                }
-                return (false, "Range需要数值类型");
-
-            case "contains":
-                var containsResult = actualStr.Contains(expectValue);
-                return (containsResult, $"包含检查: '{actualStr}' 包含 '{expectValue}' ? {containsResult}");
-
-            case "startswith":
-                var startsWithResult = actualStr.StartsWith(expectValue);
-                return (startsWithResult, $"前缀检查: '{actualStr}' 以 '{expectValue}' 开头 ? {startsWithResult}");
-
-            case "endswith":
-                var endsWithResult = actualStr.EndsWith(expectValue);
-                return (endsWithResult, $"后缀检查: '{actualStr}' 以 '{expectValue}' 结尾 ? {endsWithResult}");
-
-            default:
-                return (false, $"未知的判定条件: {condition}");
-        }
-    }
-
-    private OperatorExecutionOutput CreateNgOutput(string details, string ngOutputValue, object? actualValue = null)
-    {
-        var outputData = new Dictionary<string, object>
-        {
-            { "JudgmentValue", ngOutputValue },
-            { "Details", details },
-            { "IsOk", false }
-        };
-
-        Logger.LogWarning("[ResultJudgment] 判定失败: {Details}", details);
-
-        return OperatorExecutionOutput.Success(outputData);
+        var output = CreateOutput(isOk, condition, details, actualValue);
+        return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var condition = GetStringParam(@operator, "Condition", "Equal");
-
-        var validConditions = new[]
+        var minConfidence = GetDoubleParam(@operator, "MinConfidence", 0.0);
+        if (minConfidence is < 0 or > 1)
         {
-            "Equal", "GreaterThan", "LessThan", "GreaterOrEqual", "LessOrEqual",
-            "Range", "Contains", "StartsWith", "EndsWith"
-        };
-
-        if (!validConditions.Contains(condition, StringComparer.OrdinalIgnoreCase))
-        {
-            return ValidationResult.Invalid($"判定条件必须是以下之一: {string.Join(", ", validConditions)}");
+            return ValidationResult.Invalid("MinConfidence must be within [0, 1].");
         }
 
-        var fieldName = GetStringParam(@operator, "FieldName", "");
-        if (string.IsNullOrWhiteSpace(fieldName))
+        var absTol = GetDoubleParam(@operator, "NumericAbsTolerance", 1e-4);
+        if (absTol < 0)
         {
-            return ValidationResult.Invalid("判定字段不能为空");
+            return ValidationResult.Invalid("NumericAbsTolerance must be >= 0.");
+        }
+
+        var relTol = GetDoubleParam(@operator, "NumericRelTolerance", 1e-6);
+        if (relTol < 0 || relTol > 1)
+        {
+            return ValidationResult.Invalid("NumericRelTolerance must be within [0, 1].");
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static Dictionary<string, object> CreateOutput(bool isOk, string condition, string details, object? actualValue)
+    {
+        return new Dictionary<string, object>
+        {
+            ["JudgmentResult"] = isOk ? "OK" : "NG",
+            ["IsOk"] = isOk,
+            ["ConditionResult"] = isOk,
+            ["JudgmentValue"] = isOk ? "1" : "0",
+            ["Details"] = details,
+            ["Condition"] = condition,
+            ["ActualValue"] = actualValue?.ToString() ?? string.Empty
+        };
+    }
+
+    private static object? ResolveActualValue(Dictionary<string, object> inputs, string fieldName)
+    {
+        var byField = GetInputValue(inputs, fieldName);
+        if (byField != null)
+        {
+            return byField;
+        }
+
+        return GetInputValue(inputs, "Value");
+    }
+
+    private static object? GetInputValue(Dictionary<string, object> inputs, string key)
+    {
+        foreach (var pair in inputs)
+        {
+            if (pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static (bool isOk, string details) EvaluateCondition(
+        object? actualValue,
+        string condition,
+        string expectValue,
+        string expectValueMin,
+        string expectValueMax,
+        double absTol,
+        double relTol)
+    {
+        var actualText = actualValue?.ToString() ?? string.Empty;
+        var actualIsNumeric = TryParseDoubleInvariant(actualText, out var actualNum);
+        var expectIsNumeric = TryParseDoubleInvariant(expectValue, out var expectNum);
+        var minIsNumeric = TryParseDoubleInvariant(expectValueMin, out var expectMin);
+        var maxIsNumeric = TryParseDoubleInvariant(expectValueMax, out var expectMax);
+
+        switch (condition.Trim().ToLowerInvariant())
+        {
+            case "equal":
+                if (actualIsNumeric && expectIsNumeric)
+                {
+                    var ok = NearlyEqual(actualNum, expectNum, absTol, relTol);
+                    return (ok, $"{actualNum} == {expectNum} => {ok}");
+                }
+
+                return (string.Equals(actualText, expectValue, StringComparison.Ordinal), $"{actualText} == {expectValue}");
+            case "notequal":
+                if (actualIsNumeric && expectIsNumeric)
+                {
+                    var ok = !NearlyEqual(actualNum, expectNum, absTol, relTol);
+                    return (ok, $"{actualNum} != {expectNum} => {ok}");
+                }
+
+                return (!string.Equals(actualText, expectValue, StringComparison.Ordinal), $"{actualText} != {expectValue}");
+            case "greaterthan":
+                return (actualIsNumeric && expectIsNumeric && actualNum > expectNum, $"{actualNum} > {expectNum}");
+            case "lessthan":
+                return (actualIsNumeric && expectIsNumeric && actualNum < expectNum, $"{actualNum} < {expectNum}");
+            case "greaterorequal":
+                return (actualIsNumeric && expectIsNumeric && (actualNum > expectNum || NearlyEqual(actualNum, expectNum, absTol, relTol)), $"{actualNum} >= {expectNum}");
+            case "lessorequal":
+                return (actualIsNumeric && expectIsNumeric && (actualNum < expectNum || NearlyEqual(actualNum, expectNum, absTol, relTol)), $"{actualNum} <= {expectNum}");
+            case "range":
+                if (!(actualIsNumeric && minIsNumeric && maxIsNumeric))
+                {
+                    return (false, "Range requires numeric actual/min/max.");
+                }
+
+                var inRange = actualNum > expectMin || NearlyEqual(actualNum, expectMin, absTol, relTol);
+                inRange &= actualNum < expectMax || NearlyEqual(actualNum, expectMax, absTol, relTol);
+                return (inRange, $"{expectMin} <= {actualNum} <= {expectMax}");
+            default:
+                return (false, $"Unsupported condition: {condition}");
+        }
+    }
+
+    private static bool NearlyEqual(double a, double b, double absTol, double relTol)
+    {
+        var diff = Math.Abs(a - b);
+        if (diff <= absTol)
+        {
+            return true;
+        }
+
+        var scale = Math.Max(Math.Abs(a), Math.Abs(b));
+        return diff <= scale * relTol;
+    }
+
+    private static bool TryParseDoubleInvariant(object? raw, out double value)
+    {
+        switch (raw)
+        {
+            case null:
+                value = 0;
+                return false;
+            case double d:
+                value = d;
+                return double.IsFinite(value);
+            case float f:
+                value = f;
+                return double.IsFinite(value);
+            case decimal m:
+                value = (double)m;
+                return double.IsFinite(value);
+            case int i:
+                value = i;
+                return true;
+            case long l:
+                value = l;
+                return true;
+            default:
+                return double.TryParse(
+                    raw.ToString(),
+                    NumberStyles.Float | NumberStyles.AllowThousands,
+                    CultureInfo.InvariantCulture,
+                    out value);
+        }
     }
 }

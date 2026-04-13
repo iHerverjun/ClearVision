@@ -269,34 +269,85 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
     /// <summary>
     /// 根据数据类型获取长度
     /// </summary>
-    protected (string ipAddress, int port, string protocol) ResolveConnectionSettings(
+    protected (string ipAddress, int port, string protocol, string connectionSource) ResolveConnectionSettings(
         string? ipAddress,
         int? port,
-        string fallbackProtocol = "")
+        string fallbackProtocol = "",
+        bool useGlobalFallback = false)
     {
         var global = GetGlobalCommunicationConfig();
-        var normalizedProtocol = CommunicationConfig.NormalizeProtocolKey(fallbackProtocol, global.ActiveProtocol);
+        var normalizedProtocol = CommunicationConfig.NormalizeProtocolKey(fallbackProtocol, global.ActiveProtocol) ?? string.Empty;
         var globalProfile = global.GetProfile(normalizedProtocol);
         var normalizedIp = (ipAddress ?? string.Empty).Trim();
         var requestedPort = port ?? 0;
+        var hasOperatorIp = !string.IsNullOrWhiteSpace(normalizedIp);
+        var hasOperatorPort = requestedPort > 0;
+        var globalIp = (globalProfile.IpAddress ?? string.Empty).Trim();
+        var hasGlobalIp = !string.IsNullOrWhiteSpace(globalIp);
+        var hasGlobalPort = globalProfile.Port > 0 && globalProfile.Port <= 65535;
 
-        var resolvedIp = string.IsNullOrWhiteSpace(normalizedIp)
-            ? (globalProfile.IpAddress ?? string.Empty).Trim()
-            : normalizedIp;
-        var resolvedPort = requestedPort > 0 ? requestedPort : globalProfile.Port;
-        var resolvedProtocol = normalizedProtocol;
+        if (hasOperatorPort && (requestedPort < 1 || requestedPort > 65535))
+        {
+            throw new InvalidOperationException(BuildConnectionConfigErrorMessage(
+                code: "PLC_CONNECTION_CONFIG_INVALID_PORT",
+                message: "Operator Port must be within 1..65535.",
+                protocol: normalizedProtocol,
+                useGlobalFallback: useGlobalFallback,
+                hasOperatorIp: hasOperatorIp,
+                hasOperatorPort: hasOperatorPort,
+                hasGlobalIp: hasGlobalIp,
+                hasGlobalPort: hasGlobalPort));
+        }
+
+        if (!useGlobalFallback)
+        {
+            if (!hasOperatorIp || !hasOperatorPort)
+            {
+                throw new InvalidOperationException(BuildConnectionConfigErrorMessage(
+                    code: "PLC_CONNECTION_CONFIG_OPERATOR_REQUIRED",
+                    message: "Operator IpAddress and Port are required when UseGlobalFallback is false.",
+                    protocol: normalizedProtocol,
+                    useGlobalFallback: false,
+                    hasOperatorIp: hasOperatorIp,
+                    hasOperatorPort: hasOperatorPort,
+                    hasGlobalIp: hasGlobalIp,
+                    hasGlobalPort: hasGlobalPort));
+            }
+
+            return (normalizedIp, requestedPort, normalizedProtocol, "OperatorParameters");
+        }
+
+        var resolvedIp = hasOperatorIp ? normalizedIp : globalIp;
+        var resolvedPort = hasOperatorPort ? requestedPort : globalProfile.Port;
+        var usedGlobalFallback = !hasOperatorIp || !hasOperatorPort;
 
         if (string.IsNullOrWhiteSpace(resolvedIp))
         {
-            throw new InvalidOperationException("PLC IP is not configured in operator parameters or global settings.");
+            throw new InvalidOperationException(BuildConnectionConfigErrorMessage(
+                code: "PLC_CONNECTION_CONFIG_MISSING_IP",
+                message: "PLC IP is not configured in operator parameters and global settings.",
+                protocol: normalizedProtocol,
+                useGlobalFallback: true,
+                hasOperatorIp: hasOperatorIp,
+                hasOperatorPort: hasOperatorPort,
+                hasGlobalIp: hasGlobalIp,
+                hasGlobalPort: hasGlobalPort));
         }
 
         if (resolvedPort <= 0 || resolvedPort > 65535)
         {
-            throw new InvalidOperationException("PLC port is invalid in operator parameters and global settings.");
+            throw new InvalidOperationException(BuildConnectionConfigErrorMessage(
+                code: "PLC_CONNECTION_CONFIG_MISSING_PORT",
+                message: "PLC Port is not configured in operator parameters and global settings.",
+                protocol: normalizedProtocol,
+                useGlobalFallback: true,
+                hasOperatorIp: hasOperatorIp,
+                hasOperatorPort: hasOperatorPort,
+                hasGlobalIp: hasGlobalIp,
+                hasGlobalPort: hasGlobalPort));
         }
 
-        if (string.IsNullOrWhiteSpace(normalizedIp) || requestedPort <= 0)
+        if (usedGlobalFallback)
         {
             Logger.LogInformation(
                 "[{OperatorType}] Connection fallback applied. Operator IP='{OperatorIp}', Port='{OperatorPort}', Global IP='{GlobalIp}', Port={GlobalPort}.",
@@ -307,7 +358,33 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
                 globalProfile.Port);
         }
 
-        return (resolvedIp, resolvedPort, resolvedProtocol ?? string.Empty);
+        return (resolvedIp, resolvedPort, normalizedProtocol, usedGlobalFallback ? "GlobalFallback" : "OperatorParameters");
+    }
+
+    private static string BuildConnectionConfigErrorMessage(
+        string code,
+        string message,
+        string protocol,
+        bool useGlobalFallback,
+        bool hasOperatorIp,
+        bool hasOperatorPort,
+        bool hasGlobalIp,
+        bool hasGlobalPort)
+    {
+        return JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["Code"] = code,
+            ["Message"] = message,
+            ["Protocol"] = protocol,
+            ["UseGlobalFallback"] = useGlobalFallback,
+            ["Details"] = new Dictionary<string, object>
+            {
+                ["HasOperatorIp"] = hasOperatorIp,
+                ["HasOperatorPort"] = hasOperatorPort,
+                ["HasGlobalIp"] = hasGlobalIp,
+                ["HasGlobalPort"] = hasGlobalPort
+            }
+        });
     }
 
     private static int GetHeartbeatIntervalMs()
@@ -420,6 +497,17 @@ public abstract class PlcCommunicationOperatorBase : OperatorBase
             ["Status"] = true,
             ["Timestamp"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")
         });
+    }
+
+    protected static void AttachConnectionAuditInfo(OperatorExecutionOutput output, string connectionSource)
+    {
+        if (!output.IsSuccess)
+        {
+            return;
+        }
+
+        output.OutputData ??= new Dictionary<string, object>();
+        output.OutputData["ConnectionSource"] = connectionSource;
     }
 
     /// <summary>

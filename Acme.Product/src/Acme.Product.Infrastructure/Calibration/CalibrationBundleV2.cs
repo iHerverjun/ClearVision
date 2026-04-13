@@ -41,6 +41,14 @@ public sealed class CalibrationBundleV2
 {
     public int SchemaVersion { get; set; } = 2;
 
+    public string BundleId { get; set; } = string.Empty;
+
+    public string CalibrationVersion { get; set; } = string.Empty;
+
+    public string DatasetFingerprint { get; set; } = string.Empty;
+
+    public string ChecksumSha256 { get; set; } = string.Empty;
+
     public CalibrationKindV2 CalibrationKind { get; set; } = CalibrationKindV2.Unknown;
 
     public TransformModelV2 TransformModel { get; set; } = TransformModelV2.None;

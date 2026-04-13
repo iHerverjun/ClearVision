@@ -28,6 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Status", "状态", PortDataType.Boolean)]
 [OperatorParam("IpAddress", "IP地址", "string", DefaultValue = "192.168.0.1")]
 [OperatorParam("Port", "端口", "int", DefaultValue = 102, Min = 1, Max = 65535)]
+[OperatorParam("UseGlobalFallback", "允许全局回退", "bool", DefaultValue = false, Description = "启用后缺失的IP/Port可回退到全局通信配置")]
 [OperatorParam("CpuType", "CPU类型", "enum", DefaultValue = "S71200", Options = new[] { "S7200|S7-200", "S7200Smart|S7-200 Smart", "S7300|S7-300", "S7400|S7-400", "S71200|S7-1200", "S71500|S7-1500" })]
 [OperatorParam("Rack", "机架号", "int", DefaultValue = 0, Min = 0, Max = 15)]
 [OperatorParam("Slot", "插槽号", "int", DefaultValue = 1, Min = 0, Max = 15)]
@@ -54,7 +55,7 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
         // 获取参数
         var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
         var operatorPort = GetIntParam(@operator, "Port", 0);
-        var (ipAddress, port, _) = ResolveConnectionSettings(operatorIpAddress, operatorPort, "S7");
+        var useGlobalFallback = GetBoolParam(@operator, "UseGlobalFallback", false);
         var cpuTypeStr = GetStringParam(@operator, "CpuType", "S71200");
         var rack = GetIntParam(@operator, "Rack", 0, 0, 15);
         var slot = GetIntParam(@operator, "Slot", 1, 0, 15);
@@ -84,11 +85,22 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
             _ => SiemensCpuType.S71200
         };
 
-        // 构建连接键
-        var connectionKey = $"S7:{ipAddress}:{port}:{cpuType}:{rack}:{slot}";
+        var logIp = string.IsNullOrWhiteSpace(operatorIpAddress) ? "(unset)" : operatorIpAddress;
+        var logPort = operatorPort;
 
         try
         {
+            var (ipAddress, port, _, connectionSource) = ResolveConnectionSettings(
+                operatorIpAddress,
+                operatorPort,
+                "S7",
+                useGlobalFallback);
+            logIp = ipAddress;
+            logPort = port;
+
+            // 构建连接键
+            var connectionKey = $"S7:{ipAddress}:{port}:{cpuType}:{rack}:{slot}";
+
             // 获取或创建连接
             var (client, isNew) = await GetOrCreateConnectionAsync(connectionKey, () =>
             {
@@ -102,19 +114,33 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
                 // 【第二优先级】支持轮询等待模式
                 if (pollingMode.Equals("WaitForValue", StringComparison.OrdinalIgnoreCase))
                 {
-                    return await ExecuteReadWithPollingAsync(client, address, dataType, 
-                        pollingCondition, pollingValue, pollingTimeout, pollingInterval, cancellationToken);
+                    var pollingReadOutput = await ExecuteReadWithPollingAsync(
+                        client,
+                        address,
+                        dataType,
+                        pollingCondition,
+                        pollingValue,
+                        pollingTimeout,
+                        pollingInterval,
+                        cancellationToken);
+                    AttachConnectionAuditInfo(pollingReadOutput, connectionSource);
+                    return pollingReadOutput;
                 }
-                return await ExecuteReadAsync(client, address, dataType, cancellationToken);
+
+                var readOutput = await ExecuteReadAsync(client, address, dataType, cancellationToken);
+                AttachConnectionAuditInfo(readOutput, connectionSource);
+                return readOutput;
             }
             else
             {
-                return await ExecuteWriteAsync(client, address, dataType, writeValue, cancellationToken);
+                var writeOutput = await ExecuteWriteAsync(client, address, dataType, writeValue, cancellationToken);
+                AttachConnectionAuditInfo(writeOutput, connectionSource);
+                return writeOutput;
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[SiemensS7] 通信错误: {IP}:{Port} - {Message}", ipAddress, port, ex.Message);
+            Logger.LogError(ex, "[SiemensS7] 通信错误: {IP}:{Port} - {Message}", logIp, logPort, ex.Message);
             return CreateFailureOutput($"S7通信错误: {ex.Message}");
         }
     }
@@ -241,12 +267,13 @@ public class SiemensS7CommunicationOperator : PlcCommunicationOperatorBase
     {
         var operatorIpAddress = GetStringParam(@operator, "IpAddress", "");
         var operatorPort = GetIntParam(@operator, "Port", 0);
+        var useGlobalFallback = GetBoolParam(@operator, "UseGlobalFallback", false);
         var address = GetStringParam(@operator, "Address", "");
         var pollingMode = GetStringParam(@operator, "PollingMode", "None");
 
         try
         {
-            ResolveConnectionSettings(operatorIpAddress, operatorPort, "S7");
+            ResolveConnectionSettings(operatorIpAddress, operatorPort, "S7", useGlobalFallback);
         }
         catch (Exception ex)
         {

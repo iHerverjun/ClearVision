@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Reflection;
 using Acme.PlcComm.Common;
 using Acme.PlcComm.Core;
@@ -97,11 +98,16 @@ public class PlcCommunicationOperatorBaseBehaviorTests
 
             var sut = new TestPlcOperator();
 
-            var (ipAddress, port, protocol) = sut.ResolveConnectionSettingsPublic(null, null, "MC");
+            var (ipAddress, port, protocol, connectionSource) = sut.ResolveConnectionSettingsPublic(
+                null,
+                null,
+                "MC",
+                useGlobalFallback: true);
 
             ipAddress.Should().Be("192.168.3.5");
             port.Should().Be(5002);
             protocol.Should().Be("MC");
+            connectionSource.Should().Be("GlobalFallback");
         }
         finally
         {
@@ -119,6 +125,22 @@ public class PlcCommunicationOperatorBaseBehaviorTests
 
             ResetCachedCommunicationConfig();
         }
+    }
+
+    [Fact]
+    public void ResolveConnectionSettings_WhenFallbackDisabledAndOperatorConfigMissing_ShouldFailClosed()
+    {
+        var sut = new TestPlcOperator();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            sut.ResolveConnectionSettingsPublic(
+                null,
+                null,
+                "MC",
+                useGlobalFallback: false));
+
+        using var doc = JsonDocument.Parse(exception.Message);
+        doc.RootElement.GetProperty("Code").GetString().Should().Be("PLC_CONNECTION_CONFIG_OPERATOR_REQUIRED");
     }
 
     private static void ResetCachedCommunicationConfig()
@@ -154,12 +176,13 @@ public class PlcCommunicationOperatorBaseBehaviorTests
             return ConvertValueToBytes(client, value, dataType);
         }
 
-        public (string ipAddress, int port, string protocol) ResolveConnectionSettingsPublic(
+        public (string ipAddress, int port, string protocol, string connectionSource) ResolveConnectionSettingsPublic(
             string? ipAddress,
             int? port,
-            string fallbackProtocol)
+            string fallbackProtocol,
+            bool useGlobalFallback = false)
         {
-            return ResolveConnectionSettings(ipAddress, port, fallbackProtocol);
+            return ResolveConnectionSettings(ipAddress, port, fallbackProtocol, useGlobalFallback);
         }
 
         protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(Operator @operator, Dictionary<string, object>? inputs, CancellationToken cancellationToken)

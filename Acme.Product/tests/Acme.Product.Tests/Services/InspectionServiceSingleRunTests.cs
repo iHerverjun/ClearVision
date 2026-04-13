@@ -124,6 +124,100 @@ public class InspectionServiceSingleRunTests
         _ = flowStorage.Received(1).LoadFlowJsonAsync(projectId);
     }
 
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenJudgmentSignalMissing_ShouldFailClosed()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("client-flow");
+
+        flowExecution
+            .ExecuteFlowAsync(Arg.Any<OperatorFlow>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowExecutionResult
+            {
+                IsSuccess = true,
+                ExecutionTimeMs = 12,
+                OutputData = new Dictionary<string, object>()
+            }));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, new byte[] { 1, 2, 3 }, explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.Error);
+        result.ErrorMessage.Should().Be("MissingJudgmentSignal");
+
+        using var doc = JsonDocument.Parse(result.OutputDataJson ?? "{}");
+        doc.RootElement.TryGetProperty("MissingJudgmentSignal", out var missingSignal).Should().BeTrue();
+        missingSignal.GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenJudgmentFieldTypeInvalid_ShouldReturnError()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("client-flow");
+
+        flowExecution
+            .ExecuteFlowAsync(Arg.Any<OperatorFlow>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowExecutionResult
+            {
+                IsSuccess = true,
+                ExecutionTimeMs = 9,
+                OutputData = new Dictionary<string, object> { ["IsOk"] = "true" }
+            }));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, new byte[] { 9, 9, 9 }, explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.Error);
+        result.ErrorMessage.Should().Contain("InvalidJudgmentType:IsOk");
+    }
+
     private static OperatorFlow CreateFlow(string operatorName)
     {
         var flow = new OperatorFlow("test-flow");

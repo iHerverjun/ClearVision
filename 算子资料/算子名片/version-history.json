@@ -47,6 +47,11 @@
           "version": "1.0.0",
           "sourceHash": "4AD3551216EEAAFE165A0BEF0236EACA65BE7CB32FC702FE11B60234B543BE64",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "0883863464A2D81FA3C7179F5227081C47C194F78BAEE2D705D6584B8E265CC9",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -1079,6 +1084,11 @@
           "version": "1.0.0",
           "sourceHash": "F7DA5BDB66C7F371770FF1D75308D36ECE1ECF0B5BF88BD0498873B59A9FE682",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "6220BDF108EF21DE7D88D35177CF9F63CD7DEB7298C194CF823D5747DD0954D3",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -1479,6 +1489,11 @@
           "version": "1.0.0",
           "sourceHash": "A016FCAF629A509B7527E455D4452C36F4671149BDF54591A6F7EC266A96A880",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "AB2F9D1AB90734413848E96916B0155C28F80C77E3581660E93E7741AF8488FA",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -2240,8 +2255,8 @@
     },
     {
       "id": "MitsubishiMcCommunication",
-      "displayName": "\u4E09\u83F1MC\u901A\u4FE1",
-      "category": "\u901A\u4FE1",
+      "displayName": "Mitsubishi MC Communication",
+      "category": "Communication",
       "records": [
         {
           "version": "1.0.0",
@@ -2267,6 +2282,11 @@
           "version": "1.0.0",
           "sourceHash": "6DA73E6E8D2B65261A553C0621D24D3B699E5C59F7A7C11FA7B2843044D1B3B9",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "30A1C11E92FACBB216C8DA4EA09AC41F2A43011B5FD60CDDDCA2DBFD2021430D",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -2451,6 +2471,11 @@
           "version": "1.0.0",
           "sourceHash": "6041B1ADB2F07D7B2C3C1C97D1AB46ECD2D6FC54CE8AB2F24076128BC621FA78",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "7281D7A2BCA1A7D79C28250FE155B1F6F63B4F85AA46FDF76B15A9A05B8A4EB0",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -2586,6 +2611,11 @@
           "version": "1.0.0",
           "sourceHash": "683816ED05A1D11782225A31705159319EB1F6E3B360F297DBC702AD1B99F409",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "967413F4AD69EF05271374ADFBBBF1DB620EEE852BD6853AE5AB9DBD95293D52",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -2662,6 +2692,11 @@
           "version": "1.0.0",
           "sourceHash": "C19F560B8590507513DA49FF0A410A80EB7D8E1E3CC4CDDAED839780EE8DA63B",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "CFFB6BAB9A61AF8A089574267B6D45B5F6205E60AB075CB22647E06971FB6057",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -3137,8 +3172,8 @@
     },
     {
       "id": "ResultJudgment",
-      "displayName": "\u7ED3\u679C\u5224\u5B9A",
-      "category": "\u6D41\u7A0B\u63A7\u5236",
+      "displayName": "Result Judgment",
+      "category": "Flow Control",
       "records": [
         {
           "version": "1.0.0",
@@ -3154,6 +3189,11 @@
           "version": "1.0.0",
           "sourceHash": "53985764ED7FEA9927A7ED1FC17A3639912B7DE82F410A9B4C40AA2F5A594A1B",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "FFDC0A297FC61D4647D621AB7CCD1E22769A2D1D2AFE77B91B9723D97F93D044",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },
@@ -3459,6 +3499,11 @@
           "version": "1.0.0",
           "sourceHash": "42E5C6F8C21C37875BC1751BCB387F07FC6AF6E0FD8912DA57536F28420FD8BB",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "9CF5D580130533F6F9BB0E1A63CA6C5A2DB89A767ED4F3C836E84BA9F8C0E9FF",
+          "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
         }
       ]
     },

@@ -71,6 +71,12 @@ public class InspectionResult : Entity
     /// </summary>
     public string? AnalysisDataJson { get; private set; }
 
+    public string? FlowVersionHash { get; private set; }
+
+    public string? CalibrationBundleId { get; private set; }
+
+    public Guid? SessionId { get; private set; }
+
     private InspectionResult()
     {
         Status = InspectionStatus.NotInspected;
@@ -160,6 +166,14 @@ public class InspectionResult : Entity
     public void SetAnalysisDataJson(string json)
     {
         AnalysisDataJson = json;
+        MarkAsModified();
+    }
+
+    public void SetTraceability(string? flowVersionHash, string? calibrationBundleId, Guid? sessionId)
+    {
+        FlowVersionHash = string.IsNullOrWhiteSpace(flowVersionHash) ? null : flowVersionHash.Trim();
+        CalibrationBundleId = string.IsNullOrWhiteSpace(calibrationBundleId) ? null : calibrationBundleId.Trim();
+        SessionId = sessionId;
         MarkAsModified();
     }
 }
