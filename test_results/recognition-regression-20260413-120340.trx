@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="eb1de8d7-30ce-4992-8b47-7d4059869771" name="11234@ROG16 2026-04-13 12:03:42" runUser="ROG16\CodexSandboxOnline" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-04-13T12:03:42.4431258+08:00" queuing="2026-04-13T12:03:42.4431261+08:00" start="2026-04-13T12:03:40.6884193+08:00" finish="2026-04-13T12:03:44.7353636+08:00" />
+  <TestSettings name="default" id="be00ee3b-1e59-458a-ab1c-8eefbef90297">
+    <Deployment runDeploymentRoot="11234_ROG16_2026-04-13_12_03_42" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="d3781745-ddf6-432b-be47-9ae7141bf77a" testId="b43576af-e2c4-607d-3869-5c8d94a85fb9" testName="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure" computerName="ROG16" duration="00:00:00.0007015" startTime="2026-04-13T12:03:41.2654090+08:00" endTime="2026-04-13T12:03:41.2654091+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d3781745-ddf6-432b-be47-9ae7141bf77a" />
+    <UnitTestResult executionId="7c397751-7236-41a8-bb39-6a9592b149c9" testId="f3897a08-6732-63ca-109d-1dc49317a503" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Performance_1920x1080_InferenceTime_ShouldBe_Under_500ms" computerName="ROG16" duration="00:00:00.8009741" startTime="2026-04-13T12:03:44.6174969+08:00" endTime="2026-04-13T12:03:44.6174972+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7c397751-7236-41a8-bb39-6a9592b149c9">
+      <Output>
+        <StdOut>[Performance] 1080p OCR Inference Time: 189 ms</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a834a782-20ca-4de2-a89b-553159506ccf" testId="22b09b63-ede5-0ab1-3687-dc135a767be3" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure" computerName="ROG16" duration="00:00:00.0005409" startTime="2026-04-13T12:03:44.6181425+08:00" endTime="2026-04-13T12:03:44.6181433+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a834a782-20ca-4de2-a89b-553159506ccf" />
+    <UnitTestResult executionId="8e5d142c-de03-4b91-a04b-4c30e5b4470c" testId="162dfa2f-de62-d8cd-e9c3-b733b12f4a00" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;LOT_2026_001&quot;, rotate90: False)" computerName="ROG16" duration="00:00:00.8425218" startTime="2026-04-13T12:03:41.9650559+08:00" endTime="2026-04-13T12:03:41.9650562+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8e5d142c-de03-4b91-a04b-4c30e5b4470c">
+      <Output>
+        <StdOut>Expected: LOT_2026_001, Recognized: L0T_2026_001</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="648a4726-4ca8-4ea2-802b-589784632055" testId="a7e9c827-3bd5-7c86-31e6-5e3069f5b511" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.OperatorType_ShouldBeOcrRecognition" computerName="ROG16" duration="00:00:00.0001005" startTime="2026-04-13T12:03:44.6182792+08:00" endTime="2026-04-13T12:03:44.6182793+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="648a4726-4ca8-4ea2-802b-589784632055" />
+    <UnitTestResult executionId="ee5679e1-d544-4566-8624-2e6adb0961de" testId="a494b393-cfd6-fbb5-8780-368e64b1b8c9" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;ROTATED_90&quot;, rotate90: True)" computerName="ROG16" duration="00:00:00.6408566" startTime="2026-04-13T12:03:43.2285457+08:00" endTime="2026-04-13T12:03:43.2285460+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ee5679e1-d544-4566-8624-2e6adb0961de">
+      <Output>
+        <StdOut>Expected: ROTATED_90, Recognized: ROTATED_90</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="31230916-5677-456c-af1d-18fad4c7203a" testId="68c22b83-4e82-a6ab-c329-7575e2055f55" testName="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ExecuteAsync_WithValidImage_ShouldReturnSuccess" computerName="ROG16" duration="00:00:00.1405945" startTime="2026-04-13T12:03:41.2632931+08:00" endTime="2026-04-13T12:03:41.2633015+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="31230916-5677-456c-af1d-18fad4c7203a" />
+    <UnitTestResult executionId="36daa2f1-e68f-4877-880a-c32c17e1383c" testId="49b19538-2879-0439-1ecc-6e0e297dc835" testName="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ValidateParameters_Default_ShouldBeValid" computerName="ROG16" duration="00:00:00.0003483" startTime="2026-04-13T12:03:41.2658124+08:00" endTime="2026-04-13T12:03:41.2658125+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="36daa2f1-e68f-4877-880a-c32c17e1383c" />
+    <UnitTestResult executionId="04819f75-b0ec-4cc0-bd3d-5e5cb5f84e45" testId="e0485c16-acac-742d-dab6-b38047354a88" testName="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.OperatorType_ShouldBeCodeRecognition" computerName="ROG16" duration="00:00:00.0015659" startTime="2026-04-13T12:03:41.2650424+08:00" endTime="2026-04-13T12:03:41.2650425+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="04819f75-b0ec-4cc0-bd3d-5e5cb5f84e45" />
+    <UnitTestResult executionId="3a02d4e1-dc80-4bc0-9e4c-2392e67fe053" testId="12b319b4-7263-5f91-1eb9-c9805ee345e7" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;SN_XYZ123&quot;, rotate90: False)" computerName="ROG16" duration="00:00:00.5876319" startTime="2026-04-13T12:03:43.8164351+08:00" endTime="2026-04-13T12:03:43.8164356+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3a02d4e1-dc80-4bc0-9e4c-2392e67fe053">
+      <Output>
+        <StdOut>Expected: SN_XYZ123, Recognized: SN_XYZ123</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7ad397c0-a9b9-4dd0-a858-a7f26de1efc8" testId="a57e008a-fb87-580c-9cdc-7cbefed5703a" testName="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;2026-02-20&quot;, rotate90: False)" computerName="ROG16" duration="00:00:00.6224762" startTime="2026-04-13T12:03:42.5875735+08:00" endTime="2026-04-13T12:03:42.5875738+08:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7ad397c0-a9b9-4dd0-a858-a7f26de1efc8">
+      <Output>
+        <StdOut>Expected: 2026-02-20, Recognized: 2026-02-20</StdOut>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.OperatorType_ShouldBeOcrRecognition" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="a7e9c827-3bd5-7c86-31e6-5e3069f5b511">
+      <Execution id="648a4726-4ca8-4ea2-802b-589784632055" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="OperatorType_ShouldBeOcrRecognition" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="22b09b63-ede5-0ab1-3687-dc135a767be3">
+      <Execution id="a834a782-20ca-4de2-a89b-553159506ccf" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="ExecuteAsync_WithNullInputs_ShouldReturnFailure" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ExecuteAsync_WithNullInputs_ShouldReturnFailure" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="b43576af-e2c4-607d-3869-5c8d94a85fb9">
+      <Execution id="d3781745-ddf6-432b-be47-9ae7141bf77a" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests" name="ExecuteAsync_WithNullInputs_ShouldReturnFailure" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;ROTATED_90&quot;, rotate90: True)" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="a494b393-cfd6-fbb5-8780-368e64b1b8c9">
+      <Execution id="ee5679e1-d544-4566-8624-2e6adb0961de" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="Integration_Accuracy_Should_Recognize_IndustrialText" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ValidateParameters_Default_ShouldBeValid" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="49b19538-2879-0439-1ecc-6e0e297dc835">
+      <Execution id="36daa2f1-e68f-4877-880a-c32c17e1383c" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests" name="ValidateParameters_Default_ShouldBeValid" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Performance_1920x1080_InferenceTime_ShouldBe_Under_500ms" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="f3897a08-6732-63ca-109d-1dc49317a503">
+      <Execution id="7c397751-7236-41a8-bb39-6a9592b149c9" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="Performance_1920x1080_InferenceTime_ShouldBe_Under_500ms" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.ExecuteAsync_WithValidImage_ShouldReturnSuccess" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="68c22b83-4e82-a6ab-c329-7575e2055f55">
+      <Execution id="31230916-5677-456c-af1d-18fad4c7203a" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests" name="ExecuteAsync_WithValidImage_ShouldReturnSuccess" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;2026-02-20&quot;, rotate90: False)" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="a57e008a-fb87-580c-9cdc-7cbefed5703a">
+      <Execution id="7ad397c0-a9b9-4dd0-a858-a7f26de1efc8" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="Integration_Accuracy_Should_Recognize_IndustrialText" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;SN_XYZ123&quot;, rotate90: False)" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="12b319b4-7263-5f91-1eb9-c9805ee345e7">
+      <Execution id="3a02d4e1-dc80-4bc0-9e4c-2392e67fe053" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="Integration_Accuracy_Should_Recognize_IndustrialText" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests.Integration_Accuracy_Should_Recognize_IndustrialText(expectedText: &quot;LOT_2026_001&quot;, rotate90: False)" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="162dfa2f-de62-d8cd-e9c3-b733b12f4a00">
+      <Execution id="8e5d142c-de03-4b91-a04b-4c30e5b4470c" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.OcrRecognitionOperatorTests" name="Integration_Accuracy_Should_Recognize_IndustrialText" />
+    </UnitTest>
+    <UnitTest name="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests.OperatorType_ShouldBeCodeRecognition" storage="c:\users\11234\desktop\clearvision\acme.product\tests\acme.product.tests\bin\debug\net8.0\acme.product.tests.dll" id="e0485c16-acac-742d-dab6-b38047354a88">
+      <Execution id="04819f75-b0ec-4cc0-bd3d-5e5cb5f84e45" />
+      <TestMethod codeBase="C:\Users\11234\Desktop\ClearVision\Acme.Product\tests\Acme.Product.Tests\bin\Debug\net8.0\Acme.Product.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="Acme.Product.Tests.Operators.CodeRecognitionOperatorTests" name="OperatorType_ShouldBeCodeRecognition" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="b43576af-e2c4-607d-3869-5c8d94a85fb9" executionId="d3781745-ddf6-432b-be47-9ae7141bf77a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f3897a08-6732-63ca-109d-1dc49317a503" executionId="7c397751-7236-41a8-bb39-6a9592b149c9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="22b09b63-ede5-0ab1-3687-dc135a767be3" executionId="a834a782-20ca-4de2-a89b-553159506ccf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="162dfa2f-de62-d8cd-e9c3-b733b12f4a00" executionId="8e5d142c-de03-4b91-a04b-4c30e5b4470c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a7e9c827-3bd5-7c86-31e6-5e3069f5b511" executionId="648a4726-4ca8-4ea2-802b-589784632055" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a494b393-cfd6-fbb5-8780-368e64b1b8c9" executionId="ee5679e1-d544-4566-8624-2e6adb0961de" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="68c22b83-4e82-a6ab-c329-7575e2055f55" executionId="31230916-5677-456c-af1d-18fad4c7203a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="49b19538-2879-0439-1ecc-6e0e297dc835" executionId="36daa2f1-e68f-4877-880a-c32c17e1383c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e0485c16-acac-742d-dab6-b38047354a88" executionId="04819f75-b0ec-4cc0-bd3d-5e5cb5f84e45" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="12b319b4-7263-5f91-1eb9-c9805ee345e7" executionId="3a02d4e1-dc80-4bc0-9e4c-2392e67fe053" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a57e008a-fb87-580c-9cdc-7cbefed5703a" executionId="7ad397c0-a9b9-4dd0-a858-a7f26de1efc8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="列表中未列出的结果" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="所有已加载的结果" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="11" executed="11" passed="11" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.5.7+8f2703126a (64-bit .NET 8.0.17)&#xD;
+[xUnit.net 00:00:00.06]   Discovering: Acme.Product.Tests&#xD;
+[xUnit.net 00:00:00.15]   Discovered:  Acme.Product.Tests&#xD;
+[xUnit.net 00:00:00.16]   Starting:    Acme.Product.Tests&#xD;
++-----------------------------------------------------+&#xD;
++                                                     +&#xD;
++           ����Ӣ����Ϣ�Ƽ����޹�˾                  +&#xD;
++           https://www.yingtianit.com/               +&#xD;
++       QQȺ��318860399 ���ƿ���QQ��277784829         +&#xD;
++                                                     +&#xD;
++-----------------------------------------------------+&#xD;
++-----------------------------------------------------+&#xD;
++                                                     +&#xD;
++           ����Ӣ����Ϣ�Ƽ����޹�˾                  +&#xD;
++           https://www.yingtianit.com/               +&#xD;
++       QQȺ��318860399 ���ƿ���QQ��277784829         +&#xD;
++                                                     +&#xD;
++-----------------------------------------------------+&#xD;
++-----------------------------------------------------+&#xD;
++                                                     +&#xD;
++           ����Ӣ����Ϣ�Ƽ����޹�˾                  +&#xD;
++           https://www.yingtianit.com/               +&#xD;
++       QQȺ��318860399 ���ƿ���QQ��277784829         +&#xD;
++                                                     +&#xD;
++-----------------------------------------------------+&#xD;
++-----------------------------------------------------+&#xD;
++                                                     +&#xD;
++           ����Ӣ����Ϣ�Ƽ����޹�˾                  +&#xD;
++           https://www.yingtianit.com/               +&#xD;
++       QQȺ��318860399 ���ƿ���QQ��277784829         +&#xD;
++                                                     +&#xD;
++-----------------------------------------------------+&#xD;
++-----------------------------------------------------+&#xD;
++                                                     +&#xD;
++           ����Ӣ����Ϣ�Ƽ����޹�˾                  +&#xD;
++           https://www.yingtianit.com/               +&#xD;
++       QQȺ��318860399 ���ƿ���QQ��277784829         +&#xD;
++                                                     +&#xD;
++-----------------------------------------------------+&#xD;
+[xUnit.net 00:00:03.68]   Finished:    Acme.Product.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>
