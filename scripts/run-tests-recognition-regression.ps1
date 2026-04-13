@@ -17,7 +17,7 @@ $runner = Join-Path $scriptRoot "run-dotnet-test-serial.ps1"
 $project = Join-Path $repoRoot "Acme.Product\tests\Acme.Product.Tests\Acme.Product.Tests.csproj"
 $resultsDirectory = Join-Path $repoRoot "test_results"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$logFileName = "phase42-regression-$timestamp.trx"
+$logFileName = "recognition-regression-$timestamp.trx"
 $repoDotnetHome = Join-Path $repoRoot ".dotnet-home"
 $repoNuGetPackages = Join-Path $repoRoot ".dotnet\.nuget\packages"
 
@@ -40,14 +40,8 @@ if ([string]::IsNullOrWhiteSpace($env:DOTNET_NOLOGO)) {
 $parameters = @{
     Project = $project
     FullyQualifiedName = @(
-        "Phase42RegionProcessingOperatorTests",
-        "Phase42MeasurementAndSignalOperatorTests",
-        "LocalDeformableMatchingPhase42Tests",
-        "PixelToWorldTransformOperatorTests",
-        "PlanarMatchingOperatorTests",
-        "ImageOutputLifecycleGuardTests",
-        "OperatorMetadataMigrationTests",
-        "OperatorContractReconciliationTests"
+        "CodeRecognitionOperatorTests",
+        "OcrRecognitionOperatorTests"
     )
     Verbosity = $Verbosity
     ResultsDirectory = $resultsDirectory

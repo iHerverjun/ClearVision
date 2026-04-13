@@ -104,3 +104,4 @@ docs/templates/temp.md
 test_zxing.cs
 /.tmp/localdeform-debug/
 401.py
+.codex-tools/
