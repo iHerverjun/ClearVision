@@ -15,6 +15,10 @@ param(
 
     [switch]$NoRestore,
 
+    [string]$ResultsDirectory,
+
+    [string]$LogFileName,
+
     [int]$LockWaitSeconds = 30
 )
 
@@ -37,8 +41,19 @@ if ($FullyQualifiedName.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($Filt
     throw "Specify either -FullyQualifiedName or -Filter, not both."
 }
 
-$currentProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $PID"
-if ($currentProcess.CommandLine -like '*-File*run-dotnet-test-serial.ps1*') {
+if (-not [string]::IsNullOrWhiteSpace($LogFileName) -and [string]::IsNullOrWhiteSpace($ResultsDirectory)) {
+    throw "Specify -ResultsDirectory when using -LogFileName."
+}
+
+$currentProcess = $null
+try {
+    $currentProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $PID" -ErrorAction Stop
+}
+catch {
+    Write-Host "[dotnet-test] Unable to inspect process command line; skipping -File invocation check."
+}
+
+if ($null -ne $currentProcess -and $currentProcess.CommandLine -like '*-File*run-dotnet-test-serial.ps1*') {
     throw "Invoke this script from the current PowerShell shell with: & './scripts/run-dotnet-test-serial.ps1' ... . Do not wrap it with 'powershell.exe -File', because Codex can hang on leaked child processes in that mode."
 }
 
@@ -109,6 +124,24 @@ try {
         $arguments += @("--configuration", $Configuration)
     }
 
+    $resolvedResultsDirectory = $null
+    if (-not [string]::IsNullOrWhiteSpace($ResultsDirectory)) {
+        $resultsDirectoryPath = if ([System.IO.Path]::IsPathRooted($ResultsDirectory)) {
+            $ResultsDirectory
+        }
+        else {
+            Join-Path (Get-Location).Path $ResultsDirectory
+        }
+
+        $resolvedResultsDirectory = [System.IO.Path]::GetFullPath($resultsDirectoryPath)
+        [System.IO.Directory]::CreateDirectory($resolvedResultsDirectory) | Out-Null
+        $arguments += @("--results-directory", $resolvedResultsDirectory)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LogFileName)) {
+        $arguments += @("--logger", "trx;LogFileName=$LogFileName")
+    }
+
     if (-not [string]::IsNullOrWhiteSpace($effectiveFilter)) {
         $arguments += @("--filter", $effectiveFilter)
     }
@@ -118,6 +151,14 @@ try {
 
     if ($normalizedFullyQualifiedName.Count -gt 0) {
         Write-Host "[dotnet-test] Combined $($normalizedFullyQualifiedName.Count) FullyQualifiedName filters into one invocation."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($resolvedResultsDirectory)) {
+        Write-Host "[dotnet-test] Results directory: $resolvedResultsDirectory"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LogFileName)) {
+        Write-Host "[dotnet-test] TRX log: $LogFileName"
     }
 
     Write-Host "[dotnet-test] $preview"

@@ -2,8 +2,8 @@ param(
     [ValidateSet("quiet", "minimal", "normal", "detailed", "diagnostic")]
     [string]$Verbosity = "minimal",
 
-    [ValidateSet("regression", "detection-accuracy", "detection-stability", "all")]
-    [string]$Gate = "regression",
+    [ValidateSet("regression", "integration", "all")]
+    [string]$Gate = "all",
 
     [string]$Configuration,
 
@@ -20,7 +20,7 @@ $runner = Join-Path $scriptRoot "run-dotnet-test-serial.ps1"
 $project = Join-Path $repoRoot "Acme.Product\tests\Acme.Product.Tests\Acme.Product.Tests.csproj"
 $resultsDirectory = Join-Path $repoRoot "test_results"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$logFileName = "detection-$Gate-$timestamp.trx"
+$logFileName = "calibration-$Gate-$timestamp.trx"
 $repoDotnetHome = Join-Path $repoRoot ".dotnet-home"
 $repoNuGetPackages = Join-Path $repoRoot ".dotnet\.nuget\packages"
 
@@ -41,52 +41,33 @@ if ([string]::IsNullOrWhiteSpace($env:DOTNET_NOLOGO)) {
 }
 
 $regressionTestClasses = @(
-    "AngleMeasurementOperatorTests",
-    "CaliperToolOperatorTests",
-    "CircleMeasurementOperatorTests",
-    "ContourMeasurementOperatorTests",
-    "GapMeasurementOperatorTests",
-    "GeoMeasurementOperatorTests",
-    "GeometricToleranceOperatorTests",
-    "HistogramAnalysisOperatorTests",
-    "LineLineDistanceOperatorTests",
-    "LineMeasurementOperatorTests",
-    "MeasureDistanceOperatorTests",
-    "PixelStatisticsOperatorTests",
-    "PointLineDistanceOperatorTests",
-    "SharpnessEvaluationOperatorTests",
-    "WidthMeasurementOperatorTests",
-    "OperatorContractReconciliationTests"
+    "CalibrationLoaderOperatorTests",
+    "CameraCalibrationOperatorTests",
+    "CoordinateTransformOperatorTests",
+    "FisheyeCalibrationOperatorTests",
+    "FisheyeUndistortOperatorTests",
+    "HandEyeCalibrationOperatorTests",
+    "NPointCalibrationOperatorTests",
+    "PixelToWorldTransformOperatorTests",
+    "StereoCalibrationOperatorTests",
+    "TranslationRotationCalibrationOperatorTests",
+    "UndistortOperatorTests"
 )
 
-$accuracyTestClasses = @(
-    "DetectionSequenceJudgeOperatorTests",
-    "EdgePairDefectOperatorTests",
-    "SurfaceDefectDetectionOperatorTests",
-    "DeepLearningOperatorTests",
-    "ColorDetectionOperatorTests",
-    "BlobDetectionOperatorTests",
-    "AnomalyDetectionOperatorTests",
-    "MatchingIndustrialAcceptanceTests",
-    "WireSequenceScenarioPackageTests"
-)
-
-$stabilityTestClasses = @(
-    "Acme.Product.Tests.Operators.MatchingRegressionStabilityTests",
-    "Integration.PerformanceAcceptanceTests",
-    "OperatorContractReconciliationTests"
+$integrationTestClasses = @(
+    "Integration.CalibrationV2IntegrationTests",
+    "Integration.LegacyCalibrationContractAuditTests"
 )
 
 $selectedTestClasses = switch ($Gate) {
     "regression" { $regressionTestClasses }
-    "detection-accuracy" { $accuracyTestClasses }
-    "detection-stability" { $stabilityTestClasses }
-    "all" { ($regressionTestClasses + $accuracyTestClasses + $stabilityTestClasses) | Select-Object -Unique }
+    "integration" { $integrationTestClasses }
+    "all" { ($regressionTestClasses + $integrationTestClasses) | Select-Object -Unique }
     default { throw "Unsupported gate '$Gate'." }
 }
 
-Write-Host "[detection-regression] Gate=$Gate"
-Write-Host "[detection-regression] Selected test classes: $($selectedTestClasses -join ', ')"
+Write-Host "[calibration-regression] Gate=$Gate"
+Write-Host "[calibration-regression] Selected test classes: $($selectedTestClasses -join ', ')"
 
 $parameters = @{
     Project = $project
