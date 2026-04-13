@@ -20,6 +20,8 @@
 | `OperatorType.SemanticSegmentation` | 语义分割 | AI检测 | `1.0.0` |
 | `OperatorType.SurfaceDefectDetection` | 表面缺陷检测 | AI检测 | `2.0.0` |
 | `OperatorType.DistanceTransform` | Distance Transform | Analysis | `1.0.0` |
+| `OperatorType.MitsubishiMcCommunication` | Mitsubishi MC Communication | Communication | `1.0.0` |
+| `OperatorType.ResultJudgment` | Result Judgment | Flow Control | `1.0.0` |
 | `OperatorType.FFT1D` | FFT 1D | Frequency | `1.0.0` |
 | `OperatorType.FrequencyFilter` | Frequency Filter | Frequency | `1.0.0` |
 | `OperatorType.InverseFFT1D` | Inverse FFT 1D | Frequency | `1.0.0` |
@@ -105,7 +107,6 @@
 | `OperatorType.ConditionalBranch` | 条件分支 | 流程控制 | `1.0.0` |
 | `OperatorType.Delay` | 延时 | 流程控制 | `1.0.0` |
 | `OperatorType.ForEach` | ForEach 循环 | 流程控制 | `1.0.0` |
-| `OperatorType.ResultJudgment` | 结果判定 | 流程控制 | `1.0.0` |
 | `OperatorType.TryCatch` | 异常捕获 | 流程控制 | `1.0.0` |
 | `OperatorType.BlobAnalysis` | Blob分析 | 特征提取 | `1.1.0` |
 | `OperatorType.ContourDetection` | 轮廓检测 | 特征提取 | `1.0.0` |
@@ -119,7 +120,6 @@
 | `OperatorType.ImageSave` | 图像保存 | 输出 | `1.0.0` |
 | `OperatorType.ResultOutput` | 结果输出 | 输出 | `1.0.1` |
 | `OperatorType.HttpRequest` | HTTP 请求 | 通信 | `1.0.0` |
-| `OperatorType.MitsubishiMcCommunication` | 三菱MC通信 | 通信 | `1.0.0` |
 | `OperatorType.ModbusCommunication` | Modbus通信 | 通信 | `1.0.0` |
 | `OperatorType.MqttPublish` | MQTT 发布 | 通信 | `1.0.0` |
 | `OperatorType.OmronFinsCommunication` | 欧姆龙FINS通信 | 通信 | `1.0.0` |
@@ -174,6 +174,7 @@
 ### OperatorType.AffineTransform / 仿射变换
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `0883863464A2` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `4AD3551216EE` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `E63763CA1D29` |
 | `1.0.0` | `2026-03-04T19:17:03.2031512+08:00` | `4AD3551216EE` |
@@ -470,6 +471,7 @@
 ### OperatorType.DualModalVoting / 双模态投票
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `6220BDF108EF` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `F7DA5BDB66C7` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `B50F970BACFE` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `F7DA5BDB66C7` |
@@ -571,6 +573,7 @@
 ### OperatorType.GeometricTolerance / 几何公差
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `AB2F9D1AB907` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `A016FCAF629A` |
 | `1.0.0` | `2026-04-12T18:31:04.9508036+08:00` | `1B73C69B7203` |
 | `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `29267D6F030B` |
@@ -775,9 +778,10 @@
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `1575F5D91455` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `9A00C29AC41A` |
 
-### OperatorType.MitsubishiMcCommunication / 三菱MC通信
+### OperatorType.MitsubishiMcCommunication / Mitsubishi MC Communication
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `30A1C11E92FA` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `6DA73E6E8D2B` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `64EF0C1DC0E3` |
 | `1.0.0` | `2026-02-27T21:39:45.2435118+08:00` | `6DA73E6E8D2B` |
@@ -828,6 +832,7 @@
 ### OperatorType.OmronFinsCommunication / 欧姆龙FINS通信
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `7281D7A2BCA1` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `6041B1ADB2F0` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `F11484F49198` |
 | `1.0.0` | `2026-02-27T21:39:45.2435118+08:00` | `6041B1ADB2F0` |
@@ -869,6 +874,7 @@
 ### OperatorType.PerspectiveTransform / 透视变换
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `967413F4AD69` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `683816ED05A1` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `C56528ABD9AF` |
 | `1.0.0` | `2026-02-27T09:08:37.3873065+08:00` | `683816ED05A1` |
@@ -887,6 +893,7 @@
 ### OperatorType.PixelToWorldTransform / Pixel To World Transform
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `CFFB6BAB9A61` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `C19F560B8590` |
 | `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `6B3BFC7109C5` |
 | `1.0.0` | `2026-03-21T01:38:49.8374844+08:00` | `863B5827D277` |
@@ -1008,9 +1015,10 @@
 | `1.0.0` | `2026-04-12T12:53:52.9929473+08:00` | `618A97A0B08E` |
 | `1.0.0` | `2026-03-18T19:00:25.2910689+08:00` | `0B331757C5AA` |
 
-### OperatorType.ResultJudgment / 结果判定
+### OperatorType.ResultJudgment / Result Judgment
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `FFDC0A297FC6` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `53985764ED7F` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `D6D6EF86DA89` |
 | `1.0.0` | `2026-02-26T21:18:02.8071504+08:00` | `53985764ED7F` |
@@ -1091,6 +1099,7 @@
 ### OperatorType.SiemensS7Communication / 西门子S7通信
 | 版本 (Version) | 记录时间 (Recorded At) | 源码摘要 (Source Hash) |
 |------|------|------|
+| `1.0.0` | `2026-04-13T23:21:39.1176099+08:00` | `9CF5D5801305` |
 | `1.0.0` | `2026-04-12T20:43:23.0238145+08:00` | `42E5C6F8C21C` |
 | `1.0.0` | `2026-03-26T18:46:50.6676488+08:00` | `B6237819F8BE` |
 | `1.0.0` | `2026-02-27T21:39:45.2435118+08:00` | `42E5C6F8C21C` |

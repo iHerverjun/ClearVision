@@ -41,8 +41,8 @@ updated: "2026-04-13"
 
 ## 4. 当前缺口
 
-- 当前仅保留 1 条外部验收阻塞：AI 检测 Owner 尚未补齐工业签收记录，以及与 `detection-all-20260413-115808.trx` 对应的模型版本、阈值和环境一致性材料。
-- 在上述材料补齐前，Week2 不重开新的 AI 检测批次，也不将 AI 检测转为 `[x]`。
+- 当前仅保留 1 条外部验收阻塞：工业签收实录未闭环（签收记录及其附件中的生产模型唯一标识映射未回填）。
+- 在工业签收闭环完成前，不重开新的 AI 检测批次，也不将 AI 检测转为 `[x]`。
 
 ## 5. Week3 回填模板（AI检测）
 
@@ -50,34 +50,34 @@ updated: "2026-04-13"
 
 | 批次ID | 6算子 | 模型版本 | 阈值 | 环境 | 签收信息 | 证据路径 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `detection-all-20260413-115808` | `AnomalyDetection / DeepLearning / DualModalVoting / EdgePairDefect / SemanticSegmentation / SurfaceDefectDetection` | `已绑定来源：AnomalyDetection(算子版本1.0.0，测试ModelId=patchcore_demo_bank / anomaly_embedding_identity_2x2)；SemanticSegmentation(ModelId=semantic_identity_2x2，catalog version=1.0.0)；DeepLearning(参数口径 Auto/YOLOv5/v6/v8/v11，实际批次模型唯一ID缺失)；DualModalVoting/EdgePairDefect/SurfaceDefectDetection 无独立模型ID字段` | `已绑定来源：AnomalyDetection Threshold=0.15（测试）/默认0.35；DeepLearning链路 Confidence=0.05、BoxNms IoU=0.45、Score=0.25；DualModalVoting ConfidenceThreshold=0.5；SurfaceDefectDetection Threshold=10.0/20.0（测试）` | `已绑定来源：TRX时间窗 2026-04-13 11:58:08~11:58:18（UTC+8），主机ROG16，runUser=ROG16\\CodexSandboxOnline；代码提交=5d2bc760900aaea3f8501af300bf635cd0408540；依赖口径=net8.0 + ONNX Runtime 1.17.0 + OpenCvSharp4 4.9.0.20240103；GPU驱动版本未采集` | `未闭环：仓库内未发现工业签收实录（签收人/时间/范围/结论/附件索引均待回填）` | `test_results/detection-all-20260413-115808.trx`；`models/model_catalog.json`；`Acme.Product/tests/Acme.Product.Tests/Operators/*`；`docs/算子资料/算子名片/*`；`docs/算子审计/Week3-修复优先级清单.md` | `[-] C2证据映射已完成（2026-04-13 18:57 UTC+8），唯一阻塞未解除` |
+| `detection-all-20260413-115808` | `AnomalyDetection / DeepLearning / DualModalVoting / EdgePairDefect / SemanticSegmentation / SurfaceDefectDetection` | `已绑定来源：AnomalyDetection(ModelId=patchcore_demo_bank；EmbeddingModelId=anomaly_embedding_identity_2x2)；SemanticSegmentation(ModelId=semantic_identity_2x2，catalog version=1.0.0)；DeepLearning(测试口径为 ModelPath + ModelVersion=Auto/YOLOv5/v6/v8/v11，生产模型唯一标识待签收附件补齐)；DualModalVoting/EdgePairDefect/SurfaceDefectDetection 为非独立模型推理算子（继承上游模型链路）` | `已绑定来源：AnomalyDetection Threshold=0.15（测试）/默认0.35；DeepLearning链路 Confidence=0.05、BoxNms IoU=0.45、Score=0.25；DualModalVoting ConfidenceThreshold=0.5；SurfaceDefectDetection Threshold=10.0/20.0（测试）` | `已绑定来源：TRX时间窗 2026-04-13 11:58:08~11:58:18（UTC+8），主机ROG16，runUser=ROG16\\CodexSandboxOnline；代码提交=9cce310950ee49ceea056b1c5985e43285b804c4；依赖口径=net8.0 + ONNX Runtime 1.17.0 + OpenCvSharp4 4.9.0.20240103；GPU=NVIDIA GeForce RTX 4070 Ti SUPER；驱动=595.97（见 Week4 环境快照）` | `未闭环：仓库内仍未发现工业签收实录（签收人/时间/范围/结论/附件索引待回填，且需包含生产模型唯一标识映射）` | `test_results/detection-all-20260413-115808.trx`；`models/model_catalog.json`；`Acme.Product/tests/Acme.Product.Tests/Operators/*`；`test_results/week4-detection-environment-20260413-193155.txt`；`docs/算子审计/Week3-修复优先级清单.md` | `[-] Week4 C2 可得证据回填已完成（2026-04-13 19:43 UTC+8），唯一阻塞未解除` |
 
 ### 5.1 C2 执行检查面板（面向 2026-04-14 12:00（UTC+8））
 
 | C2状态 | 当前阶段 | 下一检查点 | 检查口径 | 未达成处理 |
 | --- | --- | --- | --- | --- |
-| `[-]` | 已启动资料归集，进入来源位与责任位绑定 | `2026-04-14 12:00（UTC+8）` | 5 类材料均需具备“来源位 + 责任位 + 截止 + 解除动作 + 升级路径” | 任一材料缺字段则保持 `[-]`，不得转 `[x]` |
+| `[-]` | 可得证据已完成回填，当前仅追工业签收闭环 | `2026-04-14 12:00（UTC+8）` | 5 类材料需全部可追溯；若签收附件缺“生产模型唯一标识映射”则仍视为未闭环 | 签收缺字段则保持 `[-]`，不得转 `[x]` |
 
 ### 5.2 C2 五类材料来源位与责任位绑定（可追踪）
 
 | 材料类 | 来源位（Source of Truth） | 回填位（本文件） | 责任位（Owner） | 截止时间 | 解除动作（达成定义） | 升级路径 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 批次 | `test_results/detection-all-20260413-115808.trx`（当前冻结批次） | 第 5 节模板：`批次ID`、`证据路径` | AI检测回归执行人（待回填姓名） | `2026-04-14 12:00（UTC+8）` | 批次ID 与 `.trx` 文件名一致，且证据路径可定位 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
-| 模型 | 模型发布记录/模型说明文档（待补具体路径） | 第 5 节模板：`模型版本` | AI检测 Owner（模型）（待回填姓名） | `2026-04-14 12:00（UTC+8）` | 补齐“模型标识 + 版本 + 唯一标识”，并与批次绑定 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
-| 阈值 | 阈值配置记录/运行时导出（待补具体路径） | 第 5 节模板：`阈值` | AI检测 Owner（阈值）（待回填姓名） | `2026-04-14 12:00（UTC+8）` | 补齐“配置阈值 + 运行时阈值”，并与批次绑定 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
-| 环境 | 平台侧环境记录（代码版本/依赖/推理后端/GPU/驱动，待补具体路径） | 第 5 节模板：`环境` | 平台侧 Owner（待回填姓名） | `2026-04-14 12:00（UTC+8）` | 补齐环境指纹并标注时间窗口，与批次一致 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
-| 签收 | 现场/业务签收记录（待补具体路径） | 第 5 节模板：`签收信息` | 工业签收人（待回填姓名） | `2026-04-14 12:00（UTC+8）` | 补齐“签收人 + 时间 + 范围 + 结论 + 附件索引” | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
+| 批次 | `test_results/detection-all-20260413-115808.trx`（当前冻结批次） | 第 5 节模板：`批次ID`、`证据路径` | AI检测回归执行人（回归脚本责任位） | `2026-04-13 19:43（UTC+8，已回填）` | 批次ID 与 `.trx` 文件名一致，且证据路径可定位 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
+| 模型 | `models/model_catalog.json` + `Acme.Product/tests/Acme.Product.Tests/Operators/*` | 第 5 节模板：`模型版本` | AI检测 Owner（模型） | `2026-04-13 19:43（UTC+8，已回填可得项）` | 补齐“模型标识 + 版本 + 唯一标识”，并与批次绑定；生产模型唯一标识由签收附件承接 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
+| 阈值 | `Acme.Product/tests/Acme.Product.Tests/Operators/*`（参数口径） | 第 5 节模板：`阈值` | AI检测 Owner（阈值） | `2026-04-13 19:43（UTC+8，已回填可得项）` | 补齐“配置阈值 + 运行时阈值”，并与批次绑定 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
+| 环境 | `test_results/detection-all-20260413-115808.trx` + `test_results/week4-detection-environment-20260413-193155.txt` | 第 5 节模板：`环境` | 平台侧 Owner（环境） | `2026-04-13 19:43（UTC+8，已回填）` | 补齐环境指纹并标注时间窗口，与批次一致 | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
+| 签收 | 现场/业务签收记录（待补具体路径） | 第 5 节模板：`签收信息` | 工业签收人（业务/现场） | `2026-05-01 18:00（UTC+8）` | 补齐“签收人 + 时间 + 范围 + 结论 + 附件索引（含生产模型唯一标识映射）” | 先升级至 C2 负责人；若仍缺失，升级至 C线负责人（证据与复核） |
 
-### 5.3 C3 一致性核验结论（2026-04-13 18:57，UTC+8）
+### 5.3 C3 一致性核验结论（Week4 复核：2026-04-13 19:47，UTC+8）
 
 | 核验项 | 结论 | 依据 |
 | --- | --- | --- |
 | 脚本入口 -> 批次结果 | 一致 | `scripts/run-tests-detection-regression.ps1 -Gate all` 对应 `detection-all-20260413-115808.trx`，结果 `187/187` |
-| 批次 -> 模型/阈值/环境映射 | 部分一致 | 已建立来源位与回填位；但生产模型唯一标识、GPU/驱动实值未在仓库内闭环 |
-| 批次 -> 工业签收 | 不一致（缺失） | 仓库内未发现可追溯签收实录（签收人/时间/范围/结论/附件索引） |
+| 批次 -> 模型/阈值/环境映射 | 一致（签收附件待补） | 模型/阈值/环境可得项已完成来源位回填，且新增 GPU/驱动实值；生产模型唯一标识改由工业签收附件承接 |
+| 批次 -> 工业签收 | 不一致（缺失） | 仓库内未发现可追溯签收实录（签收人/时间/范围/结论/附件索引，含生产模型唯一标识映射） |
 | 补跑判定 | 不触发补跑 | 当前缺口为外部签收与材料闭环，不是 `.trx` 结果冲突；补跑不能解除该阻塞 |
 
-核验输出：`继续阻塞 [-]`，且仅保留 1 条可追责缺口（工业签收未闭环，叠加模型唯一标识与GPU/驱动实值待补）。
+核验输出：`继续阻塞 [-]`，且仅保留 1 条可追责缺口（工业签收未闭环，签收附件未提供生产模型唯一标识映射）。
 
 ## 6. 周内执行记录
 
@@ -91,3 +91,7 @@ updated: "2026-04-13"
 | 2026-04-13（周一） | Week3 C2 证据补齐与映射绑定（提前执行） | [-] | 已完成可得证据的批次/模型/阈值/环境映射；工业签收仍缺，保持单条阻塞。 |
 | 2026-04-13（周一） | Week3 C3 一致性核验与必要回归（提前执行） | [x] | 已完成核验并给出“不触发补跑”判定；阻塞原因为外部签收与材料闭环缺失。 |
 | 2026-04-13（周一） | Week3 C4 收口发布与 Week4 入口（提前执行） | [x] | 已形成 Week3 收口结论：状态保留 `[-]`，并生成 Week4 仅追单条缺口入口。 |
+| 2026-04-13（周一） | Week4 C1 启动冻结与责任链续签（提前执行） | [x] | 已续签唯一阻塞责任链和检查点口径，确认仍不重开 A/B 与新增阻塞。 |
+| 2026-04-13（周一） | Week4 C2 外部材料追齐与映射补全（可得项） | [-] | 已回填模型/阈值/环境可得实值（含 GPU/驱动、当前提交哈希）；工业签收实录仍缺。 |
+| 2026-04-13（周一） | Week4 C3 一致性核验与补跑判定 | [x] | 已完成复核，结论仍为“不触发补跑”，当前阻塞不属于批次结果冲突。 |
+| 2026-04-13（周一） | Week4 C4 收口发布与 Week5 入口 | [x] | 已发布 Week4 结论，生成 `docs/算子审计/Week5-入口卡片.md` 并绑定唯一缺口。 |
