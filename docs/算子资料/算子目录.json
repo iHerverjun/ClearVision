@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T22:28:26.8153327+08:00",
+  "generatedAt": "2026-04-13T19:14:52.1190277+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -523,13 +523,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Filtering.md"
     },
@@ -672,13 +672,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/EdgeDetection.md"
     },
@@ -787,13 +787,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/Thresholding.md"
     },
@@ -1176,13 +1176,13 @@
       "displayName": "模板匹配",
       "description": "Classic grayscale template matching for fixed-scale, low-rotation scenes. Multi-match outputs are filtered by IoU-based NMS.",
       "category": "匹配定位",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "该算子基于经典模板匹配，在搜索图像上滑动模板窗口并计算每个位置的相似度响应图，再取全…",
+      "algorithm": "该算子在搜索图像上滑动模板并生成响应图，然后从响应图中提取多个候选并做 IoU NM…",
       "inputPorts": [
         {
           "name": "Image",
@@ -1219,6 +1219,18 @@
         {
           "name": "Score",
           "displayName": "匹配分数",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "NormalizedScore",
+          "displayName": "规范化分数",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "RawResponse",
+          "displayName": "原始响应值",
           "dataType": "Float",
           "isRequired": null
         },
@@ -4998,13 +5010,13 @@
       "displayName": "旋转尺度模板匹配",
       "description": "Rotation-scale template matching with pyramid coarse-to-fine search. This is not a generic contour-descriptor matcher.",
       "category": "匹配定位",
-      "version": "1.1.2",
+      "version": "1.2.0",
       "tags": [
         "功能域:检测",
         "成熟度:稳定",
         "算法类型:自研"
       ],
-      "algorithm": "虽然名称叫“形状匹配”，但当前实现本质上仍是基于灰度模板匹配的旋转搜索，而不是基于轮…",
+      "algorithm": "虽然名称叫“形状匹配”，当前实现本质上仍是灰度模板的旋转/尺度搜索，而不是轮廓描述子…",
       "inputPorts": [
         {
           "name": "Image",
@@ -7430,13 +7442,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/MorphologicalOperation.md"
     },
@@ -7505,13 +7517,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/LaplacianSharpen.md"
     },
@@ -7794,13 +7806,13 @@
         }
       ],
       "quality": {
-        "totalScore": 76,
-        "level": "B",
+        "totalScore": 94,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 100,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=100, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageBlend.md"
     },
@@ -8614,7 +8626,7 @@
       "id": "GradientShapeMatch",
       "type": 92,
       "displayName": "梯度形状匹配",
-      "description": "基于梯度方向的形状匹配，支持旋转不变性。",
+      "description": "基于梯度方向特征的形状匹配，支持可选 ROI 搜索。",
       "category": "匹配定位",
       "version": "1.0.0",
       "tags": [
@@ -8694,7 +8706,7 @@
         },
         {
           "name": "AngleRange",
-          "displayName": "角度范围(°)",
+          "displayName": "角度范围(度)",
           "dataType": "int",
           "description": null,
           "defaultValue": "180",
@@ -8735,6 +8747,61 @@
           "max": null,
           "isRequired": true,
           "options": null
+        },
+        {
+          "name": "UseRoi",
+          "displayName": "使用 ROI",
+          "dataType": "bool",
+          "description": null,
+          "defaultValue": "false",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiX",
+          "displayName": "ROI X",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiY",
+          "displayName": "ROI Y",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiWidth",
+          "displayName": "ROI Width",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
+        },
+        {
+          "name": "RoiHeight",
+          "displayName": "ROI Height",
+          "dataType": "int",
+          "description": null,
+          "defaultValue": "0",
+          "min": "0",
+          "max": "100000",
+          "isRequired": true,
+          "options": null
         }
       ],
       "quality": {
@@ -8752,7 +8819,7 @@
       "id": "PyramidShapeMatch",
       "type": 93,
       "displayName": "金字塔形状匹配",
-      "description": "多尺度金字塔形状匹配，速度快，适合大尺寸图像",
+      "description": "基于 LINEMOD 的金字塔模板匹配。",
       "category": "匹配定位",
       "version": "1.0.0",
       "tags": [
@@ -8832,7 +8899,7 @@
         },
         {
           "name": "AngleRange",
-          "displayName": "角度范围(±)",
+          "displayName": "角度范围(度)",
           "dataType": "int",
           "description": null,
           "defaultValue": "180",
@@ -10245,13 +10312,13 @@
       ],
       "parameters": [],
       "quality": {
-        "totalScore": 71,
-        "level": "B",
+        "totalScore": 89,
+        "level": "A",
         "documentationScore": 100,
-        "testCoverageScore": 30,
+        "testCoverageScore": 100,
         "parameterValidationScore": 80,
         "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=30, Validation=80, ErrorHandling=75"
+        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
       },
       "docPath": "算子资料/算子名片/ImageDiff.md"
     },
@@ -11876,7 +11943,7 @@
       "displayName": "位置修正",
       "description": "Pixel-space ROI offset tool. Use calibration operators before treating the result as physical-world compensation.",
       "category": "定位",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "tags": [
         "功能域:定位",
         "成熟度:稳定",
@@ -11938,6 +12005,36 @@
           "name": "Angle",
           "displayName": "Angle",
           "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "AppliedOffsetX",
+          "displayName": "Applied Offset X",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "AppliedOffsetY",
+          "displayName": "Applied Offset Y",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "TransformMatrix",
+          "displayName": "Transform Matrix",
+          "dataType": "Any",
+          "isRequired": null
+        },
+        {
+          "name": "RotationCenter",
+          "displayName": "Rotation Center",
+          "dataType": "Point",
+          "isRequired": null
+        },
+        {
+          "name": "CompensationMode",
+          "displayName": "Compensation Mode",
+          "dataType": "String",
           "isRequired": null
         }
       ],
@@ -14109,6 +14206,24 @@
           "displayName": "Height",
           "dataType": "Float",
           "isRequired": null
+        },
+        {
+          "name": "NormalizedAngle",
+          "displayName": "Normalized Angle",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "LongSide",
+          "displayName": "Long Side",
+          "dataType": "Float",
+          "isRequired": null
+        },
+        {
+          "name": "ShortSide",
+          "displayName": "Short Side",
+          "dataType": "Float",
+          "isRequired": null
         }
       ],
       "parameters": [
@@ -14427,17 +14542,44 @@
           "displayName": "Has Intersection",
           "dataType": "Boolean",
           "isRequired": null
+        },
+        {
+          "name": "SegmentsIntersect",
+          "displayName": "Segments Intersect",
+          "dataType": "Boolean",
+          "isRequired": null
         }
       ],
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "IntersectionMode",
+          "displayName": "Intersection Mode",
+          "dataType": "enum",
+          "description": null,
+          "defaultValue": "InfiniteLine",
+          "min": null,
+          "max": null,
+          "isRequired": true,
+          "options": [
+            {
+              "value": "InfiniteLine",
+              "label": "InfiniteLine"
+            },
+            {
+              "value": "SegmentOnly",
+              "label": "SegmentOnly"
+            }
+          ]
+        }
+      ],
       "quality": {
-        "totalScore": 89,
+        "totalScore": 96,
         "level": "A",
         "documentationScore": 100,
         "testCoverageScore": 100,
-        "parameterValidationScore": 80,
-        "errorHandlingScore": 75,
-        "summary": "Doc=100, Test=100, Validation=80, ErrorHandling=75"
+        "parameterValidationScore": 100,
+        "errorHandlingScore": 85,
+        "summary": "Doc=100, Test=100, Validation=100, ErrorHandling=85"
       },
       "docPath": "算子资料/算子名片/EdgeIntersection.md"
     },
@@ -14588,6 +14730,12 @@
         {
           "name": "Vertices",
           "displayName": "Vertices",
+          "dataType": "PointList",
+          "isRequired": null
+        },
+        {
+          "name": "OrderedVertices",
+          "displayName": "Ordered Vertices",
           "dataType": "PointList",
           "isRequired": null
         },

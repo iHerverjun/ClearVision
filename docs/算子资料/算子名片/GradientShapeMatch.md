@@ -120,3 +120,9 @@
 | 1.0.1 | 2026-03-14 | 基于源码补充算法原理、调用链、参数语义、适用场景与已知限制 |
 | 1.0.0 | 2026-03-03 | 自动生成文档骨架 / Generated skeleton |
 
+
+## 2026-04-12 Compatibility Update / 兼容性更新
+- 新增可选 ROI 搜索参数：UseRoi、RoiX、RoiY、RoiWidth、RoiHeight，默认关闭。
+- 特征稀疏化已改为按响应强度优先并结合局部抑制，不再按扫描顺序抢占网格。
+- EnableCache=false 时的临时 matcher 资源会在退出路径释放。
+
