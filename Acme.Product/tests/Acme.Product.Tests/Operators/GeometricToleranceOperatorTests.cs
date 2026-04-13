@@ -65,6 +65,45 @@ public class GeometricToleranceOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_Position_WithNonOrthogonalDatums_ShouldUseOrthogonalizedFrame()
+    {
+        var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("ToleranceType", "Position", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ZoneSize", 2.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("EvaluationMode", "CircularZone", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("NominalX", 10.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("NominalY", 5.0, "double"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["FeaturePrimary"] = new Position(10, 5),
+            ["DatumA"] = new LineData(0, 0, 20, 0),
+            ["DatumB"] = new LineData(0, 0, 20, 20)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["Accepted"].Should().Be(true);
+        Convert.ToDouble(result.OutputData["ZoneDeviation"]).Should().BeApproximately(0.0, 1e-6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Parallelism_WithDegenerateLine_ShouldFail()
+    {
+        var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("ToleranceType", "Parallelism", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ZoneSize", 1.0, "double"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["FeaturePrimary"] = new LineData(10, 10, 10, 10),
+            ["DatumA"] = new LineData(20, 80, 170, 80)
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("degenerate");
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidToleranceType_ShouldReturnInvalid()
     {
         var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);

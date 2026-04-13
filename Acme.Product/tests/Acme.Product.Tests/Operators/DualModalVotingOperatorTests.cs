@@ -152,4 +152,23 @@ public class DualModalVotingOperatorTests
         result.OutputData["IsOk"].Should().Be(false); // One is NG
         result.OutputData["JudgmentValue"].Should().Be("0");
     }
+
+    [Fact]
+    public async Task Execute_WithWeightedAverageAndZeroWeights_ShouldFail()
+    {
+        _operatorEntity.AddParameter(TestHelpers.CreateParameter("VotingStrategy", "WeightedAverage", "string"));
+        _operatorEntity.AddParameter(TestHelpers.CreateParameter("DLWeight", 0.0, "double"));
+        _operatorEntity.AddParameter(TestHelpers.CreateParameter("TraditionalWeight", 0.0, "double"));
+
+        var inputs = new Dictionary<string, object>
+        {
+            { "DLResult", Acme.Product.Core.Services.DetectionResult.Success(true, 0.9) },
+            { "TraditionalResult", Acme.Product.Core.Services.DetectionResult.Success(false, 0.1) }
+        };
+
+        var result = await _operator.ExecuteAsync(_operatorEntity, inputs, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("DLWeight + TraditionalWeight > 0");
+    }
 }

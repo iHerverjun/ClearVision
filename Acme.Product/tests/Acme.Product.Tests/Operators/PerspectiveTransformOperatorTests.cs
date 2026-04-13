@@ -1,7 +1,3 @@
-// PerspectiveTransformOperatorTests.cs
-// PerspectiveTransformOperatorTests测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -30,7 +26,7 @@ public class PerspectiveTransformOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithNullInputs_ShouldReturnFailure()
     {
-        var op = new Operator("测试", OperatorType.PerspectiveTransform, 0, 0);
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
         var result = await _operator.ExecuteAsync(op, null);
         result.IsSuccess.Should().BeFalse();
     }
@@ -38,7 +34,7 @@ public class PerspectiveTransformOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
     {
-        var op = new Operator("测试", OperatorType.PerspectiveTransform, 0, 0);
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
         using var image = TestHelpers.CreateTestImage();
         var inputs = TestHelpers.CreateImageInputs(image);
         var result = await _operator.ExecuteAsync(op, inputs);
@@ -49,11 +45,11 @@ public class PerspectiveTransformOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithPointSetJson_ShouldPreferPointSetMode()
     {
-        var op = new Operator("测试", OperatorType.PerspectiveTransform, 0, 0);
-        op.AddParameter(new Parameter(Guid.NewGuid(), "SrcPointsJson", "SrcPointsJson", "", "string", "[[0,0],[180,0],[180,180],[0,180]]"));
-        op.AddParameter(new Parameter(Guid.NewGuid(), "DstPointsJson", "DstPointsJson", "", "string", "[[10,10],[190,20],[180,190],[20,180]]"));
-        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputWidth", "OutputWidth", "", "int", 200));
-        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputHeight", "OutputHeight", "", "int", 200));
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "SrcPointsJson", "SrcPointsJson", string.Empty, "string", "[[0,0],[180,0],[180,180],[0,180]]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "DstPointsJson", "DstPointsJson", string.Empty, "string", "[[10,10],[190,20],[180,190],[20,180]]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputWidth", "OutputWidth", string.Empty, "int", 200));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputHeight", "OutputHeight", string.Empty, "int", 200));
 
         using var image = TestHelpers.CreateTestImage(200, 200);
         var inputs = TestHelpers.CreateImageInputs(image);
@@ -65,9 +61,56 @@ public class PerspectiveTransformOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithNonCyclicPointOrder_ShouldNotBeTreatedAsDegenerate()
+    {
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "SrcPointsJson", "SrcPointsJson", string.Empty, "string", "[[0,0],[180,0],[0,180],[180,180]]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "DstPointsJson", "DstPointsJson", string.Empty, "string", "[[10,10],[190,10],[10,190],[190,190]]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputWidth", "OutputWidth", string.Empty, "int", 200));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "OutputHeight", "OutputHeight", string.Empty, "int", 200));
+
+        using var image = TestHelpers.CreateTestImage(200, 200);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue();
+        result.ErrorMessage.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidPointJson_ShouldFailClosed()
+    {
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "SrcPointsJson", "SrcPointsJson", string.Empty, "string", "[{\"x\":0},{\"x\":180,\"y\":0},{\"x\":180,\"y\":180},{\"x\":0,\"y\":180}]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "DstPointsJson", "DstPointsJson", string.Empty, "string", "[[0,0],[200,0],[200,200],[0,200]]"));
+
+        using var image = TestHelpers.CreateTestImage(200, 200);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("SrcPoints");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDegeneratePointSet_ShouldFail()
+    {
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
+        op.AddParameter(new Parameter(Guid.NewGuid(), "SrcPointsJson", "SrcPointsJson", string.Empty, "string", "[[0,0],[50,0],[100,0],[150,0]]"));
+        op.AddParameter(new Parameter(Guid.NewGuid(), "DstPointsJson", "DstPointsJson", string.Empty, "string", "[[0,0],[200,0],[200,200],[0,200]]"));
+
+        using var image = TestHelpers.CreateTestImage(200, 200);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("退化");
+    }
+
+    [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
-        var op = new Operator("测试", OperatorType.PerspectiveTransform, 0, 0);
+        var op = new Operator("test", OperatorType.PerspectiveTransform, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
     }
 }

@@ -80,7 +80,13 @@ public class DualModalVotingOperator : OperatorBase
         switch (strategy)
         {
             case "WeightedAverage":
-                confidence = (dlResult.Confidence * dlWeight + traditionalResult.Confidence * traditionalWeight) / (dlWeight + traditionalWeight);
+                var totalWeight = dlWeight + traditionalWeight;
+                if (totalWeight <= 1e-12)
+                {
+                    return Task.FromResult(OperatorExecutionOutput.Failure("WeightedAverage requires DLWeight + TraditionalWeight > 0."));
+                }
+
+                confidence = (dlResult.Confidence * dlWeight + traditionalResult.Confidence * traditionalWeight) / totalWeight;
                 isOk = confidence >= confidenceThreshold;
                 details = $"加权平均: DL={dlResult.Confidence:F2}*{dlWeight} + Traditional={traditionalResult.Confidence:F2}*{traditionalWeight} -> {confidence:F2}";
                 break;
@@ -225,6 +231,11 @@ public class DualModalVotingOperator : OperatorBase
 
         // 检查权重和是否合理（允许一定误差）
         var weightSum = dlWeight + traditionalWeight;
+        if (strategy.Equals("WeightedAverage", StringComparison.OrdinalIgnoreCase) && weightSum <= 1e-12)
+        {
+            return ValidationResult.Invalid("WeightedAverage requires DLWeight + TraditionalWeight > 0.");
+        }
+
         if (Math.Abs(weightSum - 1.0) > 0.01 && strategy.Equals("WeightedAverage", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationResult.Invalid($"加权平均策略下，DL权重({dlWeight})与传统算法权重({traditionalWeight})之和应接近1.0(当前={weightSum:F2})");

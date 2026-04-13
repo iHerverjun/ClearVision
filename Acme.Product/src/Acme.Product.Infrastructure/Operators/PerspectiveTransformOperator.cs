@@ -77,10 +77,28 @@ public class PerspectiveTransformOperator : OperatorBase
 
         var parsedSrcPoints = Array.Empty<Point2f>();
         var parsedDstPoints = Array.Empty<Point2f>();
-        var hasPointSetInput = TryResolvePointSet(inputs, @operator, "SrcPoints", "SrcPointsJson", out parsedSrcPoints) &&
-                               TryResolvePointSet(inputs, @operator, "DstPoints", "DstPointsJson", out parsedDstPoints) &&
-                               parsedSrcPoints.Length >= 4 &&
-                               parsedDstPoints.Length >= 4;
+        var hasSrcPointSet = HasExplicitPointSetInput(inputs, @operator, "SrcPoints", "SrcPointsJson");
+        var hasDstPointSet = HasExplicitPointSetInput(inputs, @operator, "DstPoints", "DstPointsJson");
+        if (hasSrcPointSet ^ hasDstPointSet)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("SrcPoints 与 DstPoints 需要同时提供。"));
+        }
+
+        var hasPointSetInput = false;
+        if (hasSrcPointSet && hasDstPointSet)
+        {
+            if (!TryResolvePointSet(inputs, @operator, "SrcPoints", "SrcPointsJson", out parsedSrcPoints, out var srcError))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure($"SrcPoints 解析失败: {srcError}"));
+            }
+
+            if (!TryResolvePointSet(inputs, @operator, "DstPoints", "DstPointsJson", out parsedDstPoints, out var dstError))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure($"DstPoints 解析失败: {dstError}"));
+            }
+
+            hasPointSetInput = parsedSrcPoints.Length >= 4 && parsedDstPoints.Length >= 4;
+        }
 
         var srcPoints = hasPointSetInput
             ? parsedSrcPoints.Take(4).ToArray()
@@ -90,7 +108,22 @@ public class PerspectiveTransformOperator : OperatorBase
             ? parsedDstPoints.Take(4).ToArray()
             : GetLegacyPoints(@operator, isSource: false);
 
+        if (!TryEnsureNonDegenerateQuadrilateral(srcPoints, "SrcPoints", out var srcDegenerateError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(srcDegenerateError ?? "SrcPoints are degenerate."));
+        }
+
+        if (!TryEnsureNonDegenerateQuadrilateral(dstPoints, "DstPoints", out var dstDegenerateError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(dstDegenerateError ?? "DstPoints are degenerate."));
+        }
+
         using var perspectiveMatrix = Cv2.GetPerspectiveTransform(srcPoints, dstPoints);
+        if (!TryValidatePerspectiveMatrix(perspectiveMatrix, out var matrixError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(matrixError));
+        }
+
         var dst = new Mat();
         Cv2.WarpPerspective(
             src,
@@ -134,14 +167,14 @@ public class PerspectiveTransformOperator : OperatorBase
 
         if (hasSrcJson && hasDstJson)
         {
-            if (!TryParsePointArray(srcPointsJson, out var srcPoints) || srcPoints.Length < 4)
+            if (!TryParsePointArray(srcPointsJson, out var srcPoints, out var srcError) || srcPoints.Length < 4)
             {
-                return ValidationResult.Invalid("SrcPointsJson 至少需要 4 个点");
+                return ValidationResult.Invalid($"SrcPointsJson 至少需要 4 个点。{srcError}");
             }
 
-            if (!TryParsePointArray(dstPointsJson, out var dstPoints) || dstPoints.Length < 4)
+            if (!TryParsePointArray(dstPointsJson, out var dstPoints, out var dstError) || dstPoints.Length < 4)
             {
-                return ValidationResult.Invalid("DstPointsJson 至少需要 4 个点");
+                return ValidationResult.Invalid($"DstPointsJson 至少需要 4 个点。{dstError}");
             }
         }
 
@@ -170,86 +203,160 @@ public class PerspectiveTransformOperator : OperatorBase
         };
     }
 
+    private bool HasExplicitPointSetInput(
+        Dictionary<string, object>? inputs,
+        Operator @operator,
+        string inputPort,
+        string jsonParamName)
+    {
+        if (inputs != null &&
+            inputs.TryGetValue(inputPort, out var rawInput) &&
+            rawInput != null)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(GetStringParam(@operator, jsonParamName, string.Empty));
+    }
+
     private bool TryResolvePointSet(
         Dictionary<string, object>? inputs,
         Operator @operator,
         string inputPort,
         string jsonParamName,
-        out Point2f[] points)
+        out Point2f[] points,
+        out string error)
     {
         points = Array.Empty<Point2f>();
+        error = string.Empty;
 
         if (inputs != null &&
             inputs.TryGetValue(inputPort, out var rawInput) &&
-            TryParsePointCollection(rawInput, out points) &&
-            points.Length >= 4)
+            rawInput != null)
         {
+            if (!TryParsePointCollection(rawInput, out points, out error))
+            {
+                return false;
+            }
+
+            if (points.Length < 4)
+            {
+                error = "需要至少 4 个点。";
+                return false;
+            }
+
             return true;
         }
 
         var json = GetStringParam(@operator, jsonParamName, string.Empty);
         if (string.IsNullOrWhiteSpace(json))
         {
+            error = "未提供点集。";
             return false;
         }
 
-        return TryParsePointArray(json, out points) && points.Length >= 4;
+        if (!TryParsePointArray(json, out points, out error))
+        {
+            return false;
+        }
+
+        if (points.Length < 4)
+        {
+            error = "需要至少 4 个点。";
+            return false;
+        }
+
+        return true;
     }
 
-    private static bool TryParsePointCollection(object? raw, out Point2f[] points)
+    private static bool TryParsePointCollection(object? raw, out Point2f[] points, out string error)
     {
         points = Array.Empty<Point2f>();
+        error = string.Empty;
         if (raw == null)
         {
+            error = "点集为空。";
             return false;
         }
 
         if (raw is string json && !string.IsNullOrWhiteSpace(json))
         {
-            return TryParsePointArray(json, out points);
+            return TryParsePointArray(json, out points, out error);
         }
 
         if (raw is IEnumerable<Position> positions)
         {
             points = positions.Select(p => new Point2f((float)p.X, (float)p.Y)).ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "点集为空。";
+                return false;
+            }
+
+            return true;
         }
 
         if (raw is IEnumerable<Point> cvPoints)
         {
             points = cvPoints.Select(p => new Point2f(p.X, p.Y)).ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "点集为空。";
+                return false;
+            }
+
+            return true;
         }
 
         if (raw is IEnumerable<Point2f> point2Fs)
         {
             points = point2Fs.ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "点集为空。";
+                return false;
+            }
+
+            return true;
         }
 
         if (raw is IEnumerable<object> objectList)
         {
             var parsed = new List<Point2f>();
+            var index = 0;
             foreach (var item in objectList)
             {
-                if (TryParsePoint(item, out var point))
+                if (!TryParsePoint(item, out var point, out var parseError))
                 {
-                    parsed.Add(point);
+                    error = $"点集第 {index} 个元素无效: {parseError}";
+                    return false;
                 }
+
+                parsed.Add(point);
+                index++;
             }
 
             points = parsed.ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "点集为空。";
+                return false;
+            }
+
+            return true;
         }
 
+        error = $"不支持的点集类型: {raw.GetType().Name}";
         return false;
     }
 
-    private static bool TryParsePointArray(string json, out Point2f[] points)
+    private static bool TryParsePointArray(string json, out Point2f[] points, out string error)
     {
         points = Array.Empty<Point2f>();
+        error = string.Empty;
         if (string.IsNullOrWhiteSpace(json))
         {
+            error = "JSON 为空。";
             return false;
         }
 
@@ -258,33 +365,48 @@ public class PerspectiveTransformOperator : OperatorBase
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
+                error = "JSON 根节点必须是数组。";
                 return false;
             }
 
             var parsed = new List<Point2f>();
+            var index = 0;
             foreach (var element in doc.RootElement.EnumerateArray())
             {
-                if (TryParsePoint(element, out var point))
+                if (!TryParsePoint(element, out var point, out var parseError))
                 {
-                    parsed.Add(point);
+                    error = $"点集第 {index} 个元素无效: {parseError}";
+                    return false;
                 }
+
+                parsed.Add(point);
+                index++;
             }
 
             points = parsed.ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "点集为空。";
+                return false;
+            }
+
+            return true;
         }
-        catch
+        catch (JsonException ex)
         {
+            error = $"JSON 解析失败: {ex.Message}";
             return false;
         }
     }
 
-    private static bool TryParsePoint(object? raw, out Point2f point)
+    private static bool TryParsePoint(object? raw, out Point2f point, out string error)
     {
         point = default;
+        error = string.Empty;
         switch (raw)
         {
             case null:
+                error = "点不能为空。";
                 return false;
 
             case Point2f p2f:
@@ -306,59 +428,197 @@ public class PerspectiveTransformOperator : OperatorBase
                     return true;
                 }
 
+                error = "对象点缺少 X 或 Y 字段。";
                 return false;
 
             case JsonElement element:
-                return TryParsePoint(element, out point);
+                return TryParsePoint(element, out point, out error);
 
             default:
+                error = $"不支持的点类型: {raw.GetType().Name}";
                 return false;
         }
     }
 
-    private static bool TryParsePoint(JsonElement element, out Point2f point)
+    private static bool TryParsePoint(JsonElement element, out Point2f point, out string error)
     {
         point = default;
+        error = string.Empty;
         if (element.ValueKind == JsonValueKind.Array && element.GetArrayLength() >= 2)
         {
-            point = new Point2f(ParseElementAsFloat(element[0]), ParseElementAsFloat(element[1]));
+            if (!TryParseElementAsFloat(element[0], out var x, out var xError))
+            {
+                error = $"X {xError}";
+                return false;
+            }
+
+            if (!TryParseElementAsFloat(element[1], out var y, out var yError))
+            {
+                error = $"Y {yError}";
+                return false;
+            }
+
+            point = new Point2f(x, y);
             return true;
         }
 
         if (element.ValueKind == JsonValueKind.Object)
         {
-            point = new Point2f(
-                GetPropertyAsFloat(element, "x", "X"),
-                GetPropertyAsFloat(element, "y", "Y"));
+            if (!TryGetPropertyAsFloat(element, out var x, out var xError, "x", "X"))
+            {
+                error = $"X {xError}";
+                return false;
+            }
+
+            if (!TryGetPropertyAsFloat(element, out var y, out var yError, "y", "Y"))
+            {
+                error = $"Y {yError}";
+                return false;
+            }
+
+            point = new Point2f(x, y);
             return true;
+        }
+
+        error = "必须是 [x,y] 数组或 {x,y} 对象。";
+        return false;
+    }
+
+    private static bool TryParseElementAsFloat(JsonElement element, out float value, out string error)
+    {
+        value = 0f;
+        error = string.Empty;
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number:
+                var parsed = element.GetSingle();
+                if (!float.IsFinite(parsed))
+                {
+                    error = "必须是有限数值。";
+                    return false;
+                }
+
+                value = parsed;
+                return true;
+            case JsonValueKind.String:
+                if (float.TryParse(element.GetString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var fromString) &&
+                    float.IsFinite(fromString))
+                {
+                    value = fromString;
+                    return true;
+                }
+
+                error = "必须是有效数字。";
+                return false;
+            default:
+                error = "必须是数字或数字字符串。";
+                return false;
+        }
+    }
+
+    private static bool TryGetPropertyAsFloat(JsonElement obj, out float value, out string error, params string[] names)
+    {
+        value = 0f;
+        error = "字段缺失。";
+        foreach (var name in names)
+        {
+            if (!obj.TryGetProperty(name, out var propertyValue))
+            {
+                continue;
+            }
+
+            return TryParseElementAsFloat(propertyValue, out value, out error);
         }
 
         return false;
     }
 
-    private static float ParseElementAsFloat(JsonElement element)
+    private static bool TryEnsureNonDegenerateQuadrilateral(Point2f[] points, string label, out string? error)
     {
-        return element.ValueKind switch
+        error = null;
+        if (points.Length < 4)
         {
-            JsonValueKind.Number => element.GetSingle(),
-            JsonValueKind.String => float.TryParse(element.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ? value : 0f,
-            _ => 0f
-        };
-    }
-
-    private static float GetPropertyAsFloat(JsonElement obj, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            if (!obj.TryGetProperty(name, out var value))
-            {
-                continue;
-            }
-
-            return ParseElementAsFloat(value);
+            error = $"{label} 至少需要 4 个点。";
+            return false;
         }
 
-        return 0f;
+        var uniqueCount = points
+            .Select(p => $"{p.X:F6},{p.Y:F6}")
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        if (uniqueCount < 4)
+        {
+            error = $"{label} 包含重复点，无法构建透视变换。";
+            return false;
+        }
+
+        var sample = points.Take(4).ToArray();
+        var maxTriangleArea = ComputeMaxTriangleArea(sample);
+        if (maxTriangleArea <= 1e-6)
+        {
+            error = $"{label} 几何退化（点集共线或面积近零）。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static double ComputeMaxTriangleArea(IReadOnlyList<Point2f> points)
+    {
+        var maxArea = 0.0;
+        for (var i = 0; i < points.Count - 2; i++)
+        {
+            for (var j = i + 1; j < points.Count - 1; j++)
+            {
+                for (var k = j + 1; k < points.Count; k++)
+                {
+                    var area = Math.Abs(ComputeTriangleTwiceArea(points[i], points[j], points[k])) * 0.5;
+                    if (area > maxArea)
+                    {
+                        maxArea = area;
+                    }
+                }
+            }
+        }
+
+        return maxArea;
+    }
+
+    private static double ComputeTriangleTwiceArea(Point2f a, Point2f b, Point2f c)
+    {
+        return (b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y);
+    }
+
+    private static bool TryValidatePerspectiveMatrix(Mat matrix, out string error)
+    {
+        error = string.Empty;
+        if (matrix.Empty() || matrix.Rows != 3 || matrix.Cols != 3)
+        {
+            error = "Perspective matrix is invalid.";
+            return false;
+        }
+
+        for (var row = 0; row < 3; row++)
+        {
+            for (var col = 0; col < 3; col++)
+            {
+                var value = matrix.At<double>(row, col);
+                if (!double.IsFinite(value))
+                {
+                    error = "Perspective matrix contains non-finite values.";
+                    return false;
+                }
+            }
+        }
+
+        var determinant = Cv2.Determinant(matrix);
+        if (!double.IsFinite(determinant) || Math.Abs(determinant) <= 1e-12)
+        {
+            error = "Perspective matrix is singular or near-singular.";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryGetFloat(IDictionary<string, object> dict, string key, out float value)

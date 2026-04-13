@@ -77,17 +77,32 @@ public class AffineTransformOperator : OperatorBase
             var srcPointsJson = GetStringParam(@operator, "SrcPoints", string.Empty);
             var dstPointsJson = GetStringParam(@operator, "DstPoints", string.Empty);
 
-            if (!TryParsePointArray(srcPointsJson, out var srcPoints) || srcPoints.Length < 3)
+            if (!TryParsePointArray(srcPointsJson, out var srcPoints, out var srcError) || srcPoints.Length < 3)
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("SrcPoints must contain at least 3 points"));
+                return Task.FromResult(OperatorExecutionOutput.Failure($"SrcPoints must contain at least 3 points. {srcError}"));
             }
 
-            if (!TryParsePointArray(dstPointsJson, out var dstPoints) || dstPoints.Length < 3)
+            if (!TryParsePointArray(dstPointsJson, out var dstPoints, out var dstError) || dstPoints.Length < 3)
             {
-                return Task.FromResult(OperatorExecutionOutput.Failure("DstPoints must contain at least 3 points"));
+                return Task.FromResult(OperatorExecutionOutput.Failure($"DstPoints must contain at least 3 points. {dstError}"));
+            }
+
+            if (!TryEnsureNonCollinear(srcPoints.Take(3).ToArray(), "SrcPoints", out var srcDegenerateError))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure(srcDegenerateError));
+            }
+
+            if (!TryEnsureNonCollinear(dstPoints.Take(3).ToArray(), "DstPoints", out var dstDegenerateError))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure(dstDegenerateError));
             }
 
             affineMatrix = Cv2.GetAffineTransform(srcPoints.Take(3).ToArray(), dstPoints.Take(3).ToArray());
+            if (!TryValidateAffineMatrix(affineMatrix, out var matrixError))
+            {
+                affineMatrix.Dispose();
+                return Task.FromResult(OperatorExecutionOutput.Failure(matrixError));
+            }
         }
         else
         {
@@ -134,14 +149,24 @@ public class AffineTransformOperator : OperatorBase
         {
             var srcPoints = GetStringParam(@operator, "SrcPoints", string.Empty);
             var dstPoints = GetStringParam(@operator, "DstPoints", string.Empty);
-            if (!TryParsePointArray(srcPoints, out var src) || src.Length < 3)
+            if (!TryParsePointArray(srcPoints, out var src, out var srcError) || src.Length < 3)
             {
-                return ValidationResult.Invalid("SrcPoints must contain at least 3 points");
+                return ValidationResult.Invalid($"SrcPoints must contain at least 3 points. {srcError}");
             }
 
-            if (!TryParsePointArray(dstPoints, out var dst) || dst.Length < 3)
+            if (!TryParsePointArray(dstPoints, out var dst, out var dstError) || dst.Length < 3)
             {
-                return ValidationResult.Invalid("DstPoints must contain at least 3 points");
+                return ValidationResult.Invalid($"DstPoints must contain at least 3 points. {dstError}");
+            }
+
+            if (!TryEnsureNonCollinear(src.Take(3).ToArray(), "SrcPoints", out var srcDegenerateError))
+            {
+                return ValidationResult.Invalid(srcDegenerateError);
+            }
+
+            if (!TryEnsureNonCollinear(dst.Take(3).ToArray(), "DstPoints", out var dstDegenerateError))
+            {
+                return ValidationResult.Invalid(dstDegenerateError);
             }
         }
 
@@ -154,11 +179,13 @@ public class AffineTransformOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static bool TryParsePointArray(string json, out Point2f[] points)
+    private static bool TryParsePointArray(string json, out Point2f[] points, out string error)
     {
         points = Array.Empty<Point2f>();
+        error = string.Empty;
         if (string.IsNullOrWhiteSpace(json))
         {
+            error = "JSON is empty.";
             return false;
         }
 
@@ -167,58 +194,171 @@ public class AffineTransformOperator : OperatorBase
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
+                error = "JSON root must be an array.";
                 return false;
             }
 
             var parsed = new List<Point2f>();
+            var index = 0;
             foreach (var element in doc.RootElement.EnumerateArray())
             {
                 if (element.ValueKind == JsonValueKind.Array && element.GetArrayLength() >= 2)
                 {
-                    var x = ParseElementAsFloat(element[0]);
-                    var y = ParseElementAsFloat(element[1]);
+                    if (!TryParseElementAsFloat(element[0], out var x, out var xError))
+                    {
+                        error = $"Point[{index}].X {xError}";
+                        return false;
+                    }
+
+                    if (!TryParseElementAsFloat(element[1], out var y, out var yError))
+                    {
+                        error = $"Point[{index}].Y {yError}";
+                        return false;
+                    }
+
                     parsed.Add(new Point2f(x, y));
                 }
                 else if (element.ValueKind == JsonValueKind.Object)
                 {
-                    var x = GetPropertyAsFloat(element, "x", "X");
-                    var y = GetPropertyAsFloat(element, "y", "Y");
+                    if (!TryGetPropertyAsFloat(element, out var x, out var xError, "x", "X"))
+                    {
+                        error = $"Point[{index}].X {xError}";
+                        return false;
+                    }
+
+                    if (!TryGetPropertyAsFloat(element, out var y, out var yError, "y", "Y"))
+                    {
+                        error = $"Point[{index}].Y {yError}";
+                        return false;
+                    }
+
                     parsed.Add(new Point2f(x, y));
                 }
+                else
+                {
+                    error = $"Point[{index}] must be an array or object.";
+                    return false;
+                }
+
+                index++;
             }
 
             points = parsed.ToArray();
-            return points.Length > 0;
+            if (points.Length == 0)
+            {
+                error = "Point array is empty.";
+                return false;
+            }
+
+            return true;
         }
-        catch
+        catch (JsonException ex)
         {
+            error = $"Invalid point JSON: {ex.Message}";
             return false;
         }
     }
 
-    private static float ParseElementAsFloat(JsonElement element)
+    private static bool TryParseElementAsFloat(JsonElement element, out float value, out string error)
     {
-        return element.ValueKind switch
+        value = 0f;
+        error = string.Empty;
+        switch (element.ValueKind)
         {
-            JsonValueKind.Number => element.GetSingle(),
-            JsonValueKind.String => float.TryParse(element.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0f,
-            _ => 0f
-        };
+            case JsonValueKind.Number:
+                var parsed = element.GetSingle();
+                if (!float.IsFinite(parsed))
+                {
+                    error = "must be finite.";
+                    return false;
+                }
+
+                value = parsed;
+                return true;
+            case JsonValueKind.String:
+                if (float.TryParse(element.GetString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var fromString) &&
+                    float.IsFinite(fromString))
+                {
+                    value = fromString;
+                    return true;
+                }
+
+                error = "must be a valid number.";
+                return false;
+            default:
+                error = "must be a number or numeric string.";
+                return false;
+        }
     }
 
-    private static float GetPropertyAsFloat(JsonElement obj, params string[] names)
+    private static bool TryGetPropertyAsFloat(JsonElement obj, out float value, out string error, params string[] names)
     {
+        value = 0f;
+        error = "is required.";
         foreach (var name in names)
         {
-            if (!obj.TryGetProperty(name, out var value))
+            if (!obj.TryGetProperty(name, out var propertyValue))
             {
                 continue;
             }
 
-            return ParseElementAsFloat(value);
+            return TryParseElementAsFloat(propertyValue, out value, out error);
         }
 
-        return 0f;
+        return false;
+    }
+
+    private static bool TryEnsureNonCollinear(Point2f[] points, string label, out string error)
+    {
+        if (points.Length < 3)
+        {
+            error = $"{label} must contain at least 3 points.";
+            return false;
+        }
+
+        var twiceArea =
+            (points[1].X - points[0].X) * (points[2].Y - points[0].Y) -
+            (points[2].X - points[0].X) * (points[1].Y - points[0].Y);
+        if (Math.Abs(twiceArea) <= 1e-6)
+        {
+            error = $"{label} is degenerate (collinear points).";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryValidateAffineMatrix(Mat matrix, out string error)
+    {
+        error = string.Empty;
+        if (matrix.Empty() || matrix.Rows != 2 || matrix.Cols != 3)
+        {
+            error = "Affine matrix is invalid.";
+            return false;
+        }
+
+        var a = matrix.At<double>(0, 0);
+        var b = matrix.At<double>(0, 1);
+        var c = matrix.At<double>(0, 2);
+        var d = matrix.At<double>(1, 0);
+        var e = matrix.At<double>(1, 1);
+        var f = matrix.At<double>(1, 2);
+        if (!double.IsFinite(a) || !double.IsFinite(b) || !double.IsFinite(c) ||
+            !double.IsFinite(d) || !double.IsFinite(e) || !double.IsFinite(f))
+        {
+            error = "Affine matrix contains non-finite values.";
+            return false;
+        }
+
+        var det = a * e - b * d;
+        if (Math.Abs(det) <= 1e-12)
+        {
+            error = "Affine matrix is singular or near-singular.";
+            return false;
+        }
+
+        return true;
     }
 }
 

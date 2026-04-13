@@ -35,6 +35,7 @@ namespace Acme.Product.Infrastructure.Operators;
 public class PixelToWorldTransformOperator : OperatorBase
 {
     private const double Epsilon = 1e-12;
+    private static readonly HashSet<int> BrownConradyCoefficientLengths = new() { 4, 5, 8, 12, 14 };
 
     public override OperatorType OperatorType => OperatorType.PixelToWorldTransform;
 
@@ -75,10 +76,9 @@ public class PixelToWorldTransformOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure(acceptedError));
         }
 
-        var inputPoints = GetInputPoints(@operator, inputs);
-        if (inputPoints.Count == 0)
+        if (!TryGetInputPoints(@operator, inputs, out var inputPoints, out var pointError))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("No input points provided."));
+            return Task.FromResult(OperatorExecutionOutput.Failure(pointError));
         }
 
         if (bundle.Transform2D != null)
@@ -199,10 +199,15 @@ public class PixelToWorldTransformOperator : OperatorBase
             return OperatorExecutionOutput.Failure(contextError);
         }
 
-        var diagnostics = new List<string>();
-        if (useDistortion && bundle.Distortion is { Coefficients.Length: > 0 })
+        if (!TryCreateDistortionContext(bundle, useDistortion, out var distortion, out var distortionError))
         {
-            diagnostics.Add("Distortion coefficients were provided; ray-plane path currently uses pinhole projection.");
+            return OperatorExecutionOutput.Failure(distortionError);
+        }
+
+        var diagnostics = new List<string>();
+        if (distortion.Enabled)
+        {
+            diagnostics.Add($"Distortion model applied in ray-plane PixelToWorld path: {distortion.Model}.");
         }
 
         var outputPoints = new List<Point3d>(inputPoints.Count);
@@ -210,7 +215,7 @@ public class PixelToWorldTransformOperator : OperatorBase
         {
             if (isPixelToWorld)
             {
-                if (!TryPixelToWorldByRayPlane(context, point.X, point.Y, worldPlaneZ, out var worldPointMm, out var error))
+                if (!TryPixelToWorldByRayPlane(context, distortion, point.X, point.Y, worldPlaneZ, out var worldPointMm, out var error))
                 {
                     return OperatorExecutionOutput.Failure($"Ray-plane PixelToWorld failed: {error}");
                 }
@@ -373,26 +378,47 @@ public class PixelToWorldTransformOperator : OperatorBase
         return false;
     }
 
-    private List<Point3d> GetInputPoints(Operator @operator, Dictionary<string, object>? inputs)
+    private bool TryGetInputPoints(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        out List<Point3d> points,
+        out string error)
     {
-        var points = new List<Point3d>();
+        points = new List<Point3d>();
+        error = string.Empty;
+
         if (inputs != null && inputs.TryGetValue("Points", out var rawPoints) && rawPoints != null)
         {
-            TryAppendInputPoints(rawPoints, points);
+            if (!TryAppendInputPoints(rawPoints, points, out error))
+            {
+                return false;
+            }
         }
 
-        if (points.Count == 0)
+        if (points.Count > 0)
         {
-            var x = GetDoubleParam(@operator, "InputPointX", 0.0);
-            var y = GetDoubleParam(@operator, "InputPointY", 0.0);
-            points.Add(new Point3d(x, y, 0));
+            return true;
         }
 
-        return points;
+        if (inputs != null && inputs.ContainsKey("Points"))
+        {
+            error = "Points input is provided but contains no valid points.";
+            return false;
+        }
+
+        var x = GetDoubleParam(@operator, "InputPointX", 0.0);
+        var y = GetDoubleParam(@operator, "InputPointY", 0.0);
+        points.Add(new Point3d(x, y, 0));
+        return true;
     }
 
-    private static void TryAppendInputPoints(object rawPoints, ICollection<Point3d> output)
+    private static bool TryAppendInputPoints(
+        object rawPoints,
+        ICollection<Point3d> output,
+        out string error)
     {
+        error = string.Empty;
+
         if (rawPoints is IEnumerable<Position> positions)
         {
             foreach (var position in positions)
@@ -400,7 +426,7 @@ public class PixelToWorldTransformOperator : OperatorBase
                 output.Add(new Point3d(position.X, position.Y, 0));
             }
 
-            return;
+            return true;
         }
 
         if (rawPoints is IEnumerable<Point2f> point2Fs)
@@ -410,7 +436,7 @@ public class PixelToWorldTransformOperator : OperatorBase
                 output.Add(new Point3d(point.X, point.Y, 0));
             }
 
-            return;
+            return true;
         }
 
         if (rawPoints is IEnumerable<Point3f> point3Fs)
@@ -420,7 +446,7 @@ public class PixelToWorldTransformOperator : OperatorBase
                 output.Add(new Point3d(point.X, point.Y, point.Z));
             }
 
-            return;
+            return true;
         }
 
         if (rawPoints is IEnumerable<Point3d> point3Ds)
@@ -430,13 +456,12 @@ public class PixelToWorldTransformOperator : OperatorBase
                 output.Add(point);
             }
 
-            return;
+            return true;
         }
 
         if (rawPoints is string json && !string.IsNullOrWhiteSpace(json))
         {
-            TryAppendPointsFromJson(json, output);
-            return;
+            return TryAppendPointsFromJson(json, output, out error);
         }
 
         if (rawPoints is IEnumerable enumerable)
@@ -456,44 +481,82 @@ public class PixelToWorldTransformOperator : OperatorBase
                     output.Add(new Point3d(p2f.X, p2f.Y, 0));
                 }
             }
+
+            return true;
         }
+
+        error = $"Unsupported Points input type: {rawPoints.GetType().Name}.";
+        return false;
     }
 
-    private static void TryAppendPointsFromJson(string json, ICollection<Point3d> output)
+    private static bool TryAppendPointsFromJson(string json, ICollection<Point3d> output, out string error)
     {
+        error = string.Empty;
         try
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return;
+                error = "Points JSON must be an array of point objects.";
+                return false;
             }
 
+            var index = 0;
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.Object)
                 {
-                    continue;
+                    error = $"Points[{index}] must be an object.";
+                    return false;
                 }
 
-                if (!TryGetNumber(item, "X", out var x) || !TryGetNumber(item, "Y", out var y))
+                if (!TryReadNumber(item, "X", required: true, out var x, out var xError))
                 {
-                    continue;
+                    error = $"Points[{index}].X {xError}";
+                    return false;
                 }
 
-                var z = TryGetNumber(item, "Z", out var parsedZ) ? parsedZ : 0.0;
+                if (!TryReadNumber(item, "Y", required: true, out var y, out var yError))
+                {
+                    error = $"Points[{index}].Y {yError}";
+                    return false;
+                }
+
+                var z = 0.0;
+                if (!TryReadNumber(item, "Z", required: false, out z, out var zError))
+                {
+                    error = $"Points[{index}].Z {zError}";
+                    return false;
+                }
+
                 output.Add(new Point3d(x, y, z));
+                index++;
             }
+
+            if (index == 0)
+            {
+                error = "Points JSON must contain at least one point.";
+                return false;
+            }
+
+            return true;
         }
-        catch
+        catch (JsonException ex)
         {
-            // Ignore invalid point JSON and let caller handle empty point collection.
+            error = $"Invalid Points JSON: {ex.Message}";
+            return false;
         }
     }
 
-    private static bool TryGetNumber(JsonElement obj, string name, out double value)
+    private static bool TryReadNumber(
+        JsonElement obj,
+        string name,
+        bool required,
+        out double value,
+        out string error)
     {
         value = 0;
+        error = string.Empty;
         foreach (var property in obj.EnumerateObject())
         {
             if (!property.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
@@ -503,20 +566,36 @@ public class PixelToWorldTransformOperator : OperatorBase
 
             if (property.Value.ValueKind == JsonValueKind.Number)
             {
-                value = property.Value.GetDouble();
+                var parsed = property.Value.GetDouble();
+                if (!double.IsFinite(parsed))
+                {
+                    error = "must be finite.";
+                    return false;
+                }
+
+                value = parsed;
                 return true;
             }
 
             if (property.Value.ValueKind == JsonValueKind.String &&
-                double.TryParse(property.Value.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                double.TryParse(property.Value.GetString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var fromString) &&
+                double.IsFinite(fromString))
             {
+                value = fromString;
                 return true;
             }
 
+            error = "must be a valid number.";
             return false;
         }
 
-        return false;
+        if (required)
+        {
+            error = "is required.";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryCreateRayPlaneContext(
@@ -558,16 +637,26 @@ public class PixelToWorldTransformOperator : OperatorBase
             return false;
         }
 
-        var source = bundle.SourceFrame?.ToLowerInvariant() ?? string.Empty;
-        var target = bundle.TargetFrame?.ToLowerInvariant() ?? string.Empty;
+        if (!TryMapRayPlaneFrame(bundle.SourceFrame, out var source))
+        {
+            error = $"Unsupported SourceFrame for ray-plane path: '{bundle.SourceFrame}'.";
+            return false;
+        }
+
+        if (!TryMapRayPlaneFrame(bundle.TargetFrame, out var target))
+        {
+            error = $"Unsupported TargetFrame for ray-plane path: '{bundle.TargetFrame}'.";
+            return false;
+        }
+
         var rawTransform = bundle.Transform3D.Matrix;
 
         double[][] cameraToWorld;
-        if (source.Contains("camera") && target.Contains("world"))
+        if (source == RayPlaneFrame.Camera && target == RayPlaneFrame.World)
         {
             cameraToWorld = CloneMatrix(rawTransform);
         }
-        else if (source.Contains("world") && target.Contains("camera"))
+        else if (source == RayPlaneFrame.World && target == RayPlaneFrame.Camera)
         {
             if (!TryInvert4x4(rawTransform, out cameraToWorld))
             {
@@ -577,7 +666,8 @@ public class PixelToWorldTransformOperator : OperatorBase
         }
         else
         {
-            cameraToWorld = CloneMatrix(rawTransform);
+            error = $"Unsupported SourceFrame/TargetFrame combination for ray-plane path: '{bundle.SourceFrame}' -> '{bundle.TargetFrame}'.";
+            return false;
         }
 
         if (!TryInvert4x4(cameraToWorld, out var worldToCamera))
@@ -592,6 +682,7 @@ public class PixelToWorldTransformOperator : OperatorBase
 
     private static bool TryPixelToWorldByRayPlane(
         RayPlaneContext context,
+        DistortionContext distortion,
         double pixelX,
         double pixelY,
         double worldPlaneZ,
@@ -601,10 +692,12 @@ public class PixelToWorldTransformOperator : OperatorBase
         worldPoint = default;
         error = string.Empty;
 
-        var rayCamera = Normalize(new Point3d(
-            (pixelX - context.Cx) / context.Fx,
-            (pixelY - context.Cy) / context.Fy,
-            1.0));
+        if (!TryResolveNormalizedCameraPoint(context, distortion, pixelX, pixelY, out var normalized, out error))
+        {
+            return false;
+        }
+
+        var rayCamera = Normalize(new Point3d(normalized.X, normalized.Y, 1.0));
 
         var rayWorld = TransformDirection(context.CameraToWorld, rayCamera);
         if (Math.Abs(rayWorld.Z) <= Epsilon)
@@ -626,6 +719,112 @@ public class PixelToWorldTransformOperator : OperatorBase
             return false;
         }
 
+        return true;
+    }
+
+    private static bool TryCreateDistortionContext(
+        CalibrationBundleV2 bundle,
+        bool useDistortion,
+        out DistortionContext context,
+        out string error)
+    {
+        context = DistortionContext.Disabled;
+        error = string.Empty;
+
+        if (!useDistortion)
+        {
+            return true;
+        }
+
+        var distortion = bundle.Distortion;
+        if (distortion == null || distortion.Model == DistortionModelV2.None || distortion.Coefficients.Length == 0)
+        {
+            return true;
+        }
+
+        if (!CalibrationBundleV2Helpers.IsFiniteVector(distortion.Coefficients))
+        {
+            error = "Distortion coefficients contain NaN or Infinity.";
+            return false;
+        }
+
+        switch (distortion.Model)
+        {
+            case DistortionModelV2.BrownConrady:
+                if (!BrownConradyCoefficientLengths.Contains(distortion.Coefficients.Length))
+                {
+                    error = $"BrownConrady distortion in ray-plane path requires one of coefficient lengths: {string.Join(", ", BrownConradyCoefficientLengths.OrderBy(v => v))}.";
+                    return false;
+                }
+
+                context = new DistortionContext(true, distortion.Model, distortion.Coefficients.ToArray());
+                return true;
+            case DistortionModelV2.KannalaBrandt:
+                error = "Ray-plane path cannot continue with UseDistortion=true because KannalaBrandt undistortion is not supported in this operator.";
+                return false;
+            default:
+                error = $"Unsupported distortion model in ray-plane path: {distortion.Model}.";
+                return false;
+        }
+    }
+
+    private static bool TryResolveNormalizedCameraPoint(
+        RayPlaneContext context,
+        DistortionContext distortion,
+        double pixelX,
+        double pixelY,
+        out Point2d normalized,
+        out string error)
+    {
+        normalized = default;
+        error = string.Empty;
+
+        if (!distortion.Enabled)
+        {
+            normalized = new Point2d(
+                (pixelX - context.Cx) / context.Fx,
+                (pixelY - context.Cy) / context.Fy);
+            return true;
+        }
+
+        if (distortion.Model != DistortionModelV2.BrownConrady)
+        {
+            error = $"Unsupported distortion model in ray-plane normalization: {distortion.Model}.";
+            return false;
+        }
+
+        using var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1, Scalar.All(0));
+        cameraMatrix.Set(0, 0, context.Fx);
+        cameraMatrix.Set(1, 1, context.Fy);
+        cameraMatrix.Set(0, 2, context.Cx);
+        cameraMatrix.Set(1, 2, context.Cy);
+        cameraMatrix.Set(2, 2, 1.0);
+
+        using var distCoeffs = new Mat(distortion.Coefficients.Length, 1, MatType.CV_64FC1);
+        for (var i = 0; i < distortion.Coefficients.Length; i++)
+        {
+            distCoeffs.Set(i, 0, distortion.Coefficients[i]);
+        }
+
+        using var srcPoints = new Mat(1, 1, MatType.CV_64FC2);
+        srcPoints.Set(0, 0, new Vec2d(pixelX, pixelY));
+
+        using var undistortedPoints = new Mat();
+        Cv2.UndistortPoints(srcPoints, undistortedPoints, cameraMatrix, distCoeffs);
+        if (undistortedPoints.Empty())
+        {
+            error = "UndistortPoints returned an empty result.";
+            return false;
+        }
+
+        var uv = undistortedPoints.At<Vec2d>(0, 0);
+        if (!double.IsFinite(uv.Item0) || !double.IsFinite(uv.Item1))
+        {
+            error = "UndistortPoints produced non-finite normalized coordinates.";
+            return false;
+        }
+
+        normalized = new Point2d(uv.Item0, uv.Item1);
         return true;
     }
 
@@ -731,6 +930,51 @@ public class PixelToWorldTransformOperator : OperatorBase
         return clone;
     }
 
+    private static bool TryMapRayPlaneFrame(string? frame, out RayPlaneFrame mapped)
+    {
+        mapped = default;
+        var normalized = NormalizeFrameToken(frame);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return false;
+        }
+
+        switch (normalized)
+        {
+            case "camera":
+            case "cam":
+            case "cameraframe":
+            case "image":
+            case "imageundistorted":
+                mapped = RayPlaneFrame.Camera;
+                return true;
+            case "world":
+            case "worldframe":
+            case "base":
+            case "robotbase":
+                mapped = RayPlaneFrame.World;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string NormalizeFrameToken(string? frame)
+    {
+        if (string.IsNullOrWhiteSpace(frame))
+        {
+            return string.Empty;
+        }
+
+        return new string(frame.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+    }
+
+    private enum RayPlaneFrame
+    {
+        Camera = 0,
+        World = 1
+    }
+
     private readonly record struct RayPlaneContext(
         double Fx,
         double Fy,
@@ -738,4 +982,12 @@ public class PixelToWorldTransformOperator : OperatorBase
         double Cy,
         double[][] CameraToWorld,
         double[][] WorldToCamera);
+
+    private readonly record struct DistortionContext(
+        bool Enabled,
+        DistortionModelV2 Model,
+        double[] Coefficients)
+    {
+        public static DistortionContext Disabled => new(false, DistortionModelV2.None, Array.Empty<double>());
+    }
 }

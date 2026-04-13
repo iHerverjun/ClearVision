@@ -1,8 +1,10 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -77,15 +79,10 @@ public sealed class DetectionPerformanceBudgetAcceptanceTests
         AddParam(geoOp, "DistanceModel", "InfiniteLine", "string");
 
         var toleranceOp = new Operator("GeometricTolerance", OperatorType.GeometricTolerance, 0, 0);
-        AddParam(toleranceOp, "MeasureType", "Parallelism", "string");
-        AddParam(toleranceOp, "Line1_X1", 60, "int");
-        AddParam(toleranceOp, "Line1_Y1", 120, "int");
-        AddParam(toleranceOp, "Line1_X2", 460, "int");
-        AddParam(toleranceOp, "Line1_Y2", 140, "int");
-        AddParam(toleranceOp, "Line2_X1", 60, "int");
-        AddParam(toleranceOp, "Line2_Y1", 220, "int");
-        AddParam(toleranceOp, "Line2_X2", 460, "int");
-        AddParam(toleranceOp, "Line2_Y2", 240, "int");
+        AddParam(toleranceOp, "ToleranceType", "Parallelism", "string");
+        AddParam(toleranceOp, "ZoneSize", 4.0, "double");
+
+        AssertGeometricToleranceBudgetContractAlignment(toleranceOp);
 
         var histogramOp = new Operator("HistogramAnalysis", OperatorType.HistogramAnalysis, 0, 0);
         AddParam(histogramOp, "Channel", "Gray", "string");
@@ -160,7 +157,12 @@ public sealed class DetectionPerformanceBudgetAcceptanceTests
             }),
             new("GeometricTolerance", 20.0, async () =>
             {
-                var inputs = new Dictionary<string, object> { ["Image"] = CreateMeasurementImage(512, 512) };
+                var inputs = new Dictionary<string, object>
+                {
+                    ["Image"] = CreateMeasurementImage(512, 512),
+                    ["FeaturePrimary"] = new LineData(60, 120, 460, 140),
+                    ["DatumA"] = new LineData(60, 220, 460, 240)
+                };
                 await ExecuteCaseAsync("GeometricTolerance", tolerance, toleranceOp, inputs);
             }),
             new("HistogramAnalysis", 10.0, async () =>
@@ -518,6 +520,51 @@ public sealed class DetectionPerformanceBudgetAcceptanceTests
     {
         var raw = Environment.GetEnvironmentVariable(name);
         return string.IsNullOrWhiteSpace(raw) ? defaultValue : raw.Trim();
+    }
+
+    private static void AssertGeometricToleranceBudgetContractAlignment(Operator toleranceOp)
+    {
+        var inputPorts = typeof(GeometricToleranceOperator)
+            .GetCustomAttributes<InputPortAttribute>(inherit: false)
+            .ToArray();
+
+        Assert.True(
+            HasRequiredInputPort(inputPorts, "FeaturePrimary"),
+            "Contract drift detected: GeometricToleranceOperator must expose required input port 'FeaturePrimary'. " +
+            "Update DetectionPerformanceBudgetAcceptanceTests GeometricTolerance fixture.");
+        Assert.True(
+            HasRequiredInputPort(inputPorts, "DatumA"),
+            "Contract drift detected: GeometricToleranceOperator must expose required input port 'DatumA'. " +
+            "Update DetectionPerformanceBudgetAcceptanceTests GeometricTolerance fixture.");
+        Assert.True(
+            HasOptionalInputPort(inputPorts, "DatumB"),
+            "Contract drift detected: GeometricToleranceOperator must expose optional input port 'DatumB'. " +
+            "Update DetectionPerformanceBudgetAcceptanceTests GeometricTolerance fixture.");
+
+        var paramNames = toleranceOp.Parameters
+            .Select(parameter => parameter.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.True(
+            paramNames.Contains("ToleranceType"),
+            "Contract drift detected: GeometricTolerance budget fixture must configure parameter 'ToleranceType'.");
+        Assert.DoesNotContain(
+            "MeasureType",
+            paramNames);
+    }
+
+    private static bool HasRequiredInputPort(IEnumerable<InputPortAttribute> inputPorts, string portName)
+    {
+        return inputPorts.Any(port =>
+            port.Name.Equals(portName, StringComparison.OrdinalIgnoreCase) &&
+            port.IsRequired);
+    }
+
+    private static bool HasOptionalInputPort(IEnumerable<InputPortAttribute> inputPorts, string portName)
+    {
+        return inputPorts.Any(port =>
+            port.Name.Equals(portName, StringComparison.OrdinalIgnoreCase) &&
+            !port.IsRequired);
     }
 
     private static void AddParam(Operator op, string name, object value, string dataType)

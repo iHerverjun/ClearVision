@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -153,7 +154,7 @@ public class GeometricToleranceOperator : OperatorBase
         out string? error)
     {
         evaluation = default;
-        error = null;
+        error = string.Empty;
 
         switch (toleranceType)
         {
@@ -161,6 +162,12 @@ public class GeometricToleranceOperator : OperatorBase
                 if (!TryParseLine(featureObj, out var featureLine) || !TryParseLine(datumAObj, out var datumLine))
                 {
                     error = "Parallelism requires FeaturePrimary and DatumA as lines";
+                    return false;
+                }
+
+                if (!TryEnsureNonDegenerateLine(featureLine, "FeaturePrimary", out error) ||
+                    !TryEnsureNonDegenerateLine(datumLine, "DatumA", out error))
+                {
                     return false;
                 }
 
@@ -180,6 +187,12 @@ public class GeometricToleranceOperator : OperatorBase
                 if (!TryParseLine(featureObj, out featureLine) || !TryParseLine(datumAObj, out datumLine))
                 {
                     error = "Perpendicularity requires FeaturePrimary and DatumA as lines";
+                    return false;
+                }
+
+                if (!TryEnsureNonDegenerateLine(featureLine, "FeaturePrimary", out error) ||
+                    !TryEnsureNonDegenerateLine(datumLine, "DatumA", out error))
+                {
                     return false;
                 }
 
@@ -225,13 +238,23 @@ public class GeometricToleranceOperator : OperatorBase
                     return false;
                 }
 
+                if (!TryEnsureNonDegenerateLine(datumLine, "DatumA", out error) ||
+                    !TryEnsureNonDegenerateLine(datumBLine, "DatumB", out error))
+                {
+                    return false;
+                }
+
                 if (!MeasurementGeometryHelper.TryGetInfiniteLineIntersection(datumLine, datumBLine, out var origin))
                 {
                     error = "DatumA and DatumB must intersect to define a datum frame";
                     return false;
                 }
 
-                var frame = CreateDatumFrame(origin, datumLine, datumBLine);
+                if (!TryCreateDatumFrame(origin, datumLine, datumBLine, out var frame, out error))
+                {
+                    return false;
+                }
+
                 var actual = ProjectToFrame(featureCenter, frame);
                 var deltaX = actual.X - nominalX;
                 var deltaY = actual.Y - nominalY;
@@ -272,11 +295,49 @@ public class GeometricToleranceOperator : OperatorBase
         }
     }
 
-    private static (Position Origin, Position AxisX, Position AxisY) CreateDatumFrame(Position origin, LineData datumA, LineData datumB)
+    private static bool TryEnsureNonDegenerateLine(LineData line, string lineName, out string? error)
     {
-        var axisA = NormalizeDirection(new Position(datumA.EndX - datumA.StartX, datumA.EndY - datumA.StartY));
-        var axisB = NormalizeDirection(new Position(datumB.EndX - datumB.StartX, datumB.EndY - datumB.StartY));
-        return (origin, axisA, axisB);
+        var dx = line.EndX - line.StartX;
+        var dy = line.EndY - line.StartY;
+        var norm = Math.Sqrt((dx * dx) + (dy * dy));
+        if (norm < 1e-9)
+        {
+            error = $"{lineName} is degenerate (zero-length line)";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryCreateDatumFrame(
+        Position origin,
+        LineData datumA,
+        LineData datumB,
+        out (Position Origin, Position AxisX, Position AxisY) frame,
+        out string? error)
+    {
+        frame = default;
+        var axisAInput = new Position(datumA.EndX - datumA.StartX, datumA.EndY - datumA.StartY);
+        if (!TryNormalizeDirection(axisAInput, "DatumA", out var axisX, out error))
+        {
+            return false;
+        }
+
+        var axisBInput = new Position(datumB.EndX - datumB.StartX, datumB.EndY - datumB.StartY);
+        var projection = Dot(axisBInput, axisX);
+        var orthogonal = new Position(
+            axisBInput.X - projection * axisX.X,
+            axisBInput.Y - projection * axisX.Y);
+
+        if (!TryNormalizeDirection(orthogonal, "DatumB", out var axisY, out error))
+        {
+            error = "DatumB is parallel to DatumA and cannot define an orthogonal datum frame";
+            return false;
+        }
+
+        frame = (origin, axisX, axisY);
+        return true;
     }
 
     private static Position ProjectToFrame(Position point, (Position Origin, Position AxisX, Position AxisY) frame)
@@ -288,15 +349,28 @@ public class GeometricToleranceOperator : OperatorBase
             (vx * frame.AxisY.X) + (vy * frame.AxisY.Y));
     }
 
-    private static Position NormalizeDirection(Position vector)
+    private static bool TryNormalizeDirection(
+        Position vector,
+        string vectorName,
+        out Position normalized,
+        out string? error)
     {
+        normalized = default;
         var norm = Math.Sqrt((vector.X * vector.X) + (vector.Y * vector.Y));
         if (norm < 1e-9)
         {
-            return new Position(1, 0);
+            error = $"{vectorName} direction is degenerate";
+            return false;
         }
 
-        return new Position(vector.X / norm, vector.Y / norm);
+        normalized = new Position(vector.X / norm, vector.Y / norm);
+        error = string.Empty;
+        return true;
+    }
+
+    private static double Dot(Position a, Position b)
+    {
+        return (a.X * b.X) + (a.Y * b.Y);
     }
 
     private static void DrawOverlay(Mat image, object featureObj, object datumAObj, object? datumBObj, ToleranceEvaluation evaluation)
@@ -392,8 +466,8 @@ public class GeometricToleranceOperator : OperatorBase
         if (obj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(entry => entry.Key != null)
-                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null && entry.Value != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value!, StringComparer.OrdinalIgnoreCase);
             return TryParsePoint(normalized, out point);
         }
 
@@ -438,8 +512,8 @@ public class GeometricToleranceOperator : OperatorBase
         if (obj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(entry => entry.Key != null)
-                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null && entry.Value != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value!, StringComparer.OrdinalIgnoreCase);
             return TryParseLine(normalized, out line);
         }
 
@@ -472,8 +546,8 @@ public class GeometricToleranceOperator : OperatorBase
         if (obj is IDictionary legacy)
         {
             var normalized = legacy.Cast<DictionaryEntry>()
-                .Where(entry => entry.Key != null)
-                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value ?? 0.0, StringComparer.OrdinalIgnoreCase);
+                .Where(entry => entry.Key != null && entry.Value != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value!, StringComparer.OrdinalIgnoreCase);
             return TryParseCircle(normalized, out circle);
         }
 
@@ -490,11 +564,16 @@ public class GeometricToleranceOperator : OperatorBase
 
         return raw switch
         {
-            double d => (value = d) == d,
-            float f => (value = f) == f,
+            double d when double.IsFinite(d) => (value = d) == d,
+            float f when float.IsFinite(f) => (value = f) == f,
             int i => (value = i) == i,
             long l => (value = l) == l,
-            _ => double.TryParse(raw.ToString(), out value)
+            decimal m => (value = (double)m) == (double)m,
+            _ => double.TryParse(
+                raw.ToString(),
+                NumberStyles.Float | NumberStyles.AllowThousands,
+                CultureInfo.InvariantCulture,
+                out value) && double.IsFinite(value)
         };
     }
 
