@@ -57,16 +57,16 @@ public class ImageSaveOperator : OperatorBase
         }
 
         // 获取参数
-        var folderPath = GetStringParam(@operator, "FolderPath", "");
-        var fileName = GetStringParam(@operator, "FileName", "image_{timestamp}.png");
-        var format = GetStringParam(@operator, "Format", "png");
-        var jpegQuality = GetIntParam(@operator, "JpegQuality", 95, 1, 100);
+        var folderPath = ResolveDirectory(@operator);
+        var fileName = ResolveFileNameTemplate(@operator);
+        var format = ResolveFormat(@operator, fileName);
+        var jpegQuality = ResolveJpegQuality(@operator);
         var overwrite = GetBoolParam(@operator, "Overwrite", false);
         var createFolder = GetBoolParam(@operator, "CreateFolder", true);
 
         if (string.IsNullOrWhiteSpace(folderPath))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("FolderPath 参数不能为空"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Directory/FolderPath 参数不能为空"));
         }
 
         try
@@ -136,6 +136,7 @@ public class ImageSaveOperator : OperatorBase
 
             return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
             {
+                { "IsSuccess", true },
                 { "Success", true },
                 { "FilePath", fullPath },
                 { "FileName", actualFileName },
@@ -159,6 +160,7 @@ public class ImageSaveOperator : OperatorBase
     {
         var result = template;
         var now = DateTime.Now;
+        var guidToken = Guid.NewGuid().ToString("N");
 
         result = result.Replace("{timestamp}", now.ToString("yyyyMMdd_HHmmss"));
         result = result.Replace("{date}", now.ToString("yyyyMMdd"));
@@ -166,19 +168,21 @@ public class ImageSaveOperator : OperatorBase
         result = result.Replace("{year}", now.Year.ToString());
         result = result.Replace("{month}", now.Month.ToString("D2"));
         result = result.Replace("{day}", now.Day.ToString("D2"));
+        result = result.Replace("{Guid}", guidToken);
+        result = result.Replace("{guid}", guidToken);
 
         return result;
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var folderPath = GetStringParam(@operator, "FolderPath", "");
-        var format = GetStringParam(@operator, "Format", "png");
-        var jpegQuality = GetIntParam(@operator, "JpegQuality", 95);
+        var folderPath = ResolveDirectory(@operator);
+        var format = ResolveFormat(@operator, ResolveFileNameTemplate(@operator));
+        var jpegQuality = ResolveJpegQuality(@operator);
 
         if (string.IsNullOrWhiteSpace(folderPath))
         {
-            return ValidationResult.Invalid("FolderPath 不能为空");
+            return ValidationResult.Invalid("Directory/FolderPath 不能为空");
         }
 
         var validFormats = new[] { "png", "jpg", "jpeg", "bmp" };
@@ -193,5 +197,95 @@ public class ImageSaveOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private string ResolveDirectory(Operator @operator)
+    {
+        var directory = GetStringParam(@operator, "Directory", "");
+        var legacyDirectory = GetStringParam(@operator, "FolderPath", "");
+
+        if (IsExplicitlyConfigured(@operator, "Directory"))
+        {
+            return directory;
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyDirectory))
+        {
+            return legacyDirectory;
+        }
+
+        return directory;
+    }
+
+    private string ResolveFileNameTemplate(Operator @operator)
+    {
+        var template = GetStringParam(@operator, "FileNameTemplate", "");
+        var legacyTemplate = GetStringParam(@operator, "FileName", "image_{timestamp}.png");
+
+        if (IsExplicitlyConfigured(@operator, "FileNameTemplate"))
+        {
+            return template;
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyTemplate))
+        {
+            return legacyTemplate;
+        }
+
+        return template;
+    }
+
+    private string ResolveFormat(Operator @operator, string fileNameTemplate)
+    {
+        var explicitFormat = GetStringParam(@operator, "Format", "");
+        if (!string.IsNullOrWhiteSpace(explicitFormat))
+        {
+            return explicitFormat.Trim().TrimStart('.').ToLowerInvariant();
+        }
+
+        var extension = Path.GetExtension(fileNameTemplate);
+        if (!string.IsNullOrWhiteSpace(extension))
+        {
+            return extension.TrimStart('.').ToLowerInvariant();
+        }
+
+        return "png";
+    }
+
+    private int ResolveJpegQuality(Operator @operator)
+    {
+        var metadataQuality = GetIntParam(@operator, "Quality", 90, 1, 100);
+        var legacyQuality = GetIntParam(@operator, "JpegQuality", metadataQuality, 1, 100);
+
+        if (IsExplicitlyConfigured(@operator, "Quality"))
+        {
+            return metadataQuality;
+        }
+
+        if (HasParameter(@operator, "JpegQuality"))
+        {
+            return legacyQuality;
+        }
+
+        return metadataQuality;
+    }
+
+    private static bool HasParameter(Operator @operator, string name)
+    {
+        return @operator.Parameters.Any(parameter =>
+            string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsExplicitlyConfigured(Operator @operator, string name)
+    {
+        var parameter = @operator.Parameters.FirstOrDefault(item =>
+            string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (parameter == null)
+        {
+            return false;
+        }
+
+        return !string.Equals(parameter.ValueJson, parameter.DefaultValueJson, StringComparison.Ordinal);
     }
 }
