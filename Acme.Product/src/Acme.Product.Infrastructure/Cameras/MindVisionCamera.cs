@@ -467,24 +467,28 @@ public class MindVisionCamera : ICameraProvider
         catch { return false; }
     }
 
-    public bool SetTriggerMode(bool softwareTrigger)
+    public bool SetTriggerMode(CameraTriggerMode mode)
     {
         if (!_isConnected || _cam == null)
             return false;
 
         try
         {
-            if (softwareTrigger)
+            if (mode == CameraTriggerMode.Software)
             {
                 _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "On");
                 int res = _cam.IMV_SetEnumFeatureSymbol("TriggerSource", "Software");
                 return res == IMVDefine.IMV_OK;
             }
-            else
+
+            if (mode == CameraTriggerMode.External)
             {
-                int res = _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "Off");
+                int res = _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "On");
                 return res == IMVDefine.IMV_OK;
             }
+
+            int continuousRes = _cam.IMV_SetEnumFeatureSymbol("TriggerMode", "Off");
+            return continuousRes == IMVDefine.IMV_OK;
         }
         catch { return false; }
     }

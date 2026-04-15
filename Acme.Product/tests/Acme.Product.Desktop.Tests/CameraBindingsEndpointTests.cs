@@ -28,7 +28,7 @@ public class CameraBindingsEndpointTests
         var cameraManager = Substitute.For<ICameraManager>();
         cameraManager.GetBindings().Returns(new List<CameraBindingConfig>
         {
-            new() { Id = "cam-connected", DisplayName = "Connected", SerialNumber = "SN-CONNECTED", IpAddress = "10.0.0.1", IsEnabled = true },
+            new() { Id = "cam-connected", DisplayName = "Connected", SerialNumber = "SN-CONNECTED", IpAddress = "10.0.0.1", IsEnabled = true, TriggerMode = "Hardware" },
             new() { Id = "cam-online", DisplayName = "Online", SerialNumber = "SN-ONLINE", IpAddress = "10.0.0.2", IsEnabled = true },
             new() { Id = "cam-offline", DisplayName = "Offline", SerialNumber = "SN-OFFLINE", IpAddress = "10.0.0.3", IsEnabled = true },
             new() { Id = "cam-disabled", DisplayName = "Disabled", SerialNumber = "SN-DISABLED", IpAddress = "10.0.0.4", IsEnabled = false },
@@ -55,6 +55,8 @@ public class CameraBindingsEndpointTests
         GetProperty(FindById(items, "cam-connected"), "ConnectionStatus", "connectionStatus").GetString().Should().Be("Connected");
         GetProperty(FindById(items, "cam-connected"), "DeviceId", "deviceId").GetString().Should().Be("SN-CONNECTED");
         GetProperty(FindById(items, "cam-connected"), "IpAddress", "ipAddress").GetString().Should().Be("10.0.0.1");
+        GetProperty(FindById(items, "cam-connected"), "TriggerMode", "triggerMode").GetString().Should().Be("External");
+        GetProperty(FindById(items, "cam-connected"), "TargetFrameRateFps", "targetFrameRateFps").GetInt32().Should().Be(10);
         GetProperty(FindById(items, "cam-online"), "ConnectionStatus", "connectionStatus").GetString().Should().Be("Online");
         GetProperty(FindById(items, "cam-offline"), "ConnectionStatus", "connectionStatus").GetString().Should().Be("Offline");
         GetProperty(FindById(items, "cam-disabled"), "ConnectionStatus", "connectionStatus").GetString().Should().Be("Disabled");
@@ -100,6 +102,7 @@ public class CameraBindingsEndpointTests
 
             builder.WebHost.UseTestServer();
             builder.Services.AddSingleton(cameraManager);
+            builder.Services.AddSingleton(Substitute.For<ICameraFrameStreamCoordinator>());
 
             var configService = Substitute.For<IConfigurationService>();
             configService.LoadAsync().Returns(Task.FromResult(new AppConfig()));

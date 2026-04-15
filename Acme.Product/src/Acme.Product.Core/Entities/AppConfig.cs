@@ -27,6 +27,10 @@ public class AppConfig
         Storage ??= new StorageConfig();
         Runtime ??= new RuntimeConfig();
         Cameras ??= new List<CameraBindingConfig>();
+        foreach (var camera in Cameras)
+        {
+            camera.Normalize();
+        }
         Security ??= new SecurityConfig();
         ActiveCameraId ??= string.Empty;
     }
@@ -382,4 +386,20 @@ public class CameraBindingConfig
     public double GainDb { get; set; } = 1.0;
 
     public string TriggerMode { get; set; } = "Software";
+
+    public int TargetFrameRateFps { get; set; } = 10;
+
+    public void Normalize()
+    {
+        Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString("N")[..8] : Id.Trim();
+        DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? "Camera" : DisplayName.Trim();
+        SerialNumber = SerialNumber?.Trim() ?? string.Empty;
+        IpAddress = IpAddress?.Trim() ?? string.Empty;
+        Manufacturer = string.IsNullOrWhiteSpace(Manufacturer) ? "Huaray" : Manufacturer.Trim();
+        ModelName = ModelName?.Trim() ?? string.Empty;
+        InterfaceType = InterfaceType?.Trim() ?? string.Empty;
+        TriggerMode = Acme.Product.Core.Cameras.CameraTriggerModeExtensions.ToConfigValue(
+            Acme.Product.Core.Cameras.CameraTriggerModeExtensions.Normalize(TriggerMode));
+        TargetFrameRateFps = Acme.Product.Core.Cameras.CameraTriggerModeExtensions.NormalizeTargetFrameRate(TargetFrameRateFps);
+    }
 }

@@ -565,19 +565,22 @@ public class HikvisionCamera : ICameraProvider
         return MV_CC_SetFloatValue(_handle, "Gain", (float)value) == MV_OK;
     }
 
-    public bool SetTriggerMode(bool softwareTrigger)
+    public bool SetTriggerMode(CameraTriggerMode mode)
     {
         if (!IsConnected) return false;
 
-        if (softwareTrigger)
+        if (mode == CameraTriggerMode.Software)
         {
             MV_CC_SetEnumValueByString(_handle, "TriggerMode", "On");
             return MV_CC_SetEnumValueByString(_handle, "TriggerSource", "Software") == MV_OK;
         }
-        else
+
+        if (mode == CameraTriggerMode.External)
         {
-            return MV_CC_SetEnumValueByString(_handle, "TriggerMode", "Off") == MV_OK;
+            return MV_CC_SetEnumValueByString(_handle, "TriggerMode", "On") == MV_OK;
         }
+
+        return MV_CC_SetEnumValueByString(_handle, "TriggerMode", "Off") == MV_OK;
     }
 
     public bool ExecuteSoftwareTrigger()

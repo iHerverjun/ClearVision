@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Acme.Product.Application.Analysis;
+using Acme.Product.Core.Cameras;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Events;
@@ -342,6 +343,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             var imageAcquisition = scope.ServiceProvider.GetRequiredService<IImageAcquisitionService>();
             var resultChannelWriter = scope.ServiceProvider.GetRequiredService<IInspectionResultChannelWriter>();
             var projectRepository = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
+            var cameraManager = scope.ServiceProvider.GetRequiredService<ICameraManager>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<InspectionWorker>>();
 
             // 创建日志上下文
@@ -368,6 +370,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     sessionId,
                     flow,
                     cameraId,
+                    IsFrameDrivenExecution(flow, cameraId, cameraManager),
                     flowExecution,
                     imageAcquisition,
                     resultChannelWriter,
@@ -415,6 +418,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         Guid sessionId,
         OperatorFlow flow,
         string? cameraId,
+        bool frameDrivenExecution,
         IFlowExecutionService flowExecution,
         IImageAcquisitionService imageAcquisition,
         IInspectionResultChannelWriter resultChannelWriter,
@@ -430,6 +434,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         {
             var startTime = DateTime.UtcNow;
             cycleCount++;
+            var cycleSucceeded = false;
 
             try
             {
@@ -490,6 +495,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                 }
 
                 currentIntervalMs = 500;
+                cycleSucceeded = true;
             }
             catch (OperationCanceledException)
             {
@@ -504,6 +510,11 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
 
             // 计算间隔
             var elapsedMs = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
+            if (frameDrivenExecution && cycleSucceeded)
+            {
+                continue;
+            }
+
             var delayMs = Math.Max(currentIntervalMs - elapsedMs, minIntervalMs);
 
             try
@@ -522,6 +533,53 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
     /// <summary>
     /// 执行单轮检测
     /// </summary>
+    private static bool IsFrameDrivenExecution(OperatorFlow flow, string? cameraId, ICameraManager cameraManager)
+    {
+        if (IsFrameDrivenBinding(cameraManager, cameraId))
+        {
+            return true;
+        }
+
+        foreach (var op in flow.Operators.Where(item => item.Type == OperatorType.ImageAcquisition))
+        {
+            var sourceType = op.Parameters
+                .FirstOrDefault(parameter => parameter.Name.Equals("SourceType", StringComparison.OrdinalIgnoreCase))
+                ?.Value?.ToString();
+            var bindingId = op.Parameters
+                .FirstOrDefault(parameter => parameter.Name.Equals("CameraId", StringComparison.OrdinalIgnoreCase))
+                ?.Value?.ToString();
+            if (!string.Equals(sourceType, "Camera", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(sourceType) && !string.IsNullOrWhiteSpace(bindingId))
+                {
+                    // Continue to frame-driven binding check for legacy flows that only persisted CameraId.
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            if (IsFrameDrivenBinding(cameraManager, bindingId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsFrameDrivenBinding(ICameraManager cameraManager, string? cameraId)
+    {
+        var binding = cameraManager.FindBinding(cameraId);
+        if (binding == null)
+        {
+            return false;
+        }
+
+        binding.Normalize();
+        return CameraTriggerModeExtensions.Normalize(binding.TriggerMode).IsFrameDriven();
+    }
+
     private async Task<InspectionResult> ExecuteCycleAsync(
         Guid projectId,
         Guid sessionId,

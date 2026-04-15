@@ -15,7 +15,7 @@ public class CameraProviderAdapterTests
         var provider = Substitute.For<ICameraProvider>();
         provider.IsGrabbing.Returns(false);
         provider.StartGrabbing().Returns(true);
-        provider.SetTriggerMode(true).Returns(true);
+        provider.SetTriggerMode(CameraTriggerMode.Software).Returns(true);
         provider.ExecuteSoftwareTrigger().Returns(true);
 
         var frameBuffer = new byte[] { 0, 127, 255, 60 };
@@ -43,7 +43,7 @@ public class CameraProviderAdapterTests
             Received.InOrder(() =>
             {
                 provider.StartGrabbing();
-                provider.SetTriggerMode(true);
+                provider.SetTriggerMode(CameraTriggerMode.Software);
                 provider.ExecuteSoftwareTrigger();
                 provider.GetFrame(3000);
             });
@@ -59,7 +59,7 @@ public class CameraProviderAdapterTests
     {
         var provider = Substitute.For<ICameraProvider>();
         provider.IsGrabbing.Returns(true);
-        provider.SetTriggerMode(true).Returns(true);
+        provider.SetTriggerMode(CameraTriggerMode.Software).Returns(true);
         provider.ExecuteSoftwareTrigger().Returns(true);
 
         var frameBuffer = new byte[] { 10, 20, 30, 40 };
@@ -81,7 +81,7 @@ public class CameraProviderAdapterTests
 
             pngBytes.Should().NotBeNullOrEmpty();
             provider.DidNotReceive().StartGrabbing();
-            provider.Received(1).SetTriggerMode(true);
+            provider.Received(1).SetTriggerMode(CameraTriggerMode.Software);
             provider.Received(1).ExecuteSoftwareTrigger();
             provider.Received(1).GetFrame(3000);
         }
@@ -105,7 +105,7 @@ public class CameraProviderAdapterTests
         await act.Should().ThrowAsync<TimeoutException>()
             .WithMessage("*获取图像超时*");
 
-        provider.Received(1).SetTriggerMode(true);
+        provider.Received(1).SetTriggerMode(CameraTriggerMode.Software);
         provider.Received(1).ExecuteSoftwareTrigger();
         provider.Received(1).GetFrame(3000);
     }

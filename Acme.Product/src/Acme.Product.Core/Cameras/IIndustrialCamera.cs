@@ -13,7 +13,7 @@ public interface IIndustrialCamera : ICamera
     /// 设置触发模式
     /// </summary>
     /// <param name="isHardwareTrigger">true=硬件触发, false=连续采集</param>
-    Task SetTriggerModeAsync(bool isHardwareTrigger);
+    Task SetTriggerModeAsync(CameraTriggerMode mode);
 
     /// <summary>
     /// 执行软件触发（仅在软件触发模式下有效）
@@ -120,7 +120,7 @@ public interface ICameraProvider : IDisposable
     /// <summary>
     /// 设置触发模式
     /// </summary>
-    bool SetTriggerMode(bool softwareTrigger);
+    bool SetTriggerMode(CameraTriggerMode mode);
 
     /// <summary>
     /// 执行软件触发

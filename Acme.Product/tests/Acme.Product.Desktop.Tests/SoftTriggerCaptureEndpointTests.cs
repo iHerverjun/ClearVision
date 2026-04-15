@@ -175,6 +175,7 @@ public class SoftTriggerCaptureEndpointTests
 
             builder.WebHost.UseTestServer();
             builder.Services.AddSingleton(cameraManager);
+            builder.Services.AddSingleton(Substitute.For<ICameraFrameStreamCoordinator>());
 
             var configService = Substitute.For<IConfigurationService>();
             configService.LoadAsync().Returns(Task.FromResult(new AppConfig()));

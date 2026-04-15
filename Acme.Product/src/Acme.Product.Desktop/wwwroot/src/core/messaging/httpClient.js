@@ -320,6 +320,36 @@ class HttpClient {
     /**
      * 发送 PUT 请求
      */
+    async getForBlob(url) {
+        let fullUrl = this.buildRequestUrl(url);
+        console.log(`[HttpClient] GET (blob) ${fullUrl}`);
+
+        try {
+            const response = await fetch(fullUrl, {
+                method: 'GET',
+                headers: this.defaultHeaders
+            });
+            this.saveSuccessfulPort(fullUrl);
+            return this.handleBlobResponse(response);
+        } catch (error) {
+            if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+                const discoveredPort = await this.discoverPort();
+                if (discoveredPort && discoveredPort !== DEFAULT_API_PORT) {
+                    console.log(`[HttpClient] 尝试使用发现的端口 ${discoveredPort} 重试 blob GET...`);
+                    fullUrl = this.buildRequestUrl(url, null, buildLocalApiBaseUrl(discoveredPort));
+                    const response = await fetch(fullUrl, {
+                        method: 'GET',
+                        headers: this.defaultHeaders
+                    });
+                    this.saveSuccessfulPort(fullUrl);
+                    return this.handleBlobResponse(response);
+                }
+            }
+
+            throw this.handleNetworkError(error, fullUrl);
+        }
+    }
+
     async put(url, data = null) {
         const fullUrl = this.buildRequestUrl(url);
         const response = await fetch(fullUrl, {

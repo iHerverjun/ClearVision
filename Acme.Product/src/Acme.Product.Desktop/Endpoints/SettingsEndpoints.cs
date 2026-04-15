@@ -301,6 +301,7 @@ public static class SettingsEndpoints
 
             var payload = bindings.Select(binding =>
             {
+                binding.Normalize();
                 var serialNumber = binding.SerialNumber?.Trim() ?? string.Empty;
                 var runtimeCamera = string.IsNullOrWhiteSpace(serialNumber)
                     ? null
@@ -324,6 +325,7 @@ public static class SettingsEndpoints
                     binding.ExposureTimeUs,
                     binding.GainDb,
                     binding.TriggerMode,
+                    binding.TargetFrameRateFps,
                     ConnectionStatus = connectionStatus
                 };
             });
@@ -340,11 +342,12 @@ public static class SettingsEndpoints
             try
             {
                 // 1. 更新 CameraManager 内存状态
-                cameraManager.UpdateBindings(request.Bindings, request.ActiveCameraId);
+                var normalizedBindings = NormalizeBindings(request.Bindings);
+                cameraManager.UpdateBindings(normalizedBindings, request.ActiveCameraId);
 
                 // 2. 持久化到 AppConfig
                 var config = await configService.LoadAsync();
-                config.Cameras = request.Bindings;
+                config.Cameras = normalizedBindings;
                 config.ActiveCameraId = request.ActiveCameraId;
                 await configService.SaveAsync(config);
 
@@ -376,6 +379,8 @@ public static class SettingsEndpoints
                     return Results.NotFound(new { Error = $"Camera binding not found: {request.CameraBindingId}" });
                 }
 
+                binding.Normalize();
+
                 var camera = await cameraManager.GetOrCreateByBindingAsync(request.CameraBindingId);
 
                 await camera.SetExposureTimeAsync(binding.ExposureTimeUs);
@@ -404,6 +409,75 @@ public static class SettingsEndpoints
             {
                 return Results.BadRequest(new { Error = ex.Message });
             }
+        });
+
+        app.MapPost("/api/cameras/continuous-preview/start", async (
+            CameraContinuousPreviewStartRequest request,
+            ICameraFrameStreamCoordinator streamCoordinator) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.CameraBindingId))
+            {
+                return Results.BadRequest(new { Error = "CameraBindingId is required." });
+            }
+
+            try
+            {
+                var session = await streamCoordinator.StartPreviewSessionAsync(request.CameraBindingId);
+                return Results.Ok(new
+                {
+                    session.SessionId,
+                    session.CameraBindingId,
+                    TriggerMode = session.TriggerMode.ToConfigValue(),
+                    session.TargetFrameRateFps
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        app.MapGet("/api/cameras/continuous-preview/frame/{sessionId}", async (
+            string sessionId,
+            HttpContext context,
+            ICameraFrameStreamCoordinator streamCoordinator,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return Results.BadRequest(new { Error = "SessionId is required." });
+            }
+
+            try
+            {
+                var frame = await streamCoordinator.WaitForPreviewFrameAsync(sessionId, cancellationToken);
+                context.Response.Headers["X-Image-Width"] = frame.Width.ToString();
+                context.Response.Headers["X-Image-Height"] = frame.Height.ToString();
+                context.Response.Headers["X-Camera-Id"] = frame.CameraBindingId;
+                context.Response.Headers["X-Frame-Sequence"] = frame.Sequence.ToString();
+                return Results.File(frame.ImageData, frame.ContentType, fileDownloadName: null);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { Error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        app.MapPost("/api/cameras/continuous-preview/stop", async (
+            CameraContinuousPreviewStopRequest request,
+            ICameraFrameStreamCoordinator streamCoordinator) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.SessionId))
+            {
+                return Results.BadRequest(new { Error = "SessionId is required." });
+            }
+
+            await streamCoordinator.StopPreviewSessionAsync(request.SessionId);
+            return Results.Ok(new { Message = "Continuous preview session stopped." });
         });
 
         return app;
@@ -446,6 +520,17 @@ public static class SettingsEndpoints
         }
 
         return isDiscovered ? "Online" : "Offline";
+    }
+
+    private static List<CameraBindingConfig> NormalizeBindings(IEnumerable<CameraBindingConfig>? bindings)
+    {
+        return (bindings ?? Enumerable.Empty<CameraBindingConfig>())
+            .Select(binding =>
+            {
+                binding.Normalize();
+                return binding;
+            })
+            .ToList();
     }
 
     private static object BuildHuarayDiagnostics(int deviceCount)
@@ -654,6 +739,16 @@ public class AiReasoningSupportRequest
 public class CameraSoftTriggerCaptureRequest
 {
     public string CameraBindingId { get; set; } = string.Empty;
+}
+
+public class CameraContinuousPreviewStartRequest
+{
+    public string CameraBindingId { get; set; } = string.Empty;
+}
+
+public class CameraContinuousPreviewStopRequest
+{
+    public string SessionId { get; set; } = string.Empty;
 }
 
 public sealed class ThemeUpdateRequest

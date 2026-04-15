@@ -5,6 +5,7 @@
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
+using Acme.Product.Core.Entities;
 using Acme.Product.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -20,12 +21,14 @@ public class ImageAcquisitionServiceIntegrationTests
 {
     private readonly ImageAcquisitionService _acquisitionService;
     private readonly ICameraManager _cameraManager;
+    private readonly ICameraFrameStreamCoordinator _streamCoordinator;
 
     public ImageAcquisitionServiceIntegrationTests()
     {
         _cameraManager = Substitute.For<ICameraManager>();
+        _streamCoordinator = Substitute.For<ICameraFrameStreamCoordinator>();
         var logger = Substitute.For<ILogger<ImageAcquisitionService>>();
-        _acquisitionService = new ImageAcquisitionService(_cameraManager, logger);
+        _acquisitionService = new ImageAcquisitionService(_cameraManager, _streamCoordinator, logger);
     }
 
     [Fact]
@@ -169,6 +172,31 @@ public class ImageAcquisitionServiceIntegrationTests
         result.Height.Should().BeGreaterThan(0);
         result.DataBase64.Should().NotBeNullOrEmpty();
         await camera.Received(1).AcquireSingleFrameAsync();
+    }
+
+    [Fact]
+    public async Task AcquireFromCameraAsync_WithFrameDrivenBinding_ShouldUseSharedStreamCoordinator()
+    {
+        _cameraManager.GetBindings().Returns(new List<CameraBindingConfig>
+        {
+            new()
+            {
+                Id = "binding-1",
+                SerialNumber = "SN-STREAM",
+                TriggerMode = "External",
+                TargetFrameRateFps = 15
+            }
+        });
+        _streamCoordinator.AcquireFrameAsync("binding-1", Arg.Any<CancellationToken>())
+            .Returns(new CameraStreamFrame("binding-1", CreateTestImageBytes(), "image/png", 1, 1, 3, DateTime.UtcNow));
+
+        var result = await _acquisitionService.AcquireFromCameraAsync("binding-1");
+
+        result.Should().NotBeNull();
+        result.Width.Should().Be(1);
+        result.Height.Should().Be(1);
+        await _streamCoordinator.Received(1).AcquireFrameAsync("binding-1", Arg.Any<CancellationToken>());
+        await _cameraManager.DidNotReceive().GetOrCreateCameraAsync(Arg.Any<string>());
     }
 
     [Fact]

@@ -5,7 +5,9 @@
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Cameras;
+using Acme.Product.Core.Entities;
 using Acme.Product.Core.Exceptions;
+using Acme.Product.Infrastructure.Cameras;
 using Acme.Product.Infrastructure.Utilities;
 using OpenCvSharp;
 using System.Collections.Concurrent;
@@ -28,6 +30,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
 
     private const int MaxCacheSize = 50;
     private readonly ICameraManager _cameraManager;
+    private readonly ICameraFrameStreamCoordinator _streamCoordinator;
     private readonly ILogger<ImageAcquisitionService> _logger;
     private readonly Dictionary<Guid, Mat> _imageCache = new();
     private readonly LinkedList<Guid> _cacheOrder = new();
@@ -37,8 +40,17 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     private bool _disposed;
 
     public ImageAcquisitionService(ICameraManager cameraManager, ILogger<ImageAcquisitionService> logger)
+        : this(cameraManager, NoOpCameraFrameStreamCoordinator.Instance, logger)
+    {
+    }
+
+    public ImageAcquisitionService(
+        ICameraManager cameraManager,
+        ICameraFrameStreamCoordinator streamCoordinator,
+        ILogger<ImageAcquisitionService> logger)
     {
         _cameraManager = cameraManager;
+        _streamCoordinator = streamCoordinator;
         _logger = logger;
     }
 
@@ -112,53 +124,27 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cameraId);
 
-        // 获取相机实例
-        var camera = _cameraManager.GetCamera(cameraId);
-        if (camera == null)
+        var binding = _cameraManager.FindBinding(cameraId);
+        binding?.Normalize();
+
+        if (binding != null && CameraTriggerModeExtensions.Normalize(binding.TriggerMode).IsFrameDriven())
         {
-            throw new CameraException($"Camera not found or disconnected: {cameraId}", cameraId);
+            var streamFrame = await _streamCoordinator.AcquireFrameAsync(binding.Id, cancellationToken);
+            return await CreateCameraImageDtoAsync(
+                binding.Id,
+                streamFrame.ImageData,
+                streamFrame.Width,
+                streamFrame.Height,
+                cancellationToken);
         }
 
-        if (!camera.IsConnected)
-        {
-            throw new CameraException($"Camera not connected: {cameraId}", cameraId);
-        }
+        var camera = await ResolveCameraAsync(cameraId);
 
         try
         {
-            // 采集单帧图像
+            await ApplyBindingSettingsAsync(camera, binding);
             var frameData = await camera.AcquireSingleFrameAsync();
-
-            Mat? mat = null;
-            try
-            {
-                mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
-                if (mat.Empty())
-                {
-                    throw new ImageProcessingException("Unable to decode camera image data.");
-                }
-
-                var imageId = Guid.NewGuid();
-                var width = mat.Width;
-                var height = mat.Height;
-                AddToCache(imageId, mat, takeOwnership: true);
-                mat = null;
-
-                return new ImageDto
-                {
-                    Id = imageId,
-                    Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}",
-                    Format = "png",
-                    Width = width,
-                    Height = height,
-                    DataBase64 = Convert.ToBase64String(frameData),
-                    CreatedAt = DateTime.UtcNow
-                };
-            }
-            finally
-            {
-                mat?.Dispose();
-            }
+            return await CreateCameraImageDtoAsync(binding?.Id ?? cameraId, frameData, null, null, cancellationToken);
         }
         catch (Exception ex) when (ex is not CameraException and not ImageProcessingException)
         {
@@ -171,30 +157,58 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(cameraId);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(frameRate, 0);
 
+        var binding = _cameraManager.FindBinding(cameraId);
+        binding?.Normalize();
+        var acquisitionKey = binding?.Id ?? cameraId;
+
         // 检查是否已有该相机的连续采集任务
-        if (_continuousAcquisitionTokens.ContainsKey(cameraId))
+        if (_continuousAcquisitionTokens.ContainsKey(acquisitionKey))
         {
             throw new CameraException($"相机 {cameraId} 已经在连续采集模式中", cameraId);
         }
 
-        // 获取相机实例
-        var camera = _cameraManager.GetCamera(cameraId);
-        if (camera == null)
-        {
-            throw new CameraException($"Camera not found or disconnected: {cameraId}", cameraId);
-        }
-
-        if (!camera.IsConnected)
-        {
-            throw new CameraException($"Camera not connected: {cameraId}", cameraId);
-        }
-
         // 创建取消令牌
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _continuousAcquisitionTokens[cameraId] = cts;
+        _continuousAcquisitionTokens[acquisitionKey] = cts;
 
         try
         {
+            if (binding != null && CameraTriggerModeExtensions.Normalize(binding.TriggerMode).IsFrameDriven())
+            {
+                var lease = await _streamCoordinator.AcquireStreamLeaseAsync(binding.Id, cts.Token);
+                _ = Task.Run(async () =>
+                {
+                    long? lastSequence = null;
+                    try
+                    {
+                        while (!cts.Token.IsCancellationRequested)
+                        {
+                            var frame = await _streamCoordinator.WaitForNextFrameAsync(lease, lastSequence, cts.Token);
+                            lastSequence = frame.Sequence;
+                            var imageDto = await CreateCameraImageDtoAsync(
+                                binding.Id,
+                                frame.ImageData,
+                                frame.Width,
+                                frame.Height,
+                                cts.Token);
+                            await onFrameAcquired(imageDto);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    finally
+                    {
+                        await _streamCoordinator.ReleaseStreamLeaseAsync(lease);
+                        _continuousAcquisitionTokens.TryRemove(acquisitionKey, out _);
+                    }
+                }, cts.Token);
+
+                return;
+            }
+
+            var camera = await ResolveCameraAsync(cameraId);
+            await ApplyBindingSettingsAsync(camera, binding);
             // 计算帧间隔（毫秒）
             var frameInterval = TimeSpan.FromMilliseconds(1000.0 / frameRate);
 
@@ -208,37 +222,8 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
                         var startTime = DateTime.UtcNow;
 
                         // 采集单帧
-                        var frameData = await camera.AcquireSingleFrameAsync();
-
-                        // 解码图像
-                        var mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
-                        if (!mat.Empty())
-                        {
-                            var imageId = Guid.NewGuid();
-
-                            // 缓存图像
-                            var width = mat.Width;
-                            var height = mat.Height;
-                            AddToCache(imageId, mat, takeOwnership: true);
-
-                            var imageDto = new ImageDto
-                            {
-                                Id = imageId,
-                                Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}",
-                                Format = "png",
-                                Width = width,
-                                Height = height,
-                                DataBase64 = Convert.ToBase64String(frameData),
-                                CreatedAt = DateTime.UtcNow
-                            };
-
-                            // 调用回调函数
-                            await onFrameAcquired(imageDto);
-                        }
-                        else
-                        {
-                            mat.Dispose();
-                        }
+                        var imageDto = await AcquireFromCameraAsync(cameraId, cts.Token);
+                        await onFrameAcquired(imageDto);
 
                         // 控制帧率
                         var elapsed = DateTime.UtcNow - startTime;
@@ -262,7 +247,7 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
         }
         catch
         {
-            _continuousAcquisitionTokens.TryRemove(cameraId, out _);
+            _continuousAcquisitionTokens.TryRemove(acquisitionKey, out _);
             cts.Dispose();
             throw;
         }
@@ -272,7 +257,10 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cameraId);
 
-        if (_continuousAcquisitionTokens.TryRemove(cameraId, out var cts))
+        var binding = _cameraManager.FindBinding(cameraId);
+        var acquisitionKey = binding?.Id ?? cameraId;
+
+        if (_continuousAcquisitionTokens.TryRemove(acquisitionKey, out var cts))
         {
             cts.Cancel();
             cts.Dispose();
@@ -645,6 +633,95 @@ public class ImageAcquisitionService : IImageAcquisitionService, IDisposable
             return null;
         var ext = Path.GetExtension(fileName).ToLower();
         return ext.TrimStart('.');
+    }
+
+    private async Task<ICamera> ResolveCameraAsync(string cameraId)
+    {
+        var binding = _cameraManager.FindBinding(cameraId);
+        if (binding != null)
+        {
+            var runtimeCamera = _cameraManager.GetCamera(binding.SerialNumber);
+            if (runtimeCamera?.IsConnected == true)
+            {
+                return runtimeCamera;
+            }
+
+            return await _cameraManager.GetOrCreateByBindingAsync(binding.Id);
+        }
+
+        var camera = _cameraManager.GetCamera(cameraId);
+        if (camera?.IsConnected == true)
+        {
+            return camera;
+        }
+
+        return await _cameraManager.GetOrCreateCameraAsync(cameraId);
+    }
+
+    private static async Task ApplyBindingSettingsAsync(ICamera camera, CameraBindingConfig? binding)
+    {
+        if (binding == null)
+        {
+            return;
+        }
+
+        await camera.SetExposureTimeAsync(binding.ExposureTimeUs);
+        await camera.SetGainAsync(binding.GainDb);
+        if (camera is IIndustrialCamera industrialCamera)
+        {
+            await industrialCamera.SetTriggerModeAsync(CameraTriggerModeExtensions.Normalize(binding.TriggerMode));
+        }
+    }
+
+    private async Task<ImageDto> CreateCameraImageDtoAsync(
+        string cameraId,
+        byte[] frameData,
+        int? width,
+        int? height,
+        CancellationToken cancellationToken)
+    {
+        Mat? mat = null;
+        try
+        {
+            if (!width.HasValue || !height.HasValue)
+            {
+                mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
+                if (mat.Empty())
+                {
+                    throw new ImageProcessingException("Unable to decode camera image data.");
+                }
+
+                width = mat.Width;
+                height = mat.Height;
+            }
+            else
+            {
+                mat = Cv2.ImDecode(frameData, ImreadModes.Unchanged);
+                if (mat.Empty())
+                {
+                    throw new ImageProcessingException("Unable to decode camera image data.");
+                }
+            }
+
+            var imageId = Guid.NewGuid();
+            AddToCache(imageId, mat, takeOwnership: true);
+            mat = null;
+
+            return await Task.FromResult(new ImageDto
+            {
+                Id = imageId,
+                Name = $"Camera_{cameraId}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}",
+                Format = "png",
+                Width = width ?? 0,
+                Height = height ?? 0,
+                DataBase64 = Convert.ToBase64String(frameData),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        finally
+        {
+            mat?.Dispose();
+        }
     }
 
     /// <summary>

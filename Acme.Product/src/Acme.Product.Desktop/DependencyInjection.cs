@@ -275,6 +275,7 @@ public static class DependencyInjection
 
         // 相机
         services.AddSingleton<ICameraManager, CameraManager>();
+        services.AddSingleton<ICameraFrameStreamCoordinator, CameraFrameStreamCoordinator>();
 
         // 注册 MediatR
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Acme.Product.Application.Commands.Projects.CreateProjectCommand).Assembly));

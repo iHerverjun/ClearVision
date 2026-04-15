@@ -1,6 +1,7 @@
 ﻿import httpClient from '../../core/messaging/httpClient.js';
 import { showToast, createModal, closeModal } from '../../shared/components/uiComponents.js';
 import { applyTheme, getAppliedTheme, normalizeTheme } from '../../core/theme/theme.js';
+import inspectionController from '../inspection/inspectionController.js';
 import {
     applyFeatureToButton,
     getFeatureButtonLabel,
@@ -42,6 +43,22 @@ class SettingsView {
         console.log('[SettingsView] Initialized for container:', containerId, '| isAdmin:', this.isAdmin);
     }
 
+    normalizeCameraTriggerMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (normalized === 'continuous') return 'Continuous';
+        if (normalized === 'external' || normalized === 'hardware' || normalized === 'externalsignal') return 'External';
+        return 'Software';
+    }
+
+    normalizeCameraTargetFrameRate(value) {
+        const parsed = Number.parseInt(String(value ?? ''), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return 10;
+        }
+
+        return Math.min(120, Math.max(1, parsed));
+    }
+
     /**
      * 初始化或重新加载视图
      * app.js 在切换到 settings 视图时调用
@@ -62,6 +79,7 @@ class SettingsView {
             console.log('[SettingsView] Fetching main config...');
             this.config = this.normalizeAppConfig(await httpClient.get('/settings'));
             this.cameraBindings = this.config.cameras || [];
+            this.syncActiveCameraSelection();
             this.savedCommunicationConfig = this.cloneCommunicationConfig(this.config.communication);
             this.syncPlcMappingsFromActiveProfile();
             this.plcSettingsLoaded = false;
@@ -75,6 +93,7 @@ class SettingsView {
             console.error('[SettingsView] Failed to load data:', error);
             showToast('加载系统配置失败: ' + error.message, 'error');
             this.config = this.normalizeAppConfig(this.getDefaultConfig());
+            this.syncActiveCameraSelection();
             this.savedCommunicationConfig = this.cloneCommunicationConfig(this.config.communication);
             this.syncPlcMappingsFromActiveProfile();
             this.plcSettingsLoaded = false;
@@ -195,7 +214,11 @@ class SettingsView {
             storage: { ...defaults.storage, ...(config?.storage || {}) },
             runtime: { ...defaults.runtime, ...(config?.runtime || {}) },
             security: { ...defaults.security, ...(config?.security || {}) },
-            cameras: Array.isArray(config?.cameras) ? config.cameras : (defaults.cameras || []),
+            cameras: (Array.isArray(config?.cameras) ? config.cameras : (defaults.cameras || [])).map(binding => ({
+                ...binding,
+                triggerMode: this.normalizeCameraTriggerMode(binding?.triggerMode ?? binding?.TriggerMode),
+                targetFrameRateFps: this.normalizeCameraTargetFrameRate(binding?.targetFrameRateFps ?? binding?.TargetFrameRateFps)
+            })),
             activeCameraId: config?.activeCameraId || defaults.activeCameraId || ''
         };
     }
@@ -1376,6 +1399,9 @@ class SettingsView {
                 this.updateCameraParameterPanel(null);
             }
         });
+
+        const triggerModeSelect = section.querySelector('#cam-param-trigger-mode');
+        triggerModeSelect?.addEventListener('change', () => this.syncCameraFrameRateInputState());
     }
 
     async loadCameraBindings() {
@@ -1390,6 +1416,7 @@ class SettingsView {
                 const exposureRaw = binding.exposureTimeUs ?? binding.ExposureTimeUs;
                 const gainRaw = binding.gainDb ?? binding.GainDb;
                 const triggerRaw = binding.triggerMode ?? binding.TriggerMode;
+                const targetFrameRateRaw = binding.targetFrameRateFps ?? binding.TargetFrameRateFps;
                 const connectionStatus = binding.connectionStatus ?? binding.ConnectionStatus ?? binding.status ?? binding.Status ?? null;
                 const serialNumber = binding.serialNumber ?? binding.SerialNumber ?? binding.deviceId ?? binding.DeviceId ?? '';
                 const ipAddress = binding.ipAddress ?? binding.IpAddress ?? '';
@@ -1400,7 +1427,8 @@ class SettingsView {
                     ipAddress: typeof ipAddress === 'string' ? ipAddress.trim() : '',
                     exposureTimeUs: Number.isFinite(Number(exposureRaw)) ? Number(exposureRaw) : 5000,
                     gainDb: Number.isFinite(Number(gainRaw)) ? Number(gainRaw) : 1.0,
-                    triggerMode: typeof triggerRaw === 'string' && triggerRaw.trim() ? triggerRaw.trim() : 'Software',
+                    triggerMode: this.normalizeCameraTriggerMode(triggerRaw),
+                    targetFrameRateFps: this.normalizeCameraTargetFrameRate(targetFrameRateRaw),
                     connectionStatus: typeof connectionStatus === 'string' && connectionStatus.trim() ? connectionStatus.trim() : null
                 };
             });
@@ -1409,6 +1437,7 @@ class SettingsView {
                 this.selectedCameraBindingId = null;
             }
             this.refreshCameraTable();
+            this.syncActiveCameraSelection();
         } catch (error) {
             console.error('Failed to load camera bindings:', error);
             if (tbody) {
@@ -1540,7 +1569,8 @@ class SettingsView {
                     isEnabled: true,
                     exposureTimeUs: 5000,
                     gainDb: 1.0,
-                    triggerMode: 'Software'
+                    triggerMode: 'Software',
+                    targetFrameRateFps: 10
                 };
 
                 this.cameraBindings.push(newBinding);
@@ -1642,10 +1672,14 @@ class SettingsView {
 
         const id = tr.getAttribute('data-id');
         this.selectedCameraBindingId = id;
+        if (this.config) {
+            this.config.activeCameraId = id;
+        }
         const cam = this.cameraBindings.find(b => b.id === id);
         tr.style.backgroundColor = 'var(--panel-bg)';
 
         this.updateCameraParameterPanel(cam || null);
+        this.syncActiveCameraSelection();
     }
 
     updateCameraParameterPanel(cam) {
@@ -1657,6 +1691,7 @@ class SettingsView {
         const exposureInput = this.container.querySelector('#cam-param-exposure');
         const gainInput = this.container.querySelector('#cam-param-gain');
         const triggerModeSelect = this.container.querySelector('#cam-param-trigger-mode');
+        const frameRateInput = this.container.querySelector('#cam-param-target-frame-rate');
 
         if (exposureInput) {
             exposureInput.value = cam ? String(cam.exposureTimeUs ?? 5000) : '';
@@ -1667,10 +1702,13 @@ class SettingsView {
             gainInput.disabled = !cam;
         }
         if (triggerModeSelect) {
-            const triggerMode = cam?.triggerMode || 'Software';
-            triggerModeSelect.value = ['Software', 'Hardware', 'Continuous'].includes(triggerMode) ? triggerMode : 'Software';
+            triggerModeSelect.value = this.normalizeCameraTriggerMode(cam?.triggerMode);
             triggerModeSelect.disabled = !cam;
         }
+        if (frameRateInput) {
+            frameRateInput.value = cam ? String(this.normalizeCameraTargetFrameRate(cam.targetFrameRateFps)) : '';
+        }
+        this.syncCameraFrameRateInputState(cam?.triggerMode, !cam);
 
         const saveBtn = this.container.querySelector('#btn-save-camera-params');
         if (saveBtn) {
@@ -1697,6 +1735,26 @@ class SettingsView {
         }
     }
 
+    syncCameraFrameRateInputState(triggerMode = null, forceDisabled = false) {
+        const frameRateInput = this.container?.querySelector('#cam-param-target-frame-rate');
+        const hintEl = this.container?.querySelector('#cam-param-target-frame-rate-hint');
+        if (!frameRateInput) return;
+
+        const effectiveTriggerMode = this.normalizeCameraTriggerMode(
+            triggerMode ?? this.container?.querySelector('#cam-param-trigger-mode')?.value
+        );
+        const disabled = forceDisabled || effectiveTriggerMode !== 'Continuous';
+        frameRateInput.disabled = disabled;
+        frameRateInput.readOnly = disabled;
+        frameRateInput.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+
+        if (hintEl) {
+            hintEl.textContent = disabled
+                ? '仅 Continuous 模式下可编辑；当前值会保留。'
+                : 'Continuous 模式下按该目标 fps 在应用侧节流。';
+        }
+    }
+
     getSelectedCameraBinding() {
         if (!this.selectedCameraBindingId) {
             return null;
@@ -1705,9 +1763,66 @@ class SettingsView {
         return this.cameraBindings.find(binding => binding.id === this.selectedCameraBindingId) || null;
     }
 
+    async startContinuousPreviewSession(cameraBindingId) {
+        return await httpClient.post('/cameras/continuous-preview/start', {
+            cameraBindingId
+        });
+    }
+
+    async stopContinuousPreviewSession(sessionId) {
+        if (!sessionId) return;
+        try {
+            await httpClient.post('/cameras/continuous-preview/stop', { sessionId });
+        } catch (error) {
+            console.warn('[SettingsView] Failed to stop continuous preview session:', error);
+        }
+    }
+
+    async fetchContinuousPreviewFrame(sessionId) {
+        const { blob, headers } = await httpClient.getForBlob(`/cameras/continuous-preview/frame/${encodeURIComponent(sessionId)}`);
+        if (!blob || blob.size === 0) {
+            throw new Error('连续预览未返回图像数据');
+        }
+
+        const imageUrl = URL.createObjectURL(blob);
+        const widthHeader = headers.get('X-Image-Width');
+        const heightHeader = headers.get('X-Image-Height');
+        const sequenceHeader = headers.get('X-Frame-Sequence');
+        const parsedWidth = widthHeader ? Number(widthHeader) : null;
+        const parsedHeight = heightHeader ? Number(heightHeader) : null;
+        const parsedSequence = sequenceHeader ? Number(sequenceHeader) : null;
+
+        return {
+            imageUrl,
+            width: Number.isFinite(parsedWidth) ? parsedWidth : null,
+            height: Number.isFinite(parsedHeight) ? parsedHeight : null,
+            sequence: Number.isFinite(parsedSequence) ? parsedSequence : null
+        };
+    }
+
+    async captureSharedFrame(cameraBindingId) {
+        const session = await this.startContinuousPreviewSession(cameraBindingId);
+        try {
+            const preview = await this.fetchContinuousPreviewFrame(session.sessionId || session.SessionId);
+            return {
+                ...preview,
+                triggerMode: this.normalizeCameraTriggerMode(session.triggerMode || session.TriggerMode),
+                cameraBindingId
+            };
+        } finally {
+            await this.stopContinuousPreviewSession(session.sessionId || session.SessionId);
+        }
+    }
+
     async captureCameraPreview(cameraBindingId = this.selectedCameraBindingId) {
         if (!cameraBindingId) {
             throw new Error('请先在相机管理中选择一台相机');
+        }
+
+        const binding = this.cameraBindings.find(item => item.id === cameraBindingId) || this.getSelectedCameraBinding();
+        const triggerMode = this.normalizeCameraTriggerMode(binding?.triggerMode);
+        if (triggerMode === 'Continuous') {
+            return await this.captureSharedFrame(cameraBindingId);
         }
 
         const { blob, headers } = await httpClient.postForBlob('/cameras/soft-trigger-capture', {
@@ -1733,10 +1848,127 @@ class SettingsView {
         };
     }
 
+    async showContinuousCameraPreview(binding) {
+        let currentPreviewUrl = null;
+        let sessionId = null;
+        let previewActive = false;
+        let previewLoopToken = 0;
+
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <div style="font-size:13px; color:var(--text-muted);">
+                        当前相机: <strong style="color:var(--text-primary);">${binding.displayName || binding.serialNumber || binding.id}</strong>
+                    </div>
+                    <button class="cv-btn cv-btn-secondary" id="btn-toggle-camera-preview" type="button">停止预览</button>
+                </div>
+                <div style="background:#020617; border:1px solid var(--border-color); border-radius:12px; min-height:420px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    <img id="camera-preview-image" alt="相机预览" style="max-width:100%; max-height:420px; display:none; object-fit:contain;">
+                    <div id="camera-preview-placeholder" style="color:#94a3b8; font-size:14px; text-align:center; padding:24px;">正在启动连续预览...</div>
+                </div>
+                <div id="camera-preview-meta" style="font-size:13px; color:var(--text-muted); min-height:20px;"></div>
+            </div>
+        `;
+
+        const cleanupPreviewUrl = () => {
+            if (currentPreviewUrl) {
+                URL.revokeObjectURL(currentPreviewUrl);
+                currentPreviewUrl = null;
+            }
+        };
+
+        const stopPreview = async () => {
+            previewActive = false;
+            previewLoopToken += 1;
+            await this.stopContinuousPreviewSession(sessionId);
+            sessionId = null;
+        };
+
+        const modal = createModal({
+            title: `相机预览 - ${binding.displayName || binding.serialNumber || binding.id}`,
+            content,
+            width: '960px',
+            onClose: async () => {
+                await stopPreview();
+                cleanupPreviewUrl();
+            }
+        });
+        modal.querySelector('.cv-modal')?.style.setProperty('max-width', '95vw');
+
+        const toggleBtn = content.querySelector('#btn-toggle-camera-preview');
+        const imageEl = content.querySelector('#camera-preview-image');
+        const placeholderEl = content.querySelector('#camera-preview-placeholder');
+        const metaEl = content.querySelector('#camera-preview-meta');
+
+        const renderFrame = preview => {
+            cleanupPreviewUrl();
+            currentPreviewUrl = preview.imageUrl;
+            imageEl.src = preview.imageUrl;
+            imageEl.style.display = 'block';
+            placeholderEl.style.display = 'none';
+            metaEl.textContent = `触发模式: Continuous · 分辨率: ${preview.width ?? '--'} x ${preview.height ?? '--'}${preview.sequence ? ` · 序号: ${preview.sequence}` : ''}`;
+        };
+
+        const startPreview = async () => {
+            if (previewActive) return;
+            previewActive = true;
+            const loopToken = ++previewLoopToken;
+            toggleBtn.textContent = '停止预览';
+            placeholderEl.style.display = 'block';
+            placeholderEl.textContent = '正在启动连续预览...';
+            imageEl.style.display = 'none';
+
+            try {
+                const session = await this.startContinuousPreviewSession(binding.id);
+                sessionId = session.sessionId || session.SessionId;
+
+                while (previewActive && sessionId && loopToken === previewLoopToken) {
+                    const preview = await this.fetchContinuousPreviewFrame(sessionId);
+                    if (!previewActive || loopToken !== previewLoopToken) {
+                        URL.revokeObjectURL(preview.imageUrl);
+                        break;
+                    }
+
+                    renderFrame(preview);
+                }
+            } catch (error) {
+                await this.stopContinuousPreviewSession(sessionId);
+                sessionId = null;
+                placeholderEl.style.display = 'block';
+                placeholderEl.textContent = `连续预览加载失败: ${error.message}`;
+                metaEl.textContent = '';
+                imageEl.style.display = 'none';
+                previewActive = false;
+                toggleBtn.textContent = '继续预览';
+            }
+        };
+
+        toggleBtn.addEventListener('click', async () => {
+            if (previewActive) {
+                await stopPreview();
+                toggleBtn.textContent = '继续预览';
+                placeholderEl.style.display = 'block';
+                placeholderEl.textContent = '连续预览已停止';
+                imageEl.style.display = currentPreviewUrl ? 'block' : 'none';
+                return;
+            }
+
+            await startPreview();
+        });
+
+        await startPreview();
+    }
+
     async showSelectedCameraPreview() {
         const binding = this.getSelectedCameraBinding();
         if (!binding) {
             showToast('请先在相机管理中选择一台相机，再打开相机预览', 'warning');
+            return;
+        }
+
+        if (this.normalizeCameraTriggerMode(binding.triggerMode) === 'Continuous') {
+            await this.showContinuousCameraPreview(binding);
             return;
         }
 
@@ -1820,14 +2052,16 @@ class SettingsView {
         const exposureInput = this.container.querySelector('#cam-param-exposure');
         const gainInput = this.container.querySelector('#cam-param-gain');
         const triggerModeSelect = this.container.querySelector('#cam-param-trigger-mode');
-        if (!exposureInput || !gainInput || !triggerModeSelect) {
+        const frameRateInput = this.container.querySelector('#cam-param-target-frame-rate');
+        if (!exposureInput || !gainInput || !triggerModeSelect || !frameRateInput) {
             showToast('参数面板控件缺失，请刷新后重试', 'error');
             return;
         }
 
         const exposureTimeUs = Number.parseFloat(exposureInput.value);
         const gainDb = Number.parseFloat(gainInput.value);
-        const triggerMode = triggerModeSelect.value || 'Software';
+        const triggerMode = this.normalizeCameraTriggerMode(triggerModeSelect.value || 'Software');
+        const targetFrameRateFps = this.normalizeCameraTargetFrameRate(frameRateInput.value);
 
         if (!Number.isFinite(exposureTimeUs) || exposureTimeUs < 10 || exposureTimeUs > 1000000) {
             showToast('曝光时间需在 10 - 1000000 µs 范围内', 'warning');
@@ -1841,6 +2075,7 @@ class SettingsView {
         binding.exposureTimeUs = exposureTimeUs;
         binding.gainDb = gainDb;
         binding.triggerMode = triggerMode;
+        binding.targetFrameRateFps = targetFrameRateFps;
 
         const saved = await this.saveCameraBindings();
         if (!saved) {
@@ -2382,9 +2617,9 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>触发模式 (Trigger Mode)</label>
                             <select class="cv-input" id="cam-param-trigger-mode">
-                                <option value="Software">Software Trigger</option>
-                                <option value="Hardware">Hardware Trigger</option>
-                                <option value="Continuous">Continuous</option>
+                                <option value="Software">软件触发</option>
+                                <option value="External">外部触发</option>
+                                <option value="Continuous">连续采集</option>
                             </select>
                             <span class="settings-field-hint">仅作用于当前所选相机</span>
                         </div>
@@ -2393,10 +2628,10 @@ class SettingsView {
                         <div class="settings-fieldset">
                             <label>采集帧率 (Frame Rate)</label>
                             <div class="input-with-suffix" style="position:relative;">
-                                <input type="number" class="cv-input" value="" style="padding-right:36px;" disabled readonly aria-disabled="true">
+                                <input type="number" class="cv-input" id="cam-param-target-frame-rate" value="" min="1" max="120" style="padding-right:36px;" disabled readonly aria-disabled="true">
                                 <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">fps</span>
                             </div>
-                            <span class="settings-field-hint">该字段暂未接入保存链路，当前仅展示占位。</span>
+                            <span class="settings-field-hint" id="cam-param-target-frame-rate-hint">仅 Continuous 模式下可编辑；当前值会保留。</span>
                         </div>
                         <div class="settings-fieldset">
                             <label>图像宽度 (Width)</label>
@@ -2813,7 +3048,15 @@ class SettingsView {
     }
 
     collectCameraBindings() {
-        return this.cameraBindings.map(binding => ({ ...binding }));
+        return this.cameraBindings.map(binding => ({
+            ...binding,
+            triggerMode: this.normalizeCameraTriggerMode(binding.triggerMode),
+            targetFrameRateFps: this.normalizeCameraTargetFrameRate(binding.targetFrameRateFps)
+        }));
+    }
+
+    syncActiveCameraSelection() {
+        inspectionController.setCamera(this.resolveActiveCameraId() || null);
     }
 
     resolveActiveCameraId() {
@@ -2826,17 +3069,20 @@ class SettingsView {
 
     async saveCameraBindings({ silent = false } = {}) {
         const activeCameraId = this.resolveActiveCameraId();
+        const bindingsPayload = this.collectCameraBindings();
 
         try {
             await httpClient.put('/cameras/bindings', {
-                bindings: this.cameraBindings,
+                bindings: bindingsPayload,
                 activeCameraId: activeCameraId
             });
 
             if (this.config) {
-                this.config.cameras = [...this.cameraBindings];
+                this.config.cameras = [...bindingsPayload];
                 this.config.activeCameraId = activeCameraId;
             }
+
+            this.syncActiveCameraSelection();
 
             return true;
         } catch (error) {
@@ -2955,7 +3201,8 @@ class SettingsView {
             const exposureInput = this.container?.querySelector('#cam-param-exposure');
             const gainInput = this.container?.querySelector('#cam-param-gain');
             const triggerModeSelect = this.container?.querySelector('#cam-param-trigger-mode');
-            if (selectedBinding && exposureInput && gainInput && triggerModeSelect) {
+            const frameRateInput = this.container?.querySelector('#cam-param-target-frame-rate');
+            if (selectedBinding && exposureInput && gainInput && triggerModeSelect && frameRateInput) {
                 const exposureTimeUs = Number.parseFloat(exposureInput.value);
                 const gainDb = Number.parseFloat(gainInput.value);
                 if (!Number.isFinite(exposureTimeUs) || exposureTimeUs < 10 || exposureTimeUs > 1000000) {
@@ -2968,7 +3215,8 @@ class SettingsView {
                 }
                 selectedBinding.exposureTimeUs = exposureTimeUs;
                 selectedBinding.gainDb = gainDb;
-                selectedBinding.triggerMode = triggerModeSelect.value || 'Software';
+                selectedBinding.triggerMode = this.normalizeCameraTriggerMode(triggerModeSelect.value || 'Software');
+                selectedBinding.targetFrameRateFps = this.normalizeCameraTargetFrameRate(frameRateInput.value);
             }
         }
         

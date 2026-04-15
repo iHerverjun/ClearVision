@@ -7,6 +7,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.Cameras;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -36,10 +37,20 @@ public class ImageAcquisitionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ImageAcquisition;
     private readonly ICameraManager _cameraManager;
+    private readonly ICameraFrameStreamCoordinator _streamCoordinator;
 
-    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger, ICameraManager cameraManager) : base(logger)
+    public ImageAcquisitionOperator(ILogger<ImageAcquisitionOperator> logger, ICameraManager cameraManager)
+        : this(logger, cameraManager, NoOpCameraFrameStreamCoordinator.Instance)
+    {
+    }
+
+    public ImageAcquisitionOperator(
+        ILogger<ImageAcquisitionOperator> logger,
+        ICameraManager cameraManager,
+        ICameraFrameStreamCoordinator streamCoordinator) : base(logger)
     {
         _cameraManager = cameraManager;
+        _streamCoordinator = streamCoordinator;
     }
 
     protected override async Task<OperatorExecutionOutput> ExecuteCoreAsync(
@@ -135,8 +146,28 @@ public class ImageAcquisitionOperator : OperatorBase
             {
                 // 获取并配置相机
                 var camera = await _cameraManager.GetOrCreateByBindingAsync(cameraId);
-                var bindingConfig = _cameraManager.GetBindings()
-                    .FirstOrDefault(b => b.Id.Equals(cameraId, StringComparison.OrdinalIgnoreCase));
+                var bindingConfig = _cameraManager.FindBinding(cameraId);
+                bindingConfig?.Normalize();
+                var normalizedTriggerMode = CameraTriggerModeExtensions.Normalize(
+                    bindingConfig?.TriggerMode
+                    ?? GetStringParam(@operator, "TriggerMode", GetStringParam(@operator, "triggerMode", "Software")));
+
+                if (normalizedTriggerMode.IsFrameDriven())
+                {
+                    var sharedFrame = await _streamCoordinator.AcquireFrameAsync(bindingConfig?.Id ?? cameraId, cancellationToken);
+                    var sharedMat = Cv2.ImDecode(sharedFrame.ImageData, ImreadModes.Color);
+                    if (sharedMat.Empty())
+                    {
+                        return OperatorExecutionOutput.Failure("鐩告満杩斿洖鐨勫浘鍍忔暟鎹棤鏁?");
+                    }
+
+                    return OperatorExecutionOutput.Success(CreateImageOutput(sharedMat, new Dictionary<string, object>
+                    {
+                        { "Channels", sharedMat.Channels() },
+                        { "Source", normalizedTriggerMode.ToConfigValue().ToLowerInvariant() },
+                        { "CameraId", bindingConfig?.Id ?? cameraId }
+                    }));
+                }
 
                 // 相机参数优先来自“系统设置 -> 相机管理”，保留旧算子参数作为向后兼容 fallback。
                 var exposureTime = bindingConfig?.ExposureTimeUs
@@ -148,18 +179,7 @@ public class ImageAcquisitionOperator : OperatorBase
 
                 if (camera is IIndustrialCamera industrialCamera)
                 {
-                    var triggerMode = bindingConfig?.TriggerMode
-                        ?? GetStringParam(@operator, "TriggerMode", GetStringParam(@operator, "triggerMode", "Software"));
-                    if (triggerMode.Equals("Software", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Current adapter maps false -> software trigger mode in provider SDKs.
-                        await industrialCamera.SetTriggerModeAsync(false);
-                        await industrialCamera.ExecuteSoftwareTriggerAsync();
-                    }
-                    else
-                    {
-                        await industrialCamera.SetTriggerModeAsync(true);
-                    }
+                    await industrialCamera.SetTriggerModeAsync(CameraTriggerMode.Software);
                 }
 
                 // 采集图像

@@ -375,7 +375,7 @@ public class MockCameraProvider : ICameraProvider
 
     public bool SetExposure(double microseconds) => true;
     public bool SetGain(double value) => true;
-    public bool SetTriggerMode(bool softwareTrigger) => true;
+    public bool SetTriggerMode(CameraTriggerMode mode) => true;
     public bool ExecuteSoftwareTrigger() => true;
 
     public void Dispose()
