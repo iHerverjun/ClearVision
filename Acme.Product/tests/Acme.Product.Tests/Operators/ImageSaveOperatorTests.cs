@@ -1,5 +1,6 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -142,6 +143,50 @@ public class ImageSaveOperatorTests
             var match = Regex.Match(fileName, @"^legacy_([0-9a-f]{32})_([0-9a-f]{32})$");
             match.Success.Should().BeTrue();
             match.Groups[1].Value.Should().Be(match.Groups[2].Value);
+        }
+        finally
+        {
+            if (image.RefCount > 0)
+            {
+                image.Release();
+            }
+
+            SafeDeleteDirectory(outputDir);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenMetadataTemplateExplicitWithoutExtension_ShouldNotInheritLegacyExtension()
+    {
+        var outputDir = CreateOutputDirectory();
+        var image = TestHelpers.CreateTestImage();
+
+        try
+        {
+            var op = new Operator("test", OperatorType.ImageSave, 0, 0);
+
+            op.AddParameter(TestHelpers.CreateParameter("Directory", "C:\\ClearVision\\NG_Images", "string"));
+            var metadataTemplate = new Parameter(
+                Guid.NewGuid(),
+                "FileNameTemplate",
+                "FileNameTemplate",
+                string.Empty,
+                "string",
+                "NG_{yyyyMMdd_HHmmss}_{Guid}.jpg");
+            metadataTemplate.SetValue("explicit_metadata_name");
+            op.AddParameter(metadataTemplate);
+
+            op.AddParameter(TestHelpers.CreateParameter("FolderPath", outputDir, "string"));
+            op.AddParameter(TestHelpers.CreateParameter("FileName", "legacy_name.bmp", "string"));
+
+            var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+            result.IsSuccess.Should().BeTrue();
+
+            var filePath = result.OutputData!["FilePath"].Should().BeOfType<string>().Subject;
+            Path.GetDirectoryName(filePath).Should().Be(outputDir);
+            Path.GetFileNameWithoutExtension(filePath).Should().Be("explicit_metadata_name");
+            Path.GetExtension(filePath).Should().Be(".png");
         }
         finally
         {

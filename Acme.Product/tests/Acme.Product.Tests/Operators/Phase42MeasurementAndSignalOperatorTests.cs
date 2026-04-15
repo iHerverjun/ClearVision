@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Diagnostics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
@@ -7,6 +8,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
+using Xunit;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -100,6 +102,101 @@ public class Phase42MeasurementAndSignalOperatorTests
     }
 
     [Fact]
+    public async Task FftAndInverseFft_ShouldReconstructBinAlignedSignalWithinTolerance()
+    {
+        var fft = new FFT1DOperator(Substitute.For<ILogger<FFT1DOperator>>());
+        var inverse = new InverseFFT1DOperator(Substitute.For<ILogger<InverseFFT1DOperator>>());
+
+        const int sampleCount = 128;
+        var signal = Enumerable.Range(0, sampleCount)
+            .Select(i => 1.2 * Math.Sin(2 * Math.PI * 4 * i / sampleCount) + 0.35 * Math.Sin(2 * Math.PI * 12 * i / sampleCount))
+            .ToArray();
+
+        var fftResult = await fft.ExecuteAsync(new Operator("FFT1D", OperatorType.FFT1D, 0, 0), new Dictionary<string, object>
+        {
+            ["Input"] = signal
+        });
+
+        fftResult.IsSuccess.Should().BeTrue();
+
+        var inverseResult = await inverse.ExecuteAsync(new Operator("InverseFFT1D", OperatorType.InverseFFT1D, 0, 0), new Dictionary<string, object>
+        {
+            ["Spectrum"] = fftResult.OutputData!["Spectrum"]
+        });
+
+        inverseResult.IsSuccess.Should().BeTrue();
+
+        var reconstructed = inverseResult.OutputData!["Signal"].Should().BeOfType<double[]>().Subject;
+        reconstructed.Length.Should().Be(sampleCount);
+
+        var mse = signal.Zip(reconstructed, (expected, actual) => Math.Pow(expected - actual, 2)).Average();
+        var maxAbs = signal.Zip(reconstructed, (expected, actual) => Math.Abs(expected - actual)).Max();
+
+        mse.Should().BeLessThan(1e-6, "FFT/IFFT round-trip should preserve bin-aligned lab signal energy");
+        maxAbs.Should().BeLessThan(5e-3, "FFT/IFFT round-trip should preserve sample amplitudes within mill-level tolerance");
+    }
+
+    [Fact]
+    public async Task FrequencyOperators_LabBudget1024PointChain_ShouldStayWithinBudgetAndAttenuateHighFrequency()
+    {
+        var fft = new FFT1DOperator(Substitute.For<ILogger<FFT1DOperator>>());
+        var filter = new FrequencyFilterOperator(Substitute.For<ILogger<FrequencyFilterOperator>>());
+        var inverse = new InverseFFT1DOperator(Substitute.For<ILogger<InverseFFT1DOperator>>());
+
+        const int sampleCount = 1024;
+        const int iterations = 24;
+        var signal = Enumerable.Range(0, sampleCount)
+            .Select(i => Math.Sin(2 * Math.PI * 8 * i / sampleCount) + 0.45 * Math.Sin(2 * Math.PI * 192 * i / sampleCount))
+            .ToArray();
+
+        var elapsedSamples = new List<double>(iterations);
+        double attenuationRatio = 1.0;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var sw = Stopwatch.StartNew();
+
+            var fftResult = await fft.ExecuteAsync(new Operator("FFT1D", OperatorType.FFT1D, 0, 0), new Dictionary<string, object>
+            {
+                ["Input"] = signal
+            });
+            fftResult.IsSuccess.Should().BeTrue();
+
+            var spectrum = fftResult.OutputData!["Spectrum"].Should().BeOfType<Complex[]>().Subject;
+            var originalHigh = spectrum[192].Magnitude;
+
+            var filterResult = await filter.ExecuteAsync(new Operator("FrequencyFilter", OperatorType.FrequencyFilter, 0, 0), new Dictionary<string, object>
+            {
+                ["Spectrum"] = spectrum,
+                ["FilterType"] = "lowpass",
+                ["CutoffLow"] = 0.08,
+                ["CutoffHigh"] = 0.2,
+                ["Order"] = 4
+            });
+            filterResult.IsSuccess.Should().BeTrue();
+
+            var filteredSpectrum = filterResult.OutputData!["FilteredSpectrum"].Should().BeOfType<Complex[]>().Subject;
+            attenuationRatio = filteredSpectrum[192].Magnitude / originalHigh;
+
+            var inverseResult = await inverse.ExecuteAsync(new Operator("InverseFFT1D", OperatorType.InverseFFT1D, 0, 0), new Dictionary<string, object>
+            {
+                ["Spectrum"] = filteredSpectrum
+            });
+            inverseResult.IsSuccess.Should().BeTrue();
+            inverseResult.OutputData!["Signal"].Should().BeOfType<double[]>().Subject.Length.Should().Be(sampleCount);
+
+            sw.Stop();
+            elapsedSamples.Add(sw.Elapsed.TotalMilliseconds);
+        }
+
+        attenuationRatio.Should().BeLessThan(0.1, "low-pass filter should strongly attenuate high-frequency bin-aligned component");
+
+        var averageMs = elapsedSamples.Average();
+        var budgetMs = GetEnvDouble("CV_FREQUENCY_CHAIN_BUDGET_MS", 25.0, 5.0, 200.0);
+        averageMs.Should().BeLessThan(budgetMs, $"1024-point FFT -> lowpass -> IFFT lab chain should stay within the configured audit budget ({budgetMs:0.##} ms)");
+    }
+
+    [Fact]
     public async Task PhaseClosure_ShouldReturnUnwrappedPhaseOutputs()
     {
         var sut = new PhaseClosureOperator(Substitute.For<ILogger<PhaseClosureOperator>>());
@@ -165,5 +262,16 @@ public class Phase42MeasurementAndSignalOperatorTests
         Cv2.Circle(mat, new Point(60, 50), 8, Scalar.White, -1);
         Cv2.Circle(mat, new Point(90, 80), 6, Scalar.Black, -1);
         return new ImageWrapper(mat);
+    }
+
+    private static double GetEnvDouble(string name, double defaultValue, double minValue, double maxValue)
+    {
+        var raw = Environment.GetEnvironmentVariable(name);
+        if (!double.TryParse(raw, out var parsed))
+        {
+            return defaultValue;
+        }
+
+        return Math.Clamp(parsed, minValue, maxValue);
     }
 }

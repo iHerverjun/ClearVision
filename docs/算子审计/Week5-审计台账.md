@@ -4,7 +4,7 @@ doc_type: "ledger"
 status: "active"
 topic: "算子审计"
 created: "2026-04-14"
-updated: "2026-04-14"
+updated: "2026-04-15"
 ---
 
 # Week5 审计台账
@@ -30,11 +30,11 @@ updated: "2026-04-14"
 
 | 分组 | 分类 | 当前状态 | 当前结论 | 下一输出件 |
 | --- | --- | --- | --- | --- |
-| P1-A | `Region`、`Morphology`、`Frequency` | [x] | Week5 D2 已完成：`Region`、`Morphology` 转 `[x]`；`Frequency` 明确维持 `[-]`，待补当前口径下的精度/性能实测落点。 | `Week5-已升级证据链.md` |
-| P1-B | `数据处理`、`流程控制`、`逻辑工具`、`输出` | [-] | D3 首轮静态盘点已启动：实现已全部定位，但已发现 `流程控制 / Flow Control` 分类拆分、`TryCatch` 测试缺口和 `ImageSave` 独立执行测试缺口。 | `Week5-审计台账.md` |
-| P1-C | `通信`、`采集`、`3D` | [-] | D3 首轮静态盘点已启动：`通信 / Communication` 分类拆分已确认，`SerialCommunication` 测试缺口显性化；`采集`、`3D` 的实现与基础测试入口整体较完整。 | `Week5-审计台账.md` |
-| P2-A | `Texture`、`Analysis`、`AI Inspection` | [ ] | 已纳入 Week5 专项能力快审组，待形成最小复现与适用边界结论。 | `Week5-审计台账.md`；`Week5-已升级证据链.md` |
-| P2-B | `变量`、`通用`、`辅助`、`拆分组合` | [ ] | 已纳入 Week5 工程维护快审组，待形成维护性问题清单和不入池结论。 | `Week5-审计台账.md` |
+| P1-A | `Region`、`Morphology`、`Frequency` | [x] | Week5 D2/D3 已完成：`Region`、`Morphology`、`Frequency` 均已形成实验室闭环口径结论；`Frequency` 的精度/性能证据已补齐。 | `Week5-已升级证据链.md` |
+| P1-B | `数据处理`、`流程控制`、`逻辑工具`、`输出` | [x] | D3 已完成正式问题池收敛：当前实验室口径下无新增需进入 Week6 的确认缺陷，形成“不入池”正式结论。 | `Week5-审计台账.md`；`Week6-修复优先级清单.md` |
+| P1-C | `通信`、`采集`、`3D` | [x] | D3 已完成正式问题池收敛：当前实验室口径下无新增需进入 Week6 的确认缺陷，形成“不入池”正式结论。 | `Week5-审计台账.md`；`Week6-修复优先级清单.md` |
+| P2-A | `Texture`、`Analysis`、`AI Inspection` | [x] | 已完成快审，形成“不入池”正式结论。 | `Week5-审计台账.md`；`Week5-已升级证据链.md`；`Week6-修复优先级清单.md` |
+| P2-B | `变量`、`通用`、`辅助`、`拆分组合` | [x] | 已完成快审，形成“不入池”正式结论。 | `Week5-审计台账.md`；`Week6-修复优先级清单.md` |
 
 ## 4. P1-A 历史收口复核待回填区
 
@@ -42,31 +42,31 @@ updated: "2026-04-14"
 | --- | --- | --- | --- | --- |
 | `Region` | [x] | 历史交付与当前布尔运算主链是否仍可复现 | `docs/closed/阶段性完成报告/阶段4.2完成报告.md` + `test_results/week5-d2-phase42-current.trx` | D2 已完成复核；`RegionBooleanOperators_ShouldProduceConsistentAreas` 当前批次通过。 |
 | `Morphology` | [x] | 区域级腐蚀/膨胀/开/闭/骨架链路是否仍可复现 | `docs/closed/阶段性完成报告/阶段4.2完成报告.md` + `test_results/week5-d2-phase42-current.trx` | D2 已完成复核；`RegionErosion/Dilation/Opening/Closing/Skeleton` 当前批次通过。 |
-| `Frequency` | [-] | 频域主链可复现性与精度/性能证据是否同时成立 | `docs/closed/阶段性完成报告/阶段4.2完成报告.md` + `test_results/week5-d2-phase42-current.trx` | D2 已完成复核；当前仅确认 `FFT1D -> FrequencyFilter -> InverseFFT1D` 主链可复现，仍待补当前口径下的精度/性能实测落点。 |
+| `Frequency` | [x] | 频域主链可复现性与精度/性能证据是否同时成立 | `docs/closed/阶段性完成报告/阶段4.2完成报告.md` + `test_results/week5-d2-phase42-current.trx` + `test_results/week5-lab-audit-closure-20260415.trx` | D2/D3 已完成收口；`FFT1D -> FrequencyFilter -> InverseFFT1D` 主链复核通过，且 `FftAndInverseFft_ShouldReconstructBinAlignedSignalWithinTolerance`、`FrequencyOperators_LabBudget1024PointChain_ShouldStayWithinBudgetAndAttenuateHighFrequency` 已补当前口径下的精度/性能证据。 |
 
 ## 5. P1-B / P1-C 主审计待回填区
 
 | 类别 | 当前状态 | 主审计重点 | 最小输出 | 备注 |
 | --- | --- | --- | --- | --- |
-| `数据处理` | [-] | 结果可信度、可追溯性、异常输入收口 | 实现审计 + 最小复现入口 + 风险分级 | 10/10 实现可定位，整体测试入口较完整；下一步聚焦 `DatabaseWrite` 等外部依赖算子的异常路径与可追溯性。 |
-| `流程控制` | [-] | 分支切换、失败收口、异常路径可控性 | 实现审计 + 最小复现入口 + 风险分级 | 已确认分类口径拆分：`ResultJudgment` 归在 `Flow Control`；已新增 `TryCatchOperatorTests`、`ResultJudgmentOperatorTests` 作为直接测试补位，但当前测试项目构建受无关集成依赖阻塞，尚未完成回归确认。 |
-| `逻辑工具` | [-] | 业务分支正确性、条件判断退化场景 | 实现审计 + 最小复现入口 + 风险分级 | `ScriptOperator` 源文件已定位；`PointSetTool`、`TextSave`、`TimerStatistics`、`TriggerModule` 均有直接测试入口。 |
-| `输出` | [-] | 对外契约、发布签收、系统对接稳定性 | 实现审计 + 最小复现入口 + 风险分级 | `ResultOutput` 有较完整直接测试；`ImageSave` 已确认存在参数/输出契约漂移（`Directory/FileNameTemplate/Quality` vs `FolderPath/FileName/JpegQuality`，`IsSuccess` vs `Success`），本轮已补兼容修复与 `ImageSaveOperatorTests`，待项目构建阻塞解除后完成回归确认。 |
-| `通信` | [-] | 现场联动、协议失败路径、重试与超时 | 链路审计 + 最小复现入口 + 风险分级 | 已确认分类口径拆分：`MitsubishiMcCommunication` 归在 `Communication`；`SerialCommunication` 无测试命中，`HttpRequest` 缺直接测试，`Omron/Mitsubishi` 以集成测试为主。 |
-| `采集` | [-] | 入口稳定性、时序一致性、数据源切换 | 链路审计 + 最小复现入口 + 风险分级 | `ImageAcquisition` 实现与测试入口较多；下一步聚焦硬件离线、时序漂移和降级路径。 |
-| `3D` | [-] | 精度预算、性能预算、硬件依赖边界 | 链路审计 + 最小复现入口 + 风险分级 | 6/6 实现与 operator/pointcloud/integration tests 均可定位；下一步聚焦性能预算与 acceptance 对齐。 |
+| `数据处理` | [x] | 结果可信度、可追溯性、异常输入收口 | 实现审计 + 最小复现入口 + 风险分级 | 已通过 `Aggregator / ArrayIndexer / JsonExtractor / MathOperation / DatabaseWrite / BoxFilter / BoxNms / UnitConvert / PointAlignment / PointCorrection` 代表性直接测试；当前实验室口径下无新增需入池问题。 |
+| `流程控制` | [x] | 分支切换、失败收口、异常路径可控性 | 实现审计 + 最小复现入口 + 风险分级 | 已确认 `Flow Control` 口径统一，并补齐 `Comparator / Delay / TryCatch / ResultJudgment / ConditionalBranch / ForEach` 代表性测试入口；当前实验室口径下无新增需入池问题。 |
+| `逻辑工具` | [x] | 业务分支正确性、条件判断退化场景 | 实现审计 + 最小复现入口 + 风险分级 | `ScriptOperator`、`PointSetTool`、`TextSave`、`TimerStatistics`、`TriggerModule` 均有直接测试入口；当前实验室口径下无新增需入池问题。 |
+| `输出` | [x] | 对外契约、发布签收、系统对接稳定性 | 实现审计 + 最小复现入口 + 风险分级 | `ResultOutput` 直测稳定；`ImageSave` 契约漂移已修复并通过复验；当前实验室口径下无新增需入池问题。 |
+| `通信` | [x] | 现场联动、协议失败路径、重试与超时 | 链路审计 + 最小复现入口 + 风险分级 | `HttpRequest / SerialCommunication / Modbus / TCP` 直接测试与 `Omron/Mitsubishi` 集成入口均可定位；当前实验室口径下无新增需入池问题。 |
+| `采集` | [x] | 入口稳定性、时序一致性、数据源切换 | 链路审计 + 最小复现入口 + 风险分级 | `ImageAcquisitionOperatorTests` 已覆盖文件模式与输入异常路径；当前实验室口径下无新增需入池问题。 |
+| `3D` | [x] | 精度预算、性能预算、硬件依赖边界 | 链路审计 + 最小复现入口 + 风险分级 | `EuclideanClusterExtraction / PPFEstimation / PPFMatch / RansacPlaneSegmentation / StatisticalOutlierRemoval / VoxelDownsample` 代表性测试入口已复验；当前实验室口径下无新增需入池问题。 |
 
 ## 6. P2 快审待回填区
 
 | 类别 | 当前状态 | 快审重点 | 预期结论类型 | 备注 |
 | --- | --- | --- | --- | --- |
-| `Texture` | [ ] | 专项能力边界、适用场景、可替代性 | 入池 / 不入池 / 延后 | P2 专项能力组。 |
-| `Analysis` | [ ] | 专项分析输出可信度与依赖说明 | 入池 / 不入池 / 延后 | P2 专项能力组。 |
-| `AI Inspection` | [ ] | 场景专项能力、模型/规则边界 | 入池 / 不入池 / 延后 | P2 专项能力组。 |
-| `变量` | [ ] | 参数可维护性、默认值风险、配置边界 | 入池 / 不入池 / 延后 | P2 工程维护组。 |
-| `通用` | [ ] | 通用工具复用边界、异常收口 | 入池 / 不入池 / 延后 | P2 工程维护组。 |
-| `辅助` | [ ] | 辅助类算子的调用边界与退化影响 | 入池 / 不入池 / 延后 | P2 工程维护组。 |
-| `拆分组合` | [ ] | 组合稳定性、上下游契约、拼装退化风险 | 入池 / 不入池 / 延后 | P2 工程维护组。 |
+| `Texture` | [x] | 专项能力边界、适用场景、可替代性 | 入池 / 不入池 / 延后 | [x] 不入池：`GlcmTexture`、`LawsTextureFilter` 具备直接测试与专项性能验收入口。 |
+| `Analysis` | [x] | 专项分析输出可信度与依赖说明 | 入池 / 不入池 / 延后 | [x] 不入池：`DistanceTransform` 具备直接测试入口，当前实验室口径无新增风险。 |
+| `AI Inspection` | [x] | 场景专项能力、模型/规则边界 | 入池 / 不入池 / 延后 | [x] 不入池：`DetectionSequenceJudge` 直接测试稳定，场景规则边界当前无新增问题。 |
+| `变量` | [x] | 参数可维护性、默认值风险、配置边界 | 入池 / 不入池 / 延后 | [x] 不入池：已补 `VariableRead / VariableWrite / VariableIncrement / CycleCounter` 直接测试。 |
+| `通用` | [x] | 通用工具复用边界、异常收口 | 入池 / 不入池 / 延后 | [x] 不入池：`LogicGate / Statistics / TypeConvert / StringFormat` 均有直接测试入口。 |
+| `辅助` | [x] | 辅助类算子的调用边界与退化影响 | 入池 / 不入池 / 延后 | [x] 不入池：`Comment / RoiManager / RoiTransform` 当前实验室口径稳定。 |
+| `拆分组合` | [x] | 组合稳定性、上下游契约、拼装退化风险 | 入池 / 不入池 / 延后 | [x] 不入池：`ImageCompose / ImageTiling` 均有直接测试入口。 |
 
 ## 7. 周内回填进度
 
@@ -76,5 +76,8 @@ updated: "2026-04-14"
 | 2026-04-14（周二） | 绑定 Week5 执行边界与 AI 检测外部阻塞关系 | [x] | 已确认 AI 检测外部阻塞继续并行跟踪，但不并入 P1/P2 内部修复范围。 |
 | 2026-04-14（周二） | 完成 D2：P1 历史收口复核 | [x] | 已完成历史交付文档、现有测试类与当前定向批次重绑；`Region`、`Morphology` 转 `[x]`，`Frequency` 维持 `[-]`。当前定向批次：`test_results/week5-d2-phase42-current.trx`（13/13 通过）。 |
 | 2026-04-14（周二） | 启动 D3：P1 主功能与现场链路主审计（静态首版） | [-] | 已完成实现/测试入口盘点，并显性化 2 类高信号问题：`流程控制 / 通信` 分类拆分，以及 `TryCatch`、`SerialCommunication`、`ImageSave` 等测试覆盖缺口。 |
-| 2026-04-14（周二） | D3 定向补位：输出/流程控制高信号缺口 | [-] | 已补 `ImageSaveOperator` 契约兼容修复，并新增 `TryCatchOperatorTests`、`ResultJudgmentOperatorTests`、`ImageSaveOperatorTests`；进一步定位确认：测试项目 `csproj` 与本机全局包缓存均已包含 `Microsoft.Data.SqlClient` / `MySqlConnector`，当前阻塞点是 `Acme.Product.Tests.csproj` 的 restore graph 无法刷新 `obj/project.assets.json`，导致编译仍使用 2026-03-26 的旧 assets。 |
-| 2026-04-14（周二） | D3 阻塞绕行实验：SDK9 | [-] | 已临时切换到 `9.0.301` 工具链验证；restore/build 阻塞未解除，说明问题不只是 SDK10 行为差异。实验后已恢复 `global.json` 原配置。 |
+| 2026-04-14（周二） | D3 定向补位：输出/流程控制高信号缺口 | [-] | 已补 `ImageSaveOperator` 契约兼容修复，并新增 `TryCatchOperatorTests`、`ResultJudgmentOperatorTests`、`ImageSaveOperatorTests`；该组改动已于 2026-04-15 在当前工作区完成复验通过。 |
+| 2026-04-14（周二） | D3 阻塞绕行实验：SDK9 | [x] | 已完成临时工具链对比；该实验结论仅保留为 2026-04-14 的历史排查记录。2026-04-15 常规 `restore / build` 已恢复正常，当前工作区不再复现旧 assets 阻塞。 |
+| 2026-04-15（周三） | D3 直测复验与通信补位 | [x] | 常规 `dotnet restore` 返回 up-to-date；`dotnet build --no-restore /m:1` 成功；`TryCatch / ResultJudgment / ImageSave / SerialCommunication / HttpRequest` 5 类直接测试共 `19/19` 通过，`Flow Control / Communication` 分类口径维持统一。 |
+| 2026-04-15（周三） | 模板工件与外部阻塞回填落点固化 | [x] | 已新增 `类别审计报告模板.md` 与 `Week5-AI检测工业签收回填模板.md`；真实现场签收已移出当前实验室闭环阻塞路径。 |
+| 2026-04-15（周三） | D3/D4/D5 实验室闭环收口 | [x] | `test_results/week5-lab-audit-closure-20260415.trx` 覆盖 P1/P2 代表性测试类，共 `298/298` 通过；Week6 正式清单、Week5 周报与 TODO 已同步到同口径。 |

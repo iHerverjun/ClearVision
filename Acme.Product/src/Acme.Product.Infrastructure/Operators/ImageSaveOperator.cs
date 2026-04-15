@@ -219,8 +219,14 @@ public class ImageSaveOperator : OperatorBase
 
     private string ResolveFileNameTemplate(Operator @operator)
     {
-        var template = GetStringParam(@operator, "FileNameTemplate", "");
-        var legacyTemplate = GetStringParam(@operator, "FileName", "image_{timestamp}.png");
+        var hasTemplate = HasParameter(@operator, "FileNameTemplate");
+        var hasLegacyTemplate = HasParameter(@operator, "FileName");
+        var template = hasTemplate
+            ? GetStringParam(@operator, "FileNameTemplate", "")
+            : string.Empty;
+        var legacyTemplate = hasLegacyTemplate
+            ? GetStringParam(@operator, "FileName", "")
+            : string.Empty;
 
         if (IsExplicitlyConfigured(@operator, "FileNameTemplate"))
         {
@@ -232,7 +238,12 @@ public class ImageSaveOperator : OperatorBase
             return legacyTemplate;
         }
 
-        return template;
+        if (!string.IsNullOrWhiteSpace(template))
+        {
+            return template;
+        }
+
+        return "image_{timestamp}.png";
     }
 
     private string ResolveFormat(Operator @operator, string fileNameTemplate)
@@ -243,10 +254,40 @@ public class ImageSaveOperator : OperatorBase
             return explicitFormat.Trim().TrimStart('.').ToLowerInvariant();
         }
 
-        var extension = Path.GetExtension(fileNameTemplate);
-        if (!string.IsNullOrWhiteSpace(extension))
+        var metadataTemplateExplicit = IsExplicitlyConfigured(@operator, "FileNameTemplate");
+        var metadataTemplate = HasParameter(@operator, "FileNameTemplate")
+            ? GetStringParam(@operator, "FileNameTemplate", "")
+            : string.Empty;
+        var legacyTemplate = HasParameter(@operator, "FileName")
+            ? GetStringParam(@operator, "FileName", "")
+            : string.Empty;
+
+        var metadataExtension = Path.GetExtension(metadataTemplate);
+        if (metadataTemplateExplicit)
         {
-            return extension.TrimStart('.').ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(metadataExtension))
+            {
+                return metadataExtension.TrimStart('.').ToLowerInvariant();
+            }
+
+            var resolvedExtension = Path.GetExtension(fileNameTemplate);
+            if (!string.IsNullOrWhiteSpace(resolvedExtension))
+            {
+                return resolvedExtension.TrimStart('.').ToLowerInvariant();
+            }
+
+            return "png";
+        }
+
+        var legacyExtension = Path.GetExtension(legacyTemplate);
+        if (!string.IsNullOrWhiteSpace(legacyExtension))
+        {
+            return legacyExtension.TrimStart('.').ToLowerInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadataExtension))
+        {
+            return metadataExtension.TrimStart('.').ToLowerInvariant();
         }
 
         return "png";

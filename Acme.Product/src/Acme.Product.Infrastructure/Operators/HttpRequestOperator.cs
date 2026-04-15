@@ -198,7 +198,9 @@ public class HttpRequestOperator : OperatorBase
         var outputData = new Dictionary<string, object>
         {
             { "StatusCode", (int)response.StatusCode },
+            { "IsSuccess", response.IsSuccessStatusCode },
             { "IsSuccessStatusCode", response.IsSuccessStatusCode },
+            { "Response", responseBody },
             { "ResponseBody", responseBody }
         };
 

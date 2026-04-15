@@ -116,7 +116,7 @@ public class InverseFFT1DOperator : OperatorBase
 
         using var src = new Mat(n, 1, MatType.CV_32FC2, complexData);
         using var dst = new Mat();
-        Cv2.Dft(src, dst, DftFlags.Inverse | DftFlags.RealOutput);
+        Cv2.Dft(src, dst, DftFlags.Inverse | DftFlags.RealOutput | DftFlags.Scale);
 
         var result = new double[n];
         for (int i = 0; i < n; i++)
