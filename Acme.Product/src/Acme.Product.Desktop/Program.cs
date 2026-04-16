@@ -110,7 +110,7 @@ static class Program
 
             var builder = WebApplication.CreateBuilder();
 
-            builder.Services.AddVisionServices();
+            builder.Services.AddVisionServices(builder.Configuration);
             builder.Services.AddAiFlowGeneration(builder.Configuration);
             builder.Services.AddSingleton<WebMessageHandler>();
             builder.Services.AddSingleton<Acme.Product.Core.Interfaces.IProjectFlowStorage, JsonFileProjectFlowStorage>();
