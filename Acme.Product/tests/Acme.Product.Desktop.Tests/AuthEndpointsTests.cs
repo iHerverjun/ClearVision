@@ -19,6 +19,75 @@ namespace Acme.Product.Desktop.Tests;
 public class AuthEndpointsTests
 {
     [Fact]
+    public async Task SetupStatus_ShouldReturnCurrentInitialAdminRequirements()
+    {
+        await using var host = await AuthEndpointsTestHost.CreateAsync();
+        host.AuthService.GetInitialAdminSetupStatusAsync().Returns(new InitialAdminSetupStatusResponse
+        {
+            RequiresInitialAdminSetup = true,
+            UsernameMinLength = 3,
+            PasswordMinLength = 8,
+            RequiresUppercase = false,
+            RequiresLowercase = false,
+            RequiresDigit = false
+        });
+
+        using var response = await host.Client.GetAsync("/api/auth/setup-status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        GetProperty(document.RootElement, "requiresInitialAdminSetup").GetBoolean().Should().BeTrue();
+        GetProperty(document.RootElement, "passwordMinLength").GetInt32().Should().Be(8);
+        GetProperty(document.RootElement, "requiresUppercase").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SetupAdmin_ShouldReturnTokenAndUser_WhenInitializationSucceeds()
+    {
+        await using var host = await AuthEndpointsTestHost.CreateAsync();
+        host.AuthService.SetupInitialAdminAsync(Arg.Any<InitialAdminSetupRequest>())
+            .Returns(AuthResult.Ok("setup-token", new UserDto
+            {
+                Id = Guid.NewGuid().ToString(),
+                Username = "factory-admin",
+                DisplayName = "factory-admin",
+                Role = Acme.Product.Core.Enums.UserRole.Admin,
+                IsActive = true
+            }));
+
+        using var response = await host.Client.PostAsJsonAsync("/api/auth/setup-admin", new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "password1",
+            ConfirmPassword = "password1"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        GetProperty(document.RootElement, "Token").GetString().Should().Be("setup-token");
+        GetProperty(GetProperty(document.RootElement, "User"), "Username").GetString().Should().Be("factory-admin");
+    }
+
+    [Fact]
+    public async Task SetupAdmin_ShouldReturnConflict_WhenInitializationAlreadyCompleted()
+    {
+        await using var host = await AuthEndpointsTestHost.CreateAsync();
+        host.AuthService.SetupInitialAdminAsync(Arg.Any<InitialAdminSetupRequest>())
+            .Returns(AuthResult.Fail(AuthService.InitialAdminSetupAlreadyCompletedMessage));
+
+        using var response = await host.Client.PostAsJsonAsync("/api/auth/setup-admin", new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "password1",
+            ConfirmPassword = "password1"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        GetProperty(document.RootElement, "Error").GetString().Should().Be(AuthService.InitialAdminSetupAlreadyCompletedMessage);
+    }
+
+    [Fact]
     public async Task Logout_ShouldCallAuthServiceAndReturnAuditPayload()
     {
         await using var host = await AuthEndpointsTestHost.CreateAsync();
@@ -45,15 +114,15 @@ public class AuthEndpointsTests
             Username = "tester",
             Role = "Engineer"
         });
-        host.AuthService.ChangePasswordAsync(Arg.Any<string>(), "OldPwd1", "weakpass1")
-            .Returns(AuthResult.Fail("新密码必须同时包含大写字母、小写字母和数字"));
+        host.AuthService.ChangePasswordAsync(Arg.Any<string>(), "OldPwd1", "short1")
+            .Returns(AuthResult.Fail("新密码长度不能少于 8 位"));
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/change-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "token-123");
         request.Content = JsonContent.Create(new ChangePasswordRequest
         {
             OldPassword = "OldPwd1",
-            NewPassword = "weakpass1"
+            NewPassword = "short1"
         });
 
         using var response = await host.Client.SendAsync(request);

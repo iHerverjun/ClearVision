@@ -27,8 +27,10 @@
                     </svg>
                 </div>
                 <h1>ClearVision</h1>
-                <p>工业视觉检测平台</p>
+                <p id="loginSubtitle">工业视觉检测平台</p>
             </div>
+
+            <div class="login-mode-badge" id="loginModeBadge" hidden>首次初始化</div>
 
             <form class="login-form" id="loginForm">
                 <div class="form-group">
@@ -40,12 +42,17 @@
                     <label for="password">密码</label>
                     <div class="password-wrapper">
                         <input type="password" id="password" name="password" required placeholder="请输入密码" autocomplete="current-password">
-                        <button type="button" class="password-toggle" id="passwordToggle" tabindex="-1" aria-label="显示密码">
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            data-password-toggle="password"
+                            tabindex="-1"
+                            aria-label="显示密码">
                             <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
                             </svg>
-                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
                                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                                 <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
                                 <line x1="1" y1="1" x2="23" y2="23"/>
@@ -63,7 +70,7 @@
 
                 <button type="submit" class="login-btn" id="loginBtn">
                     <span class="btn-text">登录</span>
-                    <span class="btn-loading" style="display: none;">
+                    <span class="btn-loading" hidden>
                         <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
                         </svg>
@@ -72,39 +79,89 @@
                 </button>
             </form>
 
+            <form class="login-form" id="setupForm" hidden>
+                <div class="setup-intro">
+                    <h2>创建系统管理员</h2>
+                    <p>当前系统还没有任何账号。请先创建首个管理员后进入软件。</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="setupUsername">管理员账号</label>
+                    <input type="text" id="setupUsername" name="setupUsername" placeholder="请输入管理员登录名" autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="setupPassword">管理员密码</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="setupPassword" name="setupPassword" placeholder="请输入管理员密码" autocomplete="new-password">
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            data-password-toggle="setupPassword"
+                            tabindex="-1"
+                            aria-label="显示密码">
+                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="setupConfirmPassword">确认密码</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="setupConfirmPassword" name="setupConfirmPassword" placeholder="请再次输入密码" autocomplete="new-password">
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            data-password-toggle="setupConfirmPassword"
+                            tabindex="-1"
+                            aria-label="显示密码">
+                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="setup-rules">
+                    <div class="setup-rules-title">账号要求</div>
+                    <ul id="setupRulesList">
+                        <li id="rule-username-length">用户名至少 3 位</li>
+                        <li id="rule-password-length">密码长度不少于 6 位</li>
+                    </ul>
+                </div>
+
+                <button type="submit" class="login-btn" id="setupBtn">
+                    <span class="btn-text">创建管理员并进入系统</span>
+                    <span class="btn-loading" hidden>
+                        <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        </svg>
+                        初始化中...
+                    </span>
+                </button>
+            </form>
+
             <div class="login-error" id="loginError"></div>
 
             <div class="login-footer">
-                <p>首次启动会生成临时管理员密码，请按启动提示登录后立即修改。</p>
+                <p id="loginFooterText">请输入现有账号登录系统。</p>
             </div>
         </div>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const toggle = document.getElementById('passwordToggle');
-            const passwordInput = document.getElementById('password');
-            const eyeOpen = toggle.querySelector('.eye-open');
-            const eyeClosed = toggle.querySelector('.eye-closed');
-
-            toggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    eyeOpen.style.display = 'none';
-                    eyeClosed.style.display = 'block';
-                } else {
-                    passwordInput.type = 'password';
-                    eyeOpen.style.display = 'block';
-                    eyeClosed.style.display = 'none';
-                }
-
-                passwordInput.focus();
-            });
-        });
-    </script>
 
     <script type="module">
         import httpClient from './src/core/messaging/httpClient.js';
@@ -115,47 +172,153 @@
         } from './src/features/auth/authStorage.js';
         import { consumeLogoutNotice } from './src/features/auth/auth.js';
 
-        const token = getStoredToken();
-        if (token) {
+        const modeBadge = document.getElementById('loginModeBadge');
+        const subtitle = document.getElementById('loginSubtitle');
+        const footerText = document.getElementById('loginFooterText');
+        const loginForm = document.getElementById('loginForm');
+        const setupForm = document.getElementById('setupForm');
+        const loginError = document.getElementById('loginError');
+        const loginBtn = document.getElementById('loginBtn');
+        const setupBtn = document.getElementById('setupBtn');
+        const setupUsername = document.getElementById('setupUsername');
+        const setupPassword = document.getElementById('setupPassword');
+        const setupConfirmPassword = document.getElementById('setupConfirmPassword');
+        const loginUsername = document.getElementById('username');
+        const loginPassword = document.getElementById('password');
+        const rememberMe = document.getElementById('rememberMe');
+
+        let setupStatus = {
+            requiresInitialAdminSetup: false,
+            usernameMinLength: 3,
+            passwordMinLength: 6,
+            requiresUppercase: false,
+            requiresLowercase: false,
+            requiresDigit: false
+        };
+
+        function setButtonLoading(button, isLoading) {
+            button.disabled = isLoading;
+            const text = button.querySelector('.btn-text');
+            const loading = button.querySelector('.btn-loading');
+            text.hidden = isLoading;
+            loading.hidden = !isLoading;
+        }
+
+        function showError(message) {
+            loginError.textContent = message || '';
+            loginError.style.display = message ? 'block' : 'none';
+        }
+
+        function applySetupRules(status) {
+            document.getElementById('rule-username-length').textContent = `用户名至少 ${status.usernameMinLength} 位`;
+            document.getElementById('rule-password-length').textContent = `密码长度不少于 ${status.passwordMinLength} 位`;
+        }
+
+        function setMode(mode, notice = '') {
+            const isSetup = mode === 'setup';
+            loginForm.hidden = isSetup;
+            setupForm.hidden = !isSetup;
+            modeBadge.hidden = !isSetup;
+
+            if (isSetup) {
+                subtitle.textContent = '首次启动管理员初始化';
+                footerText.textContent = '初始化完成后将自动登录并进入系统。';
+                loginUsername.removeAttribute('required');
+                loginPassword.removeAttribute('required');
+                setupUsername.setAttribute('required', 'required');
+                setupPassword.setAttribute('required', 'required');
+                setupConfirmPassword.setAttribute('required', 'required');
+                setupUsername.focus();
+            } else {
+                subtitle.textContent = '工业视觉检测平台';
+                footerText.textContent = '请输入现有账号登录系统。';
+                loginUsername.setAttribute('required', 'required');
+                loginPassword.setAttribute('required', 'required');
+                setupUsername.removeAttribute('required');
+                setupPassword.removeAttribute('required');
+                setupConfirmPassword.removeAttribute('required');
+                loginUsername.focus();
+            }
+
+            showError(notice);
+        }
+
+        function bindPasswordToggles() {
+            document.querySelectorAll('[data-password-toggle]').forEach(toggle => {
+                toggle.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const targetId = toggle.getAttribute('data-password-toggle');
+                    const input = document.getElementById(targetId);
+                    if (!input) {
+                        return;
+                    }
+
+                    const eyeOpen = toggle.querySelector('.eye-open');
+                    const eyeClosed = toggle.querySelector('.eye-closed');
+                    const reveal = input.type === 'password';
+
+                    input.type = reveal ? 'text' : 'password';
+                    eyeOpen.hidden = reveal;
+                    eyeClosed.hidden = !reveal;
+                    input.focus();
+                });
+            });
+        }
+
+        async function tryResumeSession() {
+            const token = getStoredToken();
+            if (!token) {
+                return false;
+            }
+
             try {
                 const response = await httpClient.get('/auth/me');
                 if (response) {
                     window.location.href = new URL('./index.html', window.location.href).toString();
+                    return true;
                 }
             } catch {
                 clearAuthSession();
             }
+
+            return false;
         }
 
-        const rememberedUsername = localStorage.getItem('cv_remembered_username');
-        if (rememberedUsername) {
-            document.getElementById('username').value = rememberedUsername;
-            document.getElementById('rememberMe').checked = true;
+        async function loadSetupStatus() {
+            setupStatus = await httpClient.get('/auth/setup-status');
+            applySetupRules(setupStatus);
+            setMode(setupStatus.requiresInitialAdminSetup ? 'setup' : 'login');
         }
 
-        const logoutNotice = consumeLogoutNotice();
-        if (logoutNotice) {
-            const errorDiv = document.getElementById('loginError');
-            errorDiv.textContent = logoutNotice;
-            errorDiv.style.display = 'block';
+        async function initializePage() {
+            bindPasswordToggles();
+
+            const rememberedUsername = localStorage.getItem('cv_remembered_username');
+            if (rememberedUsername) {
+                loginUsername.value = rememberedUsername;
+                rememberMe.checked = true;
+            }
+
+            const logoutNotice = consumeLogoutNotice();
+            if (await tryResumeSession()) {
+                return;
+            }
+
+            await loadSetupStatus();
+            if (logoutNotice) {
+                showError(logoutNotice);
+            }
         }
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        loginForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            showError('');
+            setButtonLoading(loginBtn, true);
 
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const rememberMe = document.getElementById('rememberMe').checked;
-            const loginBtn = document.getElementById('loginBtn');
-            const btnText = loginBtn.querySelector('.btn-text');
-            const btnLoading = loginBtn.querySelector('.btn-loading');
-            const errorDiv = document.getElementById('loginError');
-
-            loginBtn.disabled = true;
-            btnText.style.display = 'none';
-            btnLoading.style.display = 'flex';
-            errorDiv.style.display = 'none';
-            errorDiv.textContent = '';
+            const username = loginUsername.value.trim();
+            const password = loginPassword.value;
 
             try {
                 const response = await httpClient.post('/auth/login', {
@@ -168,8 +331,7 @@
                 }
 
                 storeAuthSession(response.token, response.user);
-
-                if (rememberMe) {
+                if (rememberMe.checked) {
                     localStorage.setItem('cv_remembered_username', username);
                 } else {
                     localStorage.removeItem('cv_remembered_username');
@@ -178,12 +340,54 @@
                 window.location.href = new URL('./index.html', window.location.href).toString();
             } catch (error) {
                 console.error('登录失败:', error);
-                errorDiv.textContent = error.message || '用户名或密码错误';
-                errorDiv.style.display = 'block';
-                loginBtn.disabled = false;
-                btnText.style.display = 'block';
-                btnLoading.style.display = 'none';
+                showError(error.message || '用户名或密码错误');
+            } finally {
+                setButtonLoading(loginBtn, false);
             }
+        });
+
+        setupForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            showError('');
+            setButtonLoading(setupBtn, true);
+
+            const username = setupUsername.value.trim();
+            const password = setupPassword.value;
+            const confirmPassword = setupConfirmPassword.value;
+
+            try {
+                const response = await httpClient.post('/auth/setup-admin', {
+                    username,
+                    password,
+                    confirmPassword
+                });
+
+                if (!response?.token) {
+                    throw new Error('初始化失败，服务端未返回令牌');
+                }
+
+                storeAuthSession(response.token, response.user);
+                localStorage.setItem('cv_remembered_username', username);
+                window.location.href = new URL('./index.html', window.location.href).toString();
+            } catch (error) {
+                console.error('管理员初始化失败:', error);
+
+                if ((error.message || '').includes('系统已完成初始化')) {
+                    loginUsername.value = username;
+                    await loadSetupStatus();
+                    setMode('login', error.message);
+                    return;
+                }
+
+                showError(error.message || '管理员初始化失败');
+            } finally {
+                setButtonLoading(setupBtn, false);
+            }
+        });
+
+        initializePage().catch(error => {
+            console.error('登录页初始化失败:', error);
+            setMode('login', error.message || '登录页初始化失败，请稍后重试');
         });
     </script>
 </body>

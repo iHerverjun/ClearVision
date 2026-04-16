@@ -1,3 +1,4 @@
+using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -128,21 +129,21 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_ShouldRejectWeakPasswordWithoutComplexity()
+    public async Task ChangePasswordAsync_ShouldRejectPasswordShorterThanConfiguredLength()
     {
         var repository = Substitute.For<IUserRepository>();
         var passwordHasher = Substitute.For<IPasswordHasher>();
         var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
-        var user = CreateUser("weak-password-user", "hash");
+        var user = CreateUser("short-password-user", "hash");
 
         repository.GetByIdAsync(user.Id).Returns(user);
 
         var service = new AuthService(repository, passwordHasher, configurationService);
 
-        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "lowercase1");
+        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "short1");
 
         result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Be("新密码必须同时包含大写字母、小写字母和数字");
+        result.ErrorMessage.Should().Be("新密码长度不能少于 8 位");
         await repository.DidNotReceive().UpdateAsync(Arg.Any<User>());
     }
 
@@ -175,15 +176,139 @@ public class AuthServiceTests
 
         repository.GetByIdAsync(user.Id).Returns(user);
         passwordHasher.VerifyPassword("CurrentPwd1", user.PasswordHash).Returns(true);
-        passwordHasher.HashPassword("NewSecure1").Returns("new-hash");
+        passwordHasher.HashPassword("plaintext").Returns("new-hash");
 
         var service = new AuthService(repository, passwordHasher, configurationService);
 
-        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "NewSecure1");
+        var result = await service.ChangePasswordAsync(user.Id.ToString(), "CurrentPwd1", "plaintext");
 
         result.Success.Should().BeTrue();
         await repository.Received(1).UpdateAsync(user);
-        passwordHasher.Received(1).HashPassword("NewSecure1");
+        passwordHasher.Received(1).HashPassword("plaintext");
+    }
+
+    [Fact]
+    public async Task GetInitialAdminSetupStatusAsync_ShouldRequireSetup_WhenSystemHasNoUsers()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 10);
+        repository.HasAnyUsersAsync(Arg.Any<CancellationToken>()).Returns(false);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var status = await service.GetInitialAdminSetupStatusAsync();
+
+        status.RequiresInitialAdminSetup.Should().BeTrue();
+        status.UsernameMinLength.Should().Be(3);
+        status.PasswordMinLength.Should().Be(10);
+        status.RequiresUppercase.Should().BeFalse();
+        status.RequiresLowercase.Should().BeFalse();
+        status.RequiresDigit.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SetupInitialAdminAsync_ShouldCreateAdminAndReturnToken_WhenSystemHasNoUsers()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        passwordHasher.HashPassword("password1").Returns("hashed-admin");
+        passwordHasher.VerifyPassword("password1", "hashed-admin").Returns(true);
+        repository.HasAnyUsersAsync(Arg.Any<CancellationToken>()).Returns(false);
+        repository.IsUsernameExistsAsync("factory-admin", Arg.Any<CancellationToken>()).Returns(false);
+        repository.AddAsync(Arg.Any<User>()).Returns(call => Task.FromResult(call.Arg<User>()));
+        repository.GetByUsernameAsync("factory-admin", Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var createdUser = call.ArgAt<string>(0);
+                return Task.FromResult<User?>(User.Create(createdUser, "hashed-admin", createdUser, UserRole.Admin));
+            });
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.SetupInitialAdminAsync(new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "password1",
+            ConfirmPassword = "password1"
+        });
+
+        result.Success.Should().BeTrue();
+        result.Token.Should().NotBeNullOrWhiteSpace();
+        result.User.Should().NotBeNull();
+        result.User!.Role.Should().Be(UserRole.Admin);
+        result.User.Username.Should().Be("factory-admin");
+        await repository.Received(1).AddAsync(Arg.Is<User>(user =>
+            user.Username == "factory-admin" &&
+            user.DisplayName == "factory-admin" &&
+            user.Role == UserRole.Admin));
+    }
+
+    [Fact]
+    public async Task SetupInitialAdminAsync_ShouldReject_WhenAnyUserAlreadyExists()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        repository.HasAnyUsersAsync(Arg.Any<CancellationToken>()).Returns(true);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.SetupInitialAdminAsync(new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "password1",
+            ConfirmPassword = "password1"
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be(AuthService.InitialAdminSetupAlreadyCompletedMessage);
+        await repository.DidNotReceive().AddAsync(Arg.Any<User>());
+    }
+
+    [Fact]
+    public async Task SetupInitialAdminAsync_ShouldReject_WhenPasswordIsShorterThanMinimumLength()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        repository.HasAnyUsersAsync(Arg.Any<CancellationToken>()).Returns(false);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.SetupInitialAdminAsync(new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "short1",
+            ConfirmPassword = "short1"
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("新密码长度不能少于 8 位");
+        await repository.DidNotReceive().AddAsync(Arg.Any<User>());
+    }
+
+    [Fact]
+    public async Task SetupInitialAdminAsync_ShouldReject_WhenConfirmPasswordDoesNotMatch()
+    {
+        var repository = Substitute.For<IUserRepository>();
+        var passwordHasher = Substitute.For<IPasswordHasher>();
+        var configurationService = CreateConfigurationService(sessionTimeoutMinutes: 30, loginFailureLockoutCount: 2, passwordMinLength: 8);
+        repository.HasAnyUsersAsync(Arg.Any<CancellationToken>()).Returns(false);
+
+        var service = new AuthService(repository, passwordHasher, configurationService);
+
+        var result = await service.SetupInitialAdminAsync(new InitialAdminSetupRequest
+        {
+            Username = "factory-admin",
+            Password = "password1",
+            ConfirmPassword = "password2"
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("两次输入的密码不一致");
+        await repository.DidNotReceive().AddAsync(Arg.Any<User>());
     }
 
     private static IConfigurationService CreateConfigurationService(int sessionTimeoutMinutes, int loginFailureLockoutCount, int passwordMinLength = 6)

@@ -1,34 +1,26 @@
 /**
- * 登录页样式 (Red/White Tech Design)
+ * 登录页样式
  */
 
 :root {
-    /* 核心色板 - 红白科技风 */
-    --bg-base: #f8fafc;       /* Slate 50 */
+    --bg-base: #f8fafc;
     --bg-gradient-start: #ffffff;
-    --bg-gradient-end: #eff6ff; /* Very subtle blue-ish white */
-    
-    --accent-primary: #dc2626;  /* Red 600 - Tech Red */
+    --bg-gradient-end: #eff6ff;
+    --accent-primary: #dc2626;
     --accent-glow: rgba(220, 38, 38, 0.25);
-    --accent-hover: #b91c1c;    /* Red 700 */
-    
-    --text-primary: #0f172a;    /* Slate 900 */
-    --text-secondary: #475569;  /* Slate 600 */
-    --text-tertiary: #94a3b8;   /* Slate 400 */
-    
-    /* 白玻璃拟态 */
+    --accent-hover: #b91c1c;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #94a3b8;
     --glass-bg: rgba(255, 255, 255, 0.75);
     --glass-border: rgba(255, 255, 255, 0.8);
-    --glass-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.02);
-    
+    --glass-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.02);
     --input-bg: rgba(255, 255, 255, 0.8);
-    --input-border: #cbd5e1;    /* Slate 300 */
+    --input-border: #cbd5e1;
     --input-focus-bg: #ffffff;
-    
     --radius-lg: 16px;
     --radius-md: 12px;
     --radius-sm: 8px;
-    
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -38,10 +30,14 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: var(--font-sans);
     background-color: var(--bg-base);
-    background-image: 
+    background-image:
         radial-gradient(circle at 50% 0%, var(--bg-gradient-start) 0%, transparent 75%),
         radial-gradient(circle at 80% 90%, rgba(220, 38, 38, 0.03) 0%, transparent 50%);
     min-height: 100vh;
@@ -52,13 +48,12 @@ body {
     overflow: hidden;
 }
 
-/* 科技网格背景 - 深色线条适配浅色背景 */
 body::before {
     content: '';
     position: absolute;
     width: 200%;
     height: 200%;
-    background-image: 
+    background-image:
         linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
         linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
     background-size: 40px 40px;
@@ -85,7 +80,7 @@ body::before {
     width: 100%;
     max-width: 420px;
     background: var(--glass-bg);
-    border: 1px solid white; /* 增强玻璃感 */
+    border: 1px solid white;
     border-radius: var(--radius-lg);
     padding: 48px;
     box-shadow: var(--glass-shadow);
@@ -96,7 +91,6 @@ body::before {
     overflow: hidden;
 }
 
-/* 顶部红色装饰条 */
 .login-box::before {
     content: '';
     position: absolute;
@@ -109,11 +103,11 @@ body::before {
 }
 
 @keyframes card-entry {
-    from { 
+    from {
         opacity: 0;
         transform: translateY(20px) scale(0.95);
     }
-    to { 
+    to {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
@@ -155,9 +149,6 @@ body::before {
     margin-bottom: 8px;
     letter-spacing: -0.5px;
     color: var(--text-primary);
-    background: none; /* 移除之前的渐变文字，使用纯色以保持清晰 */
-    -webkit-text-fill-color: initial;
-    background-clip: border-box;
 }
 
 .login-header p {
@@ -170,6 +161,67 @@ body::before {
 
 .login-form {
     margin-bottom: 32px;
+}
+
+.login-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--accent-primary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid rgba(220, 38, 38, 0.18);
+}
+
+.setup-intro {
+    margin-bottom: 24px;
+    padding: 18px 20px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(220, 38, 38, 0.12);
+}
+
+.setup-intro h2 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.setup-intro p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.setup-rules {
+    margin-bottom: 24px;
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.setup-rules-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.setup-rules ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
 }
 
 .form-group {
@@ -246,7 +298,6 @@ body::before {
     border-color: var(--accent-primary);
 }
 
-/* 复选框勾号 */
 .remember-me input[type="checkbox"]:checked::after {
     content: '';
     position: absolute;
@@ -279,7 +330,6 @@ body::before {
     overflow: hidden;
 }
 
-/* 按钮点击波纹 */
 .login-btn::after {
     content: '';
     position: absolute;
@@ -322,7 +372,7 @@ body::before {
 
 .spinner {
     animation: spin 1s linear infinite;
-    color: rgba(255,255,255,0.9);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 @keyframes spin {
@@ -331,16 +381,16 @@ body::before {
 }
 
 .login-error {
-    background: #fef2f2; /* Red 50 */
-    border: 1px solid #fecaca; /* Red 200 */
+    background: #fef2f2;
+    border: 1px solid #fecaca;
     border-radius: var(--radius-md);
     padding: 14px;
     margin-bottom: 24px;
-    color: #dc2626; /* Red 600 */
+    color: #dc2626;
     font-size: 14px;
     text-align: center;
     display: none;
-    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
 }
 
 @keyframes shake {
@@ -363,7 +413,6 @@ body::before {
     opacity: 0.8;
 }
 
-/* 密码显示切换 */
 .password-wrapper {
     position: relative;
     display: flex;
@@ -371,7 +420,7 @@ body::before {
 }
 
 .password-wrapper input {
-    padding-right: 48px; /* 为toggle按钮留空间 */
+    padding-right: 48px;
 }
 
 .password-toggle {
@@ -390,6 +439,8 @@ body::before {
     justify-content: center;
     border-radius: 6px;
     z-index: 2;
+    appearance: none;
+    -webkit-appearance: none;
 }
 
 .password-toggle:hover {
@@ -402,18 +453,22 @@ body::before {
     height: 20px;
 }
 
-/* 隐藏浏览器原生密码显示按钮 */
 input[type="password"]::-ms-reveal,
-input[type="password"]::-webkit-credentials-auto-fill-button {
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="password"]::-webkit-clear-button {
     display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    -webkit-appearance: none;
 }
 
-/* 响应式适配 */
 @media (max-width: 480px) {
     .login-container {
         padding: 16px;
     }
-    
+
     .login-box {
         padding: 32px 24px;
     }

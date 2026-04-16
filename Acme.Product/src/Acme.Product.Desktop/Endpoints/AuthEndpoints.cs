@@ -1,7 +1,3 @@
-// AuthEndpoints.cs
-// 从请求头获取 Token
-// 作者：蘅芜君
-
 using Acme.Product.Application.DTOs;
 using Acme.Product.Application.Services;
 using Acme.Product.Core.Interfaces;
@@ -12,13 +8,40 @@ using Microsoft.AspNetCore.Routing;
 namespace Acme.Product.Desktop.Endpoints;
 
 /// <summary>
-/// 认证 API 端点
+/// Authentication endpoints.
 /// </summary>
 public static class AuthEndpoints
 {
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        // 登录 - 公开
+        app.MapGet("/api/auth/setup-status", async (IAuthService authService) =>
+        {
+            var status = await authService.GetInitialAdminSetupStatusAsync();
+            return Results.Ok(status);
+        })
+        .AllowAnonymous();
+
+        app.MapPost("/api/auth/setup-admin", async (InitialAdminSetupRequest request, IAuthService authService) =>
+        {
+            var result = await authService.SetupInitialAdminAsync(request);
+            if (!result.Success)
+            {
+                if (string.Equals(result.ErrorMessage, AuthService.InitialAdminSetupAlreadyCompletedMessage, StringComparison.Ordinal))
+                {
+                    return Results.Conflict(new { Error = result.ErrorMessage });
+                }
+
+                return Results.BadRequest(new { Error = result.ErrorMessage ?? "管理员初始化失败" });
+            }
+
+            return Results.Ok(new
+            {
+                Token = result.Token,
+                User = result.User
+            });
+        })
+        .AllowAnonymous();
+
         app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authService) =>
         {
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
@@ -27,7 +50,6 @@ public static class AuthEndpoints
             }
 
             var result = await authService.LoginAsync(request.Username, request.Password);
-            
             if (!result.Success)
             {
                 return Results.Json(
@@ -35,15 +57,14 @@ public static class AuthEndpoints
                     statusCode: StatusCodes.Status401Unauthorized);
             }
 
-            return Results.Ok(new 
-            { 
-                Token = result.Token, 
-                User = result.User 
+            return Results.Ok(new
+            {
+                Token = result.Token,
+                User = result.User
             });
         })
         .AllowAnonymous();
 
-        // 登出 - 需要认证
         app.MapPost("/api/auth/logout", async (HttpContext context, IAuthService authService) =>
         {
             var token = GetTokenFromHeader(context);
@@ -51,10 +72,10 @@ public static class AuthEndpoints
             {
                 await authService.LogoutAsync(token);
             }
+
             return Results.Ok(new { Message = "已登出", Audit = "server-session-cleared" });
         });
 
-        // 获取当前用户 - 需要认证
         app.MapGet("/api/auth/me", async (HttpContext context, IAuthService authService) =>
         {
             var token = GetTokenFromHeader(context);
@@ -69,18 +90,17 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
             }
 
-            return Results.Ok(new 
-            { 
-                session.UserId, 
-                session.Username, 
-                session.Role 
+            return Results.Ok(new
+            {
+                session.UserId,
+                session.Username,
+                session.Role
             });
         });
 
-        // 修改密码 - 需要认证
         app.MapPost("/api/auth/change-password", async (
-            HttpContext context, 
-            ChangePasswordRequest request, 
+            HttpContext context,
+            ChangePasswordRequest request,
             IAuthService authService,
             IConfigurationService configService) =>
         {
@@ -108,8 +128,8 @@ public static class AuthEndpoints
             }
 
             var result = await authService.ChangePasswordAsync(
-                session.UserId, 
-                request.OldPassword, 
+                session.UserId,
+                request.OldPassword,
                 request.NewPassword);
 
             if (!result.Success)
@@ -127,9 +147,6 @@ public static class AuthEndpoints
         return app;
     }
 
-    /// <summary>
-    /// 从请求头获取 Token
-    /// </summary>
     private static string? GetTokenFromHeader(HttpContext context)
     {
         var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
@@ -137,6 +154,7 @@ public static class AuthEndpoints
         {
             return authHeader.Substring("Bearer ".Length).Trim();
         }
+
         return null;
     }
 
@@ -157,8 +175,7 @@ public static class AuthEndpoints
             return "PASSWORD_REUSE";
         }
 
-        if (errorMessage.Contains("长度不能少于", StringComparison.Ordinal) ||
-            errorMessage.Contains("必须同时包含大写字母、小写字母和数字", StringComparison.Ordinal))
+        if (errorMessage.Contains("长度不能少于", StringComparison.Ordinal))
         {
             return "WEAK_PASSWORD";
         }

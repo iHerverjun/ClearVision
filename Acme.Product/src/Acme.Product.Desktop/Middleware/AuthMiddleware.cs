@@ -21,6 +21,8 @@ public class AuthMiddleware
     private static readonly string[] _whitelist = new[]
     {
         "/api/auth/login",
+        "/api/auth/setup-status",
+        "/api/auth/setup-admin",
         "/health",
         "/",
         "/index.html",
