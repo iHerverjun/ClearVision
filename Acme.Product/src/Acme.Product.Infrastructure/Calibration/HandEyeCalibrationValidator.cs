@@ -43,7 +43,7 @@ public static class HandEyeCalibrationValidator
         var referenceTransforms = calibrationType switch
         {
             RobotHandEyeCalibrationType.EyeInHand => BuildEyeInHandReferenceTransforms(baseToToolPoses, cameraToTargetPoses, handEyeMatrix),
-            RobotHandEyeCalibrationType.EyeToHand => BuildEyeToHandReferenceTransforms(baseToToolPoses, cameraToTargetPoses),
+            RobotHandEyeCalibrationType.EyeToHand => BuildEyeToHandReferenceTransforms(baseToToolPoses, cameraToTargetPoses, handEyeMatrix),
             _ => []
         };
 
@@ -97,13 +97,14 @@ public static class HandEyeCalibrationValidator
 
     private static List<Matrix4x4> BuildEyeToHandReferenceTransforms(
         IReadOnlyList<Matrix4x4> baseToToolPoses,
-        IReadOnlyList<Matrix4x4> cameraToTargetPoses)
+        IReadOnlyList<Matrix4x4> cameraToTargetPoses,
+        Matrix4x4 cameraToBase)
     {
         var transforms = new List<Matrix4x4>(baseToToolPoses.Count);
         for (var i = 0; i < baseToToolPoses.Count; i++)
         {
-            var toolToBase = HandEyeCalibrationSolver.Invert(baseToToolPoses[i]);
-            transforms.Add(cameraToTargetPoses[i] * toolToBase);
+            var targetToCamera = HandEyeCalibrationSolver.Invert(cameraToTargetPoses[i]);
+            transforms.Add(targetToCamera * cameraToBase * baseToToolPoses[i]);
         }
 
         return transforms;

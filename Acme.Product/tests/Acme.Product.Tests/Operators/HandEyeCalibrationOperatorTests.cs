@@ -16,7 +16,7 @@ public sealed class HandEyeCalibrationOperatorTests
     public async Task ExecuteAsync_WithSyntheticEyeInHandSamples_ShouldRecoverHandEyeTransform()
     {
         var sut = new HandEyeCalibrationOperator(Substitute.For<ILogger<HandEyeCalibrationOperator>>());
-        var op = CreateCalibrationOperator();
+        var op = CreateCalibrationOperator("eye_in_hand");
         var (robotPoses, boardPoses, expectedCameraToTool) = CreateSyntheticEyeInHandDataset();
 
         var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
@@ -35,12 +35,34 @@ public sealed class HandEyeCalibrationOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithSyntheticEyeToHandSamples_ShouldRecoverCameraToBaseTransform()
+    {
+        var sut = new HandEyeCalibrationOperator(Substitute.For<ILogger<HandEyeCalibrationOperator>>());
+        var op = CreateCalibrationOperator("eye_to_hand");
+        var (robotPoses, boardPoses, expectedCameraToBase) = CreateSyntheticEyeToHandDataset();
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["RobotPoses"] = robotPoses,
+            ["CalibrationBoardPoses"] = boardPoses
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var estimated = ExtractHandEyeTransform(result);
+
+        TranslationError(estimated, expectedCameraToBase).Should().BeLessThan(0.005);
+        RotationErrorDegrees(estimated, expectedCameraToBase).Should().BeLessThan(0.5);
+        result.OutputData["MatrixConvention"].Should().Be("CameraToBaseMatrix");
+        result.OutputData["CalibrationQuality"].Should().Be("good");
+    }
+
+    [Fact]
     public async Task ValidatorOperator_WithConsistentMatrix_ShouldProduceReport()
     {
         var calibrationOperator = new HandEyeCalibrationOperator(Substitute.For<ILogger<HandEyeCalibrationOperator>>());
         var validatorOperator = new HandEyeCalibrationValidatorOperator(Substitute.For<ILogger<HandEyeCalibrationValidatorOperator>>());
-        var calibrationOp = CreateCalibrationOperator();
-        var validatorOp = CreateValidatorOperator();
+        var calibrationOp = CreateCalibrationOperator("eye_in_hand");
+        var validatorOp = CreateValidatorOperator("eye_in_hand");
         var (robotPoses, boardPoses, _) = CreateSyntheticEyeInHandDataset();
 
         var calibrationResult = await calibrationOperator.ExecuteAsync(calibrationOp, new Dictionary<string, object>
@@ -64,20 +86,57 @@ public sealed class HandEyeCalibrationOperatorTests
         validationResult.OutputData["SuggestedValidationPoses"].Should().BeOfType<string>();
     }
 
-    private static Operator CreateCalibrationOperator()
+    [Fact]
+    public async Task ValidatorOperator_WithPerturbedEyeToHandMatrix_ShouldIncreaseError()
+    {
+        var calibrationOperator = new HandEyeCalibrationOperator(Substitute.For<ILogger<HandEyeCalibrationOperator>>());
+        var validatorOperator = new HandEyeCalibrationValidatorOperator(Substitute.For<ILogger<HandEyeCalibrationValidatorOperator>>());
+        var calibrationOp = CreateCalibrationOperator("eye_to_hand");
+        var validatorOp = CreateValidatorOperator("eye_to_hand");
+        var (robotPoses, boardPoses, _) = CreateSyntheticEyeToHandDataset();
+
+        var calibrationResult = await calibrationOperator.ExecuteAsync(calibrationOp, new Dictionary<string, object>
+        {
+            ["RobotPoses"] = robotPoses,
+            ["CalibrationBoardPoses"] = boardPoses
+        });
+
+        calibrationResult.IsSuccess.Should().BeTrue(calibrationResult.ErrorMessage);
+
+        var calibrationData = calibrationResult.OutputData!["CalibrationData"].Should().BeOfType<string>().Subject;
+        CalibrationBundleV2Json.TryDeserialize(calibrationData, out var bundle, out var error).Should().BeTrue(error);
+        bundle.Transform3D.Should().NotBeNull();
+        CalibrationBundleV2PoseHelpers.TryToMatrix4x4(bundle.Transform3D!.Matrix, out var handEyeMatrix, out var matrixError).Should().BeTrue(matrixError);
+        handEyeMatrix.M41 += 0.03f;
+        handEyeMatrix.M42 -= 0.02f;
+        bundle.Transform3D.Matrix = CalibrationBundleV2PoseHelpers.ToJaggedMatrix4x4(handEyeMatrix);
+
+        var validationResult = await validatorOperator.ExecuteAsync(validatorOp, new Dictionary<string, object>
+        {
+            ["RobotPoses"] = robotPoses,
+            ["CalibrationBoardPoses"] = boardPoses,
+            ["CalibrationData"] = CalibrationBundleV2Json.Serialize(bundle)
+        });
+
+        validationResult.IsSuccess.Should().BeTrue(validationResult.ErrorMessage);
+        Convert.ToDouble(validationResult.OutputData!["MeanError"]).Should().BeGreaterThan(0.005);
+        validationResult.OutputData["Quality"].Should().NotBe("good");
+    }
+
+    private static Operator CreateCalibrationOperator(string calibrationType)
     {
         var op = new Operator("handeye", OperatorType.HandEyeCalibration, 0, 0);
-        op.AddParameter(TestHelpers.CreateParameter("CalibrationType", "eye_in_hand", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("CalibrationType", calibrationType, "string"));
         op.AddParameter(TestHelpers.CreateParameter("Method", "TSAI", "string"));
         op.AddParameter(TestHelpers.CreateParameter("CameraMatrix", string.Empty, "string"));
         op.AddParameter(TestHelpers.CreateParameter("DistortionCoeffs", string.Empty, "string"));
         return op;
     }
 
-    private static Operator CreateValidatorOperator()
+    private static Operator CreateValidatorOperator(string calibrationType)
     {
         var op = new Operator("handeye_validator", OperatorType.HandEyeCalibrationValidator, 0, 0);
-        op.AddParameter(TestHelpers.CreateParameter("CalibrationType", "eye_in_hand", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("CalibrationType", calibrationType, "string"));
         return op;
     }
 
@@ -114,6 +173,42 @@ public sealed class HandEyeCalibrationOperatorTests
         }
 
         return (robotPoses, boardPoses, expectedCameraToTool);
+    }
+
+    private static (List<Matrix4x4> RobotPoses, List<Matrix4x4> BoardPoses, Matrix4x4 ExpectedCameraToBase) CreateSyntheticEyeToHandDataset()
+    {
+        var expectedCameraToBase = CreateTransform(new Vector3(-0.220f, 0.080f, 0.550f), -2f, 11f, 18f);
+        var targetToTool = CreateTransform(new Vector3(0.012f, -0.018f, 0.040f), 4f, -3f, 7f);
+        var baseToCamera = Invert(expectedCameraToBase);
+
+        var robotPoses = new List<Matrix4x4>();
+        var boardPoses = new List<Matrix4x4>();
+
+        var samples = new[]
+        {
+            (new Vector3(0.22f, -0.04f, 0.28f), 3f, 5f, -10f),
+            (new Vector3(0.18f, 0.02f, 0.32f), -4f, 12f, 15f),
+            (new Vector3(0.25f, 0.06f, 0.30f), 8f, -6f, 20f),
+            (new Vector3(0.21f, -0.08f, 0.34f), -9f, 7f, -16f),
+            (new Vector3(0.17f, 0.05f, 0.29f), 11f, -10f, 6f),
+            (new Vector3(0.24f, -0.01f, 0.36f), -7f, 9f, 12f),
+            (new Vector3(0.19f, 0.09f, 0.31f), 5f, -12f, -8f),
+            (new Vector3(0.23f, -0.05f, 0.27f), -11f, 4f, 17f),
+            (new Vector3(0.16f, 0.00f, 0.35f), 9f, 8f, -14f)
+        };
+
+        foreach (var (translation, roll, pitch, yaw) in samples)
+        {
+            var baseToTool = CreateTransform(translation, roll, pitch, yaw);
+            var toolToBase = Invert(baseToTool);
+            var targetToCamera = targetToTool * toolToBase * baseToCamera;
+            var cameraToTarget = Invert(targetToCamera);
+
+            robotPoses.Add(baseToTool);
+            boardPoses.Add(cameraToTarget);
+        }
+
+        return (robotPoses, boardPoses, expectedCameraToBase);
     }
 
     private static Matrix4x4 CreateTransform(Vector3 translation, float rollDeg, float pitchDeg, float yawDeg)

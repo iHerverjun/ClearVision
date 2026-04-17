@@ -162,30 +162,59 @@ public static class HandEyeCalibrationSolver
         IReadOnlyList<Matrix4x4> cameraToTargetPoses,
         HandEyeCalibrationMethod method)
     {
-        var cameraToBaseCandidates = new List<Matrix4x4>(baseToToolPoses.Count);
-        for (var i = 0; i < baseToToolPoses.Count; i++)
+        var rotationsBaseToTool = new List<Mat>(baseToToolPoses.Count);
+        var translationsBaseToTool = new List<Mat>(baseToToolPoses.Count);
+        var rotationsTargetToCamera = new List<Mat>(cameraToTargetPoses.Count);
+        var translationsTargetToCamera = new List<Mat>(cameraToTargetPoses.Count);
+
+        try
         {
-            var toolToBase = Invert(baseToToolPoses[i]);
-            cameraToBaseCandidates.Add(cameraToTargetPoses[i] * toolToBase);
+            for (var i = 0; i < baseToToolPoses.Count; i++)
+            {
+                var targetToCamera = Invert(cameraToTargetPoses[i]);
+
+                rotationsBaseToTool.Add(ToRotationMat(baseToToolPoses[i]));
+                translationsBaseToTool.Add(ToTranslationMat(baseToToolPoses[i]));
+                rotationsTargetToCamera.Add(ToRotationMat(targetToCamera));
+                translationsTargetToCamera.Add(ToTranslationMat(targetToCamera));
+            }
+
+            using var rotationCameraToBase = new Mat();
+            using var translationCameraToBase = new Mat();
+            Cv2.CalibrateHandEye(
+                rotationsBaseToTool,
+                translationsBaseToTool,
+                rotationsTargetToCamera,
+                translationsTargetToCamera,
+                rotationCameraToBase,
+                translationCameraToBase,
+                method);
+
+            var handEyeMatrix = FromRotationTranslation(rotationCameraToBase, translationCameraToBase);
+            var validation = HandEyeCalibrationValidator.Validate(
+                baseToToolPoses,
+                cameraToTargetPoses,
+                handEyeMatrix,
+                RobotHandEyeCalibrationType.EyeToHand);
+
+            return new RobotHandEyeCalibrationResult
+            {
+                Success = true,
+                CalibrationType = RobotHandEyeCalibrationType.EyeToHand,
+                Method = method.ToString(),
+                HandEyeMatrix = handEyeMatrix,
+                InverseHandEyeMatrix = Invert(handEyeMatrix),
+                MatrixConvention = "CameraToBaseMatrix",
+                Validation = validation
+            };
         }
-
-        var handEyeMatrix = AverageTransforms(cameraToBaseCandidates);
-        var validation = HandEyeCalibrationValidator.Validate(
-            baseToToolPoses,
-            cameraToTargetPoses,
-            handEyeMatrix,
-            RobotHandEyeCalibrationType.EyeToHand);
-
-        return new RobotHandEyeCalibrationResult
+        finally
         {
-            Success = true,
-            CalibrationType = RobotHandEyeCalibrationType.EyeToHand,
-            Method = method.ToString(),
-            HandEyeMatrix = handEyeMatrix,
-            InverseHandEyeMatrix = Invert(handEyeMatrix),
-            MatrixConvention = "CameraToBaseMatrix (assumes target frame coincides with tool frame)",
-            Validation = validation
-        };
+            DisposeAll(rotationsBaseToTool);
+            DisposeAll(translationsBaseToTool);
+            DisposeAll(rotationsTargetToCamera);
+            DisposeAll(translationsTargetToCamera);
+        }
     }
 
     internal static Matrix4x4 Invert(Matrix4x4 matrix)
