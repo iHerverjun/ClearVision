@@ -38,6 +38,10 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("ReferenceStatsSigma", "Reference Stats Sigma", "double", DefaultValue = 2.5, Min = 0.1, Max = 10.0)]
 public class SurfaceDefectDetectionOperator : OperatorBase
 {
+    private const double MinAcceptedPhaseCorrelationResponse = 0.02;
+    private const double MaxAcceptedShiftRatio = 0.45;
+    private const double MinAcceptedImprovementRatio = -0.04;
+
     public override OperatorType OperatorType => OperatorType.SurfaceDefectDetection;
 
     public SurfaceDefectDetectionOperator(ILogger<SurfaceDefectDetectionOperator> logger) : base(logger)
@@ -337,7 +341,9 @@ public class SurfaceDefectDetectionOperator : OperatorBase
             referenceGray.ConvertTo(reference32, MatType.CV_32FC1);
 
             using var window = new Mat();
-            var shift = Cv2.PhaseCorrelate(source32, reference32, window, out var response);
+            var rawShift = Cv2.PhaseCorrelate(source32, reference32, window, out var response);
+            // PhaseCorrelate reports the shift from source toward reference; invert it because we warp the reference onto the source.
+            var shift = new Point2d(-rawShift.X, -rawShift.Y);
             alignmentScore = response;
             alignmentShift = shift;
 
@@ -349,6 +355,40 @@ public class SurfaceDefectDetectionOperator : OperatorBase
 
             var aligned = new Mat();
             Cv2.WarpAffine(referenceGray, aligned, transform, sourceGray.Size(), InterpolationFlags.Linear, BorderTypes.Replicate);
+
+            var shiftMagnitude = Math.Sqrt((shift.X * shift.X) + (shift.Y * shift.Y));
+            var maxAcceptedShift = Math.Min(sourceGray.Width, sourceGray.Height) * MaxAcceptedShiftRatio;
+            var baselineDifference = ComputeMeanAbsoluteDifference(sourceGray, referenceGray);
+            var alignedDifference = ComputeMeanAbsoluteDifference(sourceGray, aligned);
+            var improvementRatio = baselineDifference <= 1e-6
+                ? 0.0
+                : (baselineDifference - alignedDifference) / baselineDifference;
+            var allowedDifferenceIncrease = Math.Max(2.0, baselineDifference * 0.12);
+
+            if (shiftMagnitude > maxAcceptedShift)
+            {
+                rejectedReason =
+                    $"PhaseCorrelation translation alignment rejected: estimated shift ({shift.X:F2}, {shift.Y:F2}) exceeds the supported translation range.";
+            }
+            else if (response < MinAcceptedPhaseCorrelationResponse)
+            {
+                rejectedReason =
+                    $"PhaseCorrelation translation alignment rejected: response {response:F3} is below {MinAcceptedPhaseCorrelationResponse:F3}.";
+            }
+            else if (shiftMagnitude > 0.5 &&
+                     alignedDifference > baselineDifference + allowedDifferenceIncrease &&
+                     improvementRatio < MinAcceptedImprovementRatio)
+            {
+                rejectedReason =
+                    $"PhaseCorrelation translation alignment rejected: translation-only alignment changed similarity by only {improvementRatio:P1}.";
+            }
+
+            if (!string.IsNullOrEmpty(rejectedReason))
+            {
+                aligned.Dispose();
+                return referenceGray.Clone();
+            }
+
             return aligned;
         }
         catch (Exception ex)
@@ -358,6 +398,13 @@ public class SurfaceDefectDetectionOperator : OperatorBase
             rejectedReason = $"Alignment failed: {ex.Message}";
             return referenceGray.Clone();
         }
+    }
+
+    private static double ComputeMeanAbsoluteDifference(Mat first, Mat second)
+    {
+        using var diff = new Mat();
+        Cv2.Absdiff(first, second, diff);
+        return Cv2.Mean(diff).Val0;
     }
 
     private static double ApplyThreshold(

@@ -63,44 +63,61 @@ public class PixelStatisticsOperator : OperatorBase
         }
 
         using var roiMat = new Mat(src, roi);
-        using var analysis = ExtractChannel(roiMat, channel);
         using var mask = ResolveMask(inputs, roi, src.Size(), out var maskError);
         if (maskError != null)
         {
             return Task.FromResult(OperatorExecutionOutput.Failure(maskError));
         }
 
-        Cv2.MeanStdDev(analysis, out var mean, out var stddev, mask);
-        Cv2.MinMaxLoc(analysis, out var minValue, out var maxValue, out _, out _, mask);
-
-        using var nzSource = new Mat();
-        if (mask.Empty())
+        var analysisChannels = ResolveAnalysisChannels(roiMat, channel);
+        try
         {
-            analysis.CopyTo(nzSource);
+            var perChannelStats = new Dictionary<string, StatisticsSummary>(StringComparer.OrdinalIgnoreCase);
+            var aggregateValues = analysisChannels.Count > 1 ? new List<double>() : null;
+
+            foreach (var analysisChannel in analysisChannels)
+            {
+                var values = ExtractValues(analysisChannel.Data, mask);
+                var stats = ComputeStatistics(values);
+                perChannelStats[analysisChannel.Name] = stats;
+
+                if (aggregateValues != null)
+                {
+                    aggregateValues.AddRange(values);
+                }
+            }
+
+            var aggregateStats = aggregateValues == null
+                ? perChannelStats[analysisChannels[0].Name]
+                : ComputeStatistics(aggregateValues);
+
+            var output = CreateStatisticsDictionary(aggregateStats);
+            output["SelectedChannel"] = channel;
+            output["ChannelsAnalyzed"] = analysisChannels.Select(item => item.Name).ToArray();
+            output["AggregationMode"] = aggregateValues == null ? "SingleChannel" : "FlattenedChannels";
+
+            if (analysisChannels.Count > 1)
+            {
+                output["ChannelStats"] = perChannelStats.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => (object)CreateStatisticsDictionary(kvp.Value),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+
+            output["StatusCode"] = "OK";
+            output["StatusMessage"] = "Success";
+            output["Confidence"] = 1.0;
+            output["UncertaintyPx"] = 0.0;
+
+            return Task.FromResult(OperatorExecutionOutput.Success(output));
         }
-        else
+        finally
         {
-            Cv2.BitwiseAnd(analysis, analysis, nzSource, mask);
+            foreach (var analysisChannel in analysisChannels)
+            {
+                analysisChannel.Dispose();
+            }
         }
-
-        var nonZeroCount = Cv2.CountNonZero(nzSource);
-        var median = ComputeMedian(analysis, mask);
-
-        var output = new Dictionary<string, object>
-        {
-            { "Mean", mean.Val0 },
-            { "StdDev", stddev.Val0 },
-            { "Min", minValue },
-            { "Max", maxValue },
-            { "Median", median },
-            { "NonZeroCount", nonZeroCount },
-            { "StatusCode", "OK" },
-            { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
-        };
-
-        return Task.FromResult(OperatorExecutionOutput.Success(output));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -115,51 +132,53 @@ public class PixelStatisticsOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static Mat ExtractChannel(Mat src, string channel)
+    private static List<AnalysisChannel> ResolveAnalysisChannels(Mat src, string channel)
     {
         if (channel.Equals("All", StringComparison.OrdinalIgnoreCase))
         {
             if (src.Channels() == 1)
             {
-                return src.Clone();
+                return new List<AnalysisChannel> { new("Gray", src.Clone()) };
             }
 
-            var gray = new Mat();
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-            return gray;
+            var channels = src.Split();
+            var channelNames = new[] { "B", "G", "R", "A" };
+            var results = new List<AnalysisChannel>(channels.Length);
+            for (var i = 0; i < channels.Length; i++)
+            {
+                var name = i < channelNames.Length ? channelNames[i] : $"C{i}";
+                results.Add(new AnalysisChannel(name, channels[i]));
+            }
+
+            return results;
         }
 
         if (channel.Equals("Gray", StringComparison.OrdinalIgnoreCase))
         {
-            if (src.Channels() == 1)
-            {
-                return src.Clone();
-            }
-
-            var gray = new Mat();
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-            return gray;
+            return new List<AnalysisChannel> { new("Gray", ExtractGray(src)) };
         }
 
         if (src.Channels() == 1)
         {
-            return src.Clone();
+            return new List<AnalysisChannel> { new("Gray", src.Clone()) };
         }
 
-        var channels = src.Split();
+        var splitChannels = src.Split();
         try
         {
-            return channel.ToUpperInvariant() switch
+            var selected = channel.ToUpperInvariant() switch
             {
-                "R" => channels[2].Clone(),
-                "G" => channels[1].Clone(),
-                "B" => channels[0].Clone(),
-                _ => channels[0].Clone()
+                "R" => splitChannels[2].Clone(),
+                "G" => splitChannels[1].Clone(),
+                "B" => splitChannels[0].Clone(),
+                _ => splitChannels[0].Clone()
             };
+
+            return new List<AnalysisChannel> { new(channel.ToUpperInvariant(), selected) };
         }
         finally
         {
-            foreach (var c in channels)
+            foreach (var c in splitChannels)
             {
                 c.Dispose();
             }
@@ -217,43 +236,117 @@ public class PixelStatisticsOperator : OperatorBase
         return grayMask;
     }
 
-    private static int ComputeMedian(Mat analysis, Mat mask)
+    private static Mat ExtractGray(Mat src)
     {
-        using var hist = new Mat();
-        using var noMask = new Mat();
-        Cv2.CalcHist(
-            new[] { analysis },
-            new[] { 0 },
-            mask.Empty() ? noMask : mask,
-            hist,
-            1,
-            new[] { 256 },
-            new[] { new Rangef(0, 256) });
-
-        var values = new float[256];
-        var total = 0.0;
-        for (var i = 0; i < 256; i++)
+        if (src.Channels() == 1)
         {
-            values[i] = hist.At<float>(i);
-            total += values[i];
+            return src.Clone();
         }
 
-        if (total <= 0)
-        {
-            return 0;
-        }
+        var gray = new Mat();
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        return gray;
+    }
 
-        var acc = 0.0;
-        for (var i = 0; i < 256; i++)
+    private static List<double> ExtractValues(Mat analysis, Mat mask)
+    {
+        var values = new List<double>();
+        for (var y = 0; y < analysis.Rows; y++)
         {
-            acc += values[i];
-            if (acc >= total / 2.0)
+            for (var x = 0; x < analysis.Cols; x++)
             {
-                return i;
+                if (!mask.Empty() && mask.At<byte>(y, x) == 0)
+                {
+                    continue;
+                }
+
+                values.Add(ReadScalarValue(analysis, x, y));
             }
         }
 
-        return 255;
+        return values;
     }
 
+    private static double ReadScalarValue(Mat mat, int x, int y)
+    {
+        return mat.Depth() switch
+        {
+            MatType.CV_8U => mat.At<byte>(y, x),
+            MatType.CV_8S => mat.At<sbyte>(y, x),
+            MatType.CV_16U => mat.At<ushort>(y, x),
+            MatType.CV_16S => mat.At<short>(y, x),
+            MatType.CV_32S => mat.At<int>(y, x),
+            MatType.CV_32F => mat.At<float>(y, x),
+            MatType.CV_64F => mat.At<double>(y, x),
+            _ => throw new NotSupportedException($"Unsupported image depth for pixel statistics: {mat.Depth()}.")
+        };
+    }
+
+    private static StatisticsSummary ComputeStatistics(List<double> values)
+    {
+        if (values.Count == 0)
+        {
+            return new StatisticsSummary(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
+        }
+
+        var min = double.PositiveInfinity;
+        var max = double.NegativeInfinity;
+        var sum = 0.0;
+        var sumSquares = 0.0;
+        var nonZeroCount = 0;
+
+        foreach (var value in values)
+        {
+            min = Math.Min(min, value);
+            max = Math.Max(max, value);
+            sum += value;
+            sumSquares += value * value;
+            if (value != 0.0)
+            {
+                nonZeroCount++;
+            }
+        }
+
+        var mean = sum / values.Count;
+        var variance = Math.Max(0.0, (sumSquares / values.Count) - (mean * mean));
+        var stdDev = Math.Sqrt(variance);
+
+        values.Sort();
+        var median = values.Count % 2 == 1
+            ? values[values.Count / 2]
+            : (values[(values.Count / 2) - 1] + values[values.Count / 2]) / 2.0;
+
+        return new StatisticsSummary(mean, stdDev, min, max, median, nonZeroCount, values.Count);
+    }
+
+    private static Dictionary<string, object> CreateStatisticsDictionary(StatisticsSummary stats)
+    {
+        return new Dictionary<string, object>
+        {
+            { "Mean", stats.Mean },
+            { "StdDev", stats.StdDev },
+            { "Min", stats.Min },
+            { "Max", stats.Max },
+            { "Median", stats.Median },
+            { "NonZeroCount", stats.NonZeroCount },
+            { "SampleCount", stats.SampleCount }
+        };
+    }
+
+    private sealed record AnalysisChannel(string Name, Mat Data) : IDisposable
+    {
+        public void Dispose()
+        {
+            Data.Dispose();
+        }
+    }
+
+    private sealed record StatisticsSummary(
+        double Mean,
+        double StdDev,
+        double Min,
+        double Max,
+        double Median,
+        int NonZeroCount,
+        int SampleCount);
 }

@@ -21,11 +21,11 @@ namespace Acme.Product.Infrastructure.Operators;
 /// </summary>
 [OperatorMeta(
     DisplayName = "Local Deformable Matching",
-    Description = "Experimental local deformable matching with verified rigid fallback and multi-candidate suppression.",
+    Description = "Experimental local deformable matching backed by moving least squares deformation and verified rigid fallback.",
     Category = "Matching",
     IconName = "deformable-match",
-    Keywords = new[] { "Deformable", "Local", "Matching", "TPS", "Occlusion", "MultiTarget", "NMS" },
-    Version = "1.0.4"
+    Keywords = new[] { "Deformable", "Local", "Matching", "MLS", "Occlusion", "MultiTarget", "NMS" },
+    Version = "1.1.0"
 )]
 [InputPort("Image", "Search Image", PortDataType.Image, IsRequired = true)]
 [InputPort("Template", "Template Image", PortDataType.Image, IsRequired = false)]
@@ -37,8 +37,8 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("OcclusionMask", "Occlusion Mask", PortDataType.Image)]
 [OperatorParam("TemplatePath", "Template Image Path", "file", DefaultValue = "")]
 [OperatorParam("PyramidLevels", "Pyramid Levels", "int", DefaultValue = 3, Min = 1, Max = 6)]
-[OperatorParam("TPSGridSize", "TPS Grid Size", "int", DefaultValue = 4, Min = 2, Max = 8)]
-[OperatorParam("TPSLambda", "TPS Regularization", "double", DefaultValue = 0.01, Min = 0.001, Max = 1.0)]
+[OperatorParam("TPSGridSize", "Control Grid Size", "int", DefaultValue = 4, Min = 2, Max = 8)]
+[OperatorParam("TPSLambda", "MLS Smoothing (Legacy TPSLambda)", "double", DefaultValue = 0.01, Min = 0.001, Max = 1.0)]
 [OperatorParam("MaxDeformation", "Max Deformation (px)", "double", DefaultValue = 20.0, Min = 5.0, Max = 100.0)]
 [OperatorParam("OcclusionThreshold", "Occlusion Threshold", "double", DefaultValue = 0.3, Min = 0.1, Max = 0.9)]
 [OperatorParam("MinMatchScore", "Min Match Score", "double", DefaultValue = 0.6, Min = 0.0, Max = 1.0)]
@@ -53,6 +53,7 @@ namespace Acme.Product.Infrastructure.Operators;
 public class LocalDeformableMatchingOperator : OperatorBase
 {
     private const int TemplateCacheCapacity = 10;
+    private const double OcclusionDifferenceThreshold = 32.0;
     public override OperatorType OperatorType => OperatorType.LocalDeformableMatching;
 
     // 妯℃澘缂撳瓨
@@ -195,7 +196,12 @@ public class LocalDeformableMatchingOperator : OperatorBase
         double minMatchScore, int maxIterations, double convergenceThreshold,
         CancellationToken cancellationToken)
     {
-        var result = new DeformableMatchResult();
+        var result = new DeformableMatchResult
+        {
+            ControlGridSize = tpsGridSize,
+            MlsLambda = tpsLambda,
+            OcclusionThreshold = occlusionThreshold
+        };
         var currentLevel = pyramidLevels - 1;
 
         // 鏋勫缓鎼滅储鍥惧儚閲戝瓧濉?
@@ -285,7 +291,7 @@ public class LocalDeformableMatchingOperator : OperatorBase
                         levelTemplate.Image, controlPoints, refinedDeformedPoints, levelSearch.Size());
 
                     // 璁＄畻鍖归厤鍒嗘暟鍜岄伄鎸?
-                    var (score, occlusionMask, meanError) = ComputeMatchScoreAndOcclusion(
+                    var (score, occlusionMask, meanError, _) = ComputeMatchScoreAndOcclusion(
                         warpedImage, warpedMask, levelSearch, occlusionThreshold);
 
                     if (score > bestIterationScore || (Math.Abs(score - bestIterationScore) < 1e-6 && meanError < bestIterationError))
@@ -331,16 +337,22 @@ public class LocalDeformableMatchingOperator : OperatorBase
             // 鏈€缁堥獙璇?
             if (currentHomography != null && controlPoints != null && deformedPoints != null)
             {
-                var (finalScore, finalOcclusionMask, finalDeformation) = ValidateFinalMatch(
-                    searchImage, template.BaseImage, controlPoints, deformedPoints, currentHomography);
+                var (finalScore, finalOcclusionMask, finalOcclusionRate, finalDeformation) = ValidateFinalMatch(
+                    searchImage,
+                    template.BaseImage,
+                    controlPoints,
+                    deformedPoints,
+                    currentHomography,
+                    occlusionThreshold);
 
-                result.IsSuccess = finalScore >= minMatchScore;
+                result.OcclusionThreshold = occlusionThreshold;
+                result.OcclusionRate = finalOcclusionRate;
+                result.IsSuccess = finalScore >= minMatchScore && finalOcclusionRate <= occlusionThreshold;
                 result.VerificationPassed = result.IsSuccess;
                 result.Score = finalScore;
                 result.VerificationScore = result.IsSuccess ? finalScore : 0.0;
                 result.InlierCount = bestVerifiedMatchCount;
                 result.InlierRatio = Math.Clamp(bestVerifiedInlierRatio, 0.0, 1.0);
-                result.OcclusionRate = ComputeOcclusionRate(finalOcclusionMask);
                 result.DeformationMagnitude = finalDeformation;
                 result.ControlPoints = controlPoints;
                 result.DeformedPoints = deformedPoints;
@@ -350,7 +362,9 @@ public class LocalDeformableMatchingOperator : OperatorBase
 
                 if (!result.IsSuccess)
                 {
-                    result.FailureReason = $"Final score {finalScore:F3} below threshold {minMatchScore}";
+                    result.FailureReason = finalOcclusionRate > occlusionThreshold
+                        ? $"Occlusion rate {finalOcclusionRate:F3} exceeded threshold {occlusionThreshold:F3}"
+                        : $"Final score {finalScore:F3} below threshold {minMatchScore}";
                 }
             }
             else
@@ -544,6 +558,7 @@ public class LocalDeformableMatchingOperator : OperatorBase
         result.VerificationScore = fallback.VerificationScore;
         result.InlierCount = fallback.InlierCount;
         result.InlierRatio = fallback.InlierRatio;
+        result.OcclusionRate = 0.0;
         result.Corners = fallback.Corners
             .Select(point => new Point2f(point.X + roi.X, point.Y + roi.Y))
             .ToArray();
@@ -876,7 +891,7 @@ public class LocalDeformableMatchingOperator : OperatorBase
         return model!.Warp(templateImage, outputSize);
     }
 
-    private (double score, Mat occlusionMask, double meanError) ComputeMatchScoreAndOcclusion(
+    private (double score, Mat occlusionMask, double meanError, double occlusionRate) ComputeMatchScoreAndOcclusion(
         Mat warpedImage, Mat warpedMask, Mat searchImage, double occlusionThreshold)
     {
         using var grayWarped = warpedImage.Channels() == 1 ? warpedImage.Clone() : warpedImage.CvtColor(ColorConversionCodes.BGR2GRAY);
@@ -885,7 +900,7 @@ public class LocalDeformableMatchingOperator : OperatorBase
         Cv2.Absdiff(grayWarped, graySearch, diff);
 
         using var rawOcclusion = new Mat();
-        Cv2.Threshold(diff, rawOcclusion, occlusionThreshold * 255.0, 255, ThresholdTypes.Binary);
+        Cv2.Threshold(diff, rawOcclusion, OcclusionDifferenceThreshold, 255, ThresholdTypes.Binary);
         var occlusionMask = new Mat(warpedMask.Size(), MatType.CV_8UC1, Scalar.All(0));
         Cv2.BitwiseAnd(rawOcclusion, warpedMask, occlusionMask);
 
@@ -897,15 +912,20 @@ public class LocalDeformableMatchingOperator : OperatorBase
         var visiblePixels = Cv2.CountNonZero(visibleMask);
         if (visiblePixels == 0)
         {
-            return (0, occlusionMask, double.PositiveInfinity);
+            return (0, occlusionMask, double.PositiveInfinity, 1.0);
         }
 
+        var occlusionRate = ComputeOcclusionRate(occlusionMask, warpedMask);
         var normalizedCorrelation = (ComputeMaskedCorrelation(grayWarped, graySearch, visibleMask) + 1.0) * 0.5;
         var meanError = diff.Mean(visibleMask).Val0;
         var visibleRatio = visiblePixels / (double)Math.Max(1, Cv2.CountNonZero(warpedMask));
         var errorScore = 1.0 - Math.Clamp(meanError / 255.0, 0.0, 1.0);
-        var score = Math.Clamp((normalizedCorrelation * 0.7) + (visibleRatio * 0.2) + (errorScore * 0.1), 0.0, 1.0);
-        return (score, occlusionMask, meanError);
+        var baseScore = Math.Clamp((normalizedCorrelation * 0.7) + (visibleRatio * 0.2) + (errorScore * 0.1), 0.0, 1.0);
+        var occlusionPenalty = occlusionRate <= occlusionThreshold
+            ? 1.0
+            : Math.Max(0.0, 1.0 - ((occlusionRate - occlusionThreshold) / Math.Max(1e-6, 1.0 - occlusionThreshold)));
+        var score = Math.Clamp(baseScore * occlusionPenalty, 0.0, 1.0);
+        return (score, occlusionMask, meanError, occlusionRate);
     }
 
     private Point2f[] UpsampleControlPoints(Point2f[] points, double factor)
@@ -913,11 +933,11 @@ public class LocalDeformableMatchingOperator : OperatorBase
         return points.Select(p => new Point2f(p.X * (float)factor, p.Y * (float)factor)).ToArray();
     }
 
-    private (double score, Mat mask, double deformation) ValidateFinalMatch(Mat searchImage, Mat templateImage,
-        Point2f[] controlPoints, Point2f[] deformedPoints, Mat homography)
+    private (double score, Mat mask, double occlusionRate, double deformation) ValidateFinalMatch(Mat searchImage, Mat templateImage,
+        Point2f[] controlPoints, Point2f[] deformedPoints, Mat homography, double occlusionThreshold)
     {
         var (warped, mask) = ApplyTPSWarp(templateImage, controlPoints, deformedPoints, searchImage.Size());
-        var (score, occlusionMask, _) = ComputeMatchScoreAndOcclusion(warped, mask, searchImage, 0.3);
+        var (score, occlusionMask, _, occlusionRate) = ComputeMatchScoreAndOcclusion(warped, mask, searchImage, occlusionThreshold);
 
         var deformation = 0.0;
         for (var index = 0; index < controlPoints.Length; index++)
@@ -930,12 +950,12 @@ public class LocalDeformableMatchingOperator : OperatorBase
         deformation /= Math.Max(1, controlPoints.Length);
         warped.Dispose();
         mask.Dispose();
-        return (score, occlusionMask, deformation);
+        return (score, occlusionMask, occlusionRate, deformation);
     }
 
-    private double ComputeOcclusionRate(Mat occlusionMask)
+    private double ComputeOcclusionRate(Mat occlusionMask, Mat supportMask)
     {
-        var total = Math.Max(1.0, occlusionMask.Total());
+        var total = Math.Max(1.0, Cv2.CountNonZero(supportMask));
         return Cv2.CountNonZero(occlusionMask) / total;
     }
 
@@ -1159,17 +1179,20 @@ public class LocalDeformableMatchingOperator : OperatorBase
             { "FailureReason", string.Empty },
             { "VerificationPassed", bestMatch.VerificationPassed || bestMatch.IsFallback },
             { "OcclusionRate", bestMatch.OcclusionRate },
+            { "OcclusionThreshold", bestMatch.OcclusionThreshold },
             { "DeformationMagnitude", bestMatch.DeformationMagnitude },
             { "InlierCount", bestMatch.InlierCount },
             { "InlierRatio", bestMatch.InlierRatio },
-            { "ControlPoints", bestMatch.ControlPoints?.Select(p => new Position(p.X, p.Y)).ToList() },
+            { "ControlPoints", bestMatch.ControlPoints?.Select(p => new Position(p.X, p.Y)).ToList() ?? new List<Position>() },
             { "ProcessingTimeMs", processingTime },
-            { "Method", bestMatch.IsFallback ? "Rigid_Fallback" : "TPS_Deformable" },
+            { "Method", bestMatch.IsFallback ? "Rigid_Fallback" : "MLS_Deformable" },
+            { "DeformationModel", bestMatch.IsFallback ? "RigidHomography" : "MovingLeastSquaresSimilarity" },
+            { "LegacyParameterCompatibility", CreateLegacyParameterCompatibilityPayload(bestMatch) },
             { "MatchCount", matches.Count },
             { "Matches", serializedMatches },
             { "MatchResult", bestPayload },
             { "DeformationField", CreateDeformationFieldPayload(bestMatch) },
-            { "Message", matches.Count > 1 ? "Multi-target deformable matching successful" : "Deformable match successful" }
+            { "Message", matches.Count > 1 ? "Multi-target MLS deformable matching successful" : "MLS deformable match successful" }
         };
 
         if (bestMatch.OcclusionMask != null && !bestMatch.OcclusionMask.Empty())
@@ -1207,11 +1230,15 @@ public class LocalDeformableMatchingOperator : OperatorBase
             { "IsMatch", true },
             { "Score", result.Score },
             { "Method", "Rigid_Fallback" },
+            { "DeformationModel", "RigidHomography" },
             { "FailureReason", string.Empty },
             { "VerificationPassed", true },
             { "MatchCount", 1 },
             { "InlierCount", fallback?.InlierCount ?? 0 },
             { "InlierRatio", fallback?.InlierRatio ?? 0.0 },
+            { "OcclusionRate", result.OcclusionRate },
+            { "OcclusionThreshold", result.OcclusionThreshold },
+            { "LegacyParameterCompatibility", CreateLegacyParameterCompatibilityPayload(result) },
             { "Matches", new List<Dictionary<string, object>> { BuildMatchPayload(result) } },
             { "MatchResult", BuildMatchPayload(result) },
             { "ProcessingTimeMs", processingTime },
@@ -1229,11 +1256,15 @@ public class LocalDeformableMatchingOperator : OperatorBase
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "IsMatch", false },
+            { "Method", result.IsFallback ? "Rigid_Fallback" : "MLS_Deformable" },
             { "FailureReason", result.FailureReason },
             { "VerificationPassed", false },
             { "MatchCount", 0 },
             { "InlierCount", result.InlierCount },
             { "InlierRatio", result.InlierRatio },
+            { "Score", result.Score },
+            { "OcclusionRate", result.OcclusionRate },
+            { "OcclusionThreshold", result.OcclusionThreshold },
             { "Matches", Array.Empty<object>() },
             { "ProcessingTimeMs", processingTime },
             { "Message", result.FailureReason }
@@ -1249,6 +1280,7 @@ public class LocalDeformableMatchingOperator : OperatorBase
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, new Dictionary<string, object>
         {
             { "IsMatch", false },
+            { "Method", "MLS_Deformable" },
             { "FailureReason", reason },
             { "VerificationPassed", false },
             { "MatchCount", 0 },
@@ -1265,8 +1297,11 @@ public class LocalDeformableMatchingOperator : OperatorBase
         var boundingBox = match.BoundingBox;
         return new Dictionary<string, object>
         {
+            { "Method", match.IsFallback ? "Rigid_Fallback" : "MLS_Deformable" },
+            { "DeformationModel", match.IsFallback ? "RigidHomography" : "MovingLeastSquaresSimilarity" },
             { "Score", match.Score },
             { "OcclusionRate", match.OcclusionRate },
+            { "OcclusionThreshold", match.OcclusionThreshold },
             { "DeformationMagnitude", match.DeformationMagnitude },
             { "CandidateScore", match.CandidateScore },
             { "VerificationScore", match.VerificationScore },
@@ -1275,8 +1310,18 @@ public class LocalDeformableMatchingOperator : OperatorBase
             { "InlierRatio", match.InlierRatio },
             { "IsFallback", match.IsFallback },
             { "FailureReason", match.FailureReason },
+            { "LegacyParameterCompatibility", CreateLegacyParameterCompatibilityPayload(match) },
             { "BoundingBox", new { boundingBox.X, boundingBox.Y, boundingBox.Width, boundingBox.Height } },
             { "Corners", match.Corners?.Select(point => new Position(point.X, point.Y)).ToList() ?? new List<Position>() }
+        };
+    }
+
+    private static Dictionary<string, object> CreateLegacyParameterCompatibilityPayload(DeformableMatchResult match)
+    {
+        return new Dictionary<string, object>
+        {
+            { "TPSLambda", $"Applied as the MLS smoothing/regularization weight ({match.MlsLambda:F4})." },
+            { "TPSGridSize", $"Applied as the MLS control grid dimension ({match.ControlGridSize})." }
         };
     }
 
@@ -1441,7 +1486,10 @@ public class LocalDeformableMatchingOperator : OperatorBase
         public double VerificationScore { get; set; }
         public int InlierCount { get; set; }
         public double InlierRatio { get; set; }
+        public int ControlGridSize { get; set; }
+        public double MlsLambda { get; set; }
         public double OcclusionRate { get; set; }
+        public double OcclusionThreshold { get; set; }
         public double DeformationMagnitude { get; set; }
         public Rect BoundingBox { get; set; }
         public Point2f[]? Corners { get; set; }

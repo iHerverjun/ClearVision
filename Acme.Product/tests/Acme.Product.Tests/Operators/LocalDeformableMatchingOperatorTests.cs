@@ -120,8 +120,46 @@ public class LocalDeformableMatchingOperatorTests
         result.IsSuccess.Should().BeTrue();
         result.OutputData!["IsMatch"].Should().Be(true);
         result.OutputData["VerificationPassed"].Should().Be(true);
-        result.OutputData["Method"].Should().Be("TPS_Deformable");
+        result.OutputData["Method"].Should().Be("MLS_Deformable");
         Convert.ToDouble(result.OutputData["DeformationMagnitude"]).Should().BeGreaterThan(0.5);
+    }
+
+    [Fact]
+    public void ComputeMatchScoreAndOcclusion_ShouldUseSupportAreaForOcclusionRate()
+    {
+        using var warped = new Mat(10, 10, MatType.CV_8UC1, Scalar.All(100));
+        using var search = warped.Clone();
+        using var supportMask = new Mat(10, 10, MatType.CV_8UC1, Scalar.All(0));
+        Cv2.Rectangle(supportMask, new Rect(2, 2, 4, 4), Scalar.All(255), -1);
+        Cv2.Rectangle(search, new Rect(2, 2, 2, 4), Scalar.All(220), -1);
+
+        var (score, occlusionMask, _, occlusionRate) = InvokeComputeMatchScoreAndOcclusion(warped, supportMask, search, 0.6);
+        using (occlusionMask)
+        {
+            score.Should().BeLessThan(1.0);
+            occlusionRate.Should().BeApproximately(0.5, 0.001);
+        }
+    }
+
+    [Fact]
+    public void ComputeMatchScoreAndOcclusion_ShouldPenalizeMatchesThatExceedOcclusionThreshold()
+    {
+        using var warped = new Mat(10, 10, MatType.CV_8UC1, Scalar.All(100));
+        using var search = warped.Clone();
+        using var supportMask = new Mat(10, 10, MatType.CV_8UC1, Scalar.All(0));
+        Cv2.Rectangle(supportMask, new Rect(2, 2, 4, 4), Scalar.All(255), -1);
+        Cv2.Rectangle(search, new Rect(2, 2, 2, 4), Scalar.All(220), -1);
+
+        var (relaxedScore, relaxedMask, _, relaxedRate) = InvokeComputeMatchScoreAndOcclusion(warped, supportMask, search, 0.75);
+        using (relaxedMask)
+        {
+            var (strictScore, strictMask, _, strictRate) = InvokeComputeMatchScoreAndOcclusion(warped, supportMask, search, 0.25);
+            using (strictMask)
+            {
+                relaxedRate.Should().BeApproximately(strictRate, 0.0001);
+                strictScore.Should().BeLessThan(relaxedScore);
+            }
+        }
     }
 
     [Fact]
@@ -301,6 +339,22 @@ public class LocalDeformableMatchingOperatorTests
         return (Point2f[])method!.Invoke(
             _operator,
             new object?[] { evaluationPoints, correspondences, lambda, maxDeformation, null })!;
+    }
+
+    private (double score, Mat occlusionMask, double meanError, double occlusionRate) InvokeComputeMatchScoreAndOcclusion(
+        Mat warpedImage,
+        Mat warpedMask,
+        Mat searchImage,
+        double occlusionThreshold)
+    {
+        var method = typeof(LocalDeformableMatchingOperator).GetMethod(
+            "ComputeMatchScoreAndOcclusion",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+        return ((double score, Mat occlusionMask, double meanError, double occlusionRate))method!.Invoke(
+            _operator,
+            new object[] { warpedImage, warpedMask, searchImage, occlusionThreshold })!;
     }
 
     private static double SumPointwiseDistance(IReadOnlyList<Point2f> left, IReadOnlyList<Point2f> right)

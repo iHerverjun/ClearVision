@@ -1,56 +1,43 @@
-// DualModalVotingOperator.cs
-// 双模态投票算子 - 结合深度学习和传统算法结果进行投票决策
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
 using Microsoft.Extensions.Logging;
 
-using Acme.Product.Core.Attributes;
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 双模态投票算子 - 结合深度学习和传统算法结果进行投票决策
-/// </summary>
-/// <remarks>
-/// 支持多种投票策略：
-/// - Unanimous: 一致同意，两个算法都判定为OK才算OK
-/// - Majority: 多数表决，取多数结果
-/// - WeightedAverage: 加权平均，按权重加权计算
-/// - PrioritizeDeepLearning: 优先深度学习，DL权重更高
-/// - PrioritizeTraditional: 优先传统算法，传统算法权重更高
-/// </remarks>
 [OperatorMeta(
-    DisplayName = "双模态投票",
-    Description = "结合深度学习和传统算法结果进行投票决策",
-    Category = "AI检测",
+    DisplayName = "Dual Modal Voting",
+    Description = "Combines deep learning and traditional inspection results into a final judgment.",
+    Category = "AI Detection",
     IconName = "voting"
 )]
-[InputPort("DLResult", "深度学习结果", PortDataType.Any, IsRequired = true)]
-[InputPort("TraditionalResult", "传统算法结果", PortDataType.Any, IsRequired = true)]
-[OutputPort("IsOk", "是否OK", PortDataType.Boolean)]
-[OutputPort("Confidence", "综合置信度", PortDataType.Float)]
-[OutputPort("JudgmentValue", "判定值", PortDataType.String)]
-[OperatorParam("VotingStrategy", "投票策略", "enum", DefaultValue = "WeightedAverage", Options = new[] { "WeightedAverage|加权平均", "Unanimous|一致同意", "Majority|多数表决", "PrioritizeDeepLearning|优先深度学习", "PrioritizeTraditional|优先传统算法" })]
-[OperatorParam("DLWeight", "DL权重", "double", DefaultValue = 0.6, Min = 0.0, Max = 1.0)]
-[OperatorParam("TraditionalWeight", "传统算法权重", "double", DefaultValue = 0.4, Min = 0.0, Max = 1.0)]
-[OperatorParam("ConfidenceThreshold", "置信度阈值", "double", DefaultValue = 0.5, Min = 0.0, Max = 1.0)]
-[OperatorParam("OkOutputValue", "OK输出值", "string", DefaultValue = "1")]
-[OperatorParam("NgOutputValue", "NG输出值", "string", DefaultValue = "0")]
+[InputPort("DLResult", "Deep learning result", PortDataType.Any, IsRequired = true)]
+[InputPort("TraditionalResult", "Traditional result", PortDataType.Any, IsRequired = true)]
+[OutputPort("IsOk", "Whether the final result is OK", PortDataType.Boolean)]
+[OutputPort("Confidence", "Confidence of the final judgment", PortDataType.Float)]
+[OutputPort("JudgmentValue", "Final judgment value", PortDataType.String)]
+[OperatorParam("VotingStrategy", "Voting strategy", "enum", DefaultValue = "WeightedAverage", Options = new[] { "WeightedAverage|Weighted average", "Unanimous|Unanimous", "Majority|Majority", "PrioritizeDeepLearning|Prioritize deep learning", "PrioritizeTraditional|Prioritize traditional" })]
+[OperatorParam("DLWeight", "Deep learning weight", "double", DefaultValue = 0.6, Min = 0.0, Max = 1.0)]
+[OperatorParam("TraditionalWeight", "Traditional weight", "double", DefaultValue = 0.4, Min = 0.0, Max = 1.0)]
+[OperatorParam("ConfidenceThreshold", "Confidence threshold", "double", DefaultValue = 0.5, Min = 0.0, Max = 1.0)]
+[OperatorParam("OkOutputValue", "OK output value", "string", DefaultValue = "1")]
+[OperatorParam("NgOutputValue", "NG output value", "string", DefaultValue = "0")]
 public class DualModalVotingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.DualModalVoting;
 
-    public DualModalVotingOperator(ILogger<DualModalVotingOperator> logger) : base(logger) { }
+    public DualModalVotingOperator(ILogger<DualModalVotingOperator> logger)
+        : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 1. 获取参数
         var strategy = GetStringParam(@operator, "VotingStrategy", "WeightedAverage");
         var dlWeight = GetDoubleParam(@operator, "DLWeight", 0.6);
         var traditionalWeight = GetDoubleParam(@operator, "TraditionalWeight", 0.4);
@@ -58,187 +45,212 @@ public class DualModalVotingOperator : OperatorBase
         var okValue = GetStringParam(@operator, "OkOutputValue", "1");
         var ngValue = GetStringParam(@operator, "NgOutputValue", "0");
 
-        // 2. 获取输入 (智能解析)
         var dlResult = ExtractDetectionResult(inputs, "DLResult");
         var traditionalResult = ExtractDetectionResult(inputs, "TraditionalResult");
 
-        // 3. 执行投票逻辑
-        bool isOk = false;
-        double confidence = 0.0;
-        string details = "";
-
-        // 如果两个输入都缺失，则无法判定
         if (dlResult == null && traditionalResult == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未接收到任何有效的检测结果输入"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("No valid detection result input was received."));
         }
 
-        // 补全缺失的输入 (视为 NG且置信度为0)
-        dlResult ??= DetectionResult.Failed("未接收到深度学习结果");
-        traditionalResult ??= DetectionResult.Failed("未接收到传统算法结果");
+        dlResult ??= DetectionResult.Failed("Deep learning result was not received.");
+        traditionalResult ??= DetectionResult.Failed("Traditional result was not received.");
+
+        var dlOkProbability = ToOkProbability(dlResult);
+        var traditionalOkProbability = ToOkProbability(traditionalResult);
+
+        bool isOk;
+        double confidence;
+        string details;
 
         switch (strategy)
         {
             case "WeightedAverage":
+            {
                 var totalWeight = dlWeight + traditionalWeight;
                 if (totalWeight <= 1e-12)
                 {
                     return Task.FromResult(OperatorExecutionOutput.Failure("WeightedAverage requires DLWeight + TraditionalWeight > 0."));
                 }
 
-                confidence = (dlResult.Confidence * dlWeight + traditionalResult.Confidence * traditionalWeight) / totalWeight;
-                isOk = confidence >= confidenceThreshold;
-                details = $"加权平均: DL={dlResult.Confidence:F2}*{dlWeight} + Traditional={traditionalResult.Confidence:F2}*{traditionalWeight} -> {confidence:F2}";
+                var weightedOkProbability =
+                    (dlOkProbability * dlWeight + traditionalOkProbability * traditionalWeight) / totalWeight;
+                isOk = weightedOkProbability >= confidenceThreshold;
+                confidence = ToOutputConfidence(isOk, weightedOkProbability);
+                details =
+                    $"WeightedAverage: DLOkProb={dlOkProbability:F2}*{dlWeight} + TraditionalOkProb={traditionalOkProbability:F2}*{traditionalWeight} -> OkProb={weightedOkProbability:F2}, DecisionConf={confidence:F2}";
                 break;
+            }
 
             case "Unanimous":
+            {
                 isOk = dlResult.IsOk && traditionalResult.IsOk;
-                confidence = Math.Min(dlResult.Confidence, traditionalResult.Confidence);
-                details = $"一致同意: DL={dlResult.IsOk}, Traditional={traditionalResult.IsOk}";
+                var unanimousOkProbability = Math.Min(dlOkProbability, traditionalOkProbability);
+                confidence = ToOutputConfidence(isOk, unanimousOkProbability);
+                details =
+                    $"Unanimous: DL={dlResult.IsOk}/{GetLabelConfidence(dlResult):F2}, Traditional={traditionalResult.IsOk}/{GetLabelConfidence(traditionalResult):F2}, DecisionConf={confidence:F2}";
                 break;
+            }
 
             case "Majority":
-                // 仅两个输入时，多数表决等同于一致同意或加权（需3个以上才有意义），这里简化为任一OK即OK，或者加权
-                // 为了避免歧义，这里实现为：如果两个结果一致则采用，不一致则看置信度高的
+            {
                 if (dlResult.IsOk == traditionalResult.IsOk)
                 {
                     isOk = dlResult.IsOk;
-                    confidence = Math.Max(dlResult.Confidence, traditionalResult.Confidence);
+                    var majorityOkProbability = (dlOkProbability + traditionalOkProbability) / 2.0;
+                    confidence = ToOutputConfidence(isOk, majorityOkProbability);
+                }
+                else if (GetLabelConfidence(dlResult) >= GetLabelConfidence(traditionalResult))
+                {
+                    isOk = dlResult.IsOk;
+                    confidence = GetLabelConfidence(dlResult);
                 }
                 else
                 {
-                    // 冲突时信赖置信度高的
-                    if (dlResult.Confidence > traditionalResult.Confidence)
-                    {
-                        isOk = dlResult.IsOk;
-                        confidence = dlResult.Confidence;
-                    }
-                    else
-                    {
-                        isOk = traditionalResult.IsOk;
-                        confidence = traditionalResult.Confidence;
-                    }
+                    isOk = traditionalResult.IsOk;
+                    confidence = GetLabelConfidence(traditionalResult);
                 }
-                details = $"多数/冲突处理: IsOk={isOk}, Conf={confidence:F2}";
+
+                details = $"Majority: IsOk={isOk}, DecisionConf={confidence:F2}";
                 break;
+            }
 
             case "PrioritizeDeepLearning":
                 isOk = dlResult.IsOk;
-                confidence = dlResult.Confidence;
-                details = $"优先DL: IsOk={isOk}, Conf={confidence:F2}";
+                confidence = GetLabelConfidence(dlResult);
+                details = $"PrioritizeDeepLearning: IsOk={isOk}, DecisionConf={confidence:F2}";
                 break;
 
             case "PrioritizeTraditional":
                 isOk = traditionalResult.IsOk;
-                confidence = traditionalResult.Confidence;
-                details = $"优先传统: IsOk={isOk}, Conf={confidence:F2}";
+                confidence = GetLabelConfidence(traditionalResult);
+                details = $"PrioritizeTraditional: IsOk={isOk}, DecisionConf={confidence:F2}";
                 break;
+
+            default:
+                return Task.FromResult(OperatorExecutionOutput.Failure($"Unsupported voting strategy: {strategy}"));
         }
 
-        var outputValue = isOk ? okValue : ngValue;
-
-        // 4. 构建输出
         var outputData = new Dictionary<string, object>
         {
             { "IsOk", isOk },
             { "Confidence", confidence },
-            { "JudgmentValue", outputValue }
+            { "JudgmentValue", isOk ? okValue : ngValue }
         };
 
-        Logger.LogInformation("[DualModalVoting] 投票完成. 策略: {Strategy}, 结果: {IsOk}, 置信度: {Confidence:F2}, 详情: {Details}",
-            strategy, isOk, confidence, details);
+        Logger.LogInformation(
+            "[DualModalVoting] Voting completed. Strategy: {Strategy}, IsOk: {IsOk}, Confidence: {Confidence:F2}, Details: {Details}",
+            strategy,
+            isOk,
+            confidence,
+            details);
 
         return Task.FromResult(OperatorExecutionOutput.Success(outputData));
     }
 
-    /// <summary>
-    /// 从上游输入中智能提取检测结果
-    /// 支持 DetectionResult 对象 和 Dictionary<string, object> 两种格式
-    /// </summary>
     private DetectionResult? ExtractDetectionResult(Dictionary<string, object>? inputs, string key)
     {
         if (inputs == null || !inputs.TryGetValue(key, out var value) || value == null)
-            return null;
-
-        // 情况1：直接是 DetectionResult 对象
-        if (value is DetectionResult dr)
-            return dr;
-
-        // 情况2：是 Dictionary（上游算子的原始输出）
-        if (value is Dictionary<string, object> dict)
         {
-            // 尝试直接获取 IsOk 和 Confidence
-            if (dict.TryGetValue("IsOk", out var okVal) && dict.TryGetValue("Confidence", out var confVal))
-            {
-                bool ok = Convert.ToBoolean(okVal);
-                double conf = Convert.ToDouble(confVal);
-                return DetectionResult.Success(ok, conf);
-            }
+            return null;
+        }
 
-            // 特殊情况：深度学习算子输出 (DefectCount, Defects)
-            // 推断逻辑：DefectCount == 0 => OK (IsOk=true), DefectCount > 0 => NG (IsOk=false)
-            if (dict.TryGetValue("DefectCount", out var defectCountVal))
-            {
-                int defectCount = Convert.ToInt32(defectCountVal);
-                bool isOk = defectCount == 0;
-                double maxConf = 0.0;
+        if (value is DetectionResult detectionResult)
+        {
+            return detectionResult;
+        }
 
-                // 尝试从 Defects 列表中提取最大置信度
-                if (dict.TryGetValue("Defects", out var defectsVal) && defectsVal is IEnumerable<object> defectsList)
+        if (value is not Dictionary<string, object> dict)
+        {
+            return null;
+        }
+
+        if (dict.TryGetValue("IsOk", out var okVal) && dict.TryGetValue("Confidence", out var confVal))
+        {
+            return DetectionResult.Success(
+                Convert.ToBoolean(okVal),
+                Math.Clamp(Convert.ToDouble(confVal), 0.0, 1.0));
+        }
+
+        if (!dict.TryGetValue("DefectCount", out var defectCountVal))
+        {
+            return null;
+        }
+
+        var defectCount = Convert.ToInt32(defectCountVal);
+        var isOk = defectCount == 0;
+        var maxDefectConfidence = 0.0;
+
+        if (dict.TryGetValue("Defects", out var defectsVal) && defectsVal is IEnumerable<object> defectsList)
+        {
+            foreach (var defect in defectsList)
+            {
+                if (defect is Dictionary<string, object> defectDict &&
+                    defectDict.TryGetValue("Confidence", out var defectConfidenceValue))
                 {
-                    foreach (var defect in defectsList)
-                    {
-                        if (defect is Dictionary<string, object> defectDict &&
-                            defectDict.TryGetValue("Confidence", out var dConfVal))
-                        {
-                            double dConf = Convert.ToDouble(dConfVal);
-                            if (dConf > maxConf)
-                                maxConf = dConf;
-                        }
-                    }
+                    maxDefectConfidence = Math.Max(maxDefectConfidence, Convert.ToDouble(defectConfidenceValue));
                 }
-
-                // 如果是 OK (无缺陷)，置信度通常设为 1.0 或由模型提供的背景置信度(这里简化为1.0)
-                // 如果是 NG (有缺陷)，置信度为缺陷的最大置信度
-                double finalConf = isOk ? 1.0 : maxConf;
-
-                return DetectionResult.Success(isOk, finalConf);
             }
         }
 
-        return null;
+        var labelConfidence = isOk ? 1.0 : Math.Clamp(maxDefectConfidence, 0.0, 1.0);
+        return DetectionResult.Success(isOk, labelConfidence);
     }
 
+    private static double ToOkProbability(DetectionResult result)
+    {
+        if (!result.IsSuccess)
+        {
+            return 0.5;
+        }
 
+        var labelConfidence = GetLabelConfidence(result);
+        return result.IsOk ? labelConfidence : 1.0 - labelConfidence;
+    }
+
+    private static double GetLabelConfidence(DetectionResult result)
+    {
+        return result.IsSuccess
+            ? Math.Clamp(result.Confidence, 0.0, 1.0)
+            : 0.0;
+    }
+
+    private static double ToOutputConfidence(bool isOk, double okProbability)
+    {
+        var normalizedOkProbability = Math.Clamp(okProbability, 0.0, 1.0);
+        return isOk ? normalizedOkProbability : 1.0 - normalizedOkProbability;
+    }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var strategy = GetStringParam(@operator, "VotingStrategy", "WeightedAverage");
-
         var validStrategies = new[]
         {
-            "Unanimous", "Majority", "WeightedAverage",
-            "PrioritizeDeepLearning", "PrioritizeTraditional"
+            "Unanimous",
+            "Majority",
+            "WeightedAverage",
+            "PrioritizeDeepLearning",
+            "PrioritizeTraditional"
         };
 
         if (!validStrategies.Contains(strategy, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid($"投票策略必须是以下之一: {string.Join(", ", validStrategies)}");
+            return ValidationResult.Invalid($"VotingStrategy must be one of: {string.Join(", ", validStrategies)}");
         }
 
         var dlWeight = GetDoubleParam(@operator, "DLWeight", 0.6, 0.0, 1.0);
         var traditionalWeight = GetDoubleParam(@operator, "TraditionalWeight", 0.4, 0.0, 1.0);
-
-        // 检查权重和是否合理（允许一定误差）
         var weightSum = dlWeight + traditionalWeight;
+
         if (strategy.Equals("WeightedAverage", StringComparison.OrdinalIgnoreCase) && weightSum <= 1e-12)
         {
             return ValidationResult.Invalid("WeightedAverage requires DLWeight + TraditionalWeight > 0.");
         }
 
-        if (Math.Abs(weightSum - 1.0) > 0.01 && strategy.Equals("WeightedAverage", StringComparison.OrdinalIgnoreCase))
+        if (strategy.Equals("WeightedAverage", StringComparison.OrdinalIgnoreCase) && Math.Abs(weightSum - 1.0) > 0.01)
         {
-            return ValidationResult.Invalid($"加权平均策略下，DL权重({dlWeight})与传统算法权重({traditionalWeight})之和应接近1.0(当前={weightSum:F2})");
+            return ValidationResult.Invalid(
+                $"In WeightedAverage mode, DLWeight ({dlWeight}) + TraditionalWeight ({traditionalWeight}) must be approximately 1.0 (current={weightSum:F2}).");
         }
 
         return ValidationResult.Valid();

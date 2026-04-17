@@ -293,7 +293,13 @@ public class PlanarMatchingOperator : OperatorBase
 
         // 特征匹配
         var matches = MatchFeatures(templateFeatures.Descriptors, searchFeatures.Descriptors, detectorType, matchRatio);
-        var candidateScore = CalculateCandidateScore(matches, detectorType, templateFeatures.KeyPoints.Length, searchFeatures.KeyPoints.Length);
+        var candidateScore = CalculateCandidateScore(
+            matches,
+            detectorType,
+            templateFeatures.KeyPoints.Length,
+            searchFeatures.KeyPoints.Length,
+            templateFeatures.Descriptors,
+            searchFeatures.Descriptors);
         if (matches.Count < minMatchCount)
         {
             return new MatchResult
@@ -363,7 +369,9 @@ public class PlanarMatchingOperator : OperatorBase
         IReadOnlyCollection<DMatch> matches,
         string detectorType,
         int templateFeatureCount,
-        int searchFeatureCount)
+        int searchFeatureCount,
+        Mat templateDescriptors,
+        Mat searchDescriptors)
     {
         if (matches.Count == 0)
         {
@@ -371,11 +379,7 @@ public class PlanarMatchingOperator : OperatorBase
         }
 
         var averageDistance = matches.Average(match => match.Distance);
-        var maxDistance = detectorType switch
-        {
-            "ORB" or "AKAZE" or "BRISK" => 256.0,
-            _ => 512.0
-        };
+        var maxDistance = GetDescriptorDistanceNormalizer(detectorType, templateDescriptors, searchDescriptors);
         var distanceScore = 1.0 - Math.Clamp(averageDistance / maxDistance, 0, 1);
         var coverageBase = Math.Max(1, Math.Min(templateFeatureCount, searchFeatureCount));
         var coverageScore = Math.Clamp(matches.Count / (double)coverageBase, 0, 1);
@@ -389,6 +393,28 @@ public class PlanarMatchingOperator : OperatorBase
 
         return inlierCountScore * 0.4 + inlierRatioScore * 0.4 + matchRateScore * 0.2;
         #endif
+    }
+
+    private static double GetDescriptorDistanceNormalizer(string detectorType, Mat templateDescriptors, Mat searchDescriptors)
+    {
+        var normalizedDetectorType = detectorType.ToUpperInvariant();
+        if (normalizedDetectorType is "ORB" or "AKAZE" or "BRISK")
+        {
+            var descriptorBytes = Math.Max(
+                GetDescriptorWidthInBytes(templateDescriptors),
+                GetDescriptorWidthInBytes(searchDescriptors));
+            return Math.Max(8.0, descriptorBytes * 8.0);
+        }
+
+        var descriptorWidth = Math.Max(
+            GetDescriptorWidthInBytes(templateDescriptors),
+            GetDescriptorWidthInBytes(searchDescriptors));
+        return Math.Max(1.0, descriptorWidth);
+    }
+
+    private static int GetDescriptorWidthInBytes(Mat descriptors)
+    {
+        return descriptors.Empty() ? 0 : (int)(descriptors.Cols * descriptors.ElemSize());
     }
 
     private TemplateFeatures? ExtractFeatures(

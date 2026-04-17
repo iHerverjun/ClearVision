@@ -146,6 +146,90 @@ public class ShapeMatchingOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithTransparentRotatedTargetOnGrayScene_ShouldIgnoreWarpFillBlackCorners()
+    {
+        var op = new Operator("ShapeMaskAwareRotate", OperatorType.ShapeMatching, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinScore", "MinScore", "double", 0.7, 0.1, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStart", "AngleStart", "double", -60.0, -180.0, 180.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleExtent", "AngleExtent", "double", 120.0, 0.0, 360.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("AngleStep", "AngleStep", "double", 1.0, 0.1, 10.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMin", "ScaleMin", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleMax", "ScaleMax", "double", 1.0, 0.2, 3.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("ScaleStep", "ScaleStep", "double", 0.1, 0.01, 1.0, true));
+        op.AddParameter(TestHelpers.CreateParameter("NumLevels", "NumLevels", "int", 2, 1, 6, true));
+
+        using var template = CreateBrightBackgroundRotationTemplate();
+        var (rotated, rotatedMask) = RotateExpandedWithMask(template.MatReadOnly, 37.0);
+        using var rotatedTemplate = rotated;
+        using var rotatedTemplateMask = rotatedMask;
+        using var sceneMat = new Mat(240, 240, MatType.CV_8UC3, new Scalar(96, 96, 96));
+        CopyTemplateWithMask(sceneMat, rotatedTemplate, rotatedTemplateMask, 78, 64);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Image"] = new ImageWrapper(sceneMat),
+            ["Template"] = template
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["FailureReason"].Should().Be(string.Empty);
+
+        var match = result.OutputData["Matches"]
+            .Should().BeAssignableTo<IEnumerable<object>>()
+            .Subject
+            .Cast<Dictionary<string, object>>()
+            .Single();
+
+        Convert.ToDouble(match["Angle"]).Should().BeApproximately(37.0, 4.0);
+        Convert.ToDouble(match["CenterX"]).Should().BeInRange(95.0, 145.0);
+        Convert.ToDouble(match["CenterY"]).Should().BeInRange(90.0, 145.0);
+    }
+
+    [Fact]
+    public void ComputeVerificationScore_WithUniformMaskedForeground_ShouldFallbackToFiniteMaskedCorrelation()
+    {
+        using var srcGray = new Mat(80, 80, MatType.CV_8UC1, Scalar.All(24));
+        using var transformedTemplate = new Mat(32, 32, MatType.CV_8UC1, Scalar.All(180));
+        using var transformedMask = new Mat(32, 32, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(transformedMask, new Rect(4, 4, 8, 22), Scalar.White, -1);
+        Cv2.Rectangle(transformedMask, new Rect(4, 18, 20, 8), Scalar.White, -1);
+
+        using (var roi = new Mat(srcGray, new Rect(18, 20, 32, 32)))
+        {
+            roi.SetTo(Scalar.All(180), transformedMask);
+        }
+
+        var method = typeof(ShapeMatchingOperator).GetMethod(
+            "ComputeVerificationScore",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        method.Should().NotBeNull();
+        var score = (double)method!.Invoke(null, new object[] { srcGray, transformedTemplate, transformedMask, 18, 20 })!;
+        score.Should().BeGreaterThan(0.99);
+    }
+
+    [Fact]
+    public void SanitizeMatchTemplateResult_ShouldReplaceNonFiniteResponses()
+    {
+        using var matchResult = new Mat(1, 3, MatType.CV_32FC1);
+        matchResult.Set(0, 0, float.PositiveInfinity);
+        matchResult.Set(0, 1, float.NaN);
+        matchResult.Set(0, 2, 0.75f);
+
+        var method = typeof(ShapeMatchingOperator).GetMethod(
+            "SanitizeMatchTemplateResult",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        method.Should().NotBeNull();
+        method!.Invoke(null, new object[] { matchResult });
+
+        matchResult.At<float>(0, 0).Should().Be(-1f);
+        matchResult.At<float>(0, 1).Should().Be(-1f);
+        matchResult.At<float>(0, 2).Should().Be(0.75f);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithBlankScene_ShouldReturnFailureReason()
     {
         var op = new Operator("ShapeNegative", OperatorType.ShapeMatching, 0, 0);
@@ -313,6 +397,17 @@ public class ShapeMatchingOperatorTests
         return new ImageWrapper(mat);
     }
 
+    private static ImageWrapper CreateBrightBackgroundRotationTemplate()
+    {
+        var mat = new Mat(56, 56, MatType.CV_8UC3, new Scalar(220, 220, 220));
+        Cv2.Rectangle(mat, new Rect(6, 6, 44, 44), new Scalar(40, 40, 40), 2);
+        Cv2.Line(mat, new Point(10, 18), new Point(46, 18), new Scalar(25, 25, 25), 2);
+        Cv2.Line(mat, new Point(16, 10), new Point(16, 46), new Scalar(25, 25, 25), 2);
+        Cv2.Circle(mat, new Point(38, 38), 8, new Scalar(70, 70, 70), -1);
+        Cv2.Circle(mat, new Point(22, 34), 5, Scalar.White, -1);
+        return new ImageWrapper(mat);
+    }
+
     private static Mat RotateExpanded(Mat src, double angle)
     {
         var center = new Point2f(src.Width / 2f, src.Height / 2f);
@@ -329,6 +424,26 @@ public class ShapeMatchingOperatorTests
         return rotated;
     }
 
+    private static (Mat Rotated, Mat Mask) RotateExpandedWithMask(Mat src, double angle)
+    {
+        using var sourceMask = new Mat(src.Size(), MatType.CV_8UC1, Scalar.All(255));
+        var center = new Point2f(src.Width / 2f, src.Height / 2f);
+        using var rotMatrix = Cv2.GetRotationMatrix2D(center, angle, 1.0);
+        var cos = Math.Abs(rotMatrix.Get<double>(0, 0));
+        var sin = Math.Abs(rotMatrix.Get<double>(0, 1));
+        var boundWidth = Math.Max(1, (int)Math.Ceiling((src.Height * sin) + (src.Width * cos)));
+        var boundHeight = Math.Max(1, (int)Math.Ceiling((src.Height * cos) + (src.Width * sin)));
+        rotMatrix.Set(0, 2, rotMatrix.Get<double>(0, 2) + (boundWidth / 2.0) - center.X);
+        rotMatrix.Set(1, 2, rotMatrix.Get<double>(1, 2) + (boundHeight / 2.0) - center.Y);
+
+        var rotated = new Mat();
+        var mask = new Mat();
+        Cv2.WarpAffine(src, rotated, rotMatrix, new Size(boundWidth, boundHeight), InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
+        Cv2.WarpAffine(sourceMask, mask, rotMatrix, new Size(boundWidth, boundHeight), InterpolationFlags.Nearest, BorderTypes.Constant, Scalar.Black);
+        Cv2.Threshold(mask, mask, 0, 255, ThresholdTypes.Binary);
+        return (rotated, mask);
+    }
+
     private static Mat ResizeTemplate(Mat src, double scale)
     {
         var resized = new Mat();
@@ -340,5 +455,11 @@ public class ShapeMatchingOperatorTests
     {
         using var roi = new Mat(scene, new Rect(x, y, template.Width, template.Height));
         template.CopyTo(roi);
+    }
+
+    private static void CopyTemplateWithMask(Mat scene, Mat template, Mat mask, int x, int y)
+    {
+        using var roi = new Mat(scene, new Rect(x, y, template.Width, template.Height));
+        template.CopyTo(roi, mask);
     }
 }

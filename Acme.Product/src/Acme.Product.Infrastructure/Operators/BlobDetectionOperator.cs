@@ -709,10 +709,24 @@ public class BlobDetectionOperator : OperatorBase
             }
 
             // 创建HSV范围掩码
-            var lower = new Scalar(hueLow, satLow, valLow);
-            var upper = new Scalar(hueHigh, satHigh, valHigh);
+            var normalizedHueLow = NormalizeHueBound(hueLow);
+            var normalizedHueHigh = NormalizeHueBound(hueHigh);
             var mask = new Mat();
-            Cv2.InRange(hsv, lower, upper, mask);
+
+            if (normalizedHueLow <= normalizedHueHigh)
+            {
+                var lower = new Scalar(normalizedHueLow, satLow, valLow);
+                var upper = new Scalar(normalizedHueHigh, satHigh, valHigh);
+                Cv2.InRange(hsv, lower, upper, mask);
+            }
+            else
+            {
+                using var lowerWrapMask = new Mat();
+                using var upperWrapMask = new Mat();
+                Cv2.InRange(hsv, new Scalar(0, satLow, valLow), new Scalar(normalizedHueHigh, satHigh, valHigh), lowerWrapMask);
+                Cv2.InRange(hsv, new Scalar(normalizedHueLow, satLow, valLow), new Scalar(179, satHigh, valHigh), upperWrapMask);
+                Cv2.BitwiseOr(lowerWrapMask, upperWrapMask, mask);
+            }
 
             return mask;
         }
@@ -720,5 +734,10 @@ public class BlobDetectionOperator : OperatorBase
         {
             return null;
         }
+    }
+
+    private static int NormalizeHueBound(int hue)
+    {
+        return Math.Clamp(hue, 0, 179);
     }
 }

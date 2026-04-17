@@ -34,6 +34,51 @@ public class PixelStatisticsOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ChannelAll_ShouldFlattenChannelsAndExposePerChannelStats()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object> { ["Channel"] = "All" });
+
+        using var mat = new Mat(1, 2, MatType.CV_8UC3);
+        mat.Set(0, 0, new Vec3b(10, 20, 30));
+        mat.Set(0, 1, new Vec3b(40, 50, 60));
+
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(new ImageWrapper(mat)));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Mean"]).Should().BeApproximately(35.0, 1e-3);
+        result.OutputData["AggregationMode"].Should().Be("FlattenedChannels");
+
+        var channelStats = result.OutputData["ChannelStats"]
+            .Should()
+            .BeOfType<Dictionary<string, object>>()
+            .Subject;
+
+        Convert.ToDouble(((Dictionary<string, object>)channelStats["B"])["Mean"]).Should().BeApproximately(25.0, 1e-3);
+        Convert.ToDouble(((Dictionary<string, object>)channelStats["G"])["Mean"]).Should().BeApproximately(35.0, 1e-3);
+        Convert.ToDouble(((Dictionary<string, object>)channelStats["R"])["Mean"]).Should().BeApproximately(45.0, 1e-3);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FloatImage_ShouldComputeExactMedian()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object> { ["Channel"] = "Gray" });
+
+        using var mat = new Mat(1, 4, MatType.CV_32FC1);
+        mat.Set(0, 0, 0.1f);
+        mat.Set(0, 1, 0.2f);
+        mat.Set(0, 2, 1.7f);
+        mat.Set(0, 3, 5.0f);
+
+        var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(new ImageWrapper(mat)));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Median"]).Should().BeApproximately(0.95, 1e-6);
+        Convert.ToDouble(result.OutputData["Max"]).Should().BeApproximately(5.0, 1e-6);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_RoiAndMismatchedMask_ShouldReturnFailure()
     {
         var sut = CreateSut();

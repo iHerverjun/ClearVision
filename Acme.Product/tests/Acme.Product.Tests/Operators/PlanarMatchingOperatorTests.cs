@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
+using System.Reflection;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -279,6 +280,38 @@ public class PlanarMatchingOperatorTests
         op.Parameters.Add(TestHelpers.CreateParameter("MinMatchCount", 2)); // 低于最小值4
 
         _operator.ValidateParameters(op).IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("ORB", 32, 256.0)]
+    [InlineData("AKAZE", 61, 488.0)]
+    [InlineData("BRISK", 64, 512.0)]
+    public void BinaryDescriptorNormalizer_ShouldScaleWithDescriptorBitLength(string detectorType, int descriptorBytes, double expectedMaxDistance)
+    {
+        using var descriptors = new Mat(1, descriptorBytes, MatType.CV_8UC1, Scalar.All(0));
+        var method = typeof(PlanarMatchingOperator).GetMethod(
+            "GetDescriptorDistanceNormalizer",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        method.Should().NotBeNull();
+        var maxDistance = (double)method!.Invoke(null, new object[] { detectorType, descriptors, descriptors })!;
+
+        maxDistance.Should().Be(expectedMaxDistance);
+    }
+
+    [Fact]
+    public void CandidateScore_ShouldUseExpandedBinaryDistanceRangeForLongDescriptors()
+    {
+        using var descriptors = new Mat(1, 64, MatType.CV_8UC1, Scalar.All(0));
+        var matches = new List<DMatch> { new(0, 0, 256.0f) };
+        var method = typeof(PlanarMatchingOperator).GetMethod(
+            "CalculateCandidateScore",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        method.Should().NotBeNull();
+        var score = (double)method!.Invoke(null, new object[] { matches, "BRISK", 1, 1, descriptors, descriptors })!;
+
+        score.Should().BeApproximately(0.825, 0.0001);
     }
 
     private static ImageWrapper CreateFeatureRichImage()

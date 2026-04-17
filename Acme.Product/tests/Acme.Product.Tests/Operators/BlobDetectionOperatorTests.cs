@@ -26,7 +26,7 @@ public class BlobDetectionOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithNullInputs_ShouldReturnFailure()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         var result = await _operator.ExecuteAsync(op, null);
         result.IsSuccess.Should().BeFalse();
     }
@@ -34,7 +34,7 @@ public class BlobDetectionOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithValidImage_ShouldReturnSuccess()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         using var image = TestHelpers.CreateTestImage();
         var inputs = TestHelpers.CreateImageInputs(image);
         var result = await _operator.ExecuteAsync(op, inputs);
@@ -45,14 +45,14 @@ public class BlobDetectionOperatorTests
     [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
     }
 
     [Fact]
     public async Task ExecuteAsync_WithMinRectangularity_ShouldFilterOutRoundBlobs()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("MinRectangularity", 0.9, "double"));
 
         using var image = TestHelpers.CreateShapeTestImage();
@@ -71,7 +71,7 @@ public class BlobDetectionOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithSyntheticCircle_ShouldHaveHighCircularity()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("MaxArea", 300000, "int"));
 
         using var mat = new Mat(512, 512, MatType.CV_8UC3, Scalar.Black);
@@ -90,7 +90,7 @@ public class BlobDetectionOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithSyntheticRectangle_ShouldHaveHighRectangularity()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
 
         using var mat = new Mat(512, 512, MatType.CV_8UC3, Scalar.Black);
         Cv2.Rectangle(mat, new Rect(156, 206, 200, 100), Scalar.White, -1);
@@ -108,7 +108,7 @@ public class BlobDetectionOperatorTests
     [Fact]
     public async Task ExecuteAsync_WithLowIntensityBackground_ShouldNotTreatAllNonZeroPixelsAsForeground()
     {
-        var op = new Operator("测试", OperatorType.BlobAnalysis, 0, 0);
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("MinArea", 100, "int"));
         op.AddParameter(TestHelpers.CreateParameter("MaxArea", 10000, "int"));
 
@@ -124,5 +124,32 @@ public class BlobDetectionOperatorTests
         var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
         blobs.Should().HaveCount(1);
         Convert.ToDouble(blobs[0]["Area"]).Should().BeLessThan(10000);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithHueWrapAroundFilter_ShouldDetectRedAcrossZeroBoundary()
+    {
+        var op = new Operator("test", OperatorType.BlobAnalysis, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("MinArea", 100, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("MaxArea", 10000, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("EnableColorFilter", true, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("HueLow", 170, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("HueHigh", 10, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("SatLow", 100, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("SatHigh", 255, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("ValLow", 100, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("ValHigh", 255, "int"));
+
+        using var mat = new Mat(200, 200, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Circle(mat, new Point(60, 100), 24, new Scalar(0, 0, 255), -1);
+        Cv2.Circle(mat, new Point(140, 100), 24, new Scalar(0, 255, 0), -1);
+
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(new ImageWrapper(mat)));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToInt32(result.OutputData!["BlobCount"]).Should().Be(1);
+
+        var blobs = result.OutputData["Blobs"].Should().BeOfType<List<Dictionary<string, object>>>().Subject;
+        Convert.ToDouble(blobs[0]["CenterX"]).Should().BeLessThan(100.0);
     }
 }

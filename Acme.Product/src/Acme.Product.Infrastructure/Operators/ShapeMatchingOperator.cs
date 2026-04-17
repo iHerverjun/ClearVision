@@ -175,6 +175,7 @@ public class ShapeMatchingOperator : OperatorBase
                         { "IsMatch", matchResults.Count > 0 },
                         { "Score", matchResults.Count > 0 ? finalMatches[0].Score : 0.0 },
                         { "Method", "RotationScaleTemplateSearch" },
+                        { "MaskAwareTransforms", true },
                         { "FailureReason", string.Empty },
                         { "Matches", matchResults },
                         { "MatchCount", matchResults.Count },
@@ -380,20 +381,39 @@ public class ShapeMatchingOperator : OperatorBase
         var matches = new List<MatchResult>();
         var locker = new object();
         var perTransformLimit = Math.Clamp(candidateLimit / 4, 2, 8);
+        using var templateMask = new Mat(tmplGray.Size(), MatType.CV_8UC1, Scalar.All(255));
 
         var transforms = angles.SelectMany(angle => scales.Select(scale => (angle, scale))).ToList();
         Parallel.ForEach(transforms, transform =>
         {
             try
             {
-                using var transformedTemplate = TransformTemplate(tmplGray, transform.angle, transform.scale);
+                using var transformedTemplate = TransformTemplate(tmplGray, transform.angle, transform.scale, InterpolationFlags.Linear);
+                using var transformedMask = TransformTemplate(templateMask, transform.angle, transform.scale, InterpolationFlags.Nearest);
+                BinarizeMask(transformedMask);
                 if (transformedTemplate.Width >= srcGray.Width || transformedTemplate.Height >= srcGray.Height)
                 {
                     return;
                 }
 
+                var validPixelCount = Cv2.CountNonZero(transformedMask);
+                if (validPixelCount <= 0)
+                {
+                    return;
+                }
+
+                var usesEffectiveRegionConstraint = validPixelCount < (transformedMask.Rows * transformedMask.Cols);
                 using var matchResult = new Mat();
-                Cv2.MatchTemplate(srcGray, transformedTemplate, matchResult, TemplateMatchModes.CCoeffNormed);
+                if (usesEffectiveRegionConstraint)
+                {
+                    Cv2.MatchTemplate(srcGray, transformedTemplate, matchResult, TemplateMatchModes.CCorrNormed, transformedMask);
+                }
+                else
+                {
+                    Cv2.MatchTemplate(srcGray, transformedTemplate, matchResult, TemplateMatchModes.CCoeffNormed);
+                }
+
+                SanitizeMatchTemplateResult(matchResult);
                 var candidates = FindPeaksForTransform(
                     matchResult,
                     transformedTemplate.Size(),
@@ -401,6 +421,12 @@ public class ShapeMatchingOperator : OperatorBase
                     transform.scale,
                     minScore,
                     perTransformLimit);
+                candidates = ReScoreCandidates(
+                    srcGray,
+                    transformedTemplate,
+                    usesEffectiveRegionConstraint ? transformedMask : null,
+                    candidates,
+                    minScore);
 
                 lock (locker)
                 {
@@ -416,6 +442,29 @@ public class ShapeMatchingOperator : OperatorBase
         return NonMaximumSuppression(matches, 0.4f)
             .Take(candidateLimit)
             .ToList();
+    }
+
+    private static void SanitizeMatchTemplateResult(Mat matchResult)
+    {
+        if (matchResult.Empty() || matchResult.Type() != MatType.CV_32FC1)
+        {
+            return;
+        }
+
+        var indexer = matchResult.GetGenericIndexer<float>();
+        for (var row = 0; row < matchResult.Rows; row++)
+        {
+            for (var col = 0; col < matchResult.Cols; col++)
+            {
+                var value = indexer[row, col];
+                if (!float.IsNaN(value) && !float.IsInfinity(value))
+                {
+                    continue;
+                }
+
+                indexer[row, col] = -1f;
+            }
+        }
     }
 
     private static bool TryRefineSubpixelPeak(Mat matchResult, Point maxLoc, out double dx, out double dy)
@@ -599,6 +648,175 @@ public class ShapeMatchingOperator : OperatorBase
         return candidates;
     }
 
+    private static List<MatchResult> ReScoreCandidates(
+        Mat srcGray,
+        Mat transformedTemplate,
+        Mat? transformedMask,
+        IReadOnlyCollection<MatchResult> candidates,
+        double minScore)
+    {
+        if (candidates.Count == 0)
+        {
+            return new List<MatchResult>();
+        }
+
+        var rescored = new List<MatchResult>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            var coarseScore = candidate.Score;
+            if (double.IsNaN(coarseScore) || double.IsInfinity(coarseScore))
+            {
+                coarseScore = -1.0;
+            }
+
+            var verificationScore = ComputeVerificationScore(
+                srcGray,
+                transformedTemplate,
+                transformedMask,
+                candidate.X,
+                candidate.Y);
+            if (double.IsNaN(verificationScore) || double.IsInfinity(verificationScore))
+            {
+                verificationScore = -1.0;
+            }
+
+            var blendedScore = Math.Clamp(
+                (coarseScore * 0.25) + (verificationScore * 0.75),
+                -1.0,
+                1.0);
+            if (blendedScore < minScore)
+            {
+                continue;
+            }
+
+            rescored.Add(new MatchResult
+            {
+                X = candidate.X,
+                Y = candidate.Y,
+                SubpixelX = candidate.SubpixelX,
+                SubpixelY = candidate.SubpixelY,
+                Angle = candidate.Angle,
+                Scale = candidate.Scale,
+                Score = blendedScore,
+                Width = candidate.Width,
+                Height = candidate.Height
+            });
+        }
+
+        return rescored;
+    }
+
+    private static double ComputeVerificationScore(
+        Mat srcGray,
+        Mat transformedTemplate,
+        Mat? transformedMask,
+        int x,
+        int y)
+    {
+        if (x < 0 || y < 0 ||
+            x + transformedTemplate.Width > srcGray.Width ||
+            y + transformedTemplate.Height > srcGray.Height)
+        {
+            return double.NegativeInfinity;
+        }
+
+        using var roi = new Mat(srcGray, new Rect(x, y, transformedTemplate.Width, transformedTemplate.Height));
+        if (transformedMask == null)
+        {
+            using var result = new Mat();
+            Cv2.MatchTemplate(roi, transformedTemplate, result, TemplateMatchModes.CCoeffNormed);
+            return result.At<float>(0, 0);
+        }
+
+        return ComputeMaskedZeroMeanCorrelation(roi, transformedTemplate, transformedMask);
+    }
+
+    private static double ComputeMaskedZeroMeanCorrelation(Mat roi, Mat template, Mat mask)
+    {
+        using var roi32 = new Mat();
+        using var template32 = new Mat();
+        roi.ConvertTo(roi32, MatType.CV_32FC1);
+        template.ConvertTo(template32, MatType.CV_32FC1);
+
+        var roiIndexer = roi32.GetGenericIndexer<float>();
+        var templateIndexer = template32.GetGenericIndexer<float>();
+        var maskIndexer = mask.GetGenericIndexer<byte>();
+
+        double roiSum = 0.0;
+        double templateSum = 0.0;
+        double weight = 0.0;
+
+        for (var row = 0; row < roi32.Rows; row++)
+        {
+            for (var col = 0; col < roi32.Cols; col++)
+            {
+                if (maskIndexer[row, col] == 0)
+                {
+                    continue;
+                }
+
+                roiSum += roiIndexer[row, col];
+                templateSum += templateIndexer[row, col];
+                weight += 1.0;
+            }
+        }
+
+        if (weight <= 1.0)
+        {
+            return double.NegativeInfinity;
+        }
+
+        var roiMean = roiSum / weight;
+        var templateMean = templateSum / weight;
+        double numerator = 0.0;
+        double roiEnergy = 0.0;
+        double templateEnergy = 0.0;
+        double rawNumerator = 0.0;
+        double rawRoiEnergy = 0.0;
+        double rawTemplateEnergy = 0.0;
+
+        for (var row = 0; row < roi32.Rows; row++)
+        {
+            for (var col = 0; col < roi32.Cols; col++)
+            {
+                if (maskIndexer[row, col] == 0)
+                {
+                    continue;
+                }
+
+                var roiSample = roiIndexer[row, col];
+                var templateSample = templateIndexer[row, col];
+                var roiValue = roiSample - roiMean;
+                var templateValue = templateSample - templateMean;
+                numerator += roiValue * templateValue;
+                roiEnergy += roiValue * roiValue;
+                templateEnergy += templateValue * templateValue;
+                rawNumerator += roiSample * templateSample;
+                rawRoiEnergy += roiSample * roiSample;
+                rawTemplateEnergy += templateSample * templateSample;
+            }
+        }
+
+        if (roiEnergy <= 1e-9 || templateEnergy <= 1e-9)
+        {
+            // Uniform masked foregrounds legitimately carry pose via the mask support itself.
+            // Fall back to masked raw correlation so rescoring does not discard coarse mask-aware hits.
+            return ComputeNormalizedCorrelation(rawNumerator, rawRoiEnergy, rawTemplateEnergy);
+        }
+
+        return ComputeNormalizedCorrelation(numerator, roiEnergy, templateEnergy);
+    }
+
+    private static double ComputeNormalizedCorrelation(double numerator, double leftEnergy, double rightEnergy)
+    {
+        if (leftEnergy <= 1e-9 || rightEnergy <= 1e-9)
+        {
+            return double.NegativeInfinity;
+        }
+
+        return numerator / Math.Sqrt(leftEnergy * rightEnergy);
+    }
+
     private static void SuppressPeakRegion(Mat working, Point peakLocation, double peakScore, double minScore, Size templateSize)
     {
         var suppressionFloor = Math.Max(minScore, peakScore - Math.Max(0.02, (peakScore - minScore) * 0.25));
@@ -704,6 +922,11 @@ public class ShapeMatchingOperator : OperatorBase
 
     private static Mat RotateImageExpanded(Mat src, double angle)
     {
+        return RotateImageExpanded(src, angle, InterpolationFlags.Linear);
+    }
+
+    private static Mat RotateImageExpanded(Mat src, double angle, InterpolationFlags interpolation)
+    {
         var center = new Point2f(src.Width / 2f, src.Height / 2f);
         using var rotMatrix = Cv2.GetRotationMatrix2D(center, angle, 1.0);
         var cos = Math.Abs(rotMatrix.Get<double>(0, 0));
@@ -720,23 +943,33 @@ public class ShapeMatchingOperator : OperatorBase
             rotated,
             rotMatrix,
             new Size(boundWidth, boundHeight),
-            InterpolationFlags.Linear,
+            interpolation,
             BorderTypes.Constant,
             Scalar.Black);
         return rotated;
     }
 
-    private static Mat TransformTemplate(Mat src, double angle, double scale)
+    private static Mat TransformTemplate(Mat src, double angle, double scale, InterpolationFlags interpolation)
     {
-        using var rotated = RotateImageExpanded(src, angle);
+        using var rotated = RotateImageExpanded(src, angle, interpolation);
         if (Math.Abs(scale - 1.0) < 1e-6)
         {
             return rotated.Clone();
         }
 
         var transformed = new Mat();
-        Cv2.Resize(rotated, transformed, new Size(), scale, scale, InterpolationFlags.Linear);
+        Cv2.Resize(rotated, transformed, new Size(), scale, scale, interpolation);
         return transformed;
+    }
+
+    private static void BinarizeMask(Mat mask)
+    {
+        if (mask.Empty())
+        {
+            return;
+        }
+
+        Cv2.Threshold(mask, mask, 0, 255, ThresholdTypes.Binary);
     }
 
     private static List<MatchResult> NonMaximumSuppression(List<MatchResult> matches, float iouThreshold)
@@ -826,6 +1059,7 @@ public class ShapeMatchingOperator : OperatorBase
             { "IsMatch", false },
             { "Score", 0.0 },
             { "Method", "RotationScaleTemplateSearch" },
+            { "MaskAwareTransforms", true },
             { "FailureReason", failureReason },
             { "Matches", Array.Empty<object>() },
             { "MatchCount", 0 },
