@@ -67,6 +67,7 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
             {
                 using var detector = new StegerSubpixelEdgeDetector
                 {
+                    Sigma = sigma,
                     EdgeThreshold = edgeThreshold,
                     MaxOffset = 0.5
                 };
@@ -110,7 +111,8 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
                 { "Edges", subpixelEdges },
                 { "EdgeCount", edgePoints.Count },
                 { "ContourCount", contourCount },
-                { "Method", method }
+                { "Method", method },
+                { "SigmaUsed", sigma }
             };
 
             return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));

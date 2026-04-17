@@ -23,6 +23,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Image", "Image", PortDataType.Image)]
 [OperatorParam("Method", "Method", "enum", DefaultValue = "GaussianModel", Options = new[] { "DivideByBackground|DivideByBackground", "GaussianModel|GaussianModel", "MorphologicalTopHat|MorphologicalTopHat" })]
 [OperatorParam("KernelSize", "Kernel Size", "int", DefaultValue = 51, Min = 3, Max = 501)]
+[OperatorParam("ColorMode", "Color Mode", "enum", DefaultValue = "LumaOnly", Options = new[] { "LumaOnly|LumaOnly", "PerChannel|PerChannel" })]
 public class ShadingCorrectionOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ShadingCorrection;
@@ -43,6 +44,7 @@ public class ShadingCorrectionOperator : OperatorBase
 
         var method = GetStringParam(@operator, "Method", "GaussianModel");
         var kernelSize = ToOdd(GetIntParam(@operator, "KernelSize", 51, 3, 501));
+        var colorMode = GetStringParam(@operator, "ColorMode", "LumaOnly");
 
         var src = imageWrapper.GetMat();
         if (src.Empty())
@@ -50,42 +52,53 @@ public class ShadingCorrectionOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid"));
         }
 
-        using var gray = new Mat();
-        if (src.Channels() == 1)
+        if (src.Channels() != 1 && src.Channels() != 3)
         {
-            src.CopyTo(gray);
-        }
-        else
-        {
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+            return Task.FromResult(OperatorExecutionOutput.Failure("Only 1-channel and 3-channel images are supported"));
         }
 
-        var correctedGray = method.ToLowerInvariant() switch
+        var requiresBackground = method.Equals("DivideByBackground", StringComparison.OrdinalIgnoreCase);
+        Mat? background = null;
+        if (requiresBackground)
         {
-            "dividebybackground" => CorrectByBackground(gray, inputs),
-            "gaussianmodel" => CorrectByGaussianModel(gray, kernelSize),
-            "morphologicaltophat" => CorrectByTopHat(gray, kernelSize),
-            _ => throw new InvalidOperationException("Unsupported shading correction method")
-        };
+            if (!TryGetInputImage(inputs, "Background", out var backgroundWrapper) || backgroundWrapper == null)
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure("Background input is required for DivideByBackground mode"));
+            }
 
-        if (correctedGray.Empty())
-        {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Failed to perform shading correction"));
+            background = backgroundWrapper.GetMat();
+            if (background.Empty())
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure("Background image is invalid"));
+            }
         }
 
         Mat result;
         if (src.Channels() == 1)
         {
-            result = correctedGray;
+            result = CorrectSingleChannel(src, method, kernelSize, background);
+        }
+        else if (colorMode.Equals("PerChannel", StringComparison.OrdinalIgnoreCase))
+        {
+            result = ApplyPerChannel(src, background, (channel, backgroundChannel) =>
+                CorrectSingleChannel(channel, method, kernelSize, backgroundChannel));
+        }
+        else if (colorMode.Equals("LumaOnly", StringComparison.OrdinalIgnoreCase))
+        {
+            result = ApplyLumaChannel(src, background, (channel, backgroundChannel) =>
+                CorrectSingleChannel(channel, method, kernelSize, backgroundChannel));
         }
         else
         {
-            result = new Mat();
-            Cv2.CvtColor(correctedGray, result, ColorConversionCodes.GRAY2BGR);
-            correctedGray.Dispose();
+            return Task.FromResult(OperatorExecutionOutput.Failure("Unsupported color mode"));
         }
 
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(result)));
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(result, new Dictionary<string, object>
+        {
+            { "Method", method },
+            { "ColorMode", src.Channels() == 1 ? "Gray" : colorMode },
+            { "Channels", result.Channels() }
+        })));
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
@@ -103,40 +116,40 @@ public class ShadingCorrectionOperator : OperatorBase
             return ValidationResult.Invalid("KernelSize must be >= 3");
         }
 
+        var colorMode = GetStringParam(@operator, "ColorMode", "LumaOnly");
+        var validColorModes = new[] { "LumaOnly", "PerChannel" };
+        if (!validColorModes.Contains(colorMode, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Invalid("ColorMode must be LumaOnly or PerChannel");
+        }
+
         return ValidationResult.Valid();
     }
 
-    private Mat CorrectByBackground(Mat gray, Dictionary<string, object>? inputs)
+    private static Mat CorrectSingleChannel(Mat src, string method, int kernelSize, Mat? background)
     {
-        if (!TryGetInputImage(inputs, "Background", out var backgroundWrapper) || backgroundWrapper == null)
+        return method.ToLowerInvariant() switch
         {
-            throw new InvalidOperationException("Background input is required for DivideByBackground mode");
-        }
+            "dividebybackground" when background != null => CorrectByBackground(src, background),
+            "dividebybackground" => throw new InvalidOperationException("Background input is required for DivideByBackground mode"),
+            "gaussianmodel" => CorrectByGaussianModel(src, kernelSize),
+            "morphologicaltophat" => CorrectByTopHat(src, kernelSize),
+            _ => throw new InvalidOperationException("Unsupported shading correction method")
+        };
+    }
 
-        var background = backgroundWrapper.GetMat();
-        if (background.Empty())
-        {
-            throw new InvalidOperationException("Background image is invalid");
-        }
-
-        using var bgGray = new Mat();
-        if (background.Channels() == 1)
-        {
-            background.CopyTo(bgGray);
-        }
-        else
-        {
-            Cv2.CvtColor(background, bgGray, ColorConversionCodes.BGR2GRAY);
-        }
+    private static Mat CorrectByBackground(Mat gray, Mat background)
+    {
+        using var backgroundChannel = background.Channels() == 1 ? background.Clone() : ExtractGray(background);
 
         using var resizedBg = new Mat();
-        if (bgGray.Size() != gray.Size())
+        if (backgroundChannel.Size() != gray.Size())
         {
-            Cv2.Resize(bgGray, resizedBg, gray.Size());
+            Cv2.Resize(backgroundChannel, resizedBg, gray.Size());
         }
         else
         {
-            bgGray.CopyTo(resizedBg);
+            backgroundChannel.CopyTo(resizedBg);
         }
 
         using var src32 = new Mat();
@@ -155,6 +168,234 @@ public class ShadingCorrectionOperator : OperatorBase
         var result = new Mat();
         corrected32.ConvertTo(result, MatType.CV_8UC1);
         return result;
+    }
+
+    private static Mat ApplyPerChannel(Mat src, Mat? background, Func<Mat, Mat?, Mat> processor)
+    {
+        Cv2.Split(src, out var srcChannels);
+        Mat[]? backgroundChannels = null;
+        Mat? sharedBackground = null;
+        var processed = new Mat[srcChannels.Length];
+
+        try
+        {
+            if (background != null)
+            {
+                if (background.Channels() == src.Channels())
+                {
+                    Cv2.Split(background, out backgroundChannels);
+                }
+                else if (background.Channels() == 1)
+                {
+                    sharedBackground = background.Clone();
+                }
+                else
+                {
+                    throw new InvalidOperationException("Background must be grayscale or match the input channel count for PerChannel mode");
+                }
+            }
+
+            for (var i = 0; i < srcChannels.Length; i++)
+            {
+                var backgroundChannel = backgroundChannels != null ? backgroundChannels[i] : sharedBackground;
+                processed[i] = processor(srcChannels[i], backgroundChannel);
+            }
+
+            var result = new Mat();
+            Cv2.Merge(processed, result);
+            return result;
+        }
+        finally
+        {
+            foreach (var channel in srcChannels)
+            {
+                channel.Dispose();
+            }
+
+            if (backgroundChannels != null)
+            {
+                foreach (var channel in backgroundChannels)
+                {
+                    channel.Dispose();
+                }
+            }
+
+            sharedBackground?.Dispose();
+
+            foreach (var channel in processed)
+            {
+                channel?.Dispose();
+            }
+        }
+    }
+
+    private static Mat ApplyLumaChannel(Mat src, Mat? background, Func<Mat, Mat?, Mat> processor)
+    {
+        return ApplyLumaChannel(src, background, processor, allowByteFallback: true);
+    }
+
+    private static Mat ApplyLumaChannel(Mat src, Mat? background, Func<Mat, Mat?, Mat> processor, bool allowByteFallback)
+    {
+        using var yuv = new Mat();
+        Cv2.CvtColor(src, yuv, ColorConversionCodes.BGR2YUV);
+        Cv2.Split(yuv, out var channels);
+        Mat? backgroundLuma = background == null ? null : ExtractGray(background);
+
+        try
+        {
+            using var processedLuma = processor(channels[0], backgroundLuma);
+            if (processedLuma.Type() != channels[0].Type())
+            {
+                if (!allowByteFallback || processedLuma.Depth() != MatType.CV_8U)
+                {
+                    throw new InvalidOperationException("Luma-only shading correction requires matching channel depths before merge.");
+                }
+
+                // When luma processing collapses to 8-bit, re-run on an 8-bit color view so Y/U/V stay in the same contract.
+                using var byteSrc = ConvertToByteCompatibleImage(src);
+                Mat? byteBackground = null;
+
+                try
+                {
+                    if (background != null)
+                    {
+                        byteBackground = ConvertToByteCompatibleImage(background);
+                    }
+
+                    return ApplyLumaChannel(byteSrc, byteBackground, processor, allowByteFallback: false);
+                }
+                finally
+                {
+                    byteBackground?.Dispose();
+                }
+            }
+
+            channels[0].Dispose();
+            channels[0] = processedLuma.Clone();
+
+            using var merged = new Mat();
+            Cv2.Merge(channels, merged);
+
+            var result = new Mat();
+            Cv2.CvtColor(merged, result, ColorConversionCodes.YUV2BGR);
+            return result;
+        }
+        finally
+        {
+            backgroundLuma?.Dispose();
+
+            foreach (var channel in channels)
+            {
+                channel.Dispose();
+            }
+        }
+    }
+
+    private static Mat ExtractGray(Mat src)
+    {
+        if (src.Channels() == 1)
+        {
+            return src.Clone();
+        }
+
+        var gray = new Mat();
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        return gray;
+    }
+
+    private static Mat ConvertToByteCompatibleImage(Mat src)
+    {
+        if (src.Depth() == MatType.CV_8U)
+        {
+            return src.Clone();
+        }
+
+        var converted = new Mat();
+        var targetType = MatType.MakeType(MatType.CV_8U, src.Channels());
+
+        switch (src.Depth())
+        {
+            case MatType.CV_16U:
+                src.ConvertTo(converted, targetType, 1.0 / 256.0);
+                break;
+            case MatType.CV_32F:
+            case MatType.CV_64F:
+                var (floatMin, floatMax) = GetGlobalMinMax(src);
+                if (floatMin >= 0d && floatMax <= 1d)
+                {
+                    src.ConvertTo(converted, targetType, 255.0);
+                }
+                else if (floatMin >= 0d && floatMax <= 255d)
+                {
+                    src.ConvertTo(converted, targetType);
+                }
+                else
+                {
+                    ConvertToByteCompatibleImageWithRangeNormalization(src, converted, targetType, floatMin, floatMax);
+                }
+
+                break;
+            default:
+                var (minValue, maxValue) = GetGlobalMinMax(src);
+                ConvertToByteCompatibleImageWithRangeNormalization(src, converted, targetType, minValue, maxValue);
+                break;
+        }
+
+        return converted;
+    }
+
+    private static void ConvertToByteCompatibleImageWithRangeNormalization(Mat src, Mat dst, MatType targetType, double minValue, double maxValue)
+    {
+        if (!double.IsFinite(minValue) || !double.IsFinite(maxValue))
+        {
+            throw new InvalidOperationException("Input image contains non-finite values and cannot be converted to 8-bit color.");
+        }
+
+        if (maxValue <= minValue)
+        {
+            src.ConvertTo(dst, targetType, 0.0, 0.0);
+            return;
+        }
+
+        var scale = 255.0 / (maxValue - minValue);
+        var shift = -minValue * scale;
+        src.ConvertTo(dst, targetType, scale, shift);
+    }
+
+    private static (double Min, double Max) GetGlobalMinMax(Mat src)
+    {
+        if (src.Channels() == 1)
+        {
+            double minValue;
+            double maxValue;
+            Cv2.MinMaxLoc(src, out minValue, out maxValue);
+            return (minValue, maxValue);
+        }
+
+        Cv2.Split(src, out var channels);
+        try
+        {
+            var minValue = double.PositiveInfinity;
+            var maxValue = double.NegativeInfinity;
+
+            foreach (var channel in channels)
+            {
+                double channelMin;
+                double channelMax;
+                Cv2.MinMaxLoc(channel, out channelMin, out channelMax);
+                minValue = Math.Min(minValue, channelMin);
+                maxValue = Math.Max(maxValue, channelMax);
+            }
+
+            return (minValue, maxValue);
+        }
+        finally
+        {
+            foreach (var channel in channels)
+            {
+                channel.Dispose();
+            }
+        }
     }
 
     private static Mat CorrectByGaussianModel(Mat gray, int kernelSize)

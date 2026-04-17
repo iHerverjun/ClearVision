@@ -4,6 +4,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Collections.Generic;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -52,5 +53,27 @@ public class SubpixelEdgeDetectionOperatorTests
         result.OutputData.Should().ContainKey("Edges");
         result.OutputData.Should().ContainKey("Method");
         result.OutputData!["Method"].Should().Be("GradientInterp");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithSteger_ShouldReturnEdgesAndExposeSigmaUsed()
+    {
+        var op = new Operator("Subpixel", OperatorType.SubpixelEdgeDetection, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "Steger", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Sigma", 2.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("EdgeThreshold", 1.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("LowThreshold", 10.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("HighThreshold", 30.0, "double"));
+
+        using var image = TestHelpers.CreateGrayShapeTestImage();
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().ContainKey("Method");
+        result.OutputData.Should().ContainKey("SigmaUsed");
+        result.OutputData.Should().ContainKey("Edges");
+        result.OutputData!["Method"].Should().Be("Steger");
+        Convert.ToDouble(result.OutputData["SigmaUsed"]).Should().BeApproximately(2.0, 1e-9);
+        ((IReadOnlyCollection<Dictionary<string, object>>)result.OutputData["Edges"]).Should().NotBeEmpty();
     }
 }
