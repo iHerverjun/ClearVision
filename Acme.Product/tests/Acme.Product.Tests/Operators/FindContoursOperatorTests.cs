@@ -4,10 +4,12 @@
 
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using OpenCvSharp;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -50,5 +52,23 @@ public class FindContoursOperatorTests
     {
         var op = new Operator("测试", OperatorType.ContourDetection, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithGrayImage_ShouldReturnContourPointsAndHierarchy()
+    {
+        var op = new Operator("测试", OperatorType.ContourDetection, 0, 0);
+        using var mat = new Mat(120, 160, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(mat, new Rect(20, 20, 80, 60), Scalar.White, -1);
+        using var image = new ImageWrapper(mat.Clone());
+
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var contours = result.OutputData!["Contours"].Should().BeAssignableTo<IEnumerable<List<Position>>>().Subject.ToList();
+        contours.Should().NotBeEmpty();
+        contours[0].Count.Should().BeGreaterThan(3);
+        result.OutputData.Should().ContainKey("Hierarchy");
+        result.OutputData.Should().ContainKey("ContourSummaries");
     }
 }

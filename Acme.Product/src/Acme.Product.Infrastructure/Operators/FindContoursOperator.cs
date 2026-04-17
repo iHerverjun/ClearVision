@@ -5,6 +5,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -68,7 +69,14 @@ public class FindContoursOperator : OperatorBase
 
         // 转换为灰度图
         using var gray = new Mat();
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        if (src.Channels() == 1)
+        {
+            src.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        }
 
         // 二值化
         using var binary = new Mat();
@@ -130,7 +138,12 @@ public class FindContoursOperator : OperatorBase
 
         // P0: 使用ImageWrapper实现零拷贝输出
         // 构建轮廓信息
-        var contourInfos = filteredContours.Select((c, index) =>
+        var filteredHierarchy = filteredContours
+            .Select(contour => Array.IndexOf(contours, contour))
+            .Select(index => index >= 0 && index < hierarchy.Length ? hierarchy[index] : default)
+            .ToArray();
+
+        var contourSummaries = filteredContours.Select((c, index) =>
         {
             var area = Cv2.ContourArea(c);
             var perimeter = Cv2.ArcLength(c, true);
@@ -149,11 +162,28 @@ public class FindContoursOperator : OperatorBase
             };
         }).ToList();
 
+        var contourPayload = filteredContours
+            .Select(contour => contour.Select(point => new Position(point.X, point.Y)).ToList())
+            .ToList();
+
+        var hierarchyPayload = filteredHierarchy
+            .Select((item, index) => new Dictionary<string, object>
+            {
+                { "Id", index },
+                { "Next", item.Next },
+                { "Previous", item.Previous },
+                { "Child", item.Child },
+                { "Parent", item.Parent }
+            })
+            .ToList();
+
         // P0: 使用ImageWrapper实现零拷贝输出
         var additionalData = new Dictionary<string, object>
         {
             { "ContourCount", filteredContours.Length },
-            { "Contours", contourInfos }
+            { "Contours", contourPayload },
+            { "ContourSummaries", contourSummaries },
+            { "Hierarchy", hierarchyPayload }
         };
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImg, additionalData)));
     }

@@ -97,14 +97,15 @@ public class RectangleDetectionOperator : OperatorBase
                 continue;
             }
 
-            if (!IsNearRightAngle(approx, angleTolerance))
+            var refinedCorners = RefineCorners(gray, approx);
+            if (!IsNearRightAngle(refinedCorners, angleTolerance))
             {
                 continue;
             }
 
-            var rect = Cv2.MinAreaRect(approx);
+            var rect = Cv2.MinAreaRect(refinedCorners);
             var normalized = NormalizeRect(rect);
-            rectangles.Add(new RectangleResult(rect, rect.Points(), area, normalized.Angle, normalized.LongSide, normalized.ShortSide));
+            rectangles.Add(new RectangleResult(rect, OrderVertices(refinedCorners), area, normalized.Angle, normalized.LongSide, normalized.ShortSide));
         }
 
         rectangles = rectangles.OrderByDescending(rectangle => rectangle.Area).ToList();
@@ -165,7 +166,29 @@ public class RectangleDetectionOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static bool IsNearRightAngle(IReadOnlyList<Point> polygon, double toleranceDeg)
+    private static Point2f[] RefineCorners(Mat gray, IReadOnlyList<Point> approx)
+    {
+        var corners = approx.Select(point => new Point2f(point.X, point.Y)).ToArray();
+        if (corners.Length != 4)
+        {
+            return corners;
+        }
+
+        if (corners.Any(point => point.X < 1 || point.X >= gray.Cols - 1 || point.Y < 1 || point.Y >= gray.Rows - 1))
+        {
+            return corners;
+        }
+
+        Cv2.CornerSubPix(
+            gray,
+            corners,
+            new Size(5, 5),
+            new Size(-1, -1),
+            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.01));
+        return corners;
+    }
+
+    private static bool IsNearRightAngle(IReadOnlyList<Point2f> polygon, double toleranceDeg)
     {
         if (polygon.Count != 4)
         {
@@ -199,6 +222,37 @@ public class RectangleDetectionOperator : OperatorBase
         return true;
     }
 
+    private static Point2f[] OrderVertices(IEnumerable<Point2f> points)
+    {
+        var ordered = points.ToArray();
+        if (ordered.Length != 4)
+        {
+            return ordered;
+        }
+
+        var centroidX = ordered.Average(point => point.X);
+        var centroidY = ordered.Average(point => point.Y);
+        ordered = ordered
+            .Select(point => new { Point = point, Angle = Math.Atan2(point.Y - centroidY, point.X - centroidX) })
+            .OrderBy(item => item.Angle)
+            .Select(item => item.Point)
+            .ToArray();
+
+        if (SignedArea(ordered) < 0)
+        {
+            Array.Reverse(ordered);
+        }
+
+        var startIndex = Enumerable.Range(0, ordered.Length)
+            .OrderBy(index => ordered[index].Y)
+            .ThenBy(index => ordered[index].X)
+            .First();
+
+        return Enumerable.Range(0, ordered.Length)
+            .Select(offset => ordered[(startIndex + offset) % ordered.Length])
+            .ToArray();
+    }
+
     private static (double Angle, double LongSide, double ShortSide) NormalizeRect(RotatedRect rect)
     {
         double width = rect.Size.Width;
@@ -222,6 +276,19 @@ public class RectangleDetectionOperator : OperatorBase
         }
 
         return (angle, width, height);
+    }
+
+    private static double SignedArea(IReadOnlyList<Point2f> polygon)
+    {
+        double area = 0;
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var current = polygon[index];
+            var next = polygon[(index + 1) % polygon.Count];
+            area += (current.X * next.Y) - (next.X * current.Y);
+        }
+
+        return area * 0.5;
     }
 
     private sealed record RectangleResult(RotatedRect Rect, Point2f[] Points, double Area, double NormalizedAngle, double LongSide, double ShortSide);

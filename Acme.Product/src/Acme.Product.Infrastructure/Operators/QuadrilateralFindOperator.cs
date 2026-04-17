@@ -76,7 +76,7 @@ public class QuadrilateralFindOperator : OperatorBase
         Cv2.MorphologyEx(edge, closed, MorphTypes.Close, kernel);
         Cv2.FindContours(closed, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-        var quads = new List<(Point[] Points, Point[] OrderedPoints, double Area, Position Center)>();
+        var quads = new List<(Point2f[] Points, Point2f[] OrderedPoints, double Area, Position Center)>();
         foreach (var contour in contours)
         {
             var area = Cv2.ContourArea(contour);
@@ -98,12 +98,13 @@ public class QuadrilateralFindOperator : OperatorBase
                 continue;
             }
 
-            var moments = Cv2.Moments(approx);
+            var refinedCorners = RefineCorners(gray, approx);
+            var moments = Cv2.Moments(refinedCorners);
             var center = moments.M00 > 1e-9
                 ? new Position(moments.M10 / moments.M00, moments.M01 / moments.M00)
                 : new Position(0, 0);
 
-            quads.Add((approx, OrderVertices(approx), area, center));
+            quads.Add((refinedCorners, OrderVertices(refinedCorners), area, center));
         }
 
         quads = quads.OrderByDescending(quad => quad.Area).ToList();
@@ -112,7 +113,10 @@ public class QuadrilateralFindOperator : OperatorBase
         var resultImage = src.Clone();
         foreach (var quad in quads)
         {
-            Cv2.Polylines(resultImage, new[] { quad.OrderedPoints }, true, new Scalar(0, 255, 0), 2);
+            var drawPoints = quad.OrderedPoints
+                .Select(point => new Point((int)Math.Round(point.X), (int)Math.Round(point.Y)))
+                .ToArray();
+            Cv2.Polylines(resultImage, new[] { drawPoints }, true, new Scalar(0, 255, 0), 2);
         }
 
         var vertices = primary.Points == null ? new List<Position>() : primary.Points.Select(point => new Position(point.X, point.Y)).ToList();
@@ -142,7 +146,29 @@ public class QuadrilateralFindOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static Point[] OrderVertices(Point[] points)
+    private static Point2f[] RefineCorners(Mat gray, IReadOnlyList<Point> approx)
+    {
+        var corners = approx.Select(point => new Point2f(point.X, point.Y)).ToArray();
+        if (corners.Length != 4)
+        {
+            return corners;
+        }
+
+        if (corners.Any(point => point.X < 1 || point.X >= gray.Cols - 1 || point.Y < 1 || point.Y >= gray.Rows - 1))
+        {
+            return corners;
+        }
+
+        Cv2.CornerSubPix(
+            gray,
+            corners,
+            new Size(5, 5),
+            new Size(-1, -1),
+            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.01));
+        return corners;
+    }
+
+    private static Point2f[] OrderVertices(Point2f[] points)
     {
         if (points.Length != 4)
         {
@@ -172,7 +198,7 @@ public class QuadrilateralFindOperator : OperatorBase
             .ToArray();
     }
 
-    private static double SignedArea(IReadOnlyList<Point> polygon)
+    private static double SignedArea(IReadOnlyList<Point2f> polygon)
     {
         double area = 0;
         for (var index = 0; index < polygon.Count; index++)

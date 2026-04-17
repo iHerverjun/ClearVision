@@ -59,6 +59,30 @@ public class QuadrilateralFindOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldExposeRefinedOrderedVertices()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "MinArea", 100 },
+            { "MaxArea", 100000 },
+            { "ApproxEpsilon", 0.02 },
+            { "ConvexOnly", true }
+        });
+
+        using var image = CreateBlurredQuadImage();
+        var result = await CreateSut().ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        Assert.True(result.IsSuccess);
+        var ordered = Assert.IsType<List<Position>>(result.OutputData!["OrderedVertices"]);
+        Assert.Equal(4, ordered.Count);
+        Assert.All(ordered, point =>
+        {
+            Assert.InRange(point.X, 0.0, 240.0);
+            Assert.InRange(point.Y, 0.0, 200.0);
+        });
+    }
+
+    [Fact]
     public void ValidateParameters_WithInvalidAreaRange_ShouldReturnInvalid()
     {
         Assert.False(CreateSut().ValidateParameters(CreateOperator(new Dictionary<string, object> { { "MinArea", 1000 }, { "MaxArea", 100 } })).IsValid);
@@ -102,5 +126,18 @@ public class QuadrilateralFindOperatorTests
         }
 
         return new ImageWrapper(mat);
+    }
+
+    private static ImageWrapper CreateBlurredQuadImage()
+    {
+        var mat = new Mat(200, 240, MatType.CV_8UC3, Scalar.Black);
+        using var baseShape = new Mat(200, 240, MatType.CV_8UC3, Scalar.Black);
+        var pts = new[] { new Point(58, 46), new Point(176, 58), new Point(162, 150), new Point(64, 138) };
+        Cv2.FillConvexPoly(baseShape, pts, Scalar.White);
+        using var transform = Cv2.GetRotationMatrix2D(new Point2f(120, 100), -7.8, 1.0);
+        Cv2.WarpAffine(baseShape, mat, transform, baseShape.Size(), InterpolationFlags.Linear, BorderTypes.Constant);
+        using var blurred = new Mat();
+        Cv2.GaussianBlur(mat, blurred, new Size(9, 9), 1.8);
+        return new ImageWrapper(blurred.Clone());
     }
 }

@@ -230,7 +230,7 @@ public class PixelToWorldTransformOperator : OperatorBase
                 var hasExplicitZ = Math.Abs(point.Z) > Epsilon;
                 var worldZmm = hasExplicitZ ? point.Z * unitScale : worldPlaneZ;
                 var worldPointMm = new Point3d(point.X * unitScale, point.Y * unitScale, worldZmm);
-                if (!TryWorldToPixelByProjection(context, worldPointMm, out var pixelPoint, out var error))
+                if (!TryWorldToPixelByProjection(context, distortion, worldPointMm, out var pixelPoint, out var error))
                 {
                     return OperatorExecutionOutput.Failure($"Ray-plane WorldToPixel failed: {error}");
                 }
@@ -760,8 +760,14 @@ public class PixelToWorldTransformOperator : OperatorBase
                 context = new DistortionContext(true, distortion.Model, distortion.Coefficients.ToArray());
                 return true;
             case DistortionModelV2.KannalaBrandt:
-                error = "Ray-plane path cannot continue with UseDistortion=true because KannalaBrandt undistortion is not supported in this operator.";
-                return false;
+                if (distortion.Coefficients.Length != 4)
+                {
+                    error = "KannalaBrandt distortion requires exactly 4 coefficients in this operator.";
+                    return false;
+                }
+
+                context = new DistortionContext(true, distortion.Model, distortion.Coefficients.ToArray());
+                return true;
             default:
                 error = $"Unsupported distortion model in ray-plane path: {distortion.Model}.";
                 return false;
@@ -787,30 +793,26 @@ public class PixelToWorldTransformOperator : OperatorBase
             return true;
         }
 
-        if (distortion.Model != DistortionModelV2.BrownConrady)
-        {
-            error = $"Unsupported distortion model in ray-plane normalization: {distortion.Model}.";
-            return false;
-        }
-
-        using var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1, Scalar.All(0));
-        cameraMatrix.Set(0, 0, context.Fx);
-        cameraMatrix.Set(1, 1, context.Fy);
-        cameraMatrix.Set(0, 2, context.Cx);
-        cameraMatrix.Set(1, 2, context.Cy);
-        cameraMatrix.Set(2, 2, 1.0);
-
-        using var distCoeffs = new Mat(distortion.Coefficients.Length, 1, MatType.CV_64FC1);
-        for (var i = 0; i < distortion.Coefficients.Length; i++)
-        {
-            distCoeffs.Set(i, 0, distortion.Coefficients[i]);
-        }
+        using var cameraMatrix = CreateCameraMatrix(context);
+        using var distCoeffs = CreateDistortionVector(distortion.Coefficients);
 
         using var srcPoints = new Mat(1, 1, MatType.CV_64FC2);
         srcPoints.Set(0, 0, new Vec2d(pixelX, pixelY));
 
         using var undistortedPoints = new Mat();
-        Cv2.UndistortPoints(srcPoints, undistortedPoints, cameraMatrix, distCoeffs);
+        switch (distortion.Model)
+        {
+            case DistortionModelV2.BrownConrady:
+                Cv2.UndistortPoints(srcPoints, undistortedPoints, cameraMatrix, distCoeffs);
+                break;
+            case DistortionModelV2.KannalaBrandt:
+                Cv2.FishEye.UndistortPoints(srcPoints, undistortedPoints, cameraMatrix, distCoeffs, new Mat(), new Mat());
+                break;
+            default:
+                error = $"Unsupported distortion model in ray-plane normalization: {distortion.Model}.";
+                return false;
+        }
+
         if (undistortedPoints.Empty())
         {
             error = "UndistortPoints returned an empty result.";
@@ -830,6 +832,7 @@ public class PixelToWorldTransformOperator : OperatorBase
 
     private static bool TryWorldToPixelByProjection(
         RayPlaneContext context,
+        DistortionContext distortion,
         Point3d worldPoint,
         out Point3d pixelPoint,
         out string error)
@@ -846,8 +849,22 @@ public class PixelToWorldTransformOperator : OperatorBase
 
         var x = cameraPoint.X / cameraPoint.Z;
         var y = cameraPoint.Y / cameraPoint.Z;
-        var u = context.Fx * x + context.Cx;
-        var v = context.Fy * y + context.Cy;
+        double u;
+        double v;
+
+        if (!distortion.Enabled)
+        {
+            u = context.Fx * x + context.Cx;
+            v = context.Fy * y + context.Cy;
+        }
+        else
+        {
+            if (!TryProjectWithDistortion(context, distortion, cameraPoint, out u, out v, out error))
+            {
+                return false;
+            }
+        }
+
         pixelPoint = new Point3d(u, v, 0);
 
         if (!IsFinite(pixelPoint))
@@ -857,6 +874,79 @@ public class PixelToWorldTransformOperator : OperatorBase
         }
 
         return true;
+    }
+
+    private static bool TryProjectWithDistortion(
+        RayPlaneContext context,
+        DistortionContext distortion,
+        Point3d cameraPoint,
+        out double u,
+        out double v,
+        out string error)
+    {
+        u = 0;
+        v = 0;
+        error = string.Empty;
+
+        using var cameraMatrix = CreateCameraMatrix(context);
+        using var distCoeffs = CreateDistortionVector(distortion.Coefficients);
+        using var objectPoints = new Mat(1, 1, MatType.CV_64FC3);
+        objectPoints.Set(0, 0, new Vec3d(cameraPoint.X, cameraPoint.Y, cameraPoint.Z));
+        using var zeroRvec = new Mat(3, 1, MatType.CV_64FC1, Scalar.All(0));
+        using var zeroTvec = new Mat(3, 1, MatType.CV_64FC1, Scalar.All(0));
+        using var imagePoints = new Mat();
+
+        switch (distortion.Model)
+        {
+            case DistortionModelV2.BrownConrady:
+                Cv2.ProjectPoints(objectPoints, zeroRvec, zeroTvec, cameraMatrix, distCoeffs, imagePoints, new Mat(), 0.0);
+                break;
+            case DistortionModelV2.KannalaBrandt:
+                Cv2.FishEye.ProjectPoints(objectPoints, imagePoints, zeroRvec, zeroTvec, cameraMatrix, distCoeffs, 0.0, new Mat());
+                break;
+            default:
+                error = $"Unsupported distortion model in projection path: {distortion.Model}.";
+                return false;
+        }
+
+        if (imagePoints.Empty())
+        {
+            error = "Projection returned an empty result.";
+            return false;
+        }
+
+        var uv = imagePoints.At<Vec2d>(0, 0);
+        if (!double.IsFinite(uv.Item0) || !double.IsFinite(uv.Item1))
+        {
+            error = "Projection produced non-finite pixel coordinates.";
+            return false;
+        }
+
+        u = uv.Item0;
+        v = uv.Item1;
+        return true;
+    }
+
+    private static Mat CreateCameraMatrix(RayPlaneContext context)
+    {
+        var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1, Scalar.All(0));
+        cameraMatrix.Set(0, 0, context.Fx);
+        cameraMatrix.Set(1, 1, context.Fy);
+        cameraMatrix.Set(0, 2, context.Cx);
+        cameraMatrix.Set(1, 2, context.Cy);
+        cameraMatrix.Set(2, 2, 1.0);
+        return cameraMatrix;
+    }
+
+    private static Mat CreateDistortionVector(IReadOnlyList<double> coefficients)
+    {
+        var distCoeffs = new Mat(coefficients.Count, 1, MatType.CV_64FC1);
+        for (var i = 0; i < coefficients.Count; i++)
+        {
+            distCoeffs.Set(i, 0, coefficients[i]);
+        }
+
+        return distCoeffs;
     }
 
     private static Point3d TransformPoint(double[][] matrix, Point3d point)
