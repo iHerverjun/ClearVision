@@ -60,16 +60,7 @@ public class ArcCaliperOperator : OperatorBase
             double angle = startAngle + i * angleStep;
             double rad = angle * Math.PI / 180;
 
-            // 计算弧上点
-            int x = (int)(cx + radius * Math.Cos(rad));
-            int y = (int)(cy + radius * Math.Sin(rad));
-
-            if (x < 5 || x >= gray.Width - 5 || y < 5 || y >= gray.Height - 5)
-                continue;
-
-            // 获取沿半径方向的梯度
-            // 边缘检测（简化的一维边缘检测）
-            if (IsEdgePoint(gray, x, y, rad, transition, out double subpixX, out double subpixY, out double contrast))
+            if (TryLocateArcEdge(gray, cx, cy, radius, rad, transition, out double subpixX, out double subpixY, out double contrast))
             {
                 points.Add(new ArcCaliperPoint
                 {
@@ -95,79 +86,57 @@ public class ArcCaliperOperator : OperatorBase
         })));
     }
 
-    private double SampleGradient(Mat gray, int cx, int cy, int px, int py, double angle)
+    private bool TryLocateArcEdge(
+        Mat gray,
+        int cx,
+        int cy,
+        int radius,
+        double angle,
+        string transition,
+        out double subpixX,
+        out double subpixY,
+        out double contrast)
     {
-        // 采样沿半径方向的灰度梯度
-        double dx = Math.Cos(angle);
-        double dy = Math.Sin(angle);
-
-        double val1 = GetPixelSafe(gray, (int)(px - dx * 2), (int)(py - dy * 2));
-        double val2 = GetPixelSafe(gray, (int)(px + dx * 2), (int)(py + dy * 2));
-
-        return val2 - val1;
-    }
-
-    private bool IsEdgePoint(Mat gray, int x, int y, double angle, string transition,
-        out double subpixX, out double subpixY, out double contrast)
-    {
-        subpixX = x;
-        subpixY = y;
+        subpixX = cx + radius * Math.Cos(angle);
+        subpixY = cy + radius * Math.Sin(angle);
         contrast = 0;
 
-        // 采样1D轮廓
-        double[] profile = new double[7];
         double dx = Math.Cos(angle);
         double dy = Math.Sin(angle);
+        double px = subpixX;
+        double py = subpixY;
 
-        for (int i = 0; i < 7; i++)
+        if (px < 6 || px >= gray.Width - 6 || py < 6 || py >= gray.Height - 6)
         {
-            double offset = i - 3;
-            profile[i] = GetPixelSafe(gray, (int)(x + dx * offset), (int)(y + dy * offset));
+            return false;
         }
 
-        // 计算梯度
-        double maxGrad = 0;
-        int maxPos = 3;
-        bool positiveEdge = false;
-
-        for (int i = 1; i < 6; i++)
+        const double searchHalfLength = 6.0;
+        const double averagingThickness = 5.0;
+        const int sampleCount = 33;
+        var start = new Point2d(px - (dx * searchHalfLength), py - (dy * searchHalfLength));
+        var end = new Point2d(px + (dx * searchHalfLength), py + (dy * searchHalfLength));
+        var profile = IndustrialCaliperKernel.SampleBandProfile(gray, start, end, averagingThickness, sampleCount);
+        var threshold = Math.Max(20.0, IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 8.0));
+        var polarity = transition switch
         {
-            double grad = profile[i + 1] - profile[i - 1];
-            if (Math.Abs(grad) > Math.Abs(maxGrad))
-            {
-                maxGrad = grad;
-                maxPos = i;
-                positiveEdge = grad > 0;
-            }
+            "positive" => "DarkToLight",
+            "negative" => "LightToDark",
+            _ => "Both"
+        };
+
+        var edges = IndustrialCaliperKernel.DetectEdges(profile, threshold, polarity, sigma: 1.2);
+        if (edges.Count == 0)
+        {
+            return false;
         }
 
-        contrast = Math.Abs(maxGrad);
-        if (contrast < 20) return false;
-
-        // 检查transition类型
-        if (transition == "positive" && !positiveEdge) return false;
-        if (transition == "negative" && positiveEdge) return false;
-
-        // 亚像素插值
-        if (maxPos > 0 && maxPos < 6)
-        {
-            double a = profile[maxPos - 1];
-            double b = profile[maxPos];
-            double c = profile[maxPos + 1];
-            double offset = (a - c) / (2 * (a - 2 * b + c) + 1e-6);
-
-            subpixX = x + dx * (maxPos - 3 + offset);
-            subpixY = y + dy * (maxPos - 3 + offset);
-        }
-
+        var bestEdge = edges.OrderByDescending(edge => edge.Strength).First();
+        var point = IndustrialCaliperKernel.InterpolatePosition(start, end, bestEdge.Position, sampleCount);
+        subpixX = point.X;
+        subpixY = point.Y;
+        contrast = bestEdge.Strength;
         return true;
-    }
-
-    private double GetPixelSafe(Mat gray, int x, int y)
-    {
-        if (x < 0 || x >= gray.Width || y < 0 || y >= gray.Height)
-            return 128;
-        return gray.At<byte>(y, x);
     }
 
     private Mat CreateVisualization(Mat image, int cx, int cy, int radius, double start, double end, List<ArcCaliperPoint> points)

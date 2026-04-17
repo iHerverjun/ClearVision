@@ -271,7 +271,7 @@ public class GapMeasurementOperator : OperatorBase
         string direction,
         bool robustMode,
         int multiScanCount,
-        out List<int> positions,
+        out List<double> positions,
         out bool horizontal,
         out GapDiagnostics diagnostics)
     {
@@ -404,63 +404,28 @@ public class GapMeasurementOperator : OperatorBase
         return sum / values.Count;
     }
 
-    private static List<int> FindFeaturePositions(IReadOnlyList<double> profile, bool robustMode)
+    private static List<double> FindFeaturePositions(IReadOnlyList<double> profile, bool robustMode)
     {
-        var result = new List<int>();
-        if (profile.Count < 3)
+        var result = new List<double>();
+        if (profile.Count < 5)
         {
             return result;
         }
 
-        var smoothed = SmoothProfile(profile, radius: 2);
-        var median = ComputeMedian(smoothed);
-        var absDeviation = smoothed.Select(v => Math.Abs(v - median)).ToArray();
-        var mad = ComputeMedian(absDeviation);
-        var robustSigma = mad * 1.4826;
-        var threshold = robustMode
-            ? ComputeRobustThreshold(smoothed, median, robustSigma)
-            : smoothed.Average() + Math.Sqrt(Math.Max(0.0, ComputeVariance(smoothed)));
-        if (double.IsPositiveInfinity(threshold))
+        var threshold = IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 2.0);
+        var centers = IndustrialCaliperKernel.DetectBrightStripeCenters(profile, threshold, sigma: robustMode ? 1.6 : 1.2);
+        if (centers.Count == 0)
         {
             return result;
         }
 
-        var minPeakDistance = Math.Max(6, profile.Count / 150);
-        var minProminence = Math.Max(1.0, robustSigma * 0.5);
-
-        for (var i = 1; i < smoothed.Length - 1; i++)
+        var minPeakDistance = Math.Max(6.0, profile.Count / 150.0);
+        foreach (var center in centers.OrderBy(static value => value))
         {
-            var value = smoothed[i];
-            if (value < threshold)
+            if (result.Count == 0 || center - result[^1] > minPeakDistance)
             {
-                continue;
+                result.Add(center);
             }
-
-            var left = smoothed[i - 1];
-            var right = smoothed[i + 1];
-            var isLocalMaximum = (value > left && value >= right) || (value >= left && value > right);
-            if (!isLocalMaximum)
-            {
-                continue;
-            }
-
-            var prominence = value - (left + right) * 0.5;
-            if (prominence < minProminence)
-            {
-                continue;
-            }
-
-            if (result.Count > 0 && i - result[^1] <= minPeakDistance)
-            {
-                if (smoothed[result[^1]] < value)
-                {
-                    result[^1] = i;
-                }
-
-                continue;
-            }
-
-            result.Add(i);
         }
 
         return result;
@@ -628,17 +593,18 @@ public class GapMeasurementOperator : OperatorBase
         return maxRun;
     }
 
-    private static void DrawProjectionFeatures(Mat image, IReadOnlyList<int> positions, bool horizontal)
+    private static void DrawProjectionFeatures(Mat image, IReadOnlyList<double> positions, bool horizontal)
     {
         foreach (var pos in positions)
         {
+            var rounded = (int)Math.Round(pos);
             if (horizontal)
             {
-                Cv2.Line(image, new Point(pos, 0), new Point(pos, image.Rows - 1), new Scalar(0, 255, 255), 1);
+                Cv2.Line(image, new Point(rounded, 0), new Point(rounded, image.Rows - 1), new Scalar(0, 255, 255), 1);
             }
             else
             {
-                Cv2.Line(image, new Point(0, pos), new Point(image.Cols - 1, pos), new Scalar(0, 255, 255), 1);
+                Cv2.Line(image, new Point(0, rounded), new Point(image.Cols - 1, rounded), new Scalar(0, 255, 255), 1);
             }
         }
     }

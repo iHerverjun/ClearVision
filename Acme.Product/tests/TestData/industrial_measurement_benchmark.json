@@ -1,0 +1,36 @@
+{
+  "samplePath": "publish/ClearVision-Portable-20260416-123738/portable-assets/samples/10.png",
+  "circleBaseline": {
+    "crop": {
+      "x": 250,
+      "y": 160,
+      "width": 220,
+      "height": 220
+    },
+    "method": "HoughCircle",
+    "minRadius": 60,
+    "maxRadius": 100,
+    "expectedCenterX": 92.5,
+    "expectedCenterY": 88.5,
+    "expectedRadius": 86.0,
+    "centerTolerance": 8.0,
+    "radiusTolerance": 8.0
+  },
+  "lineBaseline": {
+    "crop": {
+      "x": 360,
+      "y": 140,
+      "width": 430,
+      "height": 100
+    },
+    "method": "FitLine",
+    "threshold": 80,
+    "minLength": 120.0,
+    "maxGap": 12.0,
+    "expectedAngle": -5.0,
+    "angleTolerance": 1.5,
+    "expectedMinLength": 400.0,
+    "expectedMaxLength": 450.0,
+    "maxResidualMean": 2.5
+  }
+}

@@ -123,7 +123,11 @@ public class CircleMeasurementOperator : OperatorBase
                 additionalData["Center"] = firstCircle["Center"];
                 additionalData["Radius"] = firstCircle["Radius"];
                 additionalData["Circularity"] = firstCircle["Circularity"];
-                
+                if (firstCircle.TryGetValue("ResidualRmse", out var residualRmse))
+                {
+                    additionalData["ResidualRmse"] = residualRmse;
+                }
+                 
                 // Sprint 1 Task 1.2: 添加单个 CircleData 输出
                 if (firstCircleData != null)
                 {
@@ -136,7 +140,9 @@ public class CircleMeasurementOperator : OperatorBase
         additionalData["StatusCode"] = hasFeature ? "OK" : "NoFeature";
         additionalData["StatusMessage"] = hasFeature ? "Success" : "No circle found";
         additionalData["Confidence"] = hasFeature ? 1.0 : 0.0;
-        additionalData["UncertaintyPx"] = hasFeature ? 0.1 : double.NaN;
+        additionalData["UncertaintyPx"] = hasFeature && circleResults[0].TryGetValue("ResidualRmse", out var rmse)
+            ? Convert.ToDouble(rmse)
+            : (hasFeature ? 0.5 : double.NaN);
         
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
     }
@@ -163,20 +169,32 @@ public class CircleMeasurementOperator : OperatorBase
 
         foreach (var circle in circles)
         {
-            var center = new Point((int)circle.Center.X, (int)circle.Center.Y);
-            var radius = (int)circle.Radius;
+            var refinedCenter = new Position(circle.Center.X, circle.Center.Y);
+            double refinedRadius = circle.Radius;
+            var residualRmse = double.NaN;
+            var refinedEdgePointCount = 0;
+            if (TryRefineCircleByCaliper(gray, circle.Center.X, circle.Center.Y, circle.Radius, out var centerFromCaliper, out var radiusFromCaliper, out residualRmse, out refinedEdgePointCount))
+            {
+                refinedCenter = centerFromCaliper;
+                refinedRadius = radiusFromCaliper;
+            }
+
+            var center = new Point((int)Math.Round(refinedCenter.X), (int)Math.Round(refinedCenter.Y));
+            var radius = (int)Math.Round(refinedRadius);
             Cv2.Circle(resultImage, center, radius, new Scalar(0, 255, 0), 2);
             Cv2.Circle(resultImage, center, 3, new Scalar(0, 0, 255), -1);
 
             var circularity = CalculateCircularity(gray, center, radius);
             circleResults.Add(new Dictionary<string, object>
             {
-                { "Center", new Position(circle.Center.X, circle.Center.Y) },
-                { "Radius", circle.Radius },
-                { "Circularity", circularity }
+                { "Center", refinedCenter },
+                { "Radius", refinedRadius },
+                { "Circularity", circularity },
+                { "ResidualRmse", residualRmse },
+                { "RefinedEdgePointCount", refinedEdgePointCount }
             });
 
-            circleDataList.Add(new CircleData((float)circle.Center.X, (float)circle.Center.Y, (float)circle.Radius));
+            circleDataList.Add(new CircleData((float)refinedCenter.X, (float)refinedCenter.Y, (float)refinedRadius));
         }
     }
 
@@ -297,6 +315,160 @@ public class CircleMeasurementOperator : OperatorBase
         }
 
         return 0.0;
+    }
+
+    private static bool TryRefineCircleByCaliper(
+        Mat gray,
+        double seedCenterX,
+        double seedCenterY,
+        double seedRadius,
+        out Position refinedCenter,
+        out double refinedRadius,
+        out double rmse,
+        out int pointCount)
+    {
+        refinedCenter = new Position(seedCenterX, seedCenterY);
+        refinedRadius = seedRadius;
+        rmse = double.NaN;
+        pointCount = 0;
+
+        if (seedRadius < 8)
+        {
+            return false;
+        }
+
+        var searchHalfWidth = Math.Clamp(seedRadius * 0.20, 6.0, 18.0);
+        var averagingThickness = Math.Clamp(seedRadius / 18.0, 3.0, 7.0);
+        const int sampleCount = 33;
+        const int angularSamples = 36;
+        var expectedPosition = (sampleCount - 1) * 0.5;
+        var edgePoints = new List<Point2f>(angularSamples);
+
+        for (var i = 0; i < angularSamples; i++)
+        {
+            var angle = i * (2.0 * Math.PI / angularSamples);
+            var dirX = Math.Cos(angle);
+            var dirY = Math.Sin(angle);
+            var start = new Point2d(
+                seedCenterX + ((seedRadius - searchHalfWidth) * dirX),
+                seedCenterY + ((seedRadius - searchHalfWidth) * dirY));
+            var end = new Point2d(
+                seedCenterX + ((seedRadius + searchHalfWidth) * dirX),
+                seedCenterY + ((seedRadius + searchHalfWidth) * dirY));
+
+            var profile = IndustrialCaliperKernel.SampleBandProfile(gray, start, end, averagingThickness, sampleCount);
+            var threshold = IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 4.0);
+            var edges = IndustrialCaliperKernel.DetectEdges(profile, threshold, "Both", sigma: 1.2);
+            if (edges.Count == 0)
+            {
+                continue;
+            }
+
+            var bestEdge = edges
+                .OrderBy(edge => Math.Abs(edge.Position - expectedPosition))
+                .ThenByDescending(edge => edge.Strength)
+                .First();
+
+            var point = IndustrialCaliperKernel.InterpolatePosition(start, end, bestEdge.Position, sampleCount);
+            edgePoints.Add(new Point2f((float)point.X, (float)point.Y));
+        }
+
+        if (edgePoints.Count < 8)
+        {
+            return false;
+        }
+
+        pointCount = edgePoints.Count;
+        var (cx, cy, radius) = FitCircleLeastSquares(edgePoints.ToArray());
+        if (!double.IsFinite(cx) || !double.IsFinite(cy) || !double.IsFinite(radius) || radius <= 0)
+        {
+            return false;
+        }
+
+        refinedCenter = new Position(cx, cy);
+        refinedRadius = radius;
+        rmse = ComputeCircleRmse(edgePoints, cx, cy, radius);
+        return true;
+    }
+
+    private static (double cx, double cy, double r) FitCircleLeastSquares(Point2f[] points)
+    {
+        var n = points.Length;
+        if (n < 3)
+        {
+            return (double.NaN, double.NaN, double.NaN);
+        }
+
+        var meanX = points.Average(point => point.X);
+        var meanY = points.Average(point => point.Y);
+        var scale = points
+            .Select(point => Math.Sqrt(Math.Pow(point.X - meanX, 2) + Math.Pow(point.Y - meanY, 2)))
+            .DefaultIfEmpty(0.0)
+            .Average();
+        if (scale < 1e-9)
+        {
+            return (double.NaN, double.NaN, double.NaN);
+        }
+
+        double sumX = 0;
+        double sumY = 0;
+        double sumX2 = 0;
+        double sumY2 = 0;
+        double sumXY = 0;
+        double sumX3 = 0;
+        double sumY3 = 0;
+        double sumX2Y = 0;
+        double sumXY2 = 0;
+
+        foreach (var point in points)
+        {
+            var x = (point.X - meanX) / scale;
+            var y = (point.Y - meanY) / scale;
+            sumX += x;
+            sumY += y;
+            sumX2 += x * x;
+            sumY2 += y * y;
+            sumXY += x * y;
+            sumX3 += x * x * x;
+            sumY3 += y * y * y;
+            sumX2Y += x * x * y;
+            sumXY2 += x * y * y;
+        }
+
+        var a = (n * sumX2) - (sumX * sumX);
+        var b = (n * sumXY) - (sumX * sumY);
+        var c = (n * sumY2) - (sumY * sumY);
+        var d = 0.5 * ((n * sumX3) + (n * sumXY2) - (sumX * sumX2) - (sumX * sumY2));
+        var e = 0.5 * ((n * sumX2Y) + (n * sumY3) - (sumY * sumX2) - (sumY * sumY2));
+
+        var det = (a * c) - (b * b);
+        if (Math.Abs(det) < 1e-10)
+        {
+            return (double.NaN, double.NaN, double.NaN);
+        }
+
+        var normalizedCx = ((d * c) - (b * e)) / det;
+        var normalizedCy = ((a * e) - (b * d)) / det;
+        var normalizedR = Math.Sqrt((sumX2 / n) - ((2 * normalizedCx * sumX) / n) + (normalizedCx * normalizedCx)
+                                    + (sumY2 / n) - ((2 * normalizedCy * sumY) / n) + (normalizedCy * normalizedCy));
+
+        var cx = (normalizedCx * scale) + meanX;
+        var cy = (normalizedCy * scale) + meanY;
+        var radius = normalizedR * scale;
+        return (cx, cy, radius);
+    }
+
+    private static double ComputeCircleRmse(IEnumerable<Point2f> points, double cx, double cy, double radius)
+    {
+        var errors = points
+            .Select(point => Math.Sqrt(Math.Pow(point.X - cx, 2) + Math.Pow(point.Y - cy, 2)) - radius)
+            .ToArray();
+        if (errors.Length == 0)
+        {
+            return double.NaN;
+        }
+
+        return Math.Sqrt(errors.Select(error => error * error).Average());
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)

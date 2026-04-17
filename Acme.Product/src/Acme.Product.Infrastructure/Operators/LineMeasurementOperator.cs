@@ -73,13 +73,15 @@ public class LineMeasurementOperator : OperatorBase
         using var edges = new Mat();
         Cv2.Canny(gray, edges, 50, 150);
 
-        var lineResults = method switch
+        var lineResults = (method switch
         {
-            "HoughLines" => DetectHoughLines(edges, resultImage, src.Width, src.Height, threshold),
-            "ProbabilisticHough" => DetectProbabilisticHough(edges, resultImage, threshold, minLength, maxGap),
-            "FitLine" => DetectFitLine(edges, resultImage, src.Width, src.Height, minLength),
+            "HoughLines" => DetectHoughLines(gray, edges, resultImage, src.Width, src.Height, threshold),
+            "ProbabilisticHough" => DetectProbabilisticHough(gray, edges, resultImage, threshold, minLength, maxGap),
+            "FitLine" => DetectFitLine(gray, edges, resultImage, src.Width, src.Height, threshold, minLength, maxGap),
             _ => new List<LineMeasurementResult>()
-        };
+        })
+        .OrderByDescending(result => result.Length)
+        .ToList();
 
         if (lineResults.Count == 0)
         {
@@ -153,7 +155,7 @@ public class LineMeasurementOperator : OperatorBase
         };
     }
 
-    private static List<LineMeasurementResult> DetectHoughLines(Mat edges, Mat resultImage, int width, int height, int threshold)
+    private static List<LineMeasurementResult> DetectHoughLines(Mat gray, Mat edges, Mat resultImage, int width, int height, int threshold)
     {
         var results = new List<LineMeasurementResult>();
         var lines = Cv2.HoughLines(edges, 1, Math.PI / 180, threshold);
@@ -173,25 +175,35 @@ public class LineMeasurementOperator : OperatorBase
             var pt2 = new Point((int)Math.Round(imageSpan.EndX), (int)Math.Round(imageSpan.EndY));
             Cv2.Line(resultImage, pt1, pt2, new Scalar(0, 255, 0), 2);
 
-            var angleDegrees = MeasurementGeometryHelper.NormalizeLineDirectionDegrees((line.Theta * 180.0 / Math.PI) + 90.0);
+            var refinedLine = imageSpan;
+            double residualMean = double.NaN;
+            double residualMax = double.NaN;
+            var diagnostics = new Dictionary<string, object>
+            {
+                { "Rho", line.Rho },
+                { "Theta", line.Theta }
+            };
+
+            if (TryRefineLineUsingCaliper(gray, imageSpan, out var caliperLine, out residualMean, out residualMax, out var refinedPointCount))
+            {
+                refinedLine = caliperLine;
+                diagnostics["RefinedPointCount"] = refinedPointCount;
+            }
+
+            var angleDegrees = MeasurementGeometryHelper.NormalizeLineDirectionDegrees(refinedLine.Angle);
             results.Add(new LineMeasurementResult(
-                imageSpan,
+                refinedLine,
                 angleDegrees,
-                imageSpan.Length,
-                double.NaN,
-                double.NaN,
-                new Dictionary<string, object>
-                {
-                    { "Rho", line.Rho },
-                    { "Theta", line.Theta },
-                    { "DirectionTheta", angleDegrees }
-                }));
+                refinedLine.Length,
+                residualMean,
+                residualMax,
+                diagnostics));
         }
 
         return results;
     }
 
-    private static List<LineMeasurementResult> DetectProbabilisticHough(Mat edges, Mat resultImage, int threshold, double minLength, double maxGap)
+    private static List<LineMeasurementResult> DetectProbabilisticHough(Mat gray, Mat edges, Mat resultImage, int threshold, double minLength, double maxGap)
     {
         var results = new List<LineMeasurementResult>();
         var lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, threshold, minLength, maxGap);
@@ -203,24 +215,74 @@ public class LineMeasurementOperator : OperatorBase
         foreach (var line in lines)
         {
             var lineData = new LineData(line.P1.X, line.P1.Y, line.P2.X, line.P2.Y);
-            var pt1 = new Point(line.P1.X, line.P1.Y);
-            var pt2 = new Point(line.P2.X, line.P2.Y);
+            var pt1 = new Point((int)Math.Round(lineData.StartX), (int)Math.Round(lineData.StartY));
+            var pt2 = new Point((int)Math.Round(lineData.EndX), (int)Math.Round(lineData.EndY));
             Cv2.Line(resultImage, pt1, pt2, new Scalar(0, 255, 0), 2);
 
+            var refinedLine = lineData;
+            double residualMean = double.NaN;
+            double residualMax = double.NaN;
+            var diagnostics = new Dictionary<string, object>();
+            if (TryRefineLineUsingCaliper(gray, lineData, out var caliperLine, out residualMean, out residualMax, out var refinedPointCount))
+            {
+                refinedLine = caliperLine;
+                diagnostics["RefinedPointCount"] = refinedPointCount;
+            }
+
             results.Add(new LineMeasurementResult(
-                lineData,
-                MeasurementGeometryHelper.NormalizeLineDirectionDegrees(lineData.Angle),
-                lineData.Length,
-                double.NaN,
-                double.NaN,
-                new Dictionary<string, object>()));
+                refinedLine,
+                MeasurementGeometryHelper.NormalizeLineDirectionDegrees(refinedLine.Angle),
+                refinedLine.Length,
+                residualMean,
+                residualMax,
+                diagnostics));
         }
 
         return results;
     }
 
-    private static List<LineMeasurementResult> DetectFitLine(Mat edges, Mat resultImage, int width, int height, double minLength)
+    private static List<LineMeasurementResult> DetectFitLine(Mat gray, Mat edges, Mat resultImage, int width, int height, int threshold, double minLength, double maxGap)
     {
+        var seedSegments = Cv2.HoughLinesP(edges, 1, Math.PI / 180, Math.Max(40, threshold / 2), minLength, Math.Max(maxGap, 8.0));
+        if (seedSegments != null && seedSegments.Length > 0)
+        {
+            var candidates = seedSegments
+                .Select(segment => new LineData(segment.P1.X, segment.P1.Y, segment.P2.X, segment.P2.Y))
+                .OrderByDescending(segment => segment.Length)
+                .ToList();
+
+            foreach (var candidate in candidates)
+            {
+                if (!TryRefineLineUsingCaliper(gray, candidate, out var refinedLine, out var residualMean, out var residualMax, out var refinedPointCount))
+                {
+                    continue;
+                }
+
+                if (refinedLine.Length < minLength)
+                {
+                    continue;
+                }
+
+                var refinedPt1 = new Point((int)Math.Round(refinedLine.StartX), (int)Math.Round(refinedLine.StartY));
+                var refinedPt2 = new Point((int)Math.Round(refinedLine.EndX), (int)Math.Round(refinedLine.EndY));
+                Cv2.Line(resultImage, refinedPt1, refinedPt2, new Scalar(0, 255, 0), 2);
+
+                return new List<LineMeasurementResult>
+                {
+                    new(
+                        refinedLine,
+                        MeasurementGeometryHelper.NormalizeLineDirectionDegrees(refinedLine.Angle),
+                        refinedLine.Length,
+                        residualMean,
+                        residualMax,
+                        new Dictionary<string, object>
+                        {
+                            { "FitPointCount", refinedPointCount }
+                        })
+                };
+            }
+        }
+
         var points = CollectEdgePoints(edges);
         if (points.Count < 2)
         {
@@ -266,6 +328,76 @@ public class LineMeasurementOperator : OperatorBase
                     { "FitPointCount", points.Count }
                 })
         };
+    }
+
+    private static bool TryRefineLineUsingCaliper(
+        Mat gray,
+        LineData seedLine,
+        out LineData refinedLine,
+        out double residualMean,
+        out double residualMax,
+        out int refinedPointCount)
+    {
+        refinedLine = seedLine;
+        residualMean = double.NaN;
+        residualMax = double.NaN;
+        refinedPointCount = 0;
+
+        var length = seedLine.Length;
+        if (length < 12)
+        {
+            return false;
+        }
+
+        var dx = (seedLine.EndX - seedLine.StartX) / length;
+        var dy = (seedLine.EndY - seedLine.StartY) / length;
+        var normalX = -dy;
+        var normalY = dx;
+        var searchHalfWidth = Math.Clamp(length / 30.0, 6.0, 18.0);
+        var averagingThickness = Math.Clamp(length / 80.0, 3.0, 7.0);
+        var sampleCount = 33;
+        var sections = Math.Clamp((int)Math.Ceiling(length / 14.0), 12, 96);
+        var refinedCenters = new List<Point2f>(sections);
+
+        for (var i = 0; i < sections; i++)
+        {
+            var t = sections <= 1 ? 0.5 : 0.05 + (0.90 * i / (sections - 1));
+            var anchorX = seedLine.StartX + ((seedLine.EndX - seedLine.StartX) * t);
+            var anchorY = seedLine.StartY + ((seedLine.EndY - seedLine.StartY) * t);
+            var scanStart = new Point2d(anchorX - (normalX * searchHalfWidth), anchorY - (normalY * searchHalfWidth));
+            var scanEnd = new Point2d(anchorX + (normalX * searchHalfWidth), anchorY + (normalY * searchHalfWidth));
+
+            var profile = IndustrialCaliperKernel.SampleBandProfile(gray, scanStart, scanEnd, averagingThickness, sampleCount);
+            var threshold = IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 4.0);
+            var centers = IndustrialCaliperKernel.DetectStripeCenters(profile, threshold, "Auto", sigma: 1.2, maxCenters: 1);
+            if (centers.Count == 0)
+            {
+                continue;
+            }
+
+            var center = IndustrialCaliperKernel.InterpolatePosition(scanStart, scanEnd, centers[0], sampleCount);
+            refinedCenters.Add(new Point2f((float)center.X, (float)center.Y));
+        }
+
+        if (refinedCenters.Count < 4)
+        {
+            return false;
+        }
+
+        refinedPointCount = refinedCenters.Count;
+        var lineParams = Cv2.FitLine(refinedCenters.ToArray(), DistanceTypes.L2, 0, 0.01, 0.01);
+        if (!TryCreateImageSpanFromDirection(lineParams.Vx, lineParams.Vy, lineParams.X1, lineParams.Y1, gray.Width, gray.Height, out refinedLine))
+        {
+            return false;
+        }
+
+        var lineForResidual = refinedLine;
+        var residuals = refinedCenters
+            .Select(point => MeasurementGeometryHelper.DistancePointToInfiniteLine(point.X, point.Y, lineForResidual))
+            .ToList();
+        residualMean = residuals.Average();
+        residualMax = residuals.Max();
+        return true;
     }
 
     private static List<Point2f> CollectEdgePoints(Mat edges)

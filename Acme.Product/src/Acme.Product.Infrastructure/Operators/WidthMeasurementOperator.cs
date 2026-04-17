@@ -448,25 +448,34 @@ public class WidthMeasurementOperator : OperatorBase
             return false;
         }
 
-        var dirX = (end.X - start.X) / segmentLength;
-        var dirY = (end.Y - start.Y) / segmentLength;
-        var searchHalfWindow = Math.Clamp(segmentLength / 3.0, 6.0, 18.0);
-
-        var startWindowStart = new Position(start.X - (dirX * searchHalfWindow), start.Y - (dirY * searchHalfWindow));
-        var startWindowEnd = new Position(start.X + (dirX * searchHalfWindow), start.Y + (dirY * searchHalfWindow));
-        var endWindowStart = new Position(end.X - (dirX * searchHalfWindow), end.Y - (dirY * searchHalfWindow));
-        var endWindowEnd = new Position(end.X + (dirX * searchHalfWindow), end.Y + (dirY * searchHalfWindow));
-
-        if (!TryFindLocalEdge(gray, startWindowStart, startWindowEnd, out startEdge))
+        var sampleCount = Math.Max((int)Math.Ceiling(segmentLength * 4.0), 32);
+        var profile = IndustrialCaliperKernel.SampleBandProfile(
+            gray,
+            new Point2d(start.X, start.Y),
+            new Point2d(end.X, end.Y),
+            averagingThickness: Math.Clamp(segmentLength / 18.0, 2.0, 6.0),
+            sampleCount);
+        var threshold = IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 3.0);
+        var edges = IndustrialCaliperKernel.DetectEdges(profile, threshold, "Both");
+        if (edges.Count < 2)
         {
             return false;
         }
 
-        if (!TryFindLocalEdge(gray, endWindowStart, endWindowEnd, out endEdge))
+        var pairs = IndustrialCaliperKernel.BuildPairs(edges, "any", Math.Max(1, edges.Count / 2));
+        if (pairs.Count == 0)
         {
-            return false;
+            startEdge = IndustrialCaliperKernel.InterpolatePosition(start, end, edges.First().Position, sampleCount);
+            endEdge = IndustrialCaliperKernel.InterpolatePosition(start, end, edges.Last().Position, sampleCount);
+            return Distance(startEdge, endEdge) > 1e-6;
         }
 
+        var bestPair = pairs
+            .OrderByDescending(pair => pair.Second.Position - pair.First.Position)
+            .First();
+
+        startEdge = IndustrialCaliperKernel.InterpolatePosition(start, end, bestPair.First.Position, sampleCount);
+        endEdge = IndustrialCaliperKernel.InterpolatePosition(start, end, bestPair.Second.Position, sampleCount);
         return Distance(startEdge, endEdge) > 1e-6;
     }
 

@@ -80,11 +80,6 @@ public class CaliperToolOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("MeasureMode must be edge_pairs"));
         }
 
-        var subpixelDetector = subpixel ? new SubPixelEdgeDetector
-        {
-            EdgeThreshold = (byte)Math.Clamp(edgeThreshold, 1.0, 255.0)
-        } : null;
-
         using var gray = new Mat();
         if (src.Channels() == 1)
         {
@@ -98,24 +93,41 @@ public class CaliperToolOperator : OperatorBase
         var roi = ParseSearchRect(inputs, gray.Width, gray.Height);
         var scan = BuildScanLine(roi, direction, angleDeg);
         var sampleCount = Math.Max((int)Math.Ceiling(scan.Length), 24);
+        var averagingThickness = Math.Clamp(Math.Min(roi.Width, roi.Height) / 6.0, 3.0, 9.0);
+        var profile = IndustrialCaliperKernel.SampleBandProfile(gray, scan.Start, scan.End, averagingThickness, sampleCount);
+        var adaptiveThreshold = Math.Max(edgeThreshold, IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 3.0));
+        var kernelEdges = IndustrialCaliperKernel.DetectEdges(profile, adaptiveThreshold, polarity);
+        var detectedEdges = new List<DetectedEdge>(kernelEdges.Count);
 
-        var samples = SampleIntensity(gray, scan.Start, scan.End, sampleCount);
-        var candidates = DetectEdgesSigned(samples, edgeThreshold, polarity);
-        var detectedEdges = new List<DetectedEdge>(candidates.Count);
-
-        foreach (var edge in candidates)
+        foreach (var edge in kernelEdges)
         {
-            var t = sampleCount <= 1 ? 0.0 : (double)edge.Index / (sampleCount - 1);
-            var refinePolarity = edge.Polarity == EdgePolarity.DarkToLight ? "DarkToLight" : "LightToDark";
-            var refinedT = subpixel
-                ? RefineSubpixel(samples, edge.Index, t, sampleCount, edgeThreshold, refinePolarity, subPixelMode, subpixelDetector)
-                : t;
-            var x = scan.Start.X + (scan.End.X - scan.Start.X) * refinedT;
-            var y = scan.Start.Y + (scan.End.Y - scan.Start.Y) * refinedT;
-            detectedEdges.Add(new DetectedEdge(edge.Index, edge.Polarity, new Position(x, y)));
+            var profilePosition = subpixel ? edge.Position : Math.Round(edge.Position);
+            var point = IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, profilePosition, sampleCount);
+            detectedEdges.Add(new DetectedEdge(
+                (int)Math.Round(profilePosition),
+                edge.Polarity == IndustrialCaliperPolarity.DarkToLight ? EdgePolarity.DarkToLight : EdgePolarity.LightToDark,
+                point));
         }
 
-        var pairs = BuildEdgePairs(detectedEdges, pairDirection, expectedCount);
+        var kernelPairs = IndustrialCaliperKernel.BuildPairs(
+            kernelEdges.Select(edge => new IndustrialCaliperEdge(
+                subpixel ? edge.Position : Math.Round(edge.Position),
+                edge.Strength,
+                edge.Polarity)).ToList(),
+            pairDirection,
+            expectedCount);
+        var pairs = new List<(int First, int Second)>(kernelPairs.Count);
+        foreach (var pair in kernelPairs)
+        {
+            var firstIndex = detectedEdges.FindIndex(edge => Math.Abs(edge.Point.X - IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, pair.First.Position, sampleCount).X) < 1e-6 &&
+                Math.Abs(edge.Point.Y - IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, pair.First.Position, sampleCount).Y) < 1e-6);
+            var secondIndex = detectedEdges.FindIndex(edge => Math.Abs(edge.Point.X - IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, pair.Second.Position, sampleCount).X) < 1e-6 &&
+                Math.Abs(edge.Point.Y - IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, pair.Second.Position, sampleCount).Y) < 1e-6);
+            if (firstIndex >= 0 && secondIndex >= 0)
+            {
+                pairs.Add((firstIndex, secondIndex));
+            }
+        }
 
         var pairDistances = new List<double>(pairs.Count);
         var pairedEdgePoints = new List<Position>(pairs.Count * 2);
