@@ -1,6 +1,5 @@
 // PhaseClosureOperator.cs
-// 相位闭合算子 - 计算干涉图像的相位闭合/解缠绕
-// 对标: scipy.ndimage.phase_unwrap, MATLAB unwrap
+// 相位闭合 / 解缠绕算子
 
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
@@ -13,7 +12,7 @@ namespace Acme.Product.Infrastructure.Operators;
 
 [OperatorMeta(
     DisplayName = "Phase Closure",
-    Description = "Computes phase closure by unwrapping wrapped phase from interferometric measurements.",
+    Description = "Unwraps wrapped phase maps while preserving the original phase domain semantics.",
     Category = "Measurement",
     IconName = "phase-closure",
     Keywords = new[] { "Phase", "Unwrap", "Interferometry", "Closure", "Wavelength" }
@@ -28,63 +27,59 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Image", "Visualization", PortDataType.Image)]
 public class PhaseClosureOperator : OperatorBase
 {
+    private const double TwoPi = 2.0 * Math.PI;
+
     public override OperatorType OperatorType => OperatorType.PhaseClosure;
 
     public PhaseClosureOperator(ILogger<PhaseClosureOperator> logger) : base(logger) { }
 
-    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(Operator @operator, Dictionary<string, object>? inputs, CancellationToken cancellationToken)
+    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+        Operator @operator,
+        Dictionary<string, object>? inputs,
+        CancellationToken cancellationToken)
     {
-        if (!TryGetImage(inputs, out var phaseImage))
+        if (!TryGetInputImage(inputs, "PhaseImage", out var phaseWrapper) || phaseWrapper == null)
+        {
             return Task.FromResult(OperatorExecutionOutput.Failure("PhaseImage required."));
+        }
 
-        double wavelength = GetDouble(inputs, "Wavelength", 632.8); // He-Ne laser default
-        string method = GetString(inputs, "UnwrapMethod", "itoh").ToLower();
-
+        var wavelength = GetDouble(inputs, "Wavelength", 0.0);
+        var method = GetString(inputs, "UnwrapMethod", "itoh").Trim().ToLowerInvariant();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        using var phase = phaseImage.Channels() == 3 
-            ? phaseImage.CvtColor(ColorConversionCodes.BGR2GRAY) 
-            : phaseImage.Clone();
+        using var wrappedPhase = PrepareWrappedPhaseInput(phaseWrapper.GetMat());
+        using var qualityMap = TryGetOptionalQualityMap(inputs);
 
-        // 归一化到 [-π, π]
-        phase.ConvertTo(phase, MatType.CV_32F);
-        Cv2.Normalize(phase, phase, -Math.PI, Math.PI, NormTypes.MinMax);
-
-        Mat unwrapped;
+        Mat unwrappedPhase;
         double quality;
 
         switch (method)
         {
             case "quality":
-                (unwrapped, quality) = QualityGuidedUnwrap(phase, inputs);
+                (unwrappedPhase, quality) = QualityGuidedUnwrap(wrappedPhase, qualityMap);
                 break;
             case "floodfill":
-                (unwrapped, quality) = FloodFillUnwrap(phase);
+                (unwrappedPhase, quality) = FloodFillUnwrap(wrappedPhase);
                 break;
             case "itoh":
             default:
-                (unwrapped, quality) = ItohUnwrap(phase);
+                (unwrappedPhase, quality) = ItohUnwrap(wrappedPhase);
                 break;
         }
 
-        // 计算不连续点
-        var discontinuities = DetectDiscontinuities(phase);
+        var scaledPhase = wavelength > 0
+            ? ConvertPhaseToPhysicalDisplacement(unwrappedPhase, wavelength)
+            : unwrappedPhase.Clone();
+        unwrappedPhase.Dispose();
 
-        // 转换为实际位移 (若给定波长)
-        if (wavelength > 0)
-        {
-            unwrapped.ConvertTo(unwrapped, MatType.CV_32F);
-            Cv2.Multiply(unwrapped, new OpenCvSharp.Scalar(wavelength / (2 * Math.PI)), unwrapped);
-        }
+        var discontinuities = DetectDiscontinuities(wrappedPhase);
+        var visualization = CreateVisualization(wrappedPhase, scaledPhase, discontinuities);
 
         stopwatch.Stop();
-
-        var vis = CreateVisualization(phase, unwrapped, discontinuities);
-
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(vis, new Dictionary<string, object>
+        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(visualization, new Dictionary<string, object>
         {
-            { "UnwrappedPhase", unwrapped },
-            { "Discontinuities", discontinuities },
+            { "UnwrappedPhase", new ImageWrapper(scaledPhase) },
+            { "Discontinuities", new ImageWrapper(discontinuities) },
             { "Quality", quality },
             { "Wavelength", wavelength },
             { "Method", method },
@@ -92,257 +87,295 @@ public class PhaseClosureOperator : OperatorBase
         })));
     }
 
-    private (Mat, double) ItohUnwrap(Mat wrapped)
+    private static Mat PrepareWrappedPhaseInput(Mat source)
     {
-        var unwrapped = wrapped.Clone();
-        int rows = wrapped.Rows, cols = wrapped.Cols;
+        using var gray = source.Channels() == 1
+            ? source.Clone()
+            : source.CvtColor(ColorConversionCodes.BGR2GRAY);
 
-        // 行方向展开
-        for (int y = 0; y < rows; y++)
+        using var phase32 = new Mat();
+        var depth = gray.Depth();
+        var scale = depth switch
         {
-            double offset = 0;
-            float prev = wrapped.At<float>(y, 0);
-            unwrapped.At<float>(y, 0) = prev;
+            MatType.CV_8U => TwoPi / 255.0,
+            MatType.CV_16U => TwoPi / 65535.0,
+            MatType.CV_32F => 1.0,
+            MatType.CV_64F => 1.0,
+            _ => 1.0
+        };
 
-            for (int x = 1; x < cols; x++)
+        gray.ConvertTo(phase32, MatType.CV_32FC1, scale);
+        var wrapped = new Mat(phase32.Size(), MatType.CV_32FC1);
+        for (var y = 0; y < phase32.Rows; y++)
+        {
+            for (var x = 0; x < phase32.Cols; x++)
             {
-                float curr = wrapped.At<float>(y, x);
-                double diff = curr - prev;
-
-                // 检测跳变
-                if (diff > Math.PI) offset -= 2 * Math.PI;
-                else if (diff < -Math.PI) offset += 2 * Math.PI;
-
-                unwrapped.At<float>(y, x) = (float)(curr + offset);
-                prev = curr;
+                wrapped.Set(y, x, WrapToPi(phase32.At<float>(y, x)));
             }
         }
 
-        // 列方向展开
-        for (int x = 0; x < cols; x++)
-        {
-            double offset = 0;
-            float prev = unwrapped.At<float>(0, x);
-
-            for (int y = 1; y < rows; y++)
-            {
-                float curr = unwrapped.At<float>(y, x);
-                double diff = curr - prev;
-
-                if (diff > Math.PI) offset -= 2 * Math.PI;
-                else if (diff < -Math.PI) offset += 2 * Math.PI;
-
-                unwrapped.At<float>(y, x) = (float)(curr + offset);
-                prev = unwrapped.At<float>(y, x);
-            }
-        }
-
-        double quality = CalculateQuality(unwrapped);
-        return (unwrapped, quality);
+        return wrapped;
     }
 
-    private (Mat, double) QualityGuidedUnwrap(Mat wrapped, Dictionary<string, object>? inputs)
+    private Mat? TryGetOptionalQualityMap(Dictionary<string, object>? inputs)
     {
-        // 质量图引导的路径独立展开
-        var quality = new Mat(wrapped.Size(), MatType.CV_32F);
-        
-        // 计算相位梯度作为质量指标
-        using var dx = new Mat();
-        using var dy = new Mat();
-        Cv2.Sobel(wrapped, dx, MatType.CV_32F, 1, 0, 3);
-        Cv2.Sobel(wrapped, dy, MatType.CV_32F, 0, 1, 3);
-        Cv2.Magnitude(dx, dy, quality);
-        Cv2.Subtract(new OpenCvSharp.Scalar(1.0), quality, quality); // 低梯度 = 高质量
-
-        // 简单实现：基于质量排序的路径跟踪
-        var unwrapped = wrapped.Clone();
-        var visited = new bool[wrapped.Rows, wrapped.Cols];
-        var queue = new PriorityQueue<(int X, int Y, float Quality), float>();
-
-        // 从最高质量点开始
-        Cv2.MinMaxLoc(quality, out _, out double maxVal, out _, out OpenCvSharp.Point maxLoc);
-        queue.Enqueue((maxLoc.X, maxLoc.Y, (float)maxVal), (float)-maxVal);
-        visited[maxLoc.Y, maxLoc.X] = true;
-
-        while (queue.Count > 0)
+        if (!TryGetInputImage(inputs, "QualityMap", out var qualityWrapper) || qualityWrapper == null)
         {
-            var (x, y, _) = queue.Dequeue();
-            float currPhase = unwrapped.At<float>(y, x);
+            return null;
+        }
 
-            // 检查4邻域
-            int[] dx4 = { -1, 1, 0, 0 };
-            int[] dy4 = { 0, 0, -1, 1 };
+        using var gray = qualityWrapper.GetMat().Channels() == 1
+            ? qualityWrapper.GetMat().Clone()
+            : qualityWrapper.GetMat().CvtColor(ColorConversionCodes.BGR2GRAY);
 
-            for (int i = 0; i < 4; i++)
+        var quality = new Mat();
+        gray.ConvertTo(quality, MatType.CV_32FC1);
+        return quality;
+    }
+
+    private static (Mat unwrapped, double quality) ItohUnwrap(Mat wrapped)
+    {
+        var unwrapped = wrapped.Clone();
+
+        for (var y = 0; y < wrapped.Rows; y++)
+        {
+            var running = wrapped.At<float>(y, 0);
+            unwrapped.Set(y, 0, running);
+            for (var x = 1; x < wrapped.Cols; x++)
             {
-                int nx = x + dx4[i];
-                int ny = y + dy4[i];
-
-                if (nx < 0 || nx >= wrapped.Cols || ny < 0 || ny >= wrapped.Rows || visited[ny, nx])
-                    continue;
-
-                float neighborWrapped = wrapped.At<float>(ny, nx);
-                double diff = neighborWrapped - currPhase;
-
-                // 解缠绕
-                int jumps = (int)Math.Round(diff / (2 * Math.PI));
-                unwrapped.At<float>(ny, nx) = (float)(neighborWrapped - jumps * 2 * Math.PI);
-
-                visited[ny, nx] = true;
-                float q = quality.At<float>(ny, nx);
-                queue.Enqueue((nx, ny, q), -q);
+                var currentWrapped = wrapped.At<float>(y, x);
+                running += WrappedDifference(currentWrapped, wrapped.At<float>(y, x - 1));
+                unwrapped.Set(y, x, running);
             }
         }
 
-        double qScore = CalculateQuality(unwrapped);
-        return (unwrapped, qScore);
+        for (var x = 0; x < wrapped.Cols; x++)
+        {
+            var running = unwrapped.At<float>(0, x);
+            for (var y = 1; y < wrapped.Rows; y++)
+            {
+                var currentUnwrapped = unwrapped.At<float>(y, x);
+                running += WrappedDifference(currentUnwrapped, unwrapped.At<float>(y - 1, x));
+                unwrapped.Set(y, x, running);
+            }
+        }
+
+        return (unwrapped, CalculateQuality(unwrapped));
     }
 
-    private (Mat, double) FloodFillUnwrap(Mat wrapped)
+    private static (Mat unwrapped, double quality) QualityGuidedUnwrap(Mat wrapped, Mat? externalQualityMap)
     {
-        // 区域生长法展开
-        var unwrapped = wrapped.Clone();
+        using var quality = externalQualityMap?.Clone() ?? BuildQualityMap(wrapped);
+        var unwrapped = new Mat(wrapped.Size(), MatType.CV_32FC1, Scalar.All(float.NaN));
         var visited = new bool[wrapped.Rows, wrapped.Cols];
-        var regions = new List<List<OpenCvSharp.Point>>();
+        var queue = new PriorityQueue<Point, float>();
 
-        for (int y = 0; y < wrapped.Rows; y++)
+        Cv2.MinMaxLoc(quality, out _, out _, out _, out var seed);
+        unwrapped.Set(seed.Y, seed.X, wrapped.At<float>(seed.Y, seed.X));
+        visited[seed.Y, seed.X] = true;
+        queue.Enqueue(seed, -quality.At<float>(seed.Y, seed.X));
+
+        ProcessUnwrapQueue(wrapped, quality, unwrapped, visited, queue, usePriority: true);
+        FillRemainingIslands(wrapped, quality, unwrapped, visited, usePriority: true);
+
+        return (unwrapped, CalculateQuality(unwrapped));
+    }
+
+    private static (Mat unwrapped, double quality) FloodFillUnwrap(Mat wrapped)
+    {
+        using var quality = BuildQualityMap(wrapped);
+        var unwrapped = new Mat(wrapped.Size(), MatType.CV_32FC1, Scalar.All(float.NaN));
+        var visited = new bool[wrapped.Rows, wrapped.Cols];
+        var queue = new PriorityQueue<Point, float>();
+
+        var seed = new Point(0, 0);
+        unwrapped.Set(seed.Y, seed.X, wrapped.At<float>(seed.Y, seed.X));
+        visited[seed.Y, seed.X] = true;
+        queue.Enqueue(seed, 0f);
+
+        ProcessUnwrapQueue(wrapped, quality, unwrapped, visited, queue, usePriority: false);
+        FillRemainingIslands(wrapped, quality, unwrapped, visited, usePriority: false);
+
+        return (unwrapped, CalculateQuality(unwrapped));
+    }
+
+    private static void FillRemainingIslands(Mat wrapped, Mat quality, Mat unwrapped, bool[,] visited, bool usePriority)
+    {
+        for (var y = 0; y < wrapped.Rows; y++)
         {
-            for (int x = 0; x < wrapped.Cols; x++)
+            for (var x = 0; x < wrapped.Cols; x++)
             {
-                if (visited[y, x]) continue;
-
-                var region = new List<OpenCvSharp.Point>();
-                var stack = new Stack<OpenCvSharp.Point>();
-                stack.Push(new OpenCvSharp.Point(x, y));
-                visited[y, x] = true;
-
-                while (stack.Count > 0)
+                if (visited[y, x])
                 {
-                    var p = stack.Pop();
-                    region.Add(p);
-                    float curr = wrapped.At<float>(p.Y, p.X);
-
-                    int[] dx4 = { -1, 1, 0, 0 };
-                    int[] dy4 = { 0, 0, -1, 1 };
-
-                    for (int i = 0; i < 4; i++)
-                    {
-                        int nx = p.X + dx4[i];
-                        int ny = p.Y + dy4[i];
-
-                        if (nx < 0 || nx >= wrapped.Cols || ny < 0 || ny >= wrapped.Rows || visited[ny, nx])
-                            continue;
-
-                        float neighbor = wrapped.At<float>(ny, nx);
-                        double diff = Math.Abs(neighbor - curr);
-                        diff = Math.Min(diff, 2 * Math.PI - diff); // 环形距离
-
-                        if (diff < Math.PI / 2) // 连续性阈值
-                        {
-                            visited[ny, nx] = true;
-                            stack.Push(new OpenCvSharp.Point(nx, ny));
-                        }
-                    }
+                    continue;
                 }
 
-                regions.Add(region);
+                var queue = new PriorityQueue<Point, float>();
+                unwrapped.Set(y, x, wrapped.At<float>(y, x));
+                visited[y, x] = true;
+                queue.Enqueue(new Point(x, y), usePriority ? -quality.At<float>(y, x) : 0f);
+                ProcessUnwrapQueue(wrapped, quality, unwrapped, visited, queue, usePriority);
             }
         }
-
-        double quality = CalculateQuality(unwrapped);
-        return (unwrapped, quality);
     }
 
-    private Mat DetectDiscontinuities(Mat wrapped)
+    private static void ProcessUnwrapQueue(
+        Mat wrapped,
+        Mat quality,
+        Mat unwrapped,
+        bool[,] visited,
+        PriorityQueue<Point, float> queue,
+        bool usePriority)
     {
-        var disc = new Mat(wrapped.Size(), MatType.CV_8UC1, OpenCvSharp.Scalar.Black);
-
-        for (int y = 1; y < wrapped.Rows; y++)
+        while (queue.Count > 0)
         {
-            for (int x = 1; x < wrapped.Cols; x++)
+            var current = queue.Dequeue();
+            var currentWrapped = wrapped.At<float>(current.Y, current.X);
+            var currentUnwrapped = unwrapped.At<float>(current.Y, current.X);
+
+            foreach (var neighbor in EnumerateNeighbors(current, wrapped.Size()))
             {
-                float curr = wrapped.At<float>(y, x);
-                float left = wrapped.At<float>(y, x - 1);
-                float top = wrapped.At<float>(y - 1, x);
+                if (visited[neighbor.Y, neighbor.X])
+                {
+                    continue;
+                }
 
-                double diffLeft = Math.Abs(curr - left);
-                double diffTop = Math.Abs(curr - top);
-
-                diffLeft = Math.Min(diffLeft, 2 * Math.PI - diffLeft);
-                diffTop = Math.Min(diffTop, 2 * Math.PI - diffTop);
-
-                if (diffLeft > Math.PI * 0.8 || diffTop > Math.PI * 0.8)
-                    disc.At<byte>(y, x) = 255;
+                var neighborWrapped = wrapped.At<float>(neighbor.Y, neighbor.X);
+                var delta = WrappedDifference(neighborWrapped, currentWrapped);
+                unwrapped.Set(neighbor.Y, neighbor.X, currentUnwrapped + delta);
+                visited[neighbor.Y, neighbor.X] = true;
+                queue.Enqueue(neighbor, usePriority ? -quality.At<float>(neighbor.Y, neighbor.X) : 0f);
             }
         }
-
-        return disc;
     }
 
-    private double CalculateQuality(Mat unwrapped)
+    private static IEnumerable<Point> EnumerateNeighbors(Point point, Size size)
     {
-        // 计算解缠绕质量：平滑度指标
+        var offsets = new[]
+        {
+            new Point(-1, 0),
+            new Point(1, 0),
+            new Point(0, -1),
+            new Point(0, 1)
+        };
+
+        foreach (var offset in offsets)
+        {
+            var nx = point.X + offset.X;
+            var ny = point.Y + offset.Y;
+            if (nx >= 0 && nx < size.Width && ny >= 0 && ny < size.Height)
+            {
+                yield return new Point(nx, ny);
+            }
+        }
+    }
+
+    private static Mat BuildQualityMap(Mat wrapped)
+    {
         using var dx = new Mat();
         using var dy = new Mat();
-        Cv2.Sobel(unwrapped, dx, MatType.CV_32F, 1, 0, 3);
-        Cv2.Sobel(unwrapped, dy, MatType.CV_32F, 0, 1, 3);
+        using var magnitude = new Mat();
 
-        using var mag = new Mat();
-        Cv2.Magnitude(dx, dy, mag);
+        Cv2.Sobel(wrapped, dx, MatType.CV_32FC1, 1, 0, 3);
+        Cv2.Sobel(wrapped, dy, MatType.CV_32FC1, 0, 1, 3);
+        Cv2.Magnitude(dx, dy, magnitude);
 
-        Cv2.MeanStdDev(mag, out var mean, out var stddev);
-        
-        // 低标准差表示高质量
-        double quality = 1.0 / (1.0 + stddev.Val0);
-        return Math.Min(quality, 1.0);
+        var quality = new Mat();
+        Cv2.Add(magnitude, Scalar.All(1.0), quality);
+        Cv2.Divide(1.0, quality, quality);
+        return quality;
     }
 
-    private Mat CreateVisualization(Mat wrapped, Mat unwrapped, Mat discontinuities)
+    private static float WrappedDifference(float current, float reference)
     {
-        // 归一化显示
-        Mat wVis = new Mat(), uVis = new Mat();
-        Cv2.Normalize(wrapped, wVis, 0, 255, NormTypes.MinMax);
-        Cv2.Normalize(unwrapped, uVis, 0, 255, NormTypes.MinMax);
+        return WrapToPi(current - reference);
+    }
 
-        wVis.ConvertTo(wVis, MatType.CV_8UC1);
-        uVis.ConvertTo(uVis, MatType.CV_8UC1);
+    private static float WrapToPi(double value)
+    {
+        return (float)Math.Atan2(Math.Sin(value), Math.Cos(value));
+    }
 
-        // 应用颜色映射
-        Cv2.ApplyColorMap(wVis, wVis, ColormapTypes.Jet);
-        Cv2.ApplyColorMap(uVis, uVis, ColormapTypes.Jet);
+    private static Mat ConvertPhaseToPhysicalDisplacement(Mat phase, double wavelength)
+    {
+        var scaled = new Mat();
+        phase.ConvertTo(scaled, MatType.CV_32FC1, wavelength / TwoPi);
+        return scaled;
+    }
 
-        // 创建组合图像
-        int h = wrapped.Rows;
-        int w = wrapped.Cols;
-        var combined = new Mat(h, w * 3, MatType.CV_8UC3, Scalar.Black);
+    private static Mat DetectDiscontinuities(Mat wrapped)
+    {
+        var discontinuities = new Mat(wrapped.Size(), MatType.CV_8UC1, Scalar.Black);
 
-        wVis.CopyTo(new Mat(combined, new Rect(0, 0, w, h)));
-        uVis.CopyTo(new Mat(combined, new Rect(w, 0, w, h)));
+        for (var y = 1; y < wrapped.Rows; y++)
+        {
+            for (var x = 1; x < wrapped.Cols; x++)
+            {
+                var current = wrapped.At<float>(y, x);
+                var left = wrapped.At<float>(y, x - 1);
+                var top = wrapped.At<float>(y - 1, x);
 
-        // 不连续点叠加到第三列
-        using var discColor = new Mat();
-        Cv2.CvtColor(discontinuities, discColor, ColorConversionCodes.GRAY2BGR);
-        Cv2.AddWeighted(uVis, 0.7, discColor, 0.5, 0, new Mat(combined, new Rect(w * 2, 0, w, h)));
+                var diffLeft = Math.Abs(WrappedDifference(current, left));
+                var diffTop = Math.Abs(WrappedDifference(current, top));
+                if (diffLeft > Math.PI * 0.9 || diffTop > Math.PI * 0.9)
+                {
+                    discontinuities.Set(y, x, (byte)255);
+                }
+            }
+        }
 
-        Cv2.PutText(combined, "Wrapped", new OpenCvSharp.Point(10, 30), HersheyFonts.HersheySimplex, 0.7, new OpenCvSharp.Scalar(255, 255, 255), 2);
-        Cv2.PutText(combined, "Unwrapped", new OpenCvSharp.Point(w + 10, 30), HersheyFonts.HersheySimplex, 0.7, new OpenCvSharp.Scalar(255, 255, 255), 2);
-        Cv2.PutText(combined, "Discontinuities", new OpenCvSharp.Point(w * 2 + 10, 30), HersheyFonts.HersheySimplex, 0.7, new OpenCvSharp.Scalar(255, 255, 255), 2);
+        return discontinuities;
+    }
 
+    private static double CalculateQuality(Mat unwrapped)
+    {
+        using var dx = new Mat();
+        using var dy = new Mat();
+        using var magnitude = new Mat();
+
+        Cv2.Sobel(unwrapped, dx, MatType.CV_32FC1, 1, 0, 3);
+        Cv2.Sobel(unwrapped, dy, MatType.CV_32FC1, 0, 1, 3);
+        Cv2.Magnitude(dx, dy, magnitude);
+        Cv2.MeanStdDev(magnitude, out _, out var stddev);
+
+        return 1.0 / (1.0 + stddev.Val0);
+    }
+
+    private static Mat CreateVisualization(Mat wrapped, Mat unwrapped, Mat discontinuities)
+    {
+        using var wrappedVis = NormalizeForDisplay(wrapped);
+        using var unwrappedVis = NormalizeForDisplay(unwrapped);
+        using var discontinuityColor = new Mat();
+
+        Cv2.CvtColor(discontinuities, discontinuityColor, ColorConversionCodes.GRAY2BGR);
+
+        var combined = new Mat(wrapped.Rows, wrapped.Cols * 3, MatType.CV_8UC3, Scalar.Black);
+        wrappedVis.CopyTo(new Mat(combined, new Rect(0, 0, wrapped.Cols, wrapped.Rows)));
+        unwrappedVis.CopyTo(new Mat(combined, new Rect(wrapped.Cols, 0, wrapped.Cols, wrapped.Rows)));
+        Cv2.AddWeighted(unwrappedVis, 0.7, discontinuityColor, 0.5, 0, new Mat(combined, new Rect(wrapped.Cols * 2, 0, wrapped.Cols, wrapped.Rows)));
+
+        Cv2.PutText(combined, "Wrapped", new Point(10, 30), HersheyFonts.HersheySimplex, 0.7, Scalar.White, 2);
+        Cv2.PutText(combined, "Unwrapped", new Point(wrapped.Cols + 10, 30), HersheyFonts.HersheySimplex, 0.7, Scalar.White, 2);
+        Cv2.PutText(combined, "Discontinuities", new Point((wrapped.Cols * 2) + 10, 30), HersheyFonts.HersheySimplex, 0.7, Scalar.White, 2);
         return combined;
     }
 
-    private bool TryGetImage(Dictionary<string, object>? inputs, out Mat image)
+    private static Mat NormalizeForDisplay(Mat source)
     {
-        image = new Mat();
-        if (inputs?.TryGetValue("PhaseImage", out var img) == true && img is Mat m) { image = m; return true; }
-        return false;
+        using var normalized = new Mat();
+        Cv2.Normalize(source, normalized, 0, 255, NormTypes.MinMax);
+        normalized.ConvertTo(normalized, MatType.CV_8UC1);
+
+        var colored = new Mat();
+        Cv2.ApplyColorMap(normalized, colored, ColormapTypes.Jet);
+        return colored;
     }
 
-    private double GetDouble(Dictionary<string, object>? inputs, string key, double defaultVal) =>
-        inputs?.TryGetValue(key, out var v) == true ? Convert.ToDouble(v) : defaultVal;
+    private static double GetDouble(Dictionary<string, object>? inputs, string key, double defaultValue) =>
+        inputs?.TryGetValue(key, out var value) == true ? Convert.ToDouble(value) : defaultValue;
 
-    private string GetString(Dictionary<string, object>? inputs, string key, string defaultVal) =>
-        inputs?.TryGetValue(key, out var v) == true ? v?.ToString() ?? defaultVal : defaultVal;
+    private static string GetString(Dictionary<string, object>? inputs, string key, string defaultValue) =>
+        inputs?.TryGetValue(key, out var value) == true ? value?.ToString() ?? defaultValue : defaultValue;
 
     public override ValidationResult ValidateParameters(Operator @operator) => ValidationResult.Valid();
 }
