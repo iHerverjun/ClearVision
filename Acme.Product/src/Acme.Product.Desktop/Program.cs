@@ -190,19 +190,10 @@ static class Program
             app.MapAutoTuneEndpoints();
             app.MapInspectionEventEndpoints();
 
+            // Start Kestrel before loading the desktop UI so WebView2 does not
+            // race the embedded backend on slower industrial PCs.
+            app.StartAsync().GetAwaiter().GetResult();
             _host = app;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await app.RunAsync();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Web服务器错误: {ex.Message}");
-                }
-            });
 
             Debug.WriteLine($"Web服务器已启动: http://localhost:{_webPort}");
         }
