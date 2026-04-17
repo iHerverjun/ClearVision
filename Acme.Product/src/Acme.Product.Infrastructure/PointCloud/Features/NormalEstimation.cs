@@ -15,7 +15,7 @@ public sealed class NormalEstimation
 
     /// <summary>
     /// Estimate normals using PCA (smallest eigenvector of covariance matrix) within a radius.
-    /// Returns a new Nx3 CV_32FC1 Mat.
+    /// Returns a new Nx3 CV_32FC1 Mat with normalized, locally consistent orientation.
     /// </summary>
     public Mat Estimate(PointCloud cloud, float radius)
     {
@@ -124,7 +124,151 @@ public sealed class NormalEstimation
             outN[i, 2] = normal.Z;
         }
 
+        NormalizeAndOrientConsistently(cloud.Points, normals, radius);
         return normals;
+    }
+
+    public static void NormalizeAndOrientConsistently(Mat points, Mat normals, float neighborRadius)
+    {
+        if (points == null) throw new ArgumentNullException(nameof(points));
+        if (normals == null) throw new ArgumentNullException(nameof(normals));
+        if (neighborRadius <= 0 || !float.IsFinite(neighborRadius))
+        {
+            throw new ArgumentOutOfRangeException(nameof(neighborRadius), "neighborRadius must be positive and finite.");
+        }
+        if (points.Rows != normals.Rows || points.Cols != 3 || normals.Cols != 3)
+        {
+            throw new ArgumentException("points and normals must both be Nx3 with matching row counts.");
+        }
+        if (points.Rows == 0)
+        {
+            return;
+        }
+
+        NormalizeNormalsInPlace(normals);
+
+        var pointIdx = points.GetGenericIndexer<float>();
+        var normalIdx = normals.GetGenericIndexer<float>();
+        var grid = SpatialHashGrid.Build(pointIdx, points.Rows, cellSize: neighborRadius);
+        var r2 = (double)neighborRadius * neighborRadius;
+        var centroid = ComputeCentroid(pointIdx, points.Rows);
+        var visited = new bool[points.Rows];
+        var neighbors = new List<int>(capacity: 64);
+        var queue = new Queue<int>(capacity: 64);
+        var component = new List<int>(capacity: 128);
+
+        for (int seed = 0; seed < points.Rows; seed++)
+        {
+            if (visited[seed])
+            {
+                continue;
+            }
+
+            component.Clear();
+            visited[seed] = true;
+            queue.Enqueue(seed);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                component.Add(current);
+
+                neighbors.Clear();
+                SpatialHashGrid.CollectRadiusNeighbors(pointIdx, current, grid, neighborRadius, r2, neighbors);
+                var currentNormal = ReadVector(normalIdx, current);
+
+                for (int t = 0; t < neighbors.Count; t++)
+                {
+                    var neighbor = neighbors[t];
+                    if (neighbor == current || visited[neighbor])
+                    {
+                        continue;
+                    }
+
+                    var neighborNormal = ReadVector(normalIdx, neighbor);
+                    if (Vector3.Dot(currentNormal, neighborNormal) < 0f)
+                    {
+                        WriteVector(normalIdx, neighbor, -neighborNormal);
+                    }
+
+                    visited[neighbor] = true;
+                    queue.Enqueue(neighbor);
+                }
+            }
+
+            AlignComponentWithGeometry(pointIdx, normalIdx, component, centroid);
+        }
+    }
+
+    private static void NormalizeNormalsInPlace(Mat normals)
+    {
+        var idx = normals.GetGenericIndexer<float>();
+        for (int i = 0; i < normals.Rows; i++)
+        {
+            var v = ReadVector(idx, i);
+            if (v.LengthSquared() <= 1e-20f || !float.IsFinite(v.LengthSquared()))
+            {
+                WriteVector(idx, i, Vector3.UnitZ);
+                continue;
+            }
+
+            WriteVector(idx, i, Vector3.Normalize(v));
+        }
+    }
+
+    private static void AlignComponentWithGeometry(
+        MatIndexer<float> points,
+        MatIndexer<float> normals,
+        List<int> component,
+        Vector3 centroid)
+    {
+        if (component.Count == 0)
+        {
+            return;
+        }
+
+        double radialScore = 0;
+        for (int i = 0; i < component.Count; i++)
+        {
+            var index = component[i];
+            radialScore += Vector3.Dot(ReadVector(normals, index), ReadVector(points, index) - centroid);
+        }
+
+        if (radialScore >= 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < component.Count; i++)
+        {
+            var index = component[i];
+            WriteVector(normals, index, -ReadVector(normals, index));
+        }
+    }
+
+    private static Vector3 ComputeCentroid(MatIndexer<float> points, int count)
+    {
+        double cx = 0;
+        double cy = 0;
+        double cz = 0;
+        for (int i = 0; i < count; i++)
+        {
+            cx += points[i, 0];
+            cy += points[i, 1];
+            cz += points[i, 2];
+        }
+
+        var inv = 1.0 / count;
+        return new Vector3((float)(cx * inv), (float)(cy * inv), (float)(cz * inv));
+    }
+
+    private static Vector3 ReadVector(MatIndexer<float> idx, int row) => new(idx[row, 0], idx[row, 1], idx[row, 2]);
+
+    private static void WriteVector(MatIndexer<float> idx, int row, Vector3 value)
+    {
+        idx[row, 0] = value.X;
+        idx[row, 1] = value.Y;
+        idx[row, 2] = value.Z;
     }
 }
 

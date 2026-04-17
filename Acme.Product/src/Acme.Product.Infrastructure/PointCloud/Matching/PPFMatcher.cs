@@ -17,10 +17,12 @@ public readonly record struct PPFMatchResult(
     double NormalConsistency = 0.0);
 
 /// <summary>
-/// Simplified PPF-based surface matching:
-/// - Build a quantized PPF hash table from the model (within FeatureRadius).
+/// Simplified alpha-less PPF-based surface matching:
+/// - Build a quantized canonicalized 4D PPF hash table from the model (within FeatureRadius).
 /// - Sample reference points in the scene, generate candidate correspondences via hash lookup.
 /// - Use RANSAC to estimate a rigid transform (model -&gt; scene) from correspondences and verify by inlier count.
+/// This matcher does not yet hash alpha_m or run full canonical PPF pose voting, so ambiguity/stability diagnostics
+/// remain part of the runtime contract.
 /// </summary>
 public sealed class PPFMatcher
 {
@@ -101,28 +103,65 @@ public sealed class PPFMatcher
             numSamples,
             maxCorrespondences);
 
-        if (correspondences.Count < Math.Max(3, minInliers))
+        var pairCorrespondences = BuildScenePairCorrespondences(
+            modelHash,
+            scenePoints,
+            sceneNormals,
+            sceneWithNormals.Count,
+            featureRadius,
+            distanceStep,
+            angleStepRad,
+            numSamples,
+            maxCorrespondences);
+        var correspondenceSaturated =
+            correspondences.Count >= (int)(maxCorrespondences * 0.95) ||
+            pairCorrespondences.Count >= (int)(maxCorrespondences * 0.95);
+        var effectiveRansacIterations = correspondenceSaturated
+            ? Math.Min(ransacIterations * 3, 5000)
+            : ransacIterations;
+
+        if (correspondences.Count < 3 && pairCorrespondences.Count == 0)
         {
-            return new PPFMatchResult(false, Matrix4x4.Identity, 0, correspondences.Count, double.PositiveInfinity);
+            return new PPFMatchResult(false, Matrix4x4.Identity, 0, Math.Max(correspondences.Count, pairCorrespondences.Count), double.PositiveInfinity);
         }
 
         // Geometric verification grid (nearest-neighbor within inlierThreshold).
         var nnGrid = SpatialHashGrid.Build(scenePoints, sceneWithNormals.Count, cellSize: inlierThreshold);
         var evalIndices = BuildEvaluationIndices(modelWithNormals.Count, targetCount: 1500);
 
-        var (bestT, bestInliers, bestRms, bestSupport, secondaryT, secondarySupport, secondaryRms, hypothesisLandscape) = RansacRigidTransform(
-            correspondences,
-            modelPoints,
-            scenePoints,
-            nnGrid,
-            evalIndices,
-            ransacIterations,
-            inlierThreshold,
-            minInliers);
+        var (bestT, bestInliers, bestRms, bestSupport, secondaryT, secondarySupport, secondaryRms, hypothesisLandscape) =
+            correspondences.Count >= 3
+                ? RansacRigidTransform(
+                    correspondences,
+                    modelPoints,
+                    scenePoints,
+                    nnGrid,
+                    evalIndices,
+                    effectiveRansacIterations,
+                    inlierThreshold,
+                    minInliers)
+                : (Matrix4x4.Identity, Array.Empty<Correspondence>(), double.PositiveInfinity, 0, Matrix4x4.Identity, 0, double.PositiveInfinity, new HypothesisLandscape(0.0, 0.0, 0.0, 0, 0.0));
 
-        if (bestInliers.Length < minInliers)
+        var (pairBestT, pairBestInliers, pairBestRms) =
+            pairCorrespondences.Count > 0
+                ? RansacRigidTransformFromPairs(
+                    pairCorrespondences,
+                    modelPoints,
+                    modelNormals,
+                    scenePoints,
+                    sceneNormals,
+                    nnGrid,
+                    evalIndices,
+                    effectiveRansacIterations,
+                    inlierThreshold,
+                    minInliers)
+                : (Matrix4x4.Identity, Array.Empty<Correspondence>(), double.PositiveInfinity);
+
+        if (bestInliers.Length < minInliers && pairBestInliers.Length < minInliers)
         {
-            return new PPFMatchResult(false, Matrix4x4.Identity, bestInliers.Length, correspondences.Count, bestRms);
+            var correspondenceCount = Math.Max(correspondences.Count, pairCorrespondences.Count);
+            var rms = double.IsFinite(bestRms) ? bestRms : pairBestRms;
+            return new PPFMatchResult(false, Matrix4x4.Identity, Math.Max(bestInliers.Length, pairBestInliers.Length), correspondenceCount, rms);
         }
 
         // Refine using a larger subset of model points with nearest-neighbor correspondences (ICP-like).
@@ -169,6 +208,149 @@ public sealed class PPFMatcher
                 minInliers);
         }
 
+        var pointAmbiguityScore = ComputeAmbiguityScore(
+            refinedInliers.Length,
+            refinedRms,
+            normalConsistency,
+            refinedSecondaryInliers.Length,
+            refinedSecondaryRms,
+            secondaryNormalConsistency,
+            symmetry,
+            hypothesisLandscape);
+        var pointAmbiguous = IsAmbiguousPose(
+            refinedInliers.Length,
+            refinedSecondaryInliers.Length,
+            refined,
+            refinedSecondary,
+            inlierThreshold,
+            pointAmbiguityScore,
+            symmetry,
+            refinedRms,
+            refinedSecondaryRms,
+            normalConsistency,
+            secondaryNormalConsistency,
+            hypothesisLandscape);
+        var pointPoseSeparation = TranslationDistance(refined, refinedSecondary);
+
+        Matrix4x4 refinedPair = Matrix4x4.Identity;
+        Correspondence[] refinedPairInliers = Array.Empty<Correspondence>();
+        var refinedPairRms = double.PositiveInfinity;
+        var pairNormalConsistency = 0.0;
+        if (pairBestInliers.Length >= minInliers)
+        {
+            (refinedPair, refinedPairInliers, refinedPairRms, pairNormalConsistency) = RefineHypothesis(
+                modelPoints,
+                modelNormals,
+                scenePoints,
+                sceneNormals,
+                coarseGrid,
+                nnGrid,
+                refineIndices,
+                pairBestT,
+                coarseThreshold,
+                inlierThreshold,
+                minInliers);
+        }
+
+        var candidateTranslationTolerance = Math.Max(inlierThreshold * 6f, 0.01f);
+        const double candidateRotationToleranceDeg = 8.0;
+        var candidates = new List<PoseCandidate>(capacity: 3);
+        if (refinedInliers.Length >= minInliers)
+        {
+            candidates.Add(new PoseCandidate(refined, refinedInliers, refinedRms, normalConsistency));
+        }
+
+        if (refinedSecondaryInliers.Length >= minInliers)
+        {
+            candidates.Add(new PoseCandidate(refinedSecondary, refinedSecondaryInliers, refinedSecondaryRms, secondaryNormalConsistency));
+        }
+
+        if (refinedPairInliers.Length >= minInliers)
+        {
+            candidates.Add(new PoseCandidate(refinedPair, refinedPairInliers, refinedPairRms, pairNormalConsistency));
+        }
+
+        candidates.Sort(ComparePoseCandidates);
+        var distinctCandidates = new List<PoseCandidate>(capacity: 2);
+        var samePlacementTranslationTolerance = Math.Max(inlierThreshold * 12f, 0.03f);
+        foreach (var candidate in candidates)
+        {
+            var merged = false;
+            for (var index = 0; index < distinctCandidates.Count; index++)
+            {
+                var existing = distinctCandidates[index];
+                if (AreTransformsSimilar(existing.Transform, candidate.Transform, candidateTranslationTolerance, candidateRotationToleranceDeg))
+                {
+                    merged = true;
+                    break;
+                }
+
+                if (TranslationDistance(existing.Transform, candidate.Transform) > samePlacementTranslationTolerance)
+                {
+                    continue;
+                }
+
+                var requiredSupportGain = Math.Max(200, (int)Math.Round(existing.Inliers.Length * 0.20));
+                var candidateIsDecisivelyBetter =
+                    candidate.Inliers.Length >= existing.Inliers.Length + requiredSupportGain &&
+                    candidate.Rms <= existing.Rms + 0.001 &&
+                    candidate.NormalConsistency >= existing.NormalConsistency - 0.03;
+                var existingIsDecisivelyBetter =
+                    existing.Inliers.Length >= candidate.Inliers.Length + requiredSupportGain &&
+                    existing.Rms <= candidate.Rms + 0.001 &&
+                    existing.NormalConsistency >= candidate.NormalConsistency - 0.03;
+
+                if (candidateIsDecisivelyBetter)
+                {
+                    distinctCandidates[index] = candidate;
+                    merged = true;
+                    break;
+                }
+
+                if (existingIsDecisivelyBetter)
+                {
+                    merged = true;
+                    break;
+                }
+            }
+
+            if (merged)
+            {
+                continue;
+            }
+
+            distinctCandidates.Add(candidate);
+            if (distinctCandidates.Count == 2)
+            {
+                break;
+            }
+        }
+
+        if (distinctCandidates.Count == 0)
+        {
+            return new PPFMatchResult(false, Matrix4x4.Identity, 0, Math.Max(correspondences.Count, pairCorrespondences.Count), double.PositiveInfinity);
+        }
+
+        refined = distinctCandidates[0].Transform;
+        refinedInliers = distinctCandidates[0].Inliers;
+        refinedRms = distinctCandidates[0].Rms;
+        normalConsistency = distinctCandidates[0].NormalConsistency;
+
+        if (distinctCandidates.Count > 1)
+        {
+            refinedSecondary = distinctCandidates[1].Transform;
+            refinedSecondaryInliers = distinctCandidates[1].Inliers;
+            refinedSecondaryRms = distinctCandidates[1].Rms;
+            secondaryNormalConsistency = distinctCandidates[1].NormalConsistency;
+        }
+        else
+        {
+            refinedSecondary = Matrix4x4.Identity;
+            refinedSecondaryInliers = Array.Empty<Correspondence>();
+            refinedSecondaryRms = double.PositiveInfinity;
+            secondaryNormalConsistency = 0.0;
+        }
+
         var ambiguityScore = ComputeAmbiguityScore(
             refinedInliers.Length,
             refinedRms,
@@ -200,6 +382,13 @@ public sealed class PPFMatcher
             normalConsistency,
             secondaryNormalConsistency,
             hypothesisLandscape);
+        if (pointAmbiguityScore >= 0.95 ||
+            (pointAmbiguous && pointPoseSeparation >= Math.Max(inlierThreshold * 20f, 0.05f)) ||
+            (pointPoseSeparation >= Math.Max(inlierThreshold * 20f, 0.05f) && pointAmbiguityScore >= 0.80))
+        {
+            ambiguous = true;
+            ambiguityScore = Math.Max(ambiguityScore, pointAmbiguityScore);
+        }
 
         if (!ambiguous && ShouldForceSphericalAmbiguity(
                 refinedInliers.Length,
@@ -220,7 +409,7 @@ public sealed class PPFMatcher
             isMatched,
             refined,
             refinedInliers.Length,
-            correspondences.Count,
+            Math.Max(correspondences.Count, pairCorrespondences.Count),
             refinedRms,
             ambiguous,
             ambiguityScore,
@@ -245,16 +434,14 @@ public sealed class PPFMatcher
 
             var n = _pool.Rent(width: 3, height: input.Count, type: MatType.CV_32FC1);
             input.Normals.CopyTo(n);
-            NormalizeNormalsInPlace(n);
-            OrientNormalsOutward(p, n);
+            NormalEstimation.NormalizeAndOrientConsistently(p, n, normalRadius);
 
             return new PointCloud(p, c, n, isOrganized: false, pool: _pool);
         }
 
         var estimator = new NormalEstimation(_pool);
         var normals = estimator.Estimate(input, normalRadius);
-        NormalizeNormalsInPlace(normals);
-        OrientNormalsOutward(input.Points, normals);
+        NormalEstimation.NormalizeAndOrientConsistently(input.Points, normals, normalRadius);
 
         var outPoints = _pool.Rent(width: 3, height: input.Count, type: MatType.CV_32FC1);
         input.Points.CopyTo(outPoints);
@@ -267,62 +454,6 @@ public sealed class PPFMatcher
         }
 
         return new PointCloud(outPoints, outColors, normals, isOrganized: false, pool: _pool);
-    }
-
-    private static void NormalizeNormalsInPlace(Mat normals)
-    {
-        var idx = normals.GetGenericIndexer<float>();
-        for (int i = 0; i < normals.Rows; i++)
-        {
-            var v = new Vector3(idx[i, 0], idx[i, 1], idx[i, 2]);
-            if (v.LengthSquared() <= 1e-20f)
-            {
-                idx[i, 0] = 0;
-                idx[i, 1] = 0;
-                idx[i, 2] = 1;
-                continue;
-            }
-
-            v = Vector3.Normalize(v);
-            idx[i, 0] = v.X;
-            idx[i, 1] = v.Y;
-            idx[i, 2] = v.Z;
-        }
-    }
-
-    private static void OrientNormalsOutward(Mat points, Mat normals)
-    {
-        if (points.Rows == 0 || normals.Rows == 0)
-        {
-            return;
-        }
-
-        var pIdx = points.GetGenericIndexer<float>();
-        var nIdx = normals.GetGenericIndexer<float>();
-
-        double cx = 0, cy = 0, cz = 0;
-        for (int i = 0; i < points.Rows; i++)
-        {
-            cx += pIdx[i, 0];
-            cy += pIdx[i, 1];
-            cz += pIdx[i, 2];
-        }
-
-        var inv = 1.0 / points.Rows;
-        cx *= inv; cy *= inv; cz *= inv;
-        var centroid = new Vector3((float)cx, (float)cy, (float)cz);
-
-        for (int i = 0; i < points.Rows; i++)
-        {
-            var p = new Vector3(pIdx[i, 0], pIdx[i, 1], pIdx[i, 2]);
-            var n = new Vector3(nIdx[i, 0], nIdx[i, 1], nIdx[i, 2]);
-            if (Vector3.Dot(n, p - centroid) < 0)
-            {
-                nIdx[i, 0] = -nIdx[i, 0];
-                nIdx[i, 1] = -nIdx[i, 1];
-                nIdx[i, 2] = -nIdx[i, 2];
-            }
-        }
     }
 
     private sealed class ModelHash
@@ -342,7 +473,9 @@ public sealed class PPFMatcher
     private readonly record struct ModelPair(int RefIndex, int NeighborIndex);
     private readonly record struct PairCorrespondence(int ModelRefIndex, int ModelNeighborIndex, int SceneRefIndex, int SceneNeighborIndex);
     private readonly record struct Correspondence(int ModelIndex, int SceneIndex);
+    private readonly record struct CorrespondenceDistance(Correspondence Correspondence, double DistanceSquared);
     private readonly record struct Hypothesis(Matrix4x4 Transform, int Support, double Rms, int VoteCount, double SupportSum);
+    private readonly record struct PoseCandidate(Matrix4x4 Transform, Correspondence[] Inliers, double Rms, double NormalConsistency);
     private readonly record struct HypothesisLandscape(
         double DominantVoteRatio,
         double CompetitiveSupportRatio,
@@ -385,7 +518,7 @@ public sealed class PPFMatcher
                 var p2 = new Vector3(modelPoints[j, 0], modelPoints[j, 1], modelPoints[j, 2]);
                 var n2 = new Vector3(modelNormals[j, 0], modelNormals[j, 1], modelNormals[j, 2]);
 
-                var f = PPFFeature.Compute(p1, n1, p2, n2);
+                var f = ComputeCanonicalFeature(p1, n1, p2, n2);
                 if (f.Distance <= 0)
                 {
                     continue;
@@ -394,8 +527,8 @@ public sealed class PPFMatcher
                 var key = QuantizeKey(f, distanceStep, angleStepRad);
                 AddModelPair(table, key, new ModelPair(i, j), maxPairsPerKey);
 
-                // Insert reverse direction too (helps ambiguity).
-                var fr = PPFFeature.Compute(p2, n2, p1, n1);
+                // Insert reverse direction too so reference subsampling does not silently erase the opposite ordered pair.
+                var fr = ComputeCanonicalFeature(p2, n2, p1, n1);
                 if (fr.Distance > 0)
                 {
                     var kr = QuantizeKey(fr, distanceStep, angleStepRad);
@@ -441,9 +574,10 @@ public sealed class PPFMatcher
         var correspondences = new List<PairCorrespondence>(capacity: Math.Min(maxCorrespondences, 8192));
 
         var sampleCount = Math.Min(numSamples, sceneCount);
+        var sampleIndices = BuildSampleIndices(sceneCount, sampleCount);
         for (int s = 0; s < sampleCount; s++)
         {
-            var i = _rng.Next(sceneCount);
+            var i = sampleIndices[s];
 
             neighbors.Clear();
             SpatialHashGrid.CollectRadiusNeighbors(scenePoints, i, grid, featureRadius, r2, neighbors);
@@ -464,7 +598,7 @@ public sealed class PPFMatcher
                 var p2 = new Vector3(scenePoints[j, 0], scenePoints[j, 1], scenePoints[j, 2]);
                 var n2 = new Vector3(sceneNormals[j, 0], sceneNormals[j, 1], sceneNormals[j, 2]);
 
-                var f = PPFFeature.Compute(p1, n1, p2, n2);
+                var f = ComputeCanonicalFeature(p1, n1, p2, n2);
                 if (f.Distance <= 0)
                 {
                     continue;
@@ -477,7 +611,7 @@ public sealed class PPFMatcher
                 }
 
                 // Add a few candidates per feature to keep correspondence pool bounded.
-                var take = Math.Min(candidates.Count, 6);
+                var take = Math.Min(candidates.Count, 10);
                 for (int c = 0; c < take; c++)
                 {
                     var pair = candidates[c];
@@ -511,9 +645,10 @@ public sealed class PPFMatcher
         var correspondences = new List<Correspondence>(capacity: Math.Min(maxCorrespondences, 8192));
 
         var sampleCount = Math.Min(numSamples, sceneCount);
+        var sampleIndices = BuildSampleIndices(sceneCount, sampleCount);
         for (int s = 0; s < sampleCount; s++)
         {
-            var i = _rng.Next(sceneCount);
+            var i = sampleIndices[s];
 
             neighbors.Clear();
             SpatialHashGrid.CollectRadiusNeighbors(scenePoints, i, grid, featureRadius, r2, neighbors);
@@ -534,7 +669,7 @@ public sealed class PPFMatcher
                 var p2 = new Vector3(scenePoints[j, 0], scenePoints[j, 1], scenePoints[j, 2]);
                 var n2 = new Vector3(sceneNormals[j, 0], sceneNormals[j, 1], sceneNormals[j, 2]);
 
-                var f = PPFFeature.Compute(p1, n1, p2, n2);
+                var f = ComputeCanonicalFeature(p1, n1, p2, n2);
                 if (f.Distance <= 0)
                 {
                     continue;
@@ -564,7 +699,7 @@ public sealed class PPFMatcher
             // Take top-K voted model refs for this scene ref point.
             var top = votes
                 .OrderByDescending(kv => kv.Value)
-                .Take(3)
+                .Take(5)
                 .Select(kv => kv.Key);
 
             foreach (var modelRef in top)
@@ -585,6 +720,24 @@ public sealed class PPFMatcher
         return correspondences;
     }
 
+    private int[] BuildSampleIndices(int sceneCount, int sampleCount)
+    {
+        if (sampleCount >= sceneCount)
+        {
+            return Enumerable.Range(0, sceneCount).ToArray();
+        }
+
+        var indices = Enumerable.Range(0, sceneCount).ToArray();
+        for (int i = 0; i < sampleCount; i++)
+        {
+            var swapIndex = _rng.Next(i, sceneCount);
+            (indices[i], indices[swapIndex]) = (indices[swapIndex], indices[i]);
+        }
+
+        Array.Resize(ref indices, sampleCount);
+        return indices;
+    }
+
     private static int QuantizeKey(PPFFeature f, float distStep, float angleStep)
     {
         int qd = (int)MathF.Round(f.Distance / distStep);
@@ -598,6 +751,41 @@ public sealed class PPFMatcher
         qan = Math.Clamp(qan, 0, 63);
 
         return (qd) | (qa1 << 10) | (qa2 << 16) | (qan << 22);
+    }
+
+    private static PPFFeature ComputeCanonicalFeature(Vector3 p1, Vector3 n1, Vector3 p2, Vector3 n2)
+    {
+        var primary = PPFFeature.Compute(p1, n1, p2, n2);
+        if (primary.Distance <= 0)
+        {
+            return primary;
+        }
+
+        var flipped = PPFFeature.Compute(p1, -n1, p2, -n2);
+        return CompareCanonicalFeature(primary, flipped) <= 0 ? primary : flipped;
+    }
+
+    private static int CompareCanonicalFeature(PPFFeature left, PPFFeature right)
+    {
+        var cmp = left.Distance.CompareTo(right.Distance);
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        cmp = left.Angle1.CompareTo(right.Angle1);
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        cmp = left.Angle2.CompareTo(right.Angle2);
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        return left.AngleNormals.CompareTo(right.AngleNormals);
     }
 
     private (Matrix4x4 Transform, Correspondence[] Inliers, double BestRms) RansacRigidTransformFromPairs(
@@ -700,6 +888,11 @@ public sealed class PPFMatcher
             return false;
         }
 
+        if (Vector3.Dot(nm, ns) < 0f)
+        {
+            ns = -ns;
+        }
+
         var dm = qm - pm;
         var ds = qs - ps;
         if (!TryNormalize(dm, out dm) || !TryNormalize(ds, out ds))
@@ -793,7 +986,8 @@ public sealed class PPFMatcher
         const double rotationMergeToleranceDeg = 4.0;
         var hypotheses = new List<Hypothesis>(capacity: 6);
 
-        var earlyStop = Math.Max(minInliers, (int)(evalModelIndices.Length * 0.85));
+        var earlyStop = Math.Max(minInliers, (int)(evalModelIndices.Length * 0.98));
+        var earlyStopRmsThreshold = Math.Max(inlierThreshold * 0.35, 0.0025f);
         Span<Correspondence> sample = stackalloc Correspondence[3];
 
         for (int it = 0; it < iterations; it++)
@@ -824,7 +1018,9 @@ public sealed class PPFMatcher
 
             var rms = Math.Sqrt(sum2 / count);
             UpsertHypothesis(hypotheses, new Hypothesis(tform, count, rms, 1, count), translationMergeTolerance, rotationMergeToleranceDeg);
-            if (hypotheses.Count > 0 && hypotheses[0].Support >= earlyStop)
+            if (hypotheses.Count > 0 &&
+                hypotheses[0].Support >= earlyStop &&
+                hypotheses[0].Rms <= earlyStopRmsThreshold)
             {
                 break;
             }
@@ -868,7 +1064,7 @@ public sealed class PPFMatcher
             }
 
             var existing = hypotheses[i];
-            var representative = CompareHypotheses(candidate, existing) < 0 ? candidate : existing;
+            var representative = CompareHypothesisRepresentative(candidate, existing) < 0 ? candidate : existing;
             hypotheses[i] = representative with
             {
                 VoteCount = existing.VoteCount + candidate.VoteCount,
@@ -897,6 +1093,34 @@ public sealed class PPFMatcher
 
         var voteCompare = y.VoteCount.CompareTo(x.VoteCount);
         return voteCompare != 0 ? voteCompare : x.Rms.CompareTo(y.Rms);
+    }
+
+    private static int CompareHypothesisRepresentative(Hypothesis x, Hypothesis y)
+    {
+        var supportCompare = y.Support.CompareTo(x.Support);
+        if (supportCompare != 0)
+        {
+            return supportCompare;
+        }
+
+        return x.Rms.CompareTo(y.Rms);
+    }
+
+    private static int ComparePoseCandidates(PoseCandidate x, PoseCandidate y)
+    {
+        var supportCompare = y.Inliers.Length.CompareTo(x.Inliers.Length);
+        if (supportCompare != 0)
+        {
+            return supportCompare;
+        }
+
+        var rmsCompare = x.Rms.CompareTo(y.Rms);
+        if (rmsCompare != 0)
+        {
+            return rmsCompare;
+        }
+
+        return y.NormalConsistency.CompareTo(x.NormalConsistency);
     }
 
     private static HypothesisLandscape AnalyzeHypothesisLandscape(IReadOnlyList<Hypothesis> hypotheses, Hypothesis best, float inlierThreshold)
@@ -1051,9 +1275,23 @@ public sealed class PPFMatcher
             : Math.Clamp(1.0 - Math.Max(0.0, bestNormalConsistency - secondaryNormalConsistency), 0.0, 1.0);
         var clusterCompetition = Math.Clamp(landscape.CompetitiveClusterCount / 3.0, 0.0, 1.0);
         var dominantEvidence = ComputeDominantEvidenceScore(bestSupport, secondarySupport, bestNormalConsistency, landscape);
-        var symmetryPrior = Math.Max(
-            ComputeIsotropicSymmetryPrior(symmetry, dominantEvidence),
-            symmetry.AxialScore * 0.95);
+        var hasStrongGeometricSymmetry = symmetry.SphericalScore >= 0.82 || symmetry.AxialScore >= 0.86;
+        var symmetryPrior = hasStrongGeometricSymmetry
+            ? Math.Max(
+                ComputeIsotropicSymmetryPrior(symmetry, dominantEvidence),
+                symmetry.AxialScore * 0.95)
+            : 0.0;
+        var competitionStrength = Math.Max(landscape.CompetitiveSupportRatio, landscape.CompetitiveVoteRatio);
+        var geometricAmbiguityBias = hasStrongGeometricSymmetry
+            ? Math.Max(symmetry.SphericalScore, symmetry.AxialScore) *
+              competitionStrength *
+              (1.0 - dominantEvidence) *
+              0.10
+            : 0.0;
+        var cylindricalAmbiguityBias =
+            symmetry.SphericalScore >= 0.35 && symmetry.AxialScore >= 0.50
+                ? ((symmetry.SphericalScore * 0.35) + (symmetry.AxialScore * 0.25))
+                : 0.0;
 
         return Math.Clamp(
             (supportCompetition * 0.28) +
@@ -1063,7 +1301,9 @@ public sealed class PPFMatcher
             (clusterCompetition * 0.10) +
             (landscape.PoseSpreadScore * 0.07) +
             (symmetryPrior * 0.15) -
-            (dominantEvidence * 0.22),
+            (dominantEvidence * 0.22) +
+            geometricAmbiguityBias +
+            cylindricalAmbiguityBias,
             0.0,
             1.0);
     }
@@ -1136,25 +1376,70 @@ public sealed class PPFMatcher
                    (symmetry.AxialScore >= 0.90 &&
                     landscape.CompetitiveClusterCount >= 1 &&
                     landscape.CompetitiveVoteRatio >= 0.60 &&
-                    landscape.PoseSpreadScore >= 0.45);
+                    landscape.PoseSpreadScore >= 0.45) ||
+                   (symmetry.SphericalScore < 0.30 &&
+                    symmetry.AxialScore >= 0.75 &&
+                    ambiguityScore >= 0.80 &&
+                    landscape.CompetitiveClusterCount >= 1 &&
+                    landscape.CompetitiveSupportRatio >= 0.55 &&
+                    landscape.PoseSpreadScore >= 0.25);
         }
 
         var translationDelta = TranslationDistance(bestTransform, secondaryTransform);
         var rotationDeltaDeg = RotationDifferenceDegrees(bestTransform, secondaryTransform);
         var translationTolerance = Math.Max(inlierThreshold * 6f, 0.01f);
         var supportRatio = secondarySupport / (double)bestSupport;
+        var hasStrongGeometricSymmetry = symmetry.SphericalScore >= 0.82 || symmetry.AxialScore >= 0.86;
         var rmsComparable = double.IsFinite(bestRms) &&
                             double.IsFinite(secondaryRms) &&
                             secondaryRms <= (bestRms + Math.Max(inlierThreshold * 1.5f, bestRms * 0.25));
         var normalComparable = secondaryNormalConsistency >= Math.Max(0.55, bestNormalConsistency - 0.12);
         var distinctPose = translationDelta >= translationTolerance || rotationDeltaDeg >= 8.0;
         var symmetrySensitiveSupportThreshold = symmetry.AxialScore >= 0.75 ? 0.90 : 0.93;
-
-        var primaryAmbiguity = ambiguityScore >= 0.86 &&
-                               supportRatio >= symmetrySensitiveSupportThreshold &&
-                               rmsComparable &&
-                               normalComparable &&
-                               distinctPose;
+        var symmetryPoseAmbiguity =
+            hasStrongGeometricSymmetry &&
+            ambiguityScore >= 0.86 &&
+            supportRatio >= symmetrySensitiveSupportThreshold &&
+            rmsComparable &&
+            normalComparable &&
+            distinctPose;
+        var asymmetricCompetitiveLandscape =
+            (landscape.CompetitiveClusterCount >= 2 &&
+             landscape.CompetitiveSupportRatio >= 0.88 &&
+             landscape.CompetitiveVoteRatio >= 0.52) ||
+            (landscape.DominantVoteRatio <= 0.38 &&
+             landscape.CompetitiveSupportRatio >= 0.94 &&
+             landscape.PoseSpreadScore >= 0.70);
+        var asymmetricCompetitionAmbiguity =
+            !hasStrongGeometricSymmetry &&
+            ambiguityScore >= 0.75 &&
+            supportRatio >= 0.94 &&
+            rmsComparable &&
+            normalComparable &&
+            distinctPose &&
+            dominantEvidence < 0.40 &&
+            asymmetricCompetitiveLandscape;
+        var genericCompetitiveAmbiguity =
+            ambiguityScore >= 0.82 &&
+            supportRatio >= 0.70 &&
+            rmsComparable &&
+            normalComparable &&
+            distinctPose &&
+            landscape.CompetitiveClusterCount >= 1 &&
+            landscape.CompetitiveSupportRatio >= 0.70 &&
+            landscape.PoseSpreadScore >= 0.20;
+        var cylindricalCompetitionAmbiguity =
+            symmetry.SphericalScore >= 0.35 &&
+            symmetry.AxialScore >= 0.50 &&
+            ambiguityScore >= 0.60 &&
+            normalComparable &&
+            ((supportRatio >= 0.70 && distinctPose) ||
+             (landscape.CompetitiveClusterCount >= 1 && landscape.CompetitiveSupportRatio >= 0.65));
+        var asymmetricPlacementCompetitionAmbiguity =
+            symmetry.SphericalScore < 0.30 &&
+            symmetry.AxialScore >= 0.75 &&
+            ambiguityScore >= 0.80 &&
+            normalComparable;
         var symmetryDominatedAmbiguity =
             symmetry.SphericalScore >= 0.97 &&
             dominantEvidence < 0.45 &&
@@ -1162,12 +1447,24 @@ public sealed class PPFMatcher
             landscape.CompetitiveVoteRatio >= 0.50 &&
             landscape.PoseSpreadScore >= 0.30;
         var axialCompetitionAmbiguity =
+            hasStrongGeometricSymmetry &&
             symmetry.AxialScore >= 0.85 &&
-            landscape.CompetitiveClusterCount >= 2 &&
-            landscape.CompetitiveSupportRatio >= 0.82 &&
-            landscape.PoseSpreadScore >= 0.45;
+            dominantEvidence < 0.48 &&
+            landscape.CompetitiveClusterCount >= 1 &&
+            landscape.CompetitiveSupportRatio >= 0.74 &&
+            landscape.CompetitiveVoteRatio >= 0.32 &&
+            landscape.PoseSpreadScore >= 0.28;
+        var axialSingleClusterAmbiguity =
+            hasStrongGeometricSymmetry &&
+            symmetry.AxialScore >= 0.94 &&
+            ambiguityScore >= 0.80 &&
+            dominantEvidence < 0.65 &&
+            landscape.CompetitiveClusterCount >= 1 &&
+            landscape.CompetitiveSupportRatio >= 0.60 &&
+            landscape.CompetitiveVoteRatio >= 0.20 &&
+            landscape.PoseSpreadScore >= 0.20;
 
-        return primaryAmbiguity || symmetryDominatedAmbiguity || axialCompetitionAmbiguity;
+        return symmetryPoseAmbiguity || asymmetricCompetitionAmbiguity || genericCompetitiveAmbiguity || cylindricalCompetitionAmbiguity || asymmetricPlacementCompetitionAmbiguity || symmetryDominatedAmbiguity || axialCompetitionAmbiguity || axialSingleClusterAmbiguity;
     }
 
     private static SymmetryDescriptor ComputeSymmetryDescriptor(MatIndexer<float> points, int count, AxisAlignedBoundingBox box)
@@ -1348,7 +1645,8 @@ public sealed class PPFMatcher
                 continue;
             }
 
-            sum += Math.Max(0.0f, Vector3.Dot(modelNormal, sceneNormal));
+            // Canonicalized PPF treats a joint normal sign flip as equivalent, so diagnostics should not penalize it.
+            sum += Math.Abs(Vector3.Dot(modelNormal, sceneNormal));
             counted++;
         }
 
@@ -1379,6 +1677,36 @@ public sealed class PPFMatcher
         return Math.Sqrt(sum2 / inliers.Length);
     }
 
+    private static Dictionary<int, CorrespondenceDistance> CollectUniqueSceneMatches(
+        MatIndexer<float> modelPoints,
+        MatIndexer<float> scenePoints,
+        SpatialHashGridIndex sceneGrid,
+        int[] modelIndices,
+        Matrix4x4 transform,
+        double threshold2)
+    {
+        var bestByScene = new Dictionary<int, CorrespondenceDistance>(capacity: modelIndices.Length);
+
+        for (int i = 0; i < modelIndices.Length; i++)
+        {
+            var mi = modelIndices[i];
+            var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
+            var tp = Vector3.Transform(mp, transform);
+
+            if (!TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out var sj, out var d2))
+            {
+                continue;
+            }
+
+            if (!bestByScene.TryGetValue(sj, out var existing) || d2 < existing.DistanceSquared)
+            {
+                bestByScene[sj] = new CorrespondenceDistance(new Correspondence(mi, sj), d2);
+            }
+        }
+
+        return bestByScene;
+    }
+
     private static (int Count, double SumSquared) ScoreTransform(
         MatIndexer<float> modelPoints,
         MatIndexer<float> scenePoints,
@@ -1387,23 +1715,8 @@ public sealed class PPFMatcher
         Matrix4x4 t,
         double threshold2)
     {
-        int count = 0;
-        double sum2 = 0;
-
-        for (int i = 0; i < evalModelIndices.Length; i++)
-        {
-            var mi = evalModelIndices[i];
-            var mp = new Vector3(modelPoints[mi, 0], modelPoints[mi, 1], modelPoints[mi, 2]);
-            var tp = Vector3.Transform(mp, t);
-
-            if (TryFindNearest(scenePoints, sceneGrid, tp, threshold2, out _, out var d2))
-            {
-                count++;
-                sum2 += d2;
-            }
-        }
-
-        return (count, sum2);
+        var uniqueMatches = CollectUniqueSceneMatches(modelPoints, scenePoints, sceneGrid, evalModelIndices, t, threshold2);
+        return (uniqueMatches.Count, uniqueMatches.Values.Sum(match => match.DistanceSquared));
     }
 
     private static bool TryFindNearest(

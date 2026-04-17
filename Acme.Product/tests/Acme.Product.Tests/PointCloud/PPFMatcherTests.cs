@@ -115,6 +115,75 @@ public sealed class PPFMatcherTests
     }
 
     [Fact]
+    public void Match_AsymmetricModelWithGloballyFlippedSceneNormals_ShouldRecoverPose()
+    {
+        var gen = new SyntheticPointCloudGenerator(seed: 261);
+        using var model = BuildAsymmetricModel(gen, includeNormals: true);
+        var gt = Matrix4x4.CreateFromYawPitchRoll(0.48f, -0.21f, 0.33f) * Matrix4x4.CreateTranslation(0.11f, -0.06f, 0.045f);
+        using var scene = model.Transform(gt);
+        using var flippedScene = FlipNormals(scene);
+
+        var matcher = new PPFMatcher(seed: 721);
+        var result = matcher.Match(
+            model,
+            flippedScene,
+            normalRadius: 0.06f,
+            featureRadius: 0.12f,
+            distanceStep: 0.01f,
+            angleStepRad: 5f * (MathF.PI / 180f),
+            numSamples: 220,
+            modelRefStride: 2,
+            maxPairsPerKey: 64,
+            maxCorrespondences: 5000,
+            ransacIterations: 1200,
+            inlierThreshold: 0.01f,
+            minInliers: 120);
+
+        result.IsMatched.Should().BeTrue(
+            $"ambiguous={result.IsAmbiguous}, ambiguityScore={result.AmbiguityScore:F3}, stability={result.StabilityScore:F3}, normal={result.NormalConsistency:F3}, inliers={result.InlierCount}, rms={result.RmsError:F4}");
+        result.IsAmbiguous.Should().BeFalse();
+        result.NormalConsistency.Should().BeGreaterThan(PPFMatcher.MinimumRecommendedNormalConsistency);
+        var (translationError, rotationErrorDeg) = ComputePoseErrors(gt, result.TransformModelToScene);
+        translationError.Should().BeLessThan(0.03);
+        rotationErrorDeg.Should().BeLessThan(8.0);
+    }
+
+    [Fact]
+    public void IsAmbiguousPose_AsymmetricCompetitiveLandscape_ShouldStillReportAmbiguous()
+    {
+        var symmetry = CreatePrivateValue("SymmetryDescriptor", 0.24, 0.18, 0.31);
+        var landscape = CreatePrivateValue("HypothesisLandscape", 0.31, 0.95, 0.78, 3, 0.85);
+        var ambiguityScore = InvokePrivateStatic<double>(
+            "ComputeAmbiguityScore",
+            420,
+            0.0045,
+            0.91,
+            399,
+            0.0048,
+            0.90,
+            symmetry,
+            landscape);
+        var ambiguous = InvokePrivateStatic<bool>(
+            "IsAmbiguousPose",
+            420,
+            399,
+            Matrix4x4.Identity,
+            Matrix4x4.CreateFromYawPitchRoll(0.0f, 0.0f, 0.42f) * Matrix4x4.CreateTranslation(0.08f, -0.03f, 0.01f),
+            0.01f,
+            ambiguityScore,
+            symmetry,
+            0.0045,
+            0.0048,
+            0.91,
+            0.90,
+            landscape);
+
+        ambiguityScore.Should().BeGreaterThan(0.74);
+        ambiguityScore.Should().BeLessThan(0.86);
+        ambiguous.Should().BeTrue();
+    }
+
+    [Fact]
     public void Match_SymmetricSphere_ShouldReportAmbiguity()
     {
         var gen = new SyntheticPointCloudGenerator(seed: 281);
@@ -277,7 +346,7 @@ public sealed class PPFMatcherTests
         rotationErrorDeg.Should().BeLessThan(8.0);
     }
 
-    private static PointCloudModel BuildAsymmetricModel(SyntheticPointCloudGenerator gen)
+    private static PointCloudModel BuildAsymmetricModel(SyntheticPointCloudGenerator gen, bool includeNormals = false)
     {
         // Combine two shapes at different offsets to break symmetry.
         using var sphere = gen.GenerateSphere(
@@ -286,7 +355,7 @@ public sealed class PPFMatcherTests
             numPoints: 2500,
             noise: 0.0004f,
             includeColors: true,
-            includeNormals: false,
+            includeNormals: includeNormals,
             outlierRatio: 0.0f);
 
         using var cube = gen.GenerateCube(
@@ -295,7 +364,7 @@ public sealed class PPFMatcherTests
             numPoints: 1800,
             noise: 0.0004f,
             includeColors: true,
-            includeNormals: false,
+            includeNormals: includeNormals,
             outlierRatio: 0.0f);
 
         return MergeTwo(sphere, cube);
@@ -394,5 +463,19 @@ public sealed class PPFMatcherTests
         var value = method!.Invoke(null, arguments);
         value.Should().NotBeNull();
         return (T)value!;
+    }
+
+    private static PointCloudModel FlipNormals(PointCloudModel source)
+    {
+        var flipped = source.Transform(Matrix4x4.Identity);
+        var normals = flipped.Normals!.GetGenericIndexer<float>();
+        for (int i = 0; i < flipped.Count; i++)
+        {
+            normals[i, 0] = -normals[i, 0];
+            normals[i, 1] = -normals[i, 1];
+            normals[i, 2] = -normals[i, 2];
+        }
+
+        return flipped;
     }
 }

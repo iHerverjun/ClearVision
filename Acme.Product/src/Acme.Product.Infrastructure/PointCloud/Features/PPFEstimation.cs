@@ -14,8 +14,9 @@ public sealed class PPFEstimation
     }
 
     /// <summary>
-    /// Compute a simple PPF "model" map keyed by reference point index.
-    /// Each entry stores the PPF features between that reference point and its neighbors within featureRadius.
+    /// Compute an alpha-less canonicalized 4D PPF map keyed by reference point index.
+    /// Each entry stores features that are stable under a joint normal sign flip, but this is still not a full
+    /// canonical PPF vote contract because alpha_m is not included here.
     /// </summary>
     public Dictionary<int, List<PPFFeature>> ComputeModel(
         PointCloud model,
@@ -64,7 +65,7 @@ public sealed class PPFEstimation
                 var p2 = new Vector3(points[j, 0], points[j, 1], points[j, 2]);
                 var n2 = new Vector3(nIdx[j, 0], nIdx[j, 1], nIdx[j, 2]);
 
-                var ppf = PPFFeature.Compute(p1, n1, p2, n2);
+                var ppf = ComputeCanonicalFeature(p1, n1, p2, n2);
                 if (ppf.Distance > 0)
                 {
                     features.Add(ppf);
@@ -112,40 +113,49 @@ public sealed class PPFEstimation
             var n = cloud.Count;
             var normals = _pool.Rent(width: 3, height: n, type: MatType.CV_32FC1);
             cloud.Normals.CopyTo(normals);
-            NormalizeNormalsInPlace(normals);
+            NormalEstimation.NormalizeAndOrientConsistently(cloud.Points, normals, normalRadius);
             return normals;
         }
 
         var estimator = new NormalEstimation(_pool);
         var normalsEstimated = estimator.Estimate(cloud, normalRadius);
-        NormalizeNormalsInPlace(normalsEstimated);
+        NormalEstimation.NormalizeAndOrientConsistently(cloud.Points, normalsEstimated, normalRadius);
         return normalsEstimated;
     }
 
-    private static void NormalizeNormalsInPlace(Mat normals)
+    private static PPFFeature ComputeCanonicalFeature(Vector3 p1, Vector3 n1, Vector3 p2, Vector3 n2)
     {
-        if (normals.Rows == 0)
+        var primary = PPFFeature.Compute(p1, n1, p2, n2);
+        if (primary.Distance <= 0)
         {
-            return;
+            return primary;
         }
 
-        var idx = normals.GetGenericIndexer<float>();
-        for (int i = 0; i < normals.Rows; i++)
-        {
-            var v = new Vector3(idx[i, 0], idx[i, 1], idx[i, 2]);
-            if (v.LengthSquared() <= 1e-20f)
-            {
-                idx[i, 0] = 0;
-                idx[i, 1] = 0;
-                idx[i, 2] = 1;
-                continue;
-            }
+        var flipped = PPFFeature.Compute(p1, -n1, p2, -n2);
+        return CompareCanonicalFeature(primary, flipped) <= 0 ? primary : flipped;
+    }
 
-            v = Vector3.Normalize(v);
-            idx[i, 0] = v.X;
-            idx[i, 1] = v.Y;
-            idx[i, 2] = v.Z;
+    private static int CompareCanonicalFeature(PPFFeature left, PPFFeature right)
+    {
+        var cmp = left.Distance.CompareTo(right.Distance);
+        if (cmp != 0)
+        {
+            return cmp;
         }
+
+        cmp = left.Angle1.CompareTo(right.Angle1);
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        cmp = left.Angle2.CompareTo(right.Angle2);
+        if (cmp != 0)
+        {
+            return cmp;
+        }
+
+        return left.AngleNormals.CompareTo(right.AngleNormals);
     }
 
     private void ReturnMat(Mat mat)
