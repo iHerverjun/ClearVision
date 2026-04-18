@@ -238,10 +238,24 @@ public class Sprint7_AiEvolutionTests
 
             // Act
             var templates = await service.GetTemplatesAsync();
+            var airConditioningTemplates = await service.GetTemplatesAsync("空调制造");
 
             // Assert
-            templates.Should().HaveCount(1);
-            templates.Select(t => t.Name).Should().ContainSingle().Which.Should().Be("端子线序检测");
+            templates.Should().HaveCount(6);
+            templates.Select(t => t.Name).Should().BeEquivalentTo(
+                "端子线序检测",
+                "包装箱外观检测",
+                "空调内机外观检测",
+                "空调外机外观检测",
+                "遥控器漏装检测",
+                "两器铜孔间距检测");
+            airConditioningTemplates.Should().HaveCount(5);
+            airConditioningTemplates.Select(t => t.Name).Should().BeEquivalentTo(
+                "包装箱外观检测",
+                "空调内机外观检测",
+                "空调外机外观检测",
+                "遥控器漏装检测",
+                "两器铜孔间距检测");
             File.Exists(Path.Combine(tempRoot, "templates", "flow_templates.json")).Should().BeTrue();
         }
         finally
@@ -293,9 +307,14 @@ public class Sprint7_AiEvolutionTests
 
             var templates = await service.GetTemplatesAsync();
 
-            templates.Should().HaveCount(2);
+            templates.Should().HaveCount(7);
             templates.Select(item => item.Name).Should().Contain("我的自定义模板");
             templates.Select(item => item.Name).Should().Contain("端子线序检测");
+            templates.Select(item => item.Name).Should().Contain("包装箱外观检测");
+            templates.Select(item => item.Name).Should().Contain("空调内机外观检测");
+            templates.Select(item => item.Name).Should().Contain("空调外机外观检测");
+            templates.Select(item => item.Name).Should().Contain("遥控器漏装检测");
+            templates.Select(item => item.Name).Should().Contain("两器铜孔间距检测");
             templates.Select(item => item.Name).Should().NotContain("传统缺陷检测");
             templates.Count(item => item.Name == "端子线序检测").Should().Be(1);
 
@@ -306,6 +325,11 @@ public class Sprint7_AiEvolutionTests
             persisted.Should().NotBeNull();
             persisted!.Select(item => item.Name).Should().Contain("端子线序检测");
             persisted.Select(item => item.Name).Should().Contain("我的自定义模板");
+            persisted.Select(item => item.Name).Should().Contain("包装箱外观检测");
+            persisted.Select(item => item.Name).Should().Contain("空调内机外观检测");
+            persisted.Select(item => item.Name).Should().Contain("空调外机外观检测");
+            persisted.Select(item => item.Name).Should().Contain("遥控器漏装检测");
+            persisted.Select(item => item.Name).Should().Contain("两器铜孔间距检测");
             persisted.Select(item => item.Name).Should().NotContain("传统缺陷检测");
         }
         finally
@@ -395,6 +419,216 @@ public class Sprint7_AiEvolutionTests
             // Assert
             loaded.Should().NotBeNull();
             loaded!.Name.Should().Be("自定义测试模板");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact(DisplayName = "FlowTemplateService - 空调制造模板应内置预期骨架并可反序列化")]
+    public async Task FlowTemplateService_AirConditioningTemplates_ShouldUseExpectedSkeletons()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "clearvision-template-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var service = new FlowTemplateService(tempRoot);
+            var templates = (await service.GetTemplatesAsync("空调制造"))
+                .ToDictionary(item => item.Name, StringComparer.OrdinalIgnoreCase);
+
+            templates.Should().HaveCount(5);
+
+            var aiCases = new[]
+            {
+                new
+                {
+                    Name = "包装箱外观检测",
+                    Tags = new[] { "包装箱", "外观", "AI", "YOLO" },
+                    DetectionMode = "Defect",
+                    DetectionPort = "Defects",
+                    TargetClasses = "CartonDamage,CartonDent,CartonStain,SealAnomaly,LabelAnomaly",
+                    Condition = "Equal",
+                    ExpectValue = "0",
+                    RequiresTargetClassesReview = true
+                },
+                new
+                {
+                    Name = "空调内机外观检测",
+                    Tags = new[] { "内机", "外观", "AI", "YOLO" },
+                    DetectionMode = "Defect",
+                    DetectionPort = "Defects",
+                    TargetClasses = "PanelScratch,PanelGap,Stain,Damage",
+                    Condition = "Equal",
+                    ExpectValue = "0",
+                    RequiresTargetClassesReview = true
+                },
+                new
+                {
+                    Name = "空调外机外观检测",
+                    Tags = new[] { "外机", "外观", "AI", "YOLO" },
+                    DetectionMode = "Defect",
+                    DetectionPort = "Defects",
+                    TargetClasses = "FinDeform,NetDamage,Dent,MissingPart",
+                    Condition = "Equal",
+                    ExpectValue = "0",
+                    RequiresTargetClassesReview = true
+                },
+                new
+                {
+                    Name = "遥控器漏装检测",
+                    Tags = new[] { "遥控器", "漏装", "附件", "AI" },
+                    DetectionMode = "Object",
+                    DetectionPort = "Objects",
+                    TargetClasses = "RemoteController",
+                    Condition = "GreaterOrEqual",
+                    ExpectValue = "1",
+                    RequiresTargetClassesReview = false
+                }
+            };
+
+            foreach (var testCase in aiCases)
+            {
+                var template = templates[testCase.Name];
+                template.Industry.Should().Be("空调制造");
+                template.Tags.Should().Equal(testCase.Tags);
+                template.TemplateVersion.Should().Be("1.0.0");
+                template.ScenarioKey.Should().BeNull();
+                template.ScenarioPackage.Should().BeNull();
+
+                using var document = JsonDocument.Parse(template.FlowJson);
+                var root = document.RootElement;
+                root.GetProperty("requiredResources").EnumerateArray().Select(item => item.GetString())
+                    .Should().Equal("DeepLearning.ModelPath");
+
+                var operators = root.GetProperty("operators").EnumerateArray().ToList();
+                operators.Select(item => item.GetProperty("operatorType").GetString()).Should().Equal(
+                    "ImageAcquisition",
+                    "ImageResize",
+                    "DeepLearning",
+                    "BoxFilter",
+                    "BoxNms",
+                    "ResultJudgment",
+                    "ResultOutput");
+
+                var deepLearningParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_3")
+                    .GetProperty("parameters");
+                deepLearningParams.GetProperty("EnableInternalNms").GetString().Should().Be("false");
+                deepLearningParams.GetProperty("DetectionMode").GetString().Should().Be(testCase.DetectionMode);
+                deepLearningParams.GetProperty("TargetClasses").GetString().Should().Be(testCase.TargetClasses);
+                deepLearningParams.GetProperty("ModelPath").GetString().Should().BeEmpty();
+
+                var boxFilterParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                    .GetProperty("parameters");
+                boxFilterParams.GetProperty("FilterMode").GetString().Should().Be("Region");
+                boxFilterParams.GetProperty("RegionW").GetString().Should().Be("999999");
+                boxFilterParams.GetProperty("RegionH").GetString().Should().Be("999999");
+
+                var boxNmsParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_5")
+                    .GetProperty("parameters");
+                boxNmsParams.GetProperty("ShowSuppressed").GetString().Should().Be("false");
+
+                var judgmentParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_6")
+                    .GetProperty("parameters");
+                judgmentParams.GetProperty("Condition").GetString().Should().Be(testCase.Condition);
+                judgmentParams.GetProperty("ExpectValue").GetString().Should().Be(testCase.ExpectValue);
+
+                var connections = root.GetProperty("connections").EnumerateArray().ToList();
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_3" &&
+                    item.GetProperty("sourcePortName").GetString() == testCase.DetectionPort &&
+                    item.GetProperty("targetTempId").GetString() == "op_4" &&
+                    item.GetProperty("targetPortName").GetString() == "Detections");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                    item.GetProperty("sourcePortName").GetString() == "Count" &&
+                    item.GetProperty("targetTempId").GetString() == "op_6" &&
+                    item.GetProperty("targetPortName").GetString() == "Value");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                    item.GetProperty("sourcePortName").GetString() == "JudgmentResult" &&
+                    item.GetProperty("targetTempId").GetString() == "op_7" &&
+                    item.GetProperty("targetPortName").GetString() == "Result");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_6" &&
+                    item.GetProperty("sourcePortName").GetString() == "Details" &&
+                    item.GetProperty("targetTempId").GetString() == "op_7" &&
+                    item.GetProperty("targetPortName").GetString() == "Text");
+
+                var reviewParameters = root.GetProperty("parametersNeedingReview");
+                reviewParameters.GetProperty("op_3").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(testCase.RequiresTargetClassesReview
+                        ? new[] { "ModelPath", "TargetClasses", "Confidence" }
+                        : new[] { "ModelPath", "Confidence" });
+                reviewParameters.GetProperty("op_4").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "RegionX", "RegionY", "RegionW", "RegionH" });
+                reviewParameters.GetProperty("op_5").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "ScoreThreshold", "IouThreshold" });
+            }
+
+            var copperHoleTemplate = templates["两器铜孔间距检测"];
+            copperHoleTemplate.Industry.Should().Be("空调制造");
+            copperHoleTemplate.Tags.Should().Equal("两器", "铜孔", "间距", "测量");
+            copperHoleTemplate.TemplateVersion.Should().Be("1.0.0");
+            copperHoleTemplate.ScenarioKey.Should().BeNull();
+            copperHoleTemplate.ScenarioPackage.Should().BeNull();
+
+            using (var document = JsonDocument.Parse(copperHoleTemplate.FlowJson))
+            {
+                var root = document.RootElement;
+                var operators = root.GetProperty("operators").EnumerateArray().ToList();
+                operators.Select(item => item.GetProperty("operatorType").GetString()).Should().Equal(
+                    "ImageAcquisition",
+                    "Filtering",
+                    "EdgeDetection",
+                    "GapMeasurement",
+                    "ResultJudgment",
+                    "ResultOutput");
+
+                var gapParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_4")
+                    .GetProperty("parameters");
+                gapParams.GetProperty("Direction").GetString().Should().Be("Auto");
+                gapParams.GetProperty("MinValidSamples").GetString().Should().Be("4");
+                gapParams.GetProperty("MultiScanCount").GetString().Should().Be("8");
+
+                var judgmentParams = operators.Single(item => item.GetProperty("tempId").GetString() == "op_5")
+                    .GetProperty("parameters");
+                judgmentParams.GetProperty("Condition").GetString().Should().Be("Range");
+                judgmentParams.GetProperty("ExpectValueMin").GetString().Should().Be("0");
+                judgmentParams.GetProperty("ExpectValueMax").GetString().Should().Be("999999");
+
+                var connections = root.GetProperty("connections").EnumerateArray().ToList();
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_3" &&
+                    item.GetProperty("sourcePortName").GetString() == "Image" &&
+                    item.GetProperty("targetTempId").GetString() == "op_4" &&
+                    item.GetProperty("targetPortName").GetString() == "Image");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_4" &&
+                    item.GetProperty("sourcePortName").GetString() == "MeanGap" &&
+                    item.GetProperty("targetTempId").GetString() == "op_5" &&
+                    item.GetProperty("targetPortName").GetString() == "Value");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                    item.GetProperty("sourcePortName").GetString() == "JudgmentResult" &&
+                    item.GetProperty("targetTempId").GetString() == "op_6" &&
+                    item.GetProperty("targetPortName").GetString() == "Result");
+                connections.Should().Contain(item =>
+                    item.GetProperty("sourceTempId").GetString() == "op_5" &&
+                    item.GetProperty("sourcePortName").GetString() == "Details" &&
+                    item.GetProperty("targetTempId").GetString() == "op_6" &&
+                    item.GetProperty("targetPortName").GetString() == "Text");
+
+                var reviewParameters = root.GetProperty("parametersNeedingReview");
+                reviewParameters.GetProperty("op_2").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "KernelSize", "SigmaX", "SigmaY" });
+                reviewParameters.GetProperty("op_3").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "Threshold1", "Threshold2", "AutoThresholdSigma" });
+                reviewParameters.GetProperty("op_4").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "Direction", "MinGap", "MaxGap", "MultiScanCount", "MinValidSamples" });
+                reviewParameters.GetProperty("op_5").EnumerateArray().Select(item => item.GetString())
+                    .Should().BeEquivalentTo(new[] { "ExpectValueMin", "ExpectValueMax" });
+            }
         }
         finally
         {
