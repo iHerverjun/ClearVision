@@ -48,6 +48,7 @@ public class StereoCalibrationOperator : OperatorBase
     private const double StereoMeanErrorAcceptanceThreshold = 0.35;
     private const double CameraMeanErrorAcceptanceThreshold = 0.35;
     private const double PerViewErrorAcceptanceThreshold = 0.60;
+    private const double EpipolarErrorAcceptanceThreshold = 0.75;
 
     public override OperatorType OperatorType => OperatorType.StereoCalibration;
 
@@ -347,6 +348,7 @@ public class StereoCalibrationOperator : OperatorBase
             calibrationResult.ReprojectionErrorStereo,
             calibrationResult.ReprojectionErrorLeft,
             calibrationResult.ReprojectionErrorRight,
+            calibrationResult.EpipolarError,
             calibrationResult.LeftPerViewErrors,
             calibrationResult.RightPerViewErrors,
             validPairKeys,
@@ -437,14 +439,32 @@ public class StereoCalibrationOperator : OperatorBase
                 rightImagePointInputs[i] = InputArray.Create(rightImagePoints[i]);
             }
 
-            result.CameraMatrixLeft = new Mat(3, 3, MatType.CV_64FC1);
-            result.DistCoeffsLeft = new Mat();
-            result.CameraMatrixRight = new Mat(3, 3, MatType.CV_64FC1);
-            result.DistCoeffsRight = new Mat();
+            var leftCalibration = CalibrateSingleCamera(objectPoints, leftImagePoints, imageSize);
+            if (!leftCalibration.Success)
+            {
+                throw new InvalidOperationException($"Left camera calibration failed: {leftCalibration.ErrorMessage}");
+            }
+
+            var rightCalibration = CalibrateSingleCamera(objectPoints, rightImagePoints, imageSize);
+            if (!rightCalibration.Success)
+            {
+                throw new InvalidOperationException($"Right camera calibration failed: {rightCalibration.ErrorMessage}");
+            }
+
+            result.CameraMatrixLeft = leftCalibration.CameraMatrix;
+            result.DistCoeffsLeft = leftCalibration.DistCoeffs;
+            result.CameraMatrixRight = rightCalibration.CameraMatrix;
+            result.DistCoeffsRight = rightCalibration.DistCoeffs;
             result.RotationMatrix = new Mat(3, 3, MatType.CV_64FC1);
             result.TranslationVector = new Mat(3, 1, MatType.CV_64FC1);
             result.EssentialMatrix = new Mat(3, 3, MatType.CV_64FC1);
             result.FundamentalMatrix = new Mat(3, 3, MatType.CV_64FC1);
+            result.ReprojectionErrorLeft = leftCalibration.MeanError;
+            result.ReprojectionErrorRight = rightCalibration.MeanError;
+            result.MaxPerViewErrorLeft = leftCalibration.MaxError;
+            result.MaxPerViewErrorRight = rightCalibration.MaxError;
+            result.LeftPerViewErrors = leftCalibration.PerViewErrors;
+            result.RightPerViewErrors = rightCalibration.PerViewErrors;
 
             // 执行双目标定
             var stereoRms = Cv2.StereoCalibrate(
@@ -460,7 +480,7 @@ public class StereoCalibrationOperator : OperatorBase
                 result.TranslationVector,
                 result.EssentialMatrix,
                 result.FundamentalMatrix,
-                CalibrationFlags.None,
+                CalibrationFlags.FixIntrinsic,
                 new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 100, 1e-5));
 
             result.ReprojectionErrorStereo = stereoRms;
@@ -488,6 +508,75 @@ public class StereoCalibrationOperator : OperatorBase
             result.Success = false;
             result.ErrorMessage = ex.Message;
             Logger.LogError(ex, "Stereo calibration failed");
+        }
+
+        return result;
+    }
+
+    private SingleCameraCalibrationResult CalibrateSingleCamera(
+        IReadOnlyList<Point3f[]> objectPoints,
+        IReadOnlyList<Point2f[]> imagePoints,
+        Size imageSize)
+    {
+        var result = new SingleCameraCalibrationResult
+        {
+            CameraMatrix = new Mat(),
+            DistCoeffs = new Mat()
+        };
+
+        var objectPointMats = new List<Mat>(objectPoints.Count);
+        var imagePointMats = new List<Mat>(imagePoints.Count);
+        Mat[]? rvecs = null;
+        Mat[]? tvecs = null;
+        try
+        {
+            foreach (var points in objectPoints)
+            {
+                objectPointMats.Add(Mat.FromArray(points));
+            }
+
+            foreach (var points in imagePoints)
+            {
+                imagePointMats.Add(Mat.FromArray(points));
+            }
+
+            result.CameraMatrix = new Mat();
+            result.DistCoeffs = new Mat();
+
+            Cv2.CalibrateCamera(
+                objectPointMats,
+                imagePointMats,
+                imageSize,
+                result.CameraMatrix,
+                result.DistCoeffs,
+                out rvecs,
+                out tvecs,
+                CalibrationFlags.None,
+                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 80, 1e-7));
+
+            var viewErrors = ComputePerViewErrors(
+                objectPointMats,
+                imagePointMats,
+                rvecs,
+                tvecs,
+                result.CameraMatrix,
+                result.DistCoeffs);
+            result.PerViewErrors = viewErrors;
+            result.MeanError = viewErrors.Length == 0 ? 0.0 : viewErrors.Average();
+            result.MaxError = viewErrors.Length == 0 ? 0.0 : viewErrors.Max();
+            result.Success = true;
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            DisposeMatList(objectPointMats);
+            DisposeMatList(imagePointMats);
+            DisposeMatArray(rvecs);
+            DisposeMatArray(tvecs);
         }
 
         return result;
@@ -582,19 +671,26 @@ public class StereoCalibrationOperator : OperatorBase
             var totalPoints = 0;
             var perViewErrors = new List<double>(objectPoints.Count);
 
-            for (int i = 0; i < objectPoints.Count; i++)
+            for (var i = 0; i < objectPoints.Count; i++)
             {
                 using var rvec = new Mat();
                 using var tvec = new Mat();
-
-                Cv2.SolvePnP(
-                    InputArray.Create(objectPoints[i]),
-                    InputArray.Create(imagePoints[i]),
-                    cameraMatrix,
-                    distCoeffs,
-                    rvec,
-                    tvec,
-                    flags: SolvePnPFlags.Iterative);
+                try
+                {
+                    Cv2.SolvePnP(
+                        InputArray.Create(objectPoints[i]),
+                        InputArray.Create(imagePoints[i]),
+                        cameraMatrix,
+                        distCoeffs,
+                        rvec,
+                        tvec,
+                        flags: SolvePnPFlags.Iterative);
+                }
+                catch
+                {
+                    perViewErrors.Add(double.PositiveInfinity);
+                    continue;
+                }
 
                 using var projectedPoints = new Mat();
                 Cv2.ProjectPoints(
@@ -607,9 +703,14 @@ public class StereoCalibrationOperator : OperatorBase
 
                 var projected = ReadPoint2fVector(projectedPoints);
                 var original = imagePoints[i];
-                var viewError = 0.0;
+                if (projected.Length != original.Length || projected.Length == 0)
+                {
+                    perViewErrors.Add(double.PositiveInfinity);
+                    continue;
+                }
 
-                for (int j = 0; j < projected.Length; j++)
+                var viewError = 0.0;
+                for (var j = 0; j < projected.Length; j++)
                 {
                     var error = Math.Sqrt(
                         Math.Pow(projected[j].X - original[j].X, 2) +
@@ -619,17 +720,65 @@ public class StereoCalibrationOperator : OperatorBase
                     totalPoints++;
                 }
 
-                perViewErrors.Add(projected.Length > 0 ? viewError / projected.Length : 0.0);
+                perViewErrors.Add(viewError / projected.Length);
             }
 
-            var meanError = totalPoints > 0 ? totalError / totalPoints : 0.0;
-            var maxError = perViewErrors.Count > 0 ? perViewErrors.Max() : 0.0;
+            var finiteErrors = perViewErrors.Where(double.IsFinite).ToArray();
+            var meanError = totalPoints > 0 ? totalError / totalPoints : double.PositiveInfinity;
+            var maxError = finiteErrors.Length > 0 ? finiteErrors.Max() : double.PositiveInfinity;
             return new ReprojectionErrorStats(meanError, maxError, perViewErrors);
         }
         catch
         {
             return new ReprojectionErrorStats(-1.0, double.PositiveInfinity, Array.Empty<double>());
         }
+    }
+
+    private static double[] ComputePerViewErrors(
+        IReadOnlyList<Mat> objectPoints,
+        IReadOnlyList<Mat> imagePoints,
+        IReadOnlyList<Mat>? rvecs,
+        IReadOnlyList<Mat>? tvecs,
+        Mat cameraMatrix,
+        Mat distCoeffs)
+    {
+        if (rvecs == null || tvecs == null || rvecs.Count != objectPoints.Count || tvecs.Count != objectPoints.Count)
+        {
+            return Enumerable.Repeat(double.PositiveInfinity, objectPoints.Count).ToArray();
+        }
+
+        var errors = new double[objectPoints.Count];
+        for (var i = 0; i < objectPoints.Count; i++)
+        {
+            using var projectedPoints = new Mat();
+            Cv2.ProjectPoints(
+                objectPoints[i],
+                rvecs[i],
+                tvecs[i],
+                cameraMatrix,
+                distCoeffs,
+                projectedPoints);
+
+            var projected = ReadPoint2fVector(projectedPoints);
+            var original = ReadPoint2fVector(imagePoints[i]);
+            if (projected.Length != original.Length || projected.Length == 0)
+            {
+                errors[i] = double.PositiveInfinity;
+                continue;
+            }
+
+            double sumSq = 0;
+            for (var p = 0; p < projected.Length; p++)
+            {
+                var dx = projected[p].X - original[p].X;
+                var dy = projected[p].Y - original[p].Y;
+                sumSq += dx * dx + dy * dy;
+            }
+
+            errors[i] = Math.Sqrt(sumSq / projected.Length);
+        }
+
+        return errors;
     }
 
     private double CalculateEpipolarError(List<Point2f[]> leftPoints, List<Point2f[]> rightPoints, Mat fundamentalMatrix)
@@ -930,6 +1079,27 @@ public class StereoCalibrationOperator : OperatorBase
                token.Equals("camera1", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static void DisposeMatList(IEnumerable<Mat> mats)
+    {
+        foreach (var mat in mats)
+        {
+            mat.Dispose();
+        }
+    }
+
+    private static void DisposeMatArray(IReadOnlyList<Mat>? mats)
+    {
+        if (mats == null)
+        {
+            return;
+        }
+
+        foreach (var mat in mats)
+        {
+            mat.Dispose();
+        }
+    }
+
     private static string JoinKeys(IReadOnlyList<string> keys)
     {
         return keys.Count == 0 ? "none" : string.Join(", ", keys.Take(10));
@@ -945,6 +1115,7 @@ public class StereoCalibrationOperator : OperatorBase
         double stereoMeanError,
         double leftMeanError,
         double rightMeanError,
+        double epipolarError,
         IReadOnlyList<double> leftPerViewErrors,
         IReadOnlyList<double> rightPerViewErrors,
         IReadOnlyList<string> pairKeys,
@@ -960,7 +1131,8 @@ public class StereoCalibrationOperator : OperatorBase
             $"FailedPairs={failedPairKeys?.Count ?? 0}",
             $"StereoRms={stereoMeanError:F4}",
             $"LeftMeanError={leftMeanError:F4}",
-            $"RightMeanError={rightMeanError:F4}"
+            $"RightMeanError={rightMeanError:F4}",
+            $"EpipolarError={epipolarError:F4}"
         };
 
         if (failedPairKeys is { Count: > 0 })
@@ -996,18 +1168,20 @@ public class StereoCalibrationOperator : OperatorBase
             double.IsFinite(stereoMeanError) &&
             double.IsFinite(leftMeanError) &&
             double.IsFinite(rightMeanError) &&
-            double.IsFinite(maxPerViewError);
+            double.IsFinite(maxPerViewError) &&
+            double.IsFinite(epipolarError);
 
         var accepted =
             validPairs >= minValidPairs &&
             metricsAreFinite &&
             stereoMeanError <= StereoMeanErrorAcceptanceThreshold &&
             Math.Max(leftMeanError, rightMeanError) <= CameraMeanErrorAcceptanceThreshold &&
-            maxPerViewError <= PerViewErrorAcceptanceThreshold;
+            maxPerViewError <= PerViewErrorAcceptanceThreshold &&
+            epipolarError <= EpipolarErrorAcceptanceThreshold;
 
         diagnostics.Add(accepted
             ? "Quality gate passed."
-            : $"Quality gate failed. Thresholds: stereoMean<={StereoMeanErrorAcceptanceThreshold:F2}, cameraMean<={CameraMeanErrorAcceptanceThreshold:F2}, perView<={PerViewErrorAcceptanceThreshold:F2}, minPairs>={minValidPairs}.");
+            : $"Quality gate failed. Thresholds: stereoMean<={StereoMeanErrorAcceptanceThreshold:F2}, cameraMean<={CameraMeanErrorAcceptanceThreshold:F2}, perView<={PerViewErrorAcceptanceThreshold:F2}, epipolar<={EpipolarErrorAcceptanceThreshold:F2}, minPairs>={minValidPairs}.");
 
         return new CalibrationQualityV2
         {
@@ -1197,6 +1371,17 @@ public class StereoCalibrationOperator : OperatorBase
         public int[] LeftValidRoi { get; set; } = Array.Empty<int>();
         public int[] RightValidRoi { get; set; } = Array.Empty<int>();
         public string Message { get; set; } = string.Empty;
+    }
+
+    private class SingleCameraCalibrationResult
+    {
+        public required Mat CameraMatrix { get; set; }
+        public required Mat DistCoeffs { get; set; }
+        public bool Success { get; set; }
+        public string ErrorMessage { get; set; } = string.Empty;
+        public double MeanError { get; set; }
+        public double MaxError { get; set; }
+        public IReadOnlyList<double> PerViewErrors { get; set; } = Array.Empty<double>();
     }
 
     private readonly record struct Point2Payload(double X, double Y);

@@ -91,6 +91,54 @@ public abstract class FeatureMatchOperatorBase : OperatorBase
         return (h, inliers);
     }
 
+    private protected (Mat? Homography, Point2f[] Corners, HomographyVerificationHelper.HomographyVerificationMetrics Metrics) EstimateAndVerifyHomography(
+        KeyPoint[] templateKeyPoints,
+        KeyPoint[] sceneKeyPoints,
+        IReadOnlyList<DMatch> goodMatches,
+        Size templateSize,
+        Size searchImageSize,
+        double ransacThreshold,
+        int minMatchCount,
+        int minInliers,
+        double minInlierRatio)
+    {
+        if (goodMatches.Count < 4)
+        {
+            return (null, Array.Empty<Point2f>(), new HomographyVerificationHelper.HomographyVerificationMetrics(
+                VerificationPassed: false,
+                MatchCount: goodMatches.Count,
+                InlierCount: 0,
+                InlierRatio: 0,
+                MeanReprojectionError: double.PositiveInfinity,
+                MaxReprojectionError: double.PositiveInfinity,
+                AreaRatio: 0,
+                CornersValid: false,
+                FailureReason: "At least four point correspondences are required."));
+        }
+
+        var srcPts = goodMatches.Select(match => templateKeyPoints[match.QueryIdx].Pt).ToArray();
+        var dstPts = goodMatches.Select(match => sceneKeyPoints[match.TrainIdx].Pt).ToArray();
+        var success = HomographyVerificationHelper.TryEstimateAndVerify(
+            srcPts,
+            dstPts,
+            templateSize,
+            searchImageSize,
+            ransacThreshold,
+            minMatchCount,
+            minInliers,
+            minInlierRatio,
+            out var homography,
+            out var corners,
+            out var metrics);
+        if (!success)
+        {
+            homography?.Dispose();
+            return (null, Array.Empty<Point2f>(), metrics);
+        }
+
+        return (homography, corners, metrics);
+    }
+
     /// <summary>
     /// 缁樺埗閫忚妗?
     /// </summary>

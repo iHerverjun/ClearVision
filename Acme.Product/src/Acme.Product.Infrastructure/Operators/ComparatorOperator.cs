@@ -34,9 +34,24 @@ public class ComparatorOperator : OperatorBase
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(Operator @operator, Dictionary<string, object>? inputs, CancellationToken cancellationToken)
     {
-        var a = TryRead(inputs, "ValueA");
-        var hasB = TryRead(inputs, "ValueB", out var b);
-        if (!hasB) b = GetDoubleParam(@operator, "CompareValue", 0);
+        if (!TryReadRequired(inputs, "ValueA", out var a, out var aError))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(aError));
+        }
+
+        var hasExplicitNonNullB = inputs != null &&
+            inputs.TryGetValue("ValueB", out var rawB) &&
+            rawB != null;
+        var hasB = TryReadOptional(inputs, "ValueB", out var b, out var bError);
+        if (hasExplicitNonNullB && !hasB)
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(bError));
+        }
+
+        if (!hasB)
+        {
+            b = GetDoubleParam(@operator, "CompareValue", 0);
+        }
 
         var condition = GetStringParam(@operator, "Condition", "GreaterThan");
         var tolerance = Math.Abs(GetDoubleParam(@operator, "Tolerance", 0.0001));
@@ -63,14 +78,57 @@ public class ComparatorOperator : OperatorBase
         }));
     }
 
-    private static double TryRead(Dictionary<string, object>? inputs, string key)
-        => TryRead(inputs, key, out var value) ? value : 0d;
-
-    private static bool TryRead(Dictionary<string, object>? inputs, string key, out double value)
+    private static bool TryReadRequired(Dictionary<string, object>? inputs, string key, out double value, out string error)
     {
         value = 0;
-        if (inputs == null || !inputs.TryGetValue(key, out var obj) || obj == null) return false;
-        return double.TryParse(obj.ToString(), out value);
+        error = string.Empty;
+
+        if (inputs == null || !inputs.TryGetValue(key, out var obj) || obj == null)
+        {
+            error = $"{key} input is required.";
+            return false;
+        }
+
+        if (!TryConvertToDouble(obj, out value))
+        {
+            error = $"{key} must be a numeric value.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadOptional(Dictionary<string, object>? inputs, string key, out double value, out string error)
+    {
+        value = 0;
+        error = string.Empty;
+
+        if (inputs == null || !inputs.TryGetValue(key, out var obj) || obj == null)
+        {
+            return false;
+        }
+
+        if (!TryConvertToDouble(obj, out value))
+        {
+            error = $"{key} must be a numeric value.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryConvertToDouble(object raw, out double value)
+    {
+        value = 0;
+        return raw switch
+        {
+            double d => (value = d) == d,
+            float f => (value = f) == f,
+            int i => (value = i) == i,
+            long l => (value = l) == l,
+            decimal m => (value = (double)m) == (double)m,
+            _ => double.TryParse(raw.ToString(), out value)
+        };
     }
 
     public override ValidationResult ValidateParameters(Operator @operator) => ValidationResult.Valid();

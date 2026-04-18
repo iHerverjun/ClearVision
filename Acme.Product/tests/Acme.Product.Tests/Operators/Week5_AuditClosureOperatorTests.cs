@@ -28,6 +28,36 @@ public class ComparatorOperatorTests
         result.OutputData!["Result"].Should().Be(true);
         result.OutputData["Difference"].Should().Be(2.0);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithoutValueA_ShouldFailClosed()
+    {
+        var op = new Operator("cmp", OperatorType.Comparator, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Condition", "GreaterThan", "string"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>());
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("ValueA");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithNullValueB_ShouldFallbackToCompareValue()
+    {
+        var op = new Operator("cmp", OperatorType.Comparator, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Condition", "GreaterThan", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("CompareValue", 10.0, "double"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["ValueA"] = 12.0,
+            ["ValueB"] = null!
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["Result"].Should().Be(true);
+        result.OutputData["Difference"].Should().Be(2.0);
+    }
 }
 
 public class DelayOperatorTests
@@ -110,6 +140,27 @@ public class VariableIncrementOperatorTests
         result.OutputData!["PreviousValue"].Should().Be(5L);
         result.OutputData["NewValue"].Should().Be(7L);
         result.OutputData["WasReset"].Should().Be(false);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenResetConditionMatches_ShouldWriteResetValueBackToContext()
+    {
+        var context = new VariableContext();
+        context.SetValue("counter", 10L);
+        var sut = new VariableIncrementOperator(Substitute.For<ILogger<VariableIncrementOperator>>(), context);
+        var op = new Operator("inc_reset", OperatorType.VariableIncrement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("VariableName", "counter", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Delta", 2, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("ResetCondition", "GreaterThan", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ResetThreshold", 5, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("ResetValue", 1, "int"));
+
+        var result = await sut.ExecuteAsync(op);
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData!["WasReset"].Should().Be(true);
+        result.OutputData["NewValue"].Should().Be(3L);
+        context.GetValue<long>("counter").Should().Be(3L);
     }
 }
 

@@ -124,6 +124,7 @@ public class StereoCalibrationOperatorTests
             0.24,
             0.20,
             0.21,
+            0.95,
             leftPerViewErrors,
             rightPerViewErrors,
             pairKeys,
@@ -134,7 +135,29 @@ public class StereoCalibrationOperatorTests
         quality!.Accepted.Should().BeFalse();
         quality.MaxError.Should().BeApproximately(0.91, 1e-6);
         quality.Diagnostics.Should().Contain(d => d.Contains("Quality gate failed", StringComparison.OrdinalIgnoreCase));
+        quality.Diagnostics.Should().Contain(d => d.Contains("EpipolarError=0.9500", StringComparison.OrdinalIgnoreCase));
         quality.Diagnostics.Should().Contain(d => d.Contains("pair_012", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void CalculateReprojectionStats_WithMismatchedIntrinsics_ShouldHonorProvidedCalibration()
+    {
+        var method = typeof(StereoCalibrationOperator).GetMethod("CalculateReprojectionStats", BindingFlags.NonPublic | BindingFlags.Instance);
+        method.Should().NotBeNull();
+
+        var objectPoints = CreateSyntheticObjectPointViews();
+        using var actualCameraMatrix = CreateCameraMatrix(900, 880, 320, 240);
+        using var actualDistCoeffs = new Mat(1, 5, MatType.CV_64FC1, Scalar.All(0));
+        var imagePoints = ProjectSyntheticViews(objectPoints, actualCameraMatrix, actualDistCoeffs);
+
+        using var mismatchedCameraMatrix = CreateCameraMatrix(220, 210, 40, 30);
+        using var mismatchedDistCoeffs = new Mat(1, 5, MatType.CV_64FC1, Scalar.All(0));
+
+        var stats = method!.Invoke(_operator, new object[] { objectPoints, imagePoints, mismatchedCameraMatrix, mismatchedDistCoeffs });
+        stats.Should().NotBeNull();
+
+        var meanError = Convert.ToDouble(stats!.GetType().GetProperty("MeanError")!.GetValue(stats));
+        meanError.Should().BeGreaterThan(10.0);
     }
 
     [Fact]
@@ -182,5 +205,90 @@ public class StereoCalibrationOperatorTests
     {
         using var image = new Mat(16, 16, MatType.CV_8UC1, Scalar.Black);
         Cv2.ImWrite(path, image);
+    }
+
+    private static List<Point3f[]> CreateSyntheticObjectPointViews()
+    {
+        var points = new[]
+        {
+            new Point3f(0, 0, 0),
+            new Point3f(40, 0, 5),
+            new Point3f(0, 35, 10),
+            new Point3f(35, 30, 0),
+            new Point3f(15, 10, 25),
+            new Point3f(45, 15, 30),
+            new Point3f(10, 45, 20),
+            new Point3f(38, 42, 15)
+        };
+
+        return new List<Point3f[]>
+        {
+            points.ToArray(),
+            points.ToArray(),
+            points.ToArray()
+        };
+    }
+
+    private static List<Point2f[]> ProjectSyntheticViews(
+        IReadOnlyList<Point3f[]> objectPoints,
+        Mat cameraMatrix,
+        Mat distCoeffs)
+    {
+        var rotations = new[]
+        {
+            new Vec3d(0.08, -0.04, 0.02),
+            new Vec3d(-0.05, 0.06, 0.03),
+            new Vec3d(0.04, 0.03, -0.07)
+        };
+        var translations = new[]
+        {
+            new Vec3d(-10, -5, 420),
+            new Vec3d(15, 12, 470),
+            new Vec3d(-20, 18, 520)
+        };
+
+        var projectedViews = new List<Point2f[]>(objectPoints.Count);
+        for (var i = 0; i < objectPoints.Count; i++)
+        {
+            using var objectPointMat = Mat.FromArray(objectPoints[i]);
+            using var rvec = new Mat(3, 1, MatType.CV_64FC1);
+            rvec.Set(0, 0, rotations[i].Item0);
+            rvec.Set(1, 0, rotations[i].Item1);
+            rvec.Set(2, 0, rotations[i].Item2);
+            using var tvec = new Mat(3, 1, MatType.CV_64FC1);
+            tvec.Set(0, 0, translations[i].Item0);
+            tvec.Set(1, 0, translations[i].Item1);
+            tvec.Set(2, 0, translations[i].Item2);
+            using var imagePointMat = new Mat();
+            using var jacobian = new Mat();
+
+            Cv2.ProjectPoints(objectPointMat, rvec, tvec, cameraMatrix, distCoeffs, imagePointMat, jacobian, 0.0);
+            projectedViews.Add(ReadPoint2fVector(imagePointMat));
+        }
+
+        return projectedViews;
+    }
+
+    private static Mat CreateCameraMatrix(double fx, double fy, double cx, double cy)
+    {
+        var cameraMatrix = new Mat(3, 3, MatType.CV_64FC1, Scalar.All(0));
+        cameraMatrix.Set(0, 0, fx);
+        cameraMatrix.Set(1, 1, fy);
+        cameraMatrix.Set(0, 2, cx);
+        cameraMatrix.Set(1, 2, cy);
+        cameraMatrix.Set(2, 2, 1.0);
+        return cameraMatrix;
+    }
+
+    private static Point2f[] ReadPoint2fVector(Mat mat)
+    {
+        var count = Math.Max(mat.Rows, mat.Cols);
+        var points = new Point2f[count];
+        for (var i = 0; i < count; i++)
+        {
+            points[i] = mat.Rows >= mat.Cols ? mat.At<Point2f>(i, 0) : mat.At<Point2f>(0, i);
+        }
+
+        return points;
     }
 }
