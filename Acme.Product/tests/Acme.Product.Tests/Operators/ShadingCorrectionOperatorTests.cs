@@ -82,7 +82,7 @@ public class ShadingCorrectionOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithSixteenBitColorInputInLumaOnlyMode_ShouldReturnUnifiedByteColorImage()
+    public async Task ExecuteAsync_WithSixteenBitColorInputInLumaOnlyMode_ShouldPreserveSixteenBitColorImage()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
@@ -98,10 +98,10 @@ public class ShadingCorrectionOperatorTests
         Assert.True(result.IsSuccess);
         using var outputImage = Assert.IsType<ImageWrapper>(result.OutputData!["Image"]);
         var outputMat = outputImage.GetMat();
-        Assert.Equal(MatType.CV_8UC3, outputMat.Type());
+        Assert.Equal(MatType.CV_16UC3, outputMat.Type());
         Assert.Equal(3, outputMat.Channels());
 
-        var pixel = outputMat.At<Vec3b>(30, 40);
+        var pixel = outputMat.At<Vec3w>(30, 40);
         Assert.False(pixel.Item0 == pixel.Item1 && pixel.Item1 == pixel.Item2);
         Assert.Equal("LumaOnly", result.OutputData["ColorMode"]);
     }

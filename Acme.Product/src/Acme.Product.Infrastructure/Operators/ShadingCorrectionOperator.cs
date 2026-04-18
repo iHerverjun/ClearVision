@@ -162,12 +162,9 @@ public class ShadingCorrectionOperator : OperatorBase
         Cv2.Add(bg32, eps, denom);
 
         using var corrected32 = new Mat();
-        Cv2.Divide(src32, denom, corrected32, 255.0);
-        Cv2.Normalize(corrected32, corrected32, 0, 255, NormTypes.MinMax);
-
-        var result = new Mat();
-        corrected32.ConvertTo(result, MatType.CV_8UC1);
-        return result;
+        var targetLevel = Math.Max(1.0, Cv2.Mean(bg32).Val0);
+        Cv2.Divide(src32, denom, corrected32, targetLevel);
+        return ConvertBackToSourceDepth(corrected32, gray);
     }
 
     private static Mat ApplyPerChannel(Mat src, Mat? background, Func<Mat, Mat?, Mat> processor)
@@ -413,12 +410,9 @@ public class ShadingCorrectionOperator : OperatorBase
         Cv2.Add(bg32, eps, denom);
 
         using var corrected32 = new Mat();
-        Cv2.Divide(src32, denom, corrected32, 128.0);
-        Cv2.Normalize(corrected32, corrected32, 0, 255, NormTypes.MinMax);
-
-        var result = new Mat();
-        corrected32.ConvertTo(result, MatType.CV_8UC1);
-        return result;
+        var targetLevel = Math.Max(1.0, Cv2.Mean(bg32).Val0);
+        Cv2.Divide(src32, denom, corrected32, targetLevel);
+        return ConvertBackToSourceDepth(corrected32, gray);
     }
 
     private static Mat CorrectByTopHat(Mat gray, int kernelSize)
@@ -432,6 +426,36 @@ public class ShadingCorrectionOperator : OperatorBase
     private static int ToOdd(int value)
     {
         return value % 2 == 0 ? value + 1 : value;
+    }
+
+    private static Mat ConvertBackToSourceDepth(Mat corrected32, Mat reference)
+    {
+        if (reference.Depth() == MatType.CV_32F)
+        {
+            return corrected32.Clone();
+        }
+
+        if (reference.Depth() == MatType.CV_64F)
+        {
+            var result64 = new Mat();
+            corrected32.ConvertTo(result64, MatType.CV_64FC1);
+            return result64;
+        }
+
+        var (minValue, maxValue) = reference.Depth() switch
+        {
+            MatType.CV_8U => (0.0, 255.0),
+            MatType.CV_16U => (0.0, (double)ushort.MaxValue),
+            _ => (0.0, 255.0)
+        };
+
+        using var clipped = new Mat();
+        Cv2.Min(corrected32, new Scalar(maxValue), clipped);
+        Cv2.Max(clipped, new Scalar(minValue), clipped);
+
+        var result = new Mat();
+        clipped.ConvertTo(result, MatType.MakeType(reference.Depth(), 1));
+        return result;
     }
 }
 

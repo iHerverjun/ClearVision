@@ -111,13 +111,15 @@ public class ImageNormalizeOperator : OperatorBase
 
     private static Mat NormalizeMinMax(Mat src, double alpha, double beta)
     {
+        var (resolvedAlpha, resolvedBeta) = ResolveTargetRange(src, alpha, beta);
         var normalized = new Mat();
-        Cv2.Normalize(src, normalized, alpha, beta, NormTypes.MinMax, MatType.CV_8UC1);
+        Cv2.Normalize(src, normalized, resolvedAlpha, resolvedBeta, NormTypes.MinMax, GetMatchingSingleChannelType(src));
         return normalized;
     }
 
     private static Mat NormalizeZScore(Mat src, double alpha, double beta)
     {
+        var (resolvedAlpha, resolvedBeta) = ResolveTargetRange(src, alpha, beta);
         Cv2.MeanStdDev(src, out var mean, out var stddev);
         var sigma = Math.Max(1e-6, stddev.Val0);
 
@@ -130,7 +132,7 @@ public class ImageNormalizeOperator : OperatorBase
         Cv2.Divide(centered, new Scalar(sigma), z);
 
         var normalized = new Mat();
-        Cv2.Normalize(z, normalized, alpha, beta, NormTypes.MinMax, MatType.CV_8UC1);
+        Cv2.Normalize(z, normalized, resolvedAlpha, resolvedBeta, NormTypes.MinMax, GetMatchingSingleChannelType(src));
         return normalized;
     }
 
@@ -322,5 +324,32 @@ public class ImageNormalizeOperator : OperatorBase
                 channel.Dispose();
             }
         }
+    }
+
+    private static (double Alpha, double Beta) ResolveTargetRange(Mat src, double alpha, double beta)
+    {
+        if (Math.Abs(alpha) > 1e-9 || Math.Abs(beta - 255.0) > 1e-9)
+        {
+            return (alpha, beta);
+        }
+
+        return src.Depth() switch
+        {
+            MatType.CV_16U => (0.0, ushort.MaxValue),
+            MatType.CV_32F or MatType.CV_64F => (0.0, 1.0),
+            _ => (alpha, beta)
+        };
+    }
+
+    private static MatType GetMatchingSingleChannelType(Mat src)
+    {
+        return src.Depth() switch
+        {
+            MatType.CV_8U => MatType.CV_8UC1,
+            MatType.CV_16U => MatType.CV_16UC1,
+            MatType.CV_32F => MatType.CV_32FC1,
+            MatType.CV_64F => MatType.CV_64FC1,
+            _ => MatType.CV_8UC1
+        };
     }
 }
