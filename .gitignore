@@ -71,6 +71,7 @@ ImageCache/
 TempImages/
 UserScripts/
 TestResults/
+/test_results/
 coverage/
 artifacts/
 publish/
