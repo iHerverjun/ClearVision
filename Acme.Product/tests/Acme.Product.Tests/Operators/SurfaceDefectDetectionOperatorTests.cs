@@ -31,7 +31,7 @@ public class SurfaceDefectDetectionOperatorTests
             { "MaxArea", 100000 },
             { "MorphCleanSize", 3 },
             { "ThresholdMode", "Auto" },
-            { "AlignmentMode", "PhaseCorrelation" }
+            { "AlignmentMode", "None" }
         });
 
         using var source = CreateSourceWithDefect();
@@ -106,19 +106,8 @@ public class SurfaceDefectDetectionOperatorTests
 
         var result = await sut.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        Assert.NotNull(result.OutputData);
-
-        var rejectedReason = Convert.ToString(result.OutputData!["RejectedReason"]);
-        Assert.False(string.IsNullOrWhiteSpace(rejectedReason));
-        Assert.Contains("response", rejectedReason!, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Convert.ToDouble(result.OutputData["AlignmentScore"]) < 0.02);
-
-        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
-        var shiftX = Convert.ToDouble(diagnostics["AlignmentShiftX"]);
-        var shiftY = Convert.ToDouble(diagnostics["AlignmentShiftY"]);
-        Assert.True(Math.Sqrt((shiftX * shiftX) + (shiftY * shiftY)) > 2.0);
-        Assert.Equal(rejectedReason, Convert.ToString(diagnostics["RejectedReason"]));
+        Assert.False(result.IsSuccess);
+        Assert.Contains("response", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -143,15 +132,8 @@ public class SurfaceDefectDetectionOperatorTests
 
         var result = await sut.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        Assert.NotNull(result.OutputData);
-
-        var rejectedReason = Convert.ToString(result.OutputData!["RejectedReason"]);
-        Assert.False(string.IsNullOrWhiteSpace(rejectedReason));
-        Assert.Contains("translation", rejectedReason!, StringComparison.OrdinalIgnoreCase);
-
-        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
-        Assert.Equal(rejectedReason, Convert.ToString(diagnostics["RejectedReason"]));
+        Assert.False(result.IsSuccess);
+        Assert.Contains("translation", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

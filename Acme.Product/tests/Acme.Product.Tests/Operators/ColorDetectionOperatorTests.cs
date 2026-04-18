@@ -71,7 +71,7 @@ public class ColorDetectionOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceInput_ShouldIgnoreIncompleteReference()
+    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceInput_ShouldFailClosed()
     {
         var sut = CreateSut();
         var op = CreateOperator(new Dictionary<string, object>
@@ -93,16 +93,12 @@ public class ColorDetectionOperatorTests
 
         var result = await sut.ExecuteAsync(op, inputs);
 
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        Assert.NotNull(result.OutputData);
-        Assert.True(Convert.ToDouble(result.OutputData!["DeltaE"]) < 0.1);
-
-        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
-        Assert.False(Convert.ToBoolean(diagnostics["ReferenceProvided"]));
+        Assert.False(result.IsSuccess);
+        Assert.Contains("requires a complete reference color", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceParameters_ShouldIgnoreIncompleteReference()
+    public async Task ExecuteAsync_WithLabDeltaEModeAndPartialReferenceParameters_ShouldFailClosed()
     {
         var sut = CreateSut();
         using var image = CreateSolidColorImage(new Scalar(255, 0, 0));
@@ -119,12 +115,8 @@ public class ColorDetectionOperatorTests
 
         var result = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
 
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        Assert.NotNull(result.OutputData);
-        Assert.True(Convert.ToDouble(result.OutputData!["DeltaE"]) < 0.1);
-
-        var diagnostics = Assert.IsType<Dictionary<string, object>>(result.OutputData["Diagnostics"]);
-        Assert.False(Convert.ToBoolean(diagnostics["ReferenceProvided"]));
+        Assert.False(result.IsSuccess);
+        Assert.Contains("requires a complete reference color", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

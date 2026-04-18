@@ -202,7 +202,7 @@ public sealed class AnomalyDetectionOperatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithOnnxEmbeddingModelId_ShouldResolveEmbeddingFromCatalog()
+    public async Task ExecuteAsync_WithOnnxEmbeddingModelId_ShouldPreferFeatureBankEmbeddingMetadataOverCatalogOverride()
     {
         var sut = new AnomalyDetectionOperator(Substitute.For<ILogger<AnomalyDetectionOperator>>());
         var featureBankPath = Path.Combine(Path.GetTempPath(), $"anomaly-onnx-catalog-bank-{Guid.NewGuid():N}.json");
@@ -239,7 +239,7 @@ public sealed class AnomalyDetectionOperatorTests
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         Convert.ToBoolean(result.OutputData!["IsAnomaly"]).Should().BeTrue();
-        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["EmbeddingSource"].Should().Be("ModelCatalog");
+        result.OutputData["Diagnostics"].Should().BeOfType<Dictionary<string, object>>().Subject["EmbeddingSource"].Should().Be("FeatureBankMetadataPath");
 
         DisposeOutputs(trainResult.OutputData);
         DisposeOutputs(result.OutputData);

@@ -134,7 +134,7 @@ public class PixelToWorldTransformOperatorTests
                                                      "matrix": [
                                                        [1.0, 0.0, 0.0, 0.0],
                                                        [0.0, 1.0, 0.0, 0.0],
-                                                       [0.0, 0.0, 1.0, 100.0],
+                                                       [0.0, 0.0, 1.0, -100.0],
                                                        [0.0, 0.0, 0.0, 1.0]
                                                      ]
                                                    },
@@ -186,13 +186,13 @@ public class PixelToWorldTransformOperatorTests
                                                  },
                                                  "transform3D": {
                                                    "model": "rigid3D",
-                                                   "matrix": [
-                                                     [1.0, 0.0, 0.0, 0.0],
-                                                     [0.0, 1.0, 0.0, 0.0],
-                                                     [0.0, 0.0, 1.0, 100.0],
-                                                     [0.0, 0.0, 0.0, 1.0]
-                                                   ]
-                                                 },
+                                                     "matrix": [
+                                                       [1.0, 0.0, 0.0, 0.0],
+                                                       [0.0, 1.0, 0.0, 0.0],
+                                                       [0.0, 0.0, 1.0, -100.0],
+                                                       [0.0, 0.0, 0.0, 1.0]
+                                                     ]
+                                                   },
                                                  "quality": {
                                                    "accepted": true,
                                                    "meanError": 0.10,
@@ -231,8 +231,9 @@ public class PixelToWorldTransformOperatorTests
         var pixelToWorld = await _operator.ExecuteAsync(pixelToWorldOp, pixelToWorldInputs);
         pixelToWorld.IsSuccess.Should().BeTrue(pixelToWorld.ErrorMessage);
 
-        var worldPoint = ((List<Acme.Product.Core.ValueObjects.Position>)pixelToWorld.OutputData!["TransformedPoints"]).Single();
+        var worldPoint = ((List<Point3d>)pixelToWorld.OutputData!["TransformedPoints"]).Single();
         worldPoint.X.Should().BeApproximately(12.0, 0.2);
         worldPoint.Y.Should().BeApproximately(-6.0, 0.2);
+        worldPoint.Z.Should().BeApproximately(0.0, 1e-6);
     }
 }
