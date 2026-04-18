@@ -107,12 +107,17 @@ public class FindContoursOperator : OperatorBase
         Cv2.FindContours(binary, out Point[][] contours, out HierarchyIndex[] hierarchy, retrievalMode, contourApprox);
 
         // 筛选轮廓
-        var filteredContours = contours
-            .Where(c =>
+        var filteredContourEntries = contours
+            .Select((contour, index) => new
             {
-                var area = Cv2.ContourArea(c);
-                return area >= minArea && area <= maxArea;
+                Index = index,
+                Contour = contour,
+                Area = Cv2.ContourArea(contour)
             })
+            .Where(entry => entry.Area >= minArea && entry.Area <= maxArea)
+            .ToArray();
+        var filteredContours = filteredContourEntries
+            .Select(entry => entry.Contour)
             .ToArray();
 
         // 绘制轮廓
@@ -138,9 +143,11 @@ public class FindContoursOperator : OperatorBase
 
         // P0: 使用ImageWrapper实现零拷贝输出
         // 构建轮廓信息
-        var filteredHierarchy = filteredContours
-            .Select(contour => Array.IndexOf(contours, contour))
-            .Select(index => index >= 0 && index < hierarchy.Length ? hierarchy[index] : default)
+        var originalToFiltered = filteredContourEntries
+            .Select((entry, filteredIndex) => new { entry.Index, FilteredIndex = filteredIndex })
+            .ToDictionary(item => item.Index, item => item.FilteredIndex);
+        var filteredHierarchy = filteredContourEntries
+            .Select(entry => RemapHierarchy(hierarchy[entry.Index], originalToFiltered))
             .ToArray();
 
         var contourSummaries = filteredContours.Select((c, index) =>
@@ -218,5 +225,28 @@ public class FindContoursOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static HierarchyIndex RemapHierarchy(
+        HierarchyIndex original,
+        IReadOnlyDictionary<int, int> originalToFiltered)
+    {
+        return new HierarchyIndex(
+            RemapHierarchyIndex(original.Next, originalToFiltered),
+            RemapHierarchyIndex(original.Previous, originalToFiltered),
+            RemapHierarchyIndex(original.Child, originalToFiltered),
+            RemapHierarchyIndex(original.Parent, originalToFiltered));
+    }
+
+    private static int RemapHierarchyIndex(int originalIndex, IReadOnlyDictionary<int, int> originalToFiltered)
+    {
+        if (originalIndex < 0)
+        {
+            return -1;
+        }
+
+        return originalToFiltered.TryGetValue(originalIndex, out var filteredIndex)
+            ? filteredIndex
+            : -1;
     }
 }

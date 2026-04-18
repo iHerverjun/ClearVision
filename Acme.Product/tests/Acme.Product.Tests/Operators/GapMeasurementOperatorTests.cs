@@ -99,13 +99,9 @@ public class GapMeasurementOperatorTests
         });
 
         using var profileImage = new Mat(60, 200, MatType.CV_8UC1, Scalar.Black);
-
-        // Regular weak peaks that should still be detected.
         Cv2.Line(profileImage, new Point(30, 0), new Point(30, 59), new Scalar(30), 1);
         Cv2.Line(profileImage, new Point(70, 0), new Point(70, 59), new Scalar(30), 1);
         Cv2.Line(profileImage, new Point(110, 0), new Point(110, 59), new Scalar(30), 1);
-
-        // A wide bright outlier simulating highlight/scratch.
         Cv2.Rectangle(profileImage, new Rect(160, 0, 20, 60), new Scalar(255), -1);
 
         using var image = new ImageWrapper(profileImage.Clone());
@@ -139,6 +135,29 @@ public class GapMeasurementOperatorTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("LowContrast", result.ErrorMessage ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDifferentStripeWidths_ShouldMeasureEdgeToEdgeGapInsteadOfCenterPitch()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" }
+        });
+
+        using var profileImage = new Mat(80, 120, MatType.CV_8UC1, Scalar.Black);
+        Cv2.Rectangle(profileImage, new Rect(20, 10, 10, 60), new Scalar(220), -1);
+        Cv2.Rectangle(profileImage, new Rect(50, 10, 20, 60), new Scalar(220), -1);
+        using var image = new ImageWrapper(profileImage.Clone());
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { { "Image", image } });
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        var gaps = Assert.IsType<List<double>>(result.OutputData!["Gaps"]);
+        Assert.Single(gaps);
+        Assert.InRange(gaps[0], 18.0, 22.0);
+        Assert.InRange(Convert.ToDouble(result.OutputData["MeanGap"]), 18.0, 22.0);
     }
 
     private static GapMeasurementOperator CreateSut()

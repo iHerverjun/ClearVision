@@ -303,19 +303,9 @@ public class GapMeasurementOperator : OperatorBase
 
         var profile = horizontal ? xProjection : yProjection;
         diagnostics = AssessDiagnostics(gray, profile);
-        positions = FindFeaturePositions(profile, robustMode);
-
-        var gaps = new List<double>(Math.Max(0, positions.Count - 1));
-        for (var i = 1; i < positions.Count; i++)
-        {
-            var gap = positions[i] - positions[i - 1];
-            if (gap > 0)
-            {
-                gaps.Add(gap);
-            }
-        }
-
-        return gaps;
+        var analysis = AnalyzeProfileFeatures(profile, robustMode);
+        positions = analysis.FeaturePositions;
+        return analysis.Gaps;
     }
 
     private static double[] BuildAggregatedProjection(Mat gray, bool horizontal, int multiScanCount)
@@ -404,31 +394,121 @@ public class GapMeasurementOperator : OperatorBase
         return sum / values.Count;
     }
 
-    private static List<double> FindFeaturePositions(IReadOnlyList<double> profile, bool robustMode)
+    private static ProjectionGapAnalysis AnalyzeProfileFeatures(IReadOnlyList<double> profile, bool robustMode)
     {
-        var result = new List<double>();
+        var featurePositions = new List<double>();
+        var gaps = new List<double>();
         if (profile.Count < 5)
         {
-            return result;
+            return new ProjectionGapAnalysis(featurePositions, gaps);
         }
 
         var threshold = IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 2.0);
-        var centers = IndustrialCaliperKernel.DetectBrightStripeCenters(profile, threshold, sigma: robustMode ? 1.6 : 1.2);
-        if (centers.Count == 0)
+        var rawEdges = IndustrialCaliperKernel.DetectEdges(profile, threshold, "Both", sigma: robustMode ? 1.6 : 1.2)
+            .OrderBy(edge => edge.Position)
+            .ToList();
+        if (rawEdges.Count < 2)
         {
-            return result;
+            return new ProjectionGapAnalysis(featurePositions, gaps);
         }
 
         var minPeakDistance = Math.Max(6.0, profile.Count / 150.0);
-        foreach (var center in centers.OrderBy(static value => value))
+        var edges = new List<IndustrialCaliperEdge>(rawEdges.Count);
+        foreach (var edge in rawEdges)
         {
-            if (result.Count == 0 || center - result[^1] > minPeakDistance)
+            if (edges.Count > 0 && edge.Position - edges[^1].Position < minPeakDistance)
             {
-                result.Add(center);
+                if (edge.Strength > edges[^1].Strength)
+                {
+                    edges[^1] = edge;
+                }
+
+                continue;
+            }
+
+            edges.Add(edge);
+        }
+
+        featurePositions = edges.Select(edge => edge.Position).ToList();
+        var brightStripePairs = IndustrialCaliperKernel.BuildPairs(edges, "positive_to_negative", int.MaxValue);
+        var darkStripePairs = IndustrialCaliperKernel.BuildPairs(edges, "negative_to_positive", int.MaxValue);
+        var brightGaps = ComputeInterStripeGaps(brightStripePairs);
+        var darkGaps = ComputeInterStripeGaps(darkStripePairs);
+        gaps = ChooseMoreStableGapSet(brightGaps, darkGaps);
+        if (gaps.Count == 0)
+        {
+            var centerFallback = BuildCenterFallbackGaps(profile, robustMode);
+            if (centerFallback.Count > 0)
+            {
+                gaps = centerFallback;
             }
         }
 
-        return result;
+        return new ProjectionGapAnalysis(featurePositions, gaps);
+    }
+
+    private static List<double> BuildCenterFallbackGaps(IReadOnlyList<double> profile, bool robustMode)
+    {
+        var centers = IndustrialCaliperKernel.DetectBrightStripeCenters(profile, IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 2.0), sigma: robustMode ? 1.6 : 1.2);
+        if (centers.Count < 2)
+        {
+            return new List<double>();
+        }
+
+        var gaps = new List<double>(centers.Count - 1);
+        foreach (var pair in centers.OrderBy(static value => value).Zip(centers.OrderBy(static value => value).Skip(1)))
+        {
+            var gap = pair.Second - pair.First;
+            if (gap > 0)
+            {
+                gaps.Add(gap);
+            }
+        }
+
+        return gaps;
+    }
+
+    private static List<double> ComputeInterStripeGaps(IReadOnlyList<IndustrialCaliperEdgePair> stripePairs)
+    {
+        var gaps = new List<double>(Math.Max(0, stripePairs.Count - 1));
+        for (var i = 1; i < stripePairs.Count; i++)
+        {
+            var gap = stripePairs[i].First.Position - stripePairs[i - 1].Second.Position;
+            if (gap > 0)
+            {
+                gaps.Add(gap);
+            }
+        }
+
+        return gaps;
+    }
+
+    private static List<double> ChooseMoreStableGapSet(
+        IReadOnlyList<double> brightGaps,
+        IReadOnlyList<double> darkGaps)
+    {
+        if (brightGaps.Count == 0)
+        {
+            return darkGaps.ToList();
+        }
+
+        if (darkGaps.Count == 0)
+        {
+            return brightGaps.ToList();
+        }
+
+        if (brightGaps.Count != darkGaps.Count)
+        {
+            return brightGaps.Count > darkGaps.Count
+                ? brightGaps.ToList()
+                : darkGaps.ToList();
+        }
+
+        var brightStdDev = ComputeStdDev(brightGaps, brightGaps.Average());
+        var darkStdDev = ComputeStdDev(darkGaps, darkGaps.Average());
+        return brightStdDev <= darkStdDev
+            ? brightGaps.ToList()
+            : darkGaps.ToList();
     }
 
     private static double[] SmoothProfile(IReadOnlyList<double> profile, int radius)
@@ -730,5 +810,9 @@ public class GapMeasurementOperator : OperatorBase
     {
         public static GapDiagnostics None => new(false, false, false);
     }
+
+    private readonly record struct ProjectionGapAnalysis(
+        List<double> FeaturePositions,
+        List<double> Gaps);
 }
 
