@@ -46,6 +46,13 @@ public sealed class StatisticalOutlierRemoval
 
         var k = Math.Min(meanK, n - 1);
         var pIdx = input.Points.GetGenericIndexer<float>();
+        var points = new Point3[n];
+        for (var i = 0; i < n; i++)
+        {
+            points[i] = new Point3(pIdx[i, 0], pIdx[i, 1], pIdx[i, 2]);
+        }
+
+        var kdTree = KdNode.Build(points);
 
         var meanDists = new double[n];
         var heap = new MaxHeap(capacity: k);
@@ -53,30 +60,7 @@ public sealed class StatisticalOutlierRemoval
         for (int i = 0; i < n; i++)
         {
             heap.Clear();
-
-            var xi = pIdx[i, 0];
-            var yi = pIdx[i, 1];
-            var zi = pIdx[i, 2];
-
-            for (int j = 0; j < n; j++)
-            {
-                if (j == i)
-                {
-                    continue;
-                }
-
-                var dx = (double)pIdx[j, 0] - xi;
-                var dy = (double)pIdx[j, 1] - yi;
-                var dz = (double)pIdx[j, 2] - zi;
-
-                var d2 = (dx * dx) + (dy * dy) + (dz * dz);
-                if (!double.IsFinite(d2))
-                {
-                    continue;
-                }
-
-                heap.TryAdd(d2);
-            }
+            kdTree.Search(points, i, heap);
 
             if (heap.Count == 0)
             {
@@ -225,6 +209,8 @@ public sealed class StatisticalOutlierRemoval
 
         public int Count { get; private set; }
         public Span<double> Items => _items.AsSpan(0, Count);
+        public int Capacity => _items.Length;
+        public double MaxValue => Count == 0 ? double.PositiveInfinity : _items[0];
 
         public MaxHeap(int capacity)
         {
@@ -298,6 +284,127 @@ public sealed class StatisticalOutlierRemoval
 
                 (_items[i], _items[largest]) = (_items[largest], _items[i]);
                 i = largest;
+            }
+        }
+    }
+
+    private readonly record struct Point3(float X, float Y, float Z)
+    {
+        public double Coordinate(int axis)
+        {
+            return axis switch
+            {
+                0 => X,
+                1 => Y,
+                _ => Z
+            };
+        }
+    }
+
+    private sealed class KdNode
+    {
+        private readonly int _pointIndex;
+        private readonly int _axis;
+        private readonly KdNode? _left;
+        private readonly KdNode? _right;
+
+        private KdNode(int pointIndex, int axis, KdNode? left, KdNode? right)
+        {
+            _pointIndex = pointIndex;
+            _axis = axis;
+            _left = left;
+            _right = right;
+        }
+
+        public static KdNode Build(IReadOnlyList<Point3> points)
+        {
+            var indices = Enumerable.Range(0, points.Count).ToArray();
+            return Build(points, indices, 0, indices.Length)!;
+        }
+
+        public void Search(IReadOnlyList<Point3> points, int targetIndex, MaxHeap heap)
+        {
+            Search(points, points[targetIndex], targetIndex, heap);
+        }
+
+        private static KdNode? Build(IReadOnlyList<Point3> points, int[] indices, int start, int length)
+        {
+            if (length <= 0)
+            {
+                return null;
+            }
+
+            var axis = SelectAxis(points, indices, start, length);
+            Array.Sort(indices, start, length, Comparer<int>.Create((a, b) =>
+            {
+                var compare = points[a].Coordinate(axis).CompareTo(points[b].Coordinate(axis));
+                return compare != 0 ? compare : a.CompareTo(b);
+            }));
+
+            var mid = start + (length / 2);
+            return new KdNode(
+                indices[mid],
+                axis,
+                Build(points, indices, start, mid - start),
+                Build(points, indices, mid + 1, start + length - mid - 1));
+        }
+
+        private static int SelectAxis(IReadOnlyList<Point3> points, IReadOnlyList<int> indices, int start, int length)
+        {
+            var minX = double.PositiveInfinity;
+            var minY = double.PositiveInfinity;
+            var minZ = double.PositiveInfinity;
+            var maxX = double.NegativeInfinity;
+            var maxY = double.NegativeInfinity;
+            var maxZ = double.NegativeInfinity;
+
+            for (var i = start; i < start + length; i++)
+            {
+                var point = points[indices[i]];
+                minX = Math.Min(minX, point.X);
+                minY = Math.Min(minY, point.Y);
+                minZ = Math.Min(minZ, point.Z);
+                maxX = Math.Max(maxX, point.X);
+                maxY = Math.Max(maxY, point.Y);
+                maxZ = Math.Max(maxZ, point.Z);
+            }
+
+            var rangeX = maxX - minX;
+            var rangeY = maxY - minY;
+            var rangeZ = maxZ - minZ;
+            if (rangeX >= rangeY && rangeX >= rangeZ)
+            {
+                return 0;
+            }
+
+            return rangeY >= rangeZ ? 1 : 2;
+        }
+
+        private void Search(IReadOnlyList<Point3> points, Point3 target, int targetIndex, MaxHeap heap)
+        {
+            var current = points[_pointIndex];
+            var axisDistance = target.Coordinate(_axis) - current.Coordinate(_axis);
+            var near = axisDistance <= 0 ? _left : _right;
+            var far = axisDistance <= 0 ? _right : _left;
+
+            near?.Search(points, target, targetIndex, heap);
+
+            if (_pointIndex != targetIndex)
+            {
+                var dx = (double)current.X - target.X;
+                var dy = (double)current.Y - target.Y;
+                var dz = (double)current.Z - target.Z;
+                var d2 = (dx * dx) + (dy * dy) + (dz * dz);
+                if (double.IsFinite(d2))
+                {
+                    heap.TryAdd(d2);
+                }
+            }
+
+            var axisDistanceSquared = axisDistance * axisDistance;
+            if (heap.Count < heap.Capacity || axisDistanceSquared < heap.MaxValue)
+            {
+                far?.Search(points, target, targetIndex, heap);
             }
         }
     }

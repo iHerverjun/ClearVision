@@ -120,7 +120,6 @@ public sealed class PPFMatchOperator : OperatorBase
         }
 
         var ratio = (double)result.InlierCount / Math.Max(1, model.Count);
-        var verificationPassed = result.IsMatched && !result.IsAmbiguous;
         var failureReason = result.IsAmbiguous
             ? "Ambiguous coarse pose solution."
             : result.InlierCount >= minInliers && result.StabilityScore < PPFMatcher.MinimumRecommendedStabilityScore
@@ -130,6 +129,9 @@ public sealed class PPFMatchOperator : OperatorBase
             : result.IsMatched
                 ? string.Empty
                 : "PPF coarse pose verification failed.";
+        var verificationPassed = result.IsMatched &&
+                                 !result.IsAmbiguous &&
+                                 string.IsNullOrEmpty(failureReason);
 
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {

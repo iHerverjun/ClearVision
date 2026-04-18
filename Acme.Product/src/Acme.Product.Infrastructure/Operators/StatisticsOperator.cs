@@ -77,10 +77,11 @@ public class StatisticsOperator : OperatorBase
             }
 
             state.LastTouchedUtc = nowUtc;
+            state.Ttl = TimeSpan.FromMinutes(stateTtlMinutes);
             snapshot = state.Values.ToArray();
         }
 
-        TryCleanupStaleStates(nowUtc, TimeSpan.FromMinutes(stateTtlMinutes));
+        TryCleanupStaleStates(nowUtc);
 
         var count = snapshot.Length;
         var mean = snapshot.Average();
@@ -154,7 +155,7 @@ public class StatisticsOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static void TryCleanupStaleStates(DateTime nowUtc, TimeSpan stateTtl)
+    private static void TryCleanupStaleStates(DateTime nowUtc)
     {
         if ((nowUtc - _lastCleanupUtc) < CleanupInterval)
         {
@@ -168,14 +169,13 @@ public class StatisticsOperator : OperatorBase
                 return;
             }
 
-            var staleBefore = nowUtc - stateTtl;
             foreach (var entry in HistoryByOperator)
             {
                 var shouldRemove = false;
                 var state = entry.Value;
                 lock (state.SyncRoot)
                 {
-                    shouldRemove = state.LastTouchedUtc < staleBefore;
+                    shouldRemove = state.LastTouchedUtc < nowUtc - state.Ttl;
                 }
 
                 if (shouldRemove)
@@ -206,5 +206,7 @@ public class StatisticsOperator : OperatorBase
         public Queue<double> Values { get; } = new();
 
         public DateTime LastTouchedUtc { get; set; } = DateTime.UtcNow;
+
+        public TimeSpan Ttl { get; set; } = TimeSpan.FromMinutes(120);
     }
 }

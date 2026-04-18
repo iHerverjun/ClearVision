@@ -128,7 +128,7 @@ public class ShapeMatchingOperator : OperatorBase
                     {
                         var levelSrc = srcPyramid[level];
                         var levelTmpl = tmplPyramid[level];
-                        levelMatches = MatchByTransforms(levelSrc, levelTmpl, currentAngles, currentScales, minScore, candidateLimit);
+                        levelMatches = MatchByTransforms(levelSrc, levelTmpl, currentAngles, currentScales, minScore, candidateLimit, origin);
 
                         if (level == 0)
                         {
@@ -169,10 +169,10 @@ public class ShapeMatchingOperator : OperatorBase
                         { "Angle", m.Angle },
                         { "Scale", m.Scale },
                         { "Score", m.Score },
-                        { "CenterX", m.SubpixelX + (m.Width / 2.0) },
-                        { "CenterY", m.SubpixelY + (m.Height / 2.0) },
-                        { "ReferenceX", m.SubpixelX + origin.X },
-                        { "ReferenceY", m.SubpixelY + origin.Y },
+                        { "CenterX", m.SubpixelX + m.CenterOffsetX },
+                        { "CenterY", m.SubpixelY + m.CenterOffsetY },
+                        { "ReferenceX", m.SubpixelX + m.ReferenceOffsetX },
+                        { "ReferenceY", m.SubpixelY + m.ReferenceOffsetY },
                         { "Width", m.Width },
                         { "Height", m.Height }
                     }).ToList();
@@ -404,7 +404,8 @@ public class ShapeMatchingOperator : OperatorBase
         IReadOnlyCollection<double> angles,
         IReadOnlyCollection<double> scales,
         double minScore,
-        int candidateLimit)
+        int candidateLimit,
+        Position origin)
     {
         var matches = new List<MatchResult>();
         var locker = new object();
@@ -419,6 +420,7 @@ public class ShapeMatchingOperator : OperatorBase
                 using var transformedTemplate = TransformTemplate(tmplGray, transform.angle, transform.scale, InterpolationFlags.Linear);
                 using var transformedMask = TransformTemplate(templateMask, transform.angle, transform.scale, InterpolationFlags.Nearest);
                 BinarizeMask(transformedMask);
+                var geometry = ComputeTransformGeometry(tmplGray.Size(), transform.angle, transform.scale, origin);
                 if (transformedTemplate.Width >= srcGray.Width || transformedTemplate.Height >= srcGray.Height)
                 {
                     return;
@@ -447,6 +449,7 @@ public class ShapeMatchingOperator : OperatorBase
                     transformedTemplate.Size(),
                     transform.angle,
                     transform.scale,
+                    geometry,
                     minScore,
                     perTransformLimit);
                 candidates = ReScoreCandidates(
@@ -635,6 +638,7 @@ public class ShapeMatchingOperator : OperatorBase
         Size templateSize,
         double angle,
         double scale,
+        TransformGeometry geometry,
         double minScore,
         int maxCandidates)
     {
@@ -667,7 +671,11 @@ public class ShapeMatchingOperator : OperatorBase
                 Scale = scale,
                 Score = maxVal,
                 Width = templateSize.Width,
-                Height = templateSize.Height
+                Height = templateSize.Height,
+                CenterOffsetX = geometry.CenterOffset.X,
+                CenterOffsetY = geometry.CenterOffset.Y,
+                ReferenceOffsetX = geometry.ReferenceOffset.X,
+                ReferenceOffsetY = geometry.ReferenceOffset.Y
             });
 
             SuppressPeakRegion(working, maxLoc, maxVal, minScore, templateSize);
@@ -727,7 +735,11 @@ public class ShapeMatchingOperator : OperatorBase
                 Scale = candidate.Scale,
                 Score = blendedScore,
                 Width = candidate.Width,
-                Height = candidate.Height
+                Height = candidate.Height,
+                CenterOffsetX = candidate.CenterOffsetX,
+                CenterOffsetY = candidate.CenterOffsetY,
+                ReferenceOffsetX = candidate.ReferenceOffsetX,
+                ReferenceOffsetY = candidate.ReferenceOffsetY
             });
         }
 
@@ -990,6 +1002,36 @@ public class ShapeMatchingOperator : OperatorBase
         return transformed;
     }
 
+    private static TransformGeometry ComputeTransformGeometry(Size sourceSize, double angle, double scale, Position origin)
+    {
+        var center = new Point2d(sourceSize.Width / 2.0, sourceSize.Height / 2.0);
+        using var rotationMatrix = Cv2.GetRotationMatrix2D(new Point2f((float)center.X, (float)center.Y), angle, 1.0);
+        var cos = Math.Abs(rotationMatrix.Get<double>(0, 0));
+        var sin = Math.Abs(rotationMatrix.Get<double>(0, 1));
+        var boundWidth = Math.Max(1, (int)Math.Ceiling((sourceSize.Height * sin) + (sourceSize.Width * cos)));
+        var boundHeight = Math.Max(1, (int)Math.Ceiling((sourceSize.Height * cos) + (sourceSize.Width * sin)));
+
+        rotationMatrix.Set(0, 2, rotationMatrix.Get<double>(0, 2) + (boundWidth / 2.0) - center.X);
+        rotationMatrix.Set(1, 2, rotationMatrix.Get<double>(1, 2) + (boundHeight / 2.0) - center.Y);
+
+        var scaledMatrix = new[]
+        {
+            new[] { rotationMatrix.Get<double>(0, 0) * scale, rotationMatrix.Get<double>(0, 1) * scale, rotationMatrix.Get<double>(0, 2) * scale },
+            new[] { rotationMatrix.Get<double>(1, 0) * scale, rotationMatrix.Get<double>(1, 1) * scale, rotationMatrix.Get<double>(1, 2) * scale }
+        };
+
+        return new TransformGeometry(
+            ApplyAffine(scaledMatrix, center),
+            ApplyAffine(scaledMatrix, new Point2d(origin.X, origin.Y)));
+    }
+
+    private static Point2d ApplyAffine(IReadOnlyList<double[]> matrix, Point2d point)
+    {
+        return new Point2d(
+            (matrix[0][0] * point.X) + (matrix[0][1] * point.Y) + matrix[0][2],
+            (matrix[1][0] * point.X) + (matrix[1][1] * point.Y) + matrix[1][2]);
+    }
+
     private static void BinarizeMask(Mat mask)
     {
         if (mask.Empty())
@@ -1150,5 +1192,11 @@ public class ShapeMatchingOperator : OperatorBase
         public double Score { get; init; }
         public int Width { get; init; }
         public int Height { get; init; }
+        public double CenterOffsetX { get; init; }
+        public double CenterOffsetY { get; init; }
+        public double ReferenceOffsetX { get; init; }
+        public double ReferenceOffsetY { get; init; }
     }
+
+    private readonly record struct TransformGeometry(Point2d CenterOffset, Point2d ReferenceOffset);
 }

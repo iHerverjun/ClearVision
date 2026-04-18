@@ -3,6 +3,7 @@
 // 统计流程或算子的耗时并输出指标
 // 作者：蘅芜君
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
@@ -27,11 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("ResetInterval", "Reset Interval", "int", DefaultValue = 0, Min = 0, Max = 1000000)]
 public class TimerStatisticsOperator : OperatorBase
 {
-    private readonly object _syncRoot = new();
-    private readonly Stopwatch _intervalStopwatch = new();
-    private bool _started;
-    private double _totalMs;
-    private int _count;
+    private readonly ConcurrentDictionary<Guid, TimerState> _states = new();
 
     public override OperatorType OperatorType => OperatorType.TimerStatistics;
 
@@ -51,35 +48,36 @@ public class TimerStatisticsOperator : OperatorBase
         double totalMs;
         double averageMs;
         int count;
+        var state = _states.GetOrAdd(@operator.Id, static _ => new TimerState());
 
-        lock (_syncRoot)
+        lock (state.SyncRoot)
         {
-            if (!_started)
+            if (!state.Started)
             {
-                _intervalStopwatch.Start();
-                _started = true;
+                state.IntervalStopwatch.Start();
+                state.Started = true;
                 elapsedMs = 0;
             }
             else
             {
-                elapsedMs = _intervalStopwatch.Elapsed.TotalMilliseconds;
-                _intervalStopwatch.Restart();
+                elapsedMs = state.IntervalStopwatch.Elapsed.TotalMilliseconds;
+                state.IntervalStopwatch.Restart();
             }
 
             if (mode.Equals("Cumulative", StringComparison.OrdinalIgnoreCase))
             {
-                _count++;
-                _totalMs += elapsedMs;
+                state.Count++;
+                state.TotalMs += elapsedMs;
 
-                totalMs = _totalMs;
-                count = _count;
-                averageMs = _count > 0 ? _totalMs / _count : 0;
+                totalMs = state.TotalMs;
+                count = state.Count;
+                averageMs = state.Count > 0 ? state.TotalMs / state.Count : 0;
 
-                if (resetInterval > 0 && _count >= resetInterval)
+                if (resetInterval > 0 && state.Count >= resetInterval)
                 {
-                    _count = 0;
-                    _totalMs = 0;
-                    _intervalStopwatch.Restart();
+                    state.Count = 0;
+                    state.TotalMs = 0;
+                    state.IntervalStopwatch.Restart();
                 }
             }
             else
@@ -122,6 +120,15 @@ public class TimerStatisticsOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private sealed class TimerState
+    {
+        public object SyncRoot { get; } = new();
+        public Stopwatch IntervalStopwatch { get; } = new();
+        public bool Started { get; set; }
+        public double TotalMs { get; set; }
+        public int Count { get; set; }
     }
 }
 

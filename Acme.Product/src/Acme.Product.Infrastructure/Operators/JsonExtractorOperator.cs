@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Acme.Product.Core.Attributes;
@@ -202,7 +203,7 @@ public class JsonExtractorOperator : OperatorBase
                 convertedValue = valueStr;
                 return true;
             case "float":
-                if (float.TryParse(valueStr, out var f) && float.IsFinite(f))
+                if (float.TryParse(valueStr, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var f) && float.IsFinite(f))
                 {
                     convertedValue = f;
                     return true;
@@ -210,7 +211,7 @@ public class JsonExtractorOperator : OperatorBase
 
                 return false;
             case "double":
-                if (double.TryParse(valueStr, out var d) && double.IsFinite(d))
+                if (double.TryParse(valueStr, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d))
                 {
                     convertedValue = d;
                     return true;
@@ -219,7 +220,7 @@ public class JsonExtractorOperator : OperatorBase
                 return false;
             case "integer":
             case "int":
-                if (int.TryParse(valueStr, out var i))
+                if (int.TryParse(valueStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i))
                 {
                     convertedValue = i;
                     return true;

@@ -59,7 +59,7 @@ public class ImageStitchingOperator : OperatorBase
         double overlapRatio;
 
         if (method.Equals("FeatureBased", StringComparison.OrdinalIgnoreCase) &&
-            TryFeatureBasedStitch(src1, src2, out stitched, out overlapRatio))
+            TryFeatureBasedStitch(src1, src2, blendMode, out stitched, out overlapRatio))
         {
             // stitched by feature matches
         }
@@ -70,7 +70,9 @@ public class ImageStitchingOperator : OperatorBase
 
         var output = new Dictionary<string, object>
         {
-            { "OverlapRatio", overlapRatio }
+            { "OverlapRatio", overlapRatio },
+            { "BlendModeApplied", blendMode },
+            { "MethodApplied", method }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(stitched, output)));
@@ -94,7 +96,7 @@ public class ImageStitchingOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static bool TryFeatureBasedStitch(Mat src1, Mat src2, out Mat stitched, out double overlapRatio)
+    private static bool TryFeatureBasedStitch(Mat src1, Mat src2, string blendMode, out Mat stitched, out double overlapRatio)
     {
         stitched = new Mat();
         overlapRatio = 0.0;
@@ -162,34 +164,52 @@ public class ImageStitchingOperator : OperatorBase
             return false;
         }
 
-        var width = src1.Width + src2.Width;
-        var height = Math.Max(src1.Height, src2.Height);
-
-        stitched = new Mat(height, width, src1.Type(), Scalar.Black);
-        using (var roi = new Mat(stitched, new Rect(0, 0, src1.Width, src1.Height)))
+        var src1Corners = new[]
         {
-            src1.CopyTo(roi);
-        }
-
-        using var warped = new Mat();
-        Cv2.WarpPerspective(src2, warped, homography, new Size(width, height));
-
-        using var grayWarped = new Mat();
-        if (warped.Channels() == 1)
+            new Point2f(0, 0),
+            new Point2f(src1.Width, 0),
+            new Point2f(src1.Width, src1.Height),
+            new Point2f(0, src1.Height)
+        };
+        var src2Corners = new[]
         {
-            warped.CopyTo(grayWarped);
-        }
-        else
-        {
-            Cv2.CvtColor(warped, grayWarped, ColorConversionCodes.BGR2GRAY);
-        }
+            new Point2f(0, 0),
+            new Point2f(src2.Width, 0),
+            new Point2f(src2.Width, src2.Height),
+            new Point2f(0, src2.Height)
+        };
+        var warpedCorners = Cv2.PerspectiveTransform(src2Corners, homography);
+        var allCorners = src1Corners.Concat(warpedCorners).ToArray();
+        var minX = Math.Floor(allCorners.Min(point => point.X));
+        var minY = Math.Floor(allCorners.Min(point => point.Y));
+        var maxX = Math.Ceiling(allCorners.Max(point => point.X));
+        var maxY = Math.Ceiling(allCorners.Max(point => point.Y));
+        var width = Math.Max(1, (int)(maxX - minX));
+        var height = Math.Max(1, (int)(maxY - minY));
 
-        using var maskWarped = new Mat();
-        Cv2.Threshold(grayWarped, maskWarped, 1, 255, ThresholdTypes.Binary);
-        warped.CopyTo(stitched, maskWarped);
+        using var translation = Mat.Eye(3, 3, MatType.CV_64FC1).ToMat();
+        translation.Set(0, 2, -minX);
+        translation.Set(1, 2, -minY);
+        using var translatedHomography = new Mat();
+        using var noMatrix = new Mat();
+        Cv2.Gemm(translation, homography, 1.0, noMatrix, 0.0, translatedHomography);
 
-        var overlapPixels = Cv2.CountNonZero(maskWarped);
-        overlapRatio = overlapPixels / (double)Math.Max(1, src1.Width * src1.Height);
+        using var warped1 = new Mat();
+        using var warped2 = new Mat();
+        Cv2.WarpPerspective(src1, warped1, translation, new Size(width, height));
+        Cv2.WarpPerspective(src2, warped2, translatedHomography, new Size(width, height));
+
+        using var mask1 = CreateNonZeroMask(warped1);
+        using var mask2 = CreateNonZeroMask(warped2);
+        stitched = BlendWarpedImages(warped1, warped2, mask1, mask2, blendMode);
+
+        using var overlapMask = new Mat();
+        Cv2.BitwiseAnd(mask1, mask2, overlapMask);
+        var overlapPixels = Cv2.CountNonZero(overlapMask);
+        using var unionMask = new Mat();
+        Cv2.BitwiseOr(mask1, mask2, unionMask);
+        var unionPixels = Cv2.CountNonZero(unionMask);
+        overlapRatio = overlapPixels / (double)Math.Max(1, unionPixels);
         overlapRatio = Math.Clamp(overlapRatio, 0.0, 1.0);
         return true;
     }
@@ -234,5 +254,120 @@ public class ImageStitchingOperator : OperatorBase
 
         overlapRatio = overlap / (double)Math.Max(1, Math.Min(src1.Width, src2.Width));
         return stitched;
+    }
+
+    private static Mat CreateNonZeroMask(Mat image)
+    {
+        using var gray = new Mat();
+        if (image.Channels() == 1)
+        {
+            image.CopyTo(gray);
+        }
+        else
+        {
+            Cv2.CvtColor(image, gray, ColorConversionCodes.BGR2GRAY);
+        }
+
+        var mask = new Mat();
+        Cv2.Threshold(gray, mask, 1, 255, ThresholdTypes.Binary);
+        return mask;
+    }
+
+    private static Mat BlendWarpedImages(Mat first, Mat second, Mat firstMask, Mat secondMask, string blendMode)
+    {
+        if (string.Equals(blendMode, "Linear", StringComparison.OrdinalIgnoreCase))
+        {
+            return FeatherBlend(first, second, firstMask, secondMask);
+        }
+
+        return FeatherBlend(first, second, firstMask, secondMask);
+    }
+
+    private static Mat FeatherBlend(Mat first, Mat second, Mat firstMask, Mat secondMask)
+    {
+        using var firstDistance = new Mat();
+        using var secondDistance = new Mat();
+        Cv2.DistanceTransform(firstMask, firstDistance, DistanceTypes.L2, DistanceTransformMasks.Mask3);
+        Cv2.DistanceTransform(secondMask, secondDistance, DistanceTypes.L2, DistanceTransformMasks.Mask3);
+
+        using var firstFloat = new Mat();
+        using var secondFloat = new Mat();
+        first.ConvertTo(firstFloat, MatType.MakeType(MatType.CV_32F, first.Channels()));
+        second.ConvertTo(secondFloat, MatType.MakeType(MatType.CV_32F, second.Channels()));
+
+        using var blendedFloat = new Mat(first.Size(), firstFloat.Type(), Scalar.All(0));
+        var result = new Mat(first.Size(), first.Type(), Scalar.Black);
+
+        for (var y = 0; y < first.Rows; y++)
+        {
+            for (var x = 0; x < first.Cols; x++)
+            {
+                var inFirst = firstMask.At<byte>(y, x) > 0;
+                var inSecond = secondMask.At<byte>(y, x) > 0;
+                if (!inFirst && !inSecond)
+                {
+                    continue;
+                }
+
+                if (first.Channels() == 1)
+                {
+                    var value = ResolveBlendValue(
+                        inFirst ? firstFloat.At<float>(y, x) : 0f,
+                        inSecond ? secondFloat.At<float>(y, x) : 0f,
+                        inFirst ? firstDistance.At<float>(y, x) : 0f,
+                        inSecond ? secondDistance.At<float>(y, x) : 0f,
+                        inFirst,
+                        inSecond);
+                    blendedFloat.Set(y, x, value);
+                    continue;
+                }
+
+                var firstPixel = inFirst ? firstFloat.At<Vec3f>(y, x) : new Vec3f();
+                var secondPixel = inSecond ? secondFloat.At<Vec3f>(y, x) : new Vec3f();
+                var firstWeight = inFirst ? firstDistance.At<float>(y, x) : 0f;
+                var secondWeight = inSecond ? secondDistance.At<float>(y, x) : 0f;
+                blendedFloat.Set(y, x, ResolveBlendValue(firstPixel, secondPixel, firstWeight, secondWeight, inFirst, inSecond));
+            }
+        }
+
+        blendedFloat.ConvertTo(result, first.Type());
+        return result;
+    }
+
+    private static float ResolveBlendValue(float firstValue, float secondValue, float firstWeight, float secondWeight, bool inFirst, bool inSecond)
+    {
+        if (inFirst && !inSecond)
+        {
+            return firstValue;
+        }
+
+        if (!inFirst && inSecond)
+        {
+            return secondValue;
+        }
+
+        var weightSum = Math.Max(1e-6f, firstWeight + secondWeight);
+        return (firstValue * (firstWeight / weightSum)) + (secondValue * (secondWeight / weightSum));
+    }
+
+    private static Vec3f ResolveBlendValue(Vec3f firstValue, Vec3f secondValue, float firstWeight, float secondWeight, bool inFirst, bool inSecond)
+    {
+        if (inFirst && !inSecond)
+        {
+            return firstValue;
+        }
+
+        if (!inFirst && inSecond)
+        {
+            return secondValue;
+        }
+
+        var weightSum = Math.Max(1e-6f, firstWeight + secondWeight);
+        var firstRatio = firstWeight / weightSum;
+        var secondRatio = secondWeight / weightSum;
+        return new Vec3f(
+            (firstValue.Item0 * firstRatio) + (secondValue.Item0 * secondRatio),
+            (firstValue.Item1 * firstRatio) + (secondValue.Item1 * secondRatio),
+            (firstValue.Item2 * firstRatio) + (secondValue.Item2 * secondRatio));
     }
 }

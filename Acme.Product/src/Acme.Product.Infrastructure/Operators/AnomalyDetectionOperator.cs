@@ -76,8 +76,6 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             EmbeddingModelId = GetStringParam(@operator, "EmbeddingModelId", string.Empty),
             EmbeddingModelPath = GetStringParam(@operator, "EmbeddingModelPath", string.Empty)
         };
-        var configuredFeatureExtractor = TryGetConfiguredStringParam(@operator, "FeatureExtractorId");
-
         if (mode == "train")
         {
             if (!TryGetNormalImages(inputs, out var normalImages, out var normalImagesError))
@@ -170,27 +168,18 @@ public sealed class AnomalyDetectionOperator : OperatorBase
             return OperatorExecutionOutput.Failure($"Failed to load feature bank: {ex.Message}");
         }
 
-        var effectiveFeatureExtractor = !string.IsNullOrWhiteSpace(configuredFeatureExtractor)
-            ? configuredFeatureExtractor
-            : loadedBank.FeatureExtractorId;
         var inferenceOptions = CloneOptions(
             options,
-            featureExtractorId: effectiveFeatureExtractor,
+            patchSize: loadedBank.PatchSize,
+            patchStride: loadedBank.PatchStride,
+            backbone: loadedBank.Backbone,
+            featureExtractorId: loadedBank.FeatureExtractorId,
             embeddingModelId: loadedBank.EmbeddingModelId,
             embeddingModelPath: loadedBank.EmbeddingModelPath);
-        var resolvedEmbeddingTarget = ResolveEmbeddingModelTarget(@operator, loadedBank, inferenceOptions.FeatureExtractorId);
+        var resolvedEmbeddingTarget = ResolveInferenceEmbeddingModelTarget(@operator, loadedBank);
         if (RequiresOnnxEmbedding(inferenceOptions.FeatureExtractorId) && string.IsNullOrWhiteSpace(resolvedEmbeddingTarget.Path))
         {
             return OperatorExecutionOutput.Failure("Embedding model is required for ONNX anomaly inference.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(resolvedEmbeddingTarget.Path))
-        {
-            inferenceOptions = CloneOptions(
-                inferenceOptions,
-                featureExtractorId: "onnx_embedding",
-                embeddingModelId: resolvedEmbeddingTarget.ModelId,
-                embeddingModelPath: resolvedEmbeddingTarget.Path);
         }
 
         try
@@ -390,6 +379,37 @@ public sealed class AnomalyDetectionOperator : OperatorBase
         return EmbeddingModelResolution.Empty;
     }
 
+    private EmbeddingModelResolution ResolveInferenceEmbeddingModelTarget(Operator @operator, SimplePatchCoreFeatureBank bank)
+    {
+        if (!RequiresOnnxEmbedding(bank.FeatureExtractorId))
+        {
+            return EmbeddingModelResolution.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bank.EmbeddingModelPath) && File.Exists(bank.EmbeddingModelPath))
+        {
+            return new EmbeddingModelResolution(Path.GetFullPath(bank.EmbeddingModelPath), "FeatureBankMetadataPath", bank.EmbeddingModelId, GetStringParam(@operator, "ModelCatalogPath", string.Empty));
+        }
+
+        if (!string.IsNullOrWhiteSpace(bank.EmbeddingModelId))
+        {
+            var catalogPath = GetStringParam(@operator, "ModelCatalogPath", string.Empty);
+            var resolvedCatalogPath = ModelCatalog.ResolveExplicitOrCatalogPath(
+                explicitPath: null,
+                bank.EmbeddingModelId,
+                catalogPath,
+                SupportedEmbeddingCatalogTypes,
+                out _);
+
+            if (File.Exists(resolvedCatalogPath))
+            {
+                return new EmbeddingModelResolution(Path.GetFullPath(resolvedCatalogPath), "FeatureBankMetadataModelId", bank.EmbeddingModelId, catalogPath);
+            }
+        }
+
+        return EmbeddingModelResolution.Empty;
+    }
+
     private FeatureBankResolution ResolveFeatureBankInputTarget(Operator @operator)
     {
         var explicitPath = GetStringParam(@operator, "FeatureBankPath", string.Empty);
@@ -532,16 +552,19 @@ public sealed class AnomalyDetectionOperator : OperatorBase
 
     private static SimplePatchCoreOptions CloneOptions(
         SimplePatchCoreOptions source,
+        int? patchSize = null,
+        int? patchStride = null,
+        string? backbone = null,
         string? featureExtractorId = null,
         string? embeddingModelId = null,
         string? embeddingModelPath = null)
     {
         return new SimplePatchCoreOptions
         {
-            PatchSize = source.PatchSize,
-            PatchStride = source.PatchStride,
+            PatchSize = patchSize ?? source.PatchSize,
+            PatchStride = patchStride ?? source.PatchStride,
             CoresetRatio = source.CoresetRatio,
-            Backbone = source.Backbone,
+            Backbone = backbone ?? source.Backbone,
             FeatureExtractorId = featureExtractorId ?? source.FeatureExtractorId,
             EmbeddingModelId = embeddingModelId ?? source.EmbeddingModelId,
             EmbeddingModelPath = embeddingModelPath ?? source.EmbeddingModelPath

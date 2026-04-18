@@ -74,16 +74,11 @@ public class DistanceTransformOperator : OperatorBase
         try
         {
             // 预处理：转换为二值图像
-            using var gray = src.Channels() == 1 
-                ? src.Clone() 
-                : new Mat();
-            if (src.Channels() > 1)
-            {
-                Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-            }
+            using var gray = OperatorImageDepthHelper.EnsureSingleChannelGray(src);
 
             using var binary = new Mat();
-            Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
+            var nativeThreshold = OperatorImageDepthHelper.ResolveThresholdToNativeRange(gray, threshold);
+            Cv2.Threshold(gray, binary, nativeThreshold, 255, ThresholdTypes.Binary);
 
             if (invert)
             {
@@ -154,7 +149,9 @@ public class DistanceTransformOperator : OperatorBase
                 { "ImageWidth", src.Width },
                 { "ImageHeight", src.Height },
                 { "MeanDistance", Cv2.Mean(distanceMap).Val0 },
-                { "AccuracyReport", accuracyReport }
+                { "AccuracyReport", accuracyReport },
+                { "ThresholdUsed", nativeThreshold },
+                { "InputBitDepth", gray.Depth().ToString() }
             };
 
             displayImage.Dispose();

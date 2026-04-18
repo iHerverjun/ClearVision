@@ -59,7 +59,7 @@ public class RoiTransformOperator : OperatorBase
 
         if (!TryReadPose(match, out var centerX, out var centerY, out var angleDeg, out var scale))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("Match pose fields missing. Expected CenterX/CenterY (or X/Y) plus optional Angle/Scale."));
+            return Task.FromResult(OperatorExecutionOutput.Failure("Match pose fields missing. Expected CenterX/CenterY, Center/Position, ReferenceX/ReferenceY, BoundingBox, Corners, or X/Y plus optional Angle/Scale."));
         }
 
         var tracked = RoiTracker.TransformRoi(
@@ -199,9 +199,25 @@ public class RoiTransformOperator : OperatorBase
         angleDeg = 0;
         scale = 1;
 
-        bool hasCenter =
+        if (TryGetMatchResult(match, out var nestedMatch) &&
+            TryReadPose(nestedMatch, out centerX, out centerY, out angleDeg, out scale))
+        {
+            return true;
+        }
+
+        var hasCenter =
             TryGetDouble(match, "CenterX", out centerX) &&
             TryGetDouble(match, "CenterY", out centerY);
+
+        if (!hasCenter)
+        {
+            hasCenter =
+                TryGetPoint(match, "Center", out centerX, out centerY) ||
+                TryGetPoint(match, "Position", out centerX, out centerY) ||
+                (TryGetDouble(match, "ReferenceX", out centerX) && TryGetDouble(match, "ReferenceY", out centerY)) ||
+                TryGetBoundingBoxCenter(match, out centerX, out centerY) ||
+                TryGetCornersCenter(match, out centerX, out centerY);
+        }
 
         if (!hasCenter)
         {
@@ -223,8 +239,12 @@ public class RoiTransformOperator : OperatorBase
             }
         }
 
-        _ = TryGetDouble(match, "Angle", out angleDeg) || TryGetDouble(match, "AngleDeg", out angleDeg);
-        if (!TryGetDouble(match, "Scale", out scale))
+        _ = TryGetDouble(match, "Angle", out angleDeg) ||
+            TryGetDouble(match, "AngleDeg", out angleDeg) ||
+            TryGetDouble(match, "Rotation", out angleDeg) ||
+            TryGetDouble(match, "RotationDeg", out angleDeg);
+        if (!TryGetDouble(match, "Scale", out scale) &&
+            !TryGetDouble(match, "ScaleFactor", out scale))
         {
             scale = 1.0;
         }
@@ -235,6 +255,129 @@ public class RoiTransformOperator : OperatorBase
         }
 
         return true;
+    }
+
+    private static bool TryGetMatchResult(IDictionary<string, object> match, out IDictionary<string, object> nestedMatch)
+    {
+        nestedMatch = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        if (!match.TryGetValue("MatchResult", out var raw) || raw == null)
+        {
+            return false;
+        }
+
+        return TryNormalizeDictionary(raw, out nestedMatch);
+    }
+
+    private static bool TryGetPoint(IDictionary<string, object> dict, string key, out double x, out double y)
+    {
+        x = 0;
+        y = 0;
+
+        if (!dict.TryGetValue(key, out var raw) || raw == null)
+        {
+            return false;
+        }
+
+        if (raw is Acme.Product.Core.ValueObjects.Position position)
+        {
+            x = position.X;
+            y = position.Y;
+            return true;
+        }
+
+        if (!TryNormalizeDictionary(raw, out var pointDict))
+        {
+            return false;
+        }
+
+        return TryGetDouble(pointDict, "X", out x) &&
+               TryGetDouble(pointDict, "Y", out y);
+    }
+
+    private static bool TryGetBoundingBoxCenter(IDictionary<string, object> dict, out double centerX, out double centerY)
+    {
+        centerX = 0;
+        centerY = 0;
+
+        if (!dict.TryGetValue("BoundingBox", out var raw) || raw == null || !TryNormalizeDictionary(raw, out var bbox))
+        {
+            return false;
+        }
+
+        if (!TryGetDouble(bbox, "X", out var x) ||
+            !TryGetDouble(bbox, "Y", out var y) ||
+            !TryGetDouble(bbox, "Width", out var width) ||
+            !TryGetDouble(bbox, "Height", out var height))
+        {
+            return false;
+        }
+
+        centerX = x + (width / 2.0);
+        centerY = y + (height / 2.0);
+        return true;
+    }
+
+    private static bool TryGetCornersCenter(IDictionary<string, object> dict, out double centerX, out double centerY)
+    {
+        centerX = 0;
+        centerY = 0;
+
+        if (!dict.TryGetValue("Corners", out var raw) || raw == null || raw is string || raw is not IEnumerable enumerable)
+        {
+            return false;
+        }
+
+        var points = new List<(double X, double Y)>();
+        foreach (var item in enumerable)
+        {
+            if (item is Acme.Product.Core.ValueObjects.Position position)
+            {
+                points.Add((position.X, position.Y));
+                continue;
+            }
+
+            if (!TryNormalizeDictionary(item, out var pointDict) ||
+                !TryGetDouble(pointDict, "X", out var x) ||
+                !TryGetDouble(pointDict, "Y", out var y))
+            {
+                continue;
+            }
+
+            points.Add((x, y));
+        }
+
+        if (points.Count == 0)
+        {
+            return false;
+        }
+
+        centerX = points.Average(point => point.X);
+        centerY = points.Average(point => point.Y);
+        return true;
+    }
+
+    private static bool TryNormalizeDictionary(object raw, out IDictionary<string, object> dict)
+    {
+        dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+        if (raw is IDictionary<string, object> typed)
+        {
+            dict = typed;
+            return true;
+        }
+
+        if (raw is IDictionary legacy)
+        {
+            dict = legacy.Cast<DictionaryEntry>()
+                .Where(entry => entry.Key != null)
+                .ToDictionary(
+                    entry => entry.Key!.ToString() ?? string.Empty,
+                    entry => entry.Value ?? 0,
+                    StringComparer.OrdinalIgnoreCase);
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryGetInt(IDictionary<string, object> dict, string key, out int value)

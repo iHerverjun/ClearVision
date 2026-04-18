@@ -56,15 +56,8 @@ public class AdaptiveThresholdOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        using var gray = new Mat();
-        if (src.Channels() > 1)
-        {
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        }
-        else
-        {
-            src.CopyTo(gray);
-        }
+        using var gray = OperatorImageDepthHelper.EnsureSingleChannelGray(src);
+        using var workingGray = OperatorImageDepthHelper.ConvertSingleChannelToByte(gray, out _, out _);
 
         var adaptiveType = adaptiveMethod.ToLowerInvariant() switch
         {
@@ -80,14 +73,16 @@ public class AdaptiveThresholdOperator : OperatorBase
             _ => ThresholdTypes.Binary
         };
 
-        using var binary = new Mat();
-        Cv2.AdaptiveThreshold(gray, binary, maxValue, adaptiveType, resolvedThresholdType, blockSize, c);
+        using var binary8 = new Mat();
+        Cv2.AdaptiveThreshold(workingGray, binary8, 255.0, adaptiveType, resolvedThresholdType, blockSize, c);
+        using var binary = OperatorImageDepthHelper.RestoreBinaryMaskToSourceDepth(binary8, gray, maxValue);
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(binary.Clone(), new Dictionary<string, object>
         {
             ["AdaptiveMethod"] = adaptiveMethod,
             ["BlockSize"] = blockSize,
-            ["C"] = c
+            ["C"] = c,
+            ["InputBitDepth"] = gray.Depth().ToString()
         })));
     }
 

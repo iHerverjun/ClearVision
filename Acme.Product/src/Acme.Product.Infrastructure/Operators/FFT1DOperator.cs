@@ -142,7 +142,7 @@ public class FFT1DOperator : OperatorBase
         var scale = gray.Depth() switch
         {
             MatType.CV_8U => 1.0,
-            MatType.CV_16U => 1.0 / 256.0,
+            MatType.CV_16U => 1.0,
             MatType.CV_32F => 1.0,
             MatType.CV_64F => 1.0,
             _ => 1.0

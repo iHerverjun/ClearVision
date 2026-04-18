@@ -135,14 +135,7 @@ public class HistogramEqualizationOperator : OperatorBase
 
         if (src.Channels() == 1)
         {
-            var result = new Mat();
-            clahe.Apply(src, result);
-            return result;
-        }
-
-        if (applyToEachChannel)
-        {
-            return ApplyPerChannel(src, channel =>
+            return ApplySingleChannelByteCompatible(src, channel =>
             {
                 var result = new Mat();
                 clahe.Apply(channel, result);
@@ -150,7 +143,17 @@ public class HistogramEqualizationOperator : OperatorBase
             });
         }
 
-        return ApplyLumaChannel(src, ColorConversionCodes.BGR2Lab, ColorConversionCodes.Lab2BGR, channel =>
+        if (applyToEachChannel)
+        {
+            return ApplyPerChannelByteCompatible(src, channel =>
+            {
+                var result = new Mat();
+                clahe.Apply(channel, result);
+                return result;
+            });
+        }
+
+        return ApplyLumaChannelByteCompatible(src, ColorConversionCodes.BGR2Lab, ColorConversionCodes.Lab2BGR, channel =>
         {
             var result = new Mat();
             clahe.Apply(channel, result);
@@ -162,14 +165,7 @@ public class HistogramEqualizationOperator : OperatorBase
     {
         if (src.Channels() == 1)
         {
-            var result = new Mat();
-            Cv2.EqualizeHist(src, result);
-            return result;
-        }
-
-        if (applyToEachChannel)
-        {
-            return ApplyPerChannel(src, channel =>
+            return ApplySingleChannelByteCompatible(src, channel =>
             {
                 var result = new Mat();
                 Cv2.EqualizeHist(channel, result);
@@ -177,7 +173,17 @@ public class HistogramEqualizationOperator : OperatorBase
             });
         }
 
-        return ApplyLumaChannel(src, ColorConversionCodes.BGR2YUV, ColorConversionCodes.YUV2BGR, channel =>
+        if (applyToEachChannel)
+        {
+            return ApplyPerChannelByteCompatible(src, channel =>
+            {
+                var result = new Mat();
+                Cv2.EqualizeHist(channel, result);
+                return result;
+            });
+        }
+
+        return ApplyLumaChannelByteCompatible(src, ColorConversionCodes.BGR2YUV, ColorConversionCodes.YUV2BGR, channel =>
         {
             var result = new Mat();
             Cv2.EqualizeHist(channel, result);
@@ -185,7 +191,7 @@ public class HistogramEqualizationOperator : OperatorBase
         });
     }
 
-    private static Mat ApplyPerChannel(Mat src, Func<Mat, Mat> processor)
+    private static Mat ApplyPerChannelByteCompatible(Mat src, Func<Mat, Mat> processor)
     {
         Cv2.Split(src, out var channels);
         var processed = new Mat[channels.Length];
@@ -194,7 +200,7 @@ public class HistogramEqualizationOperator : OperatorBase
         {
             for (var i = 0; i < channels.Length; i++)
             {
-                processed[i] = processor(channels[i]);
+                processed[i] = ApplySingleChannelByteCompatible(channels[i], processor);
             }
 
             var result = new Mat();
@@ -215,7 +221,7 @@ public class HistogramEqualizationOperator : OperatorBase
         }
     }
 
-    private static Mat ApplyLumaChannel(
+    private static Mat ApplyLumaChannelByteCompatible(
         Mat src,
         ColorConversionCodes toColorSpace,
         ColorConversionCodes fromColorSpace,
@@ -227,7 +233,7 @@ public class HistogramEqualizationOperator : OperatorBase
 
         try
         {
-            using var processedLuma = processor(channels[0]);
+            using var processedLuma = ApplySingleChannelByteCompatible(channels[0], processor);
             channels[0].Dispose();
             channels[0] = processedLuma.Clone();
 
@@ -245,5 +251,12 @@ public class HistogramEqualizationOperator : OperatorBase
                 mat.Dispose();
             }
         }
+    }
+
+    private static Mat ApplySingleChannelByteCompatible(Mat src, Func<Mat, Mat> processor)
+    {
+        using var byteCompatible = OperatorImageDepthHelper.ConvertSingleChannelToByte(src, out _, out _);
+        using var processedByte = processor(byteCompatible);
+        return OperatorImageDepthHelper.RestoreByteImageToSourceDepth(processedByte, src);
     }
 }

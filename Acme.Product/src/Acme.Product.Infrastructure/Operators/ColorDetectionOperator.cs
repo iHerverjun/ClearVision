@@ -428,7 +428,7 @@ public class ColorDetectionOperator : OperatorBase
         var hasReference = TryResolveReferenceLab(@operator, inputs, out var referenceLab);
         if (!hasReference)
         {
-            referenceLab = meanLab;
+            return OperatorExecutionOutput.Failure("LabDeltaE mode requires a complete reference color (ReferenceColor or RefL/RefA/RefB).");
         }
 
         var deltaE = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase)
@@ -460,7 +460,7 @@ public class ColorDetectionOperator : OperatorBase
             { "AnalysisMode", "LabDeltaE" },
             { "ColorSpace", "Lab" },
             { "PrimaryData", meanColor },
-            { "Summary", hasReference ? $"DeltaE {deltaE:F2}" : "No reference provided; DeltaE uses self-reference." },
+            { "Summary", $"DeltaE {deltaE:F2}" },
             { "WhiteBalanceStatus", whiteBalance.Status }
         };
 

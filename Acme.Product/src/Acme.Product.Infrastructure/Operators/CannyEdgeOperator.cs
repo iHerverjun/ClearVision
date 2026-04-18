@@ -62,15 +62,8 @@ public class CannyEdgeOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("Input image is invalid."));
         }
 
-        using var gray = new Mat();
-        if (src.Channels() > 1)
-        {
-            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        }
-        else
-        {
-            src.CopyTo(gray);
-        }
+        using var gray = OperatorImageDepthHelper.EnsureSingleChannelGray(src);
+        using var workingGray = OperatorImageDepthHelper.ConvertSingleChannelToByte(gray, out _, out _);
 
         using var processedSrc = new Mat();
         if (enableGaussianBlur)
@@ -80,11 +73,11 @@ public class CannyEdgeOperator : OperatorBase
                 gaussianKernelSize++;
             }
 
-            Cv2.GaussianBlur(gray, processedSrc, new Size(gaussianKernelSize, gaussianKernelSize), 1.0);
+            Cv2.GaussianBlur(workingGray, processedSrc, new Size(gaussianKernelSize, gaussianKernelSize), 1.0);
         }
         else
         {
-            gray.CopyTo(processedSrc);
+            workingGray.CopyTo(processedSrc);
         }
 
         if (autoThreshold)
@@ -106,7 +99,8 @@ public class CannyEdgeOperator : OperatorBase
             { "Edges", dst.ToBytes(".png") },
             { "Threshold1Used", threshold1 },
             { "Threshold2Used", threshold2 },
-            { "AutoThreshold", autoThreshold }
+            { "AutoThreshold", autoThreshold },
+            { "InputBitDepth", gray.Depth().ToString() }
         })));
     }
 

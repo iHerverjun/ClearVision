@@ -97,7 +97,7 @@ public class ForEachOperator : OperatorBase
         int maxParallelism = GetIntParam(@operator, "MaxParallelism", Environment.ProcessorCount, 1, 64);
         bool orderResults = GetBoolParam(@operator, "OrderResults", true);
         bool failFast = GetBoolParam(@operator, "FailFast", false);
-        int timeoutMs = GetIntParam(@operator, "TimeoutMs", 30000, 1000, 300000);
+        int timeoutMs = GetTimeoutMs(@operator, clampToRange: true);
 
         Logger.LogInformation("[ForEach] 开始执行: 项目数={Count}, IoMode={IoMode}, MaxParallelism={MaxParallelism}, FailFast={FailFast}",
             items.Count, ioMode, maxParallelism, failFast);
@@ -127,7 +127,9 @@ public class ForEachOperator : OperatorBase
                 { "Count", aggregateResult.Count },
                 { "PassCount", aggregateResult.PassCount },
                 { "AllPass", aggregateResult.AllPass },
-                { "SuccessCount", aggregateResult.SuccessCount }
+                { "SuccessCount", aggregateResult.SuccessCount },
+                { "FailureCount", aggregateResult.FailureCount },
+                { "AllSucceeded", aggregateResult.AllSucceeded }
             });
         }
         catch (OperationCanceledException)
@@ -377,7 +379,9 @@ public class ForEachOperator : OperatorBase
             Count = ordered.Count,
             PassCount = ordered.Count(r => r.Result is true),
             AllPass = ordered.All(r => r.Result is true),
-            SuccessCount = ordered.Count(r => r.Success)
+            SuccessCount = ordered.Count(r => r.Success),
+            FailureCount = ordered.Count(r => !r.Success),
+            AllSucceeded = ordered.All(r => r.Success)
         };
     }
 
@@ -415,7 +419,7 @@ public class ForEachOperator : OperatorBase
     {
         var ioMode = GetStringParam(@operator, "IoMode", "Parallel");
         var maxParallelism = GetIntParam(@operator, "MaxParallelism", Environment.ProcessorCount);
-        var timeoutMs = GetIntParam(@operator, "TimeoutMs", 30000);
+        var timeoutMs = GetTimeoutMs(@operator, clampToRange: false);
 
         if (!ioMode.Equals("Parallel", StringComparison.OrdinalIgnoreCase) &&
             !ioMode.Equals("Sequential", StringComparison.OrdinalIgnoreCase))
@@ -434,6 +438,17 @@ public class ForEachOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private int GetTimeoutMs(Operator @operator, bool clampToRange)
+    {
+        var parameterName = @operator.Parameters.Any(parameter =>
+            string.Equals(parameter.Name, "TimeoutMs", StringComparison.OrdinalIgnoreCase))
+            ? "TimeoutMs"
+            : "Timeout";
+        return clampToRange
+            ? GetIntParam(@operator, parameterName, 30000, 1000, 300000)
+            : GetIntParam(@operator, parameterName, 30000);
     }
 
     /// <summary>
@@ -458,5 +473,7 @@ public class ForEachOperator : OperatorBase
         public int PassCount { get; set; }
         public bool AllPass { get; set; }
         public int SuccessCount { get; set; }
+        public int FailureCount { get; set; }
+        public bool AllSucceeded { get; set; }
     }
 }

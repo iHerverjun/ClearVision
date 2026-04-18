@@ -113,8 +113,8 @@ public class NPointCalibrationOperator : OperatorBase
         IReadOnlyList<Point2d> srcPoints,
         IReadOnlyList<Point2d> dstPoints)
     {
-        using var srcMat = InputArray.Create(srcPoints.Select(ToPoint2f).ToArray());
-        using var dstMat = InputArray.Create(dstPoints.Select(ToPoint2f).ToArray());
+        using var srcMat = InputArray.Create(srcPoints.ToArray());
+        using var dstMat = InputArray.Create(dstPoints.ToArray());
         using var inlierMask = new Mat();
         using var affineMatrix = Cv2.EstimateAffine2D(
             srcMat,
@@ -827,11 +827,6 @@ public class NPointCalibrationOperator : OperatorBase
         }
 
         return maxArea;
-    }
-
-    private static Point2f ToPoint2f(Point2d point)
-    {
-        return new Point2f((float)point.X, (float)point.Y);
     }
 
     private static void DrawCalibrationPoints(Mat image, IReadOnlyList<PointPair> pointPairs)

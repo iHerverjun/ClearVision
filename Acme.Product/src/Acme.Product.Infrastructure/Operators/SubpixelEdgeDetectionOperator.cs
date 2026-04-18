@@ -112,7 +112,16 @@ public class SubpixelEdgeDetectionOperator : OperatorBase
                 { "EdgeCount", edgePoints.Count },
                 { "ContourCount", contourCount },
                 { "Method", method },
-                { "SigmaUsed", sigma }
+                { "SigmaUsed", sigma },
+                { "AlgorithmClass", method.Equals("Steger", StringComparison.OrdinalIgnoreCase) ? "HessianRidgeSubpixel" : "InterpolationRefinement" },
+                { "IndustrialGradeModel", method.Equals("Steger", StringComparison.OrdinalIgnoreCase) },
+                { "Diagnostics", method.Equals("Steger", StringComparison.OrdinalIgnoreCase)
+                    ? Array.Empty<string>()
+                    : new[]
+                    {
+                        "GradientInterp/GaussianFit are interpolation refinements on top of binary edge candidates.",
+                        "They are suitable for lightweight subpixel localization but are not a full industrial metrology edge model."
+                    } }
             };
 
             return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData));

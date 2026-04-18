@@ -239,41 +239,65 @@ public class FrameAveragingOperator : OperatorBase, IDisposable
 
         var rows = frames[0].Rows;
         var channels = frames[0].Channels();
-
-        using var stacked = BuildTemporalStack(frames);
-        using var sorted = new Mat();
-        Cv2.Sort(stacked, sorted, SortFlags.EveryColumn | SortFlags.Ascending);
-
-        var medianIndex = frames.Count / 2;
-        using var medianRow = sorted.Row(medianIndex);
-        using var medianFlat = medianRow.Clone();
-        using var medianReshaped = medianFlat.Reshape(channels, rows);
-        return medianReshaped.Clone();
-    }
-
-    private static Mat BuildTemporalStack(IReadOnlyList<Mat> frames)
-    {
-        var flattened = new Mat[frames.Count];
+        var depth = frames[0].Depth();
+        var flatWidth = frames[0].Cols * channels;
+        var flattenedViews = new Mat[frames.Count];
 
         try
         {
             for (var i = 0; i < frames.Count; i++)
             {
-                using var reshaped = frames[i].Reshape(1, 1);
-                flattened[i] = reshaped.Clone();
+                flattenedViews[i] = frames[i].Reshape(1, rows);
             }
 
-            var stacked = new Mat();
-            Cv2.VConcat(flattened, stacked);
-            return stacked;
+            return depth switch
+            {
+                MatType.CV_8U => ComputeMedianTyped<byte>(flattenedViews, rows, flatWidth, channels, depth),
+                MatType.CV_16U => ComputeMedianTyped<ushort>(flattenedViews, rows, flatWidth, channels, depth),
+                MatType.CV_32F => ComputeMedianTyped<float>(flattenedViews, rows, flatWidth, channels, depth),
+                MatType.CV_64F => ComputeMedianTyped<double>(flattenedViews, rows, flatWidth, channels, depth),
+                _ => throw new InvalidOperationException($"Unsupported depth for frame median fusion: {depth}")
+            };
         }
         finally
         {
-            foreach (var mat in flattened)
+            foreach (var view in flattenedViews)
             {
-                mat?.Dispose();
+                view?.Dispose();
             }
         }
+    }
+
+    private static Mat ComputeMedianTyped<T>(
+        IReadOnlyList<Mat> flattenedFrames,
+        int rows,
+        int flatWidth,
+        int channels,
+        MatType depth)
+        where T : unmanaged, IComparable<T>
+    {
+        var resultFlat = new Mat(rows, flatWidth, MatType.MakeType(depth, 1));
+        var resultIndexer = resultFlat.GetGenericIndexer<T>();
+        var frameIndexers = flattenedFrames.Select(frame => frame.GetGenericIndexer<T>()).ToArray();
+        var samples = new T[flattenedFrames.Count];
+        var medianIndex = flattenedFrames.Count / 2;
+
+        for (var row = 0; row < rows; row++)
+        {
+            for (var col = 0; col < flatWidth; col++)
+            {
+                for (var frame = 0; frame < flattenedFrames.Count; frame++)
+                {
+                    samples[frame] = frameIndexers[frame][row, col];
+                }
+
+                Array.Sort(samples);
+                resultIndexer[row, col] = samples[medianIndex];
+            }
+        }
+
+        using var reshaped = resultFlat.Reshape(channels, rows);
+        return reshaped.Clone();
     }
 
     private static void EnsureSameShapeAndType(IReadOnlyList<Mat> frames)

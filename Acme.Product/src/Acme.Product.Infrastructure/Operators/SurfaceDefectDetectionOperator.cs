@@ -96,6 +96,12 @@ public class SurfaceDefectDetectionOperator : OperatorBase
             out var alignmentShift,
             out var rejectedReason);
 
+        if (method.Equals("ReferenceDiff", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(rejectedReason))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure(rejectedReason));
+        }
+
         if (response.Empty())
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("Failed to compute defect response map"));

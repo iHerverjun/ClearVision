@@ -303,10 +303,15 @@ public class PixelToWorldTransformOperator : OperatorBase
         bool generateReport,
         IReadOnlyList<string>? additionalDiagnostics)
     {
-        var transformedPositions = outputPoints.Select(p => new Position(p.X, p.Y)).ToList();
+        var isPixelToWorld = transformMode.Equals("PixelToWorld", StringComparison.OrdinalIgnoreCase);
+        object transformedPoints = isPixelToWorld
+            ? outputPoints.Select(p => new Point3d(p.X, p.Y, p.Z)).ToList()
+            : outputPoints.Select(p => new Position(p.X, p.Y)).ToList();
+        var transformedPlanarPoints = outputPoints.Select(p => new Position(p.X, p.Y)).ToList();
         var resultData = new Dictionary<string, object>
         {
-            ["TransformedPoints"] = transformedPositions,
+            ["TransformedPoints"] = transformedPoints,
+            ["TransformedPlanarPoints"] = transformedPlanarPoints,
             ["TransformResult"] = new Dictionary<string, object>
             {
                 ["TransformMode"] = transformMode,
@@ -314,6 +319,7 @@ public class PixelToWorldTransformOperator : OperatorBase
                 ["Model"] = model,
                 ["InputCount"] = inputPoints.Count,
                 ["OutputCount"] = outputPoints.Count,
+                ["OutputPointDimension"] = isPixelToWorld ? 3 : 2,
                 ["WorldPlaneZ"] = worldPlaneZ,
                 ["UnitScale"] = unitScale,
                 ["CalibrationKind"] = bundle.CalibrationKind.ToString(),
@@ -745,6 +751,18 @@ public class PixelToWorldTransformOperator : OperatorBase
 
         var cameraCenter = TransformPoint(context.CameraToWorld, new Point3d(0, 0, 0));
         var scale = (worldPlaneZ - cameraCenter.Z) / rayWorld.Z;
+        if (!double.IsFinite(scale))
+        {
+            error = "Ray-plane intersection scale is not finite.";
+            return false;
+        }
+
+        if (scale <= Epsilon)
+        {
+            error = "Ray-plane intersection is behind the camera or too close to be numerically stable.";
+            return false;
+        }
+
         worldPoint = new Point3d(
             cameraCenter.X + scale * rayWorld.X,
             cameraCenter.Y + scale * rayWorld.Y,
