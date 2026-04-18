@@ -56,6 +56,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("RoiY", "ROI Y", "int", DefaultValue = 0, Min = 0)]
 [OperatorParam("RoiWidth", "ROI Width", "int", DefaultValue = 0, Min = 0)]
 [OperatorParam("RoiHeight", "ROI Height", "int", DefaultValue = 0, Min = 0)]
+[OperatorParam("OriginMode", "Origin Mode", "enum", DefaultValue = "Center", Options = new[] { "Center|Center", "TopLeft|TopLeft", "Custom|Custom" })]
+[OperatorParam("OriginX", "Origin X", "double", DefaultValue = 0.0)]
+[OperatorParam("OriginY", "Origin Y", "double", DefaultValue = 0.0)]
 public class TemplateMatchOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.TemplateMatching;
@@ -132,6 +135,7 @@ public class TemplateMatchOperator : OperatorBase
                 return Task.FromResult(OperatorExecutionOutput.Failure("模板尺寸不能大于搜索区域。"));
             }
 
+            var origin = ResolveReferenceOrigin(@operator, preparedTemplate.Size());
             var matchMethod = ResolveMatchMethod(method);
 
             using var result = new Mat();
@@ -148,7 +152,8 @@ public class TemplateMatchOperator : OperatorBase
             foreach (var match in matches)
             {
                 Cv2.Rectangle(resultImage, match.TopLeft, match.BottomRight, new Scalar(0, 255, 0), 2);
-                Cv2.DrawMarker(resultImage, new Point((int)Math.Round(match.Center.X), (int)Math.Round(match.Center.Y)), new Scalar(0, 0, 255), MarkerTypes.Cross, 20, 2);
+                var reference = match.GetReferencePosition(origin);
+                Cv2.DrawMarker(resultImage, new Point((int)Math.Round(reference.X), (int)Math.Round(reference.Y)), new Scalar(0, 0, 255), MarkerTypes.Cross, 20, 2);
                 Cv2.PutText(
                     resultImage,
                     $"{match.NormalizedScore:F3}",
@@ -160,7 +165,7 @@ public class TemplateMatchOperator : OperatorBase
             }
 
             var bestMatch = matches.FirstOrDefault();
-            var position = bestMatch?.Center ?? new Position(0, 0);
+            var position = bestMatch?.GetReferencePosition(origin) ?? new Position(0, 0);
             var methodDescriptor = GetMethodDescriptor(matchMethod, domain);
             if (!isMatch)
             {
@@ -182,7 +187,8 @@ public class TemplateMatchOperator : OperatorBase
                 ["MatchCount"] = matches.Count,
                 ["Matches"] = matches.Select(m => new Dictionary<string, object>
                 {
-                    ["Position"] = m.Center,
+                    ["Position"] = m.GetReferencePosition(origin),
+                    ["Center"] = m.Center,
                     ["TopLeft"] = new Position(m.TopLeft.X, m.TopLeft.Y),
                     ["Score"] = m.Score,
                     ["NormalizedScore"] = m.NormalizedScore,
@@ -192,7 +198,8 @@ public class TemplateMatchOperator : OperatorBase
                 }).ToList(),
                 ["TemplateWidth"] = preparedTemplate.Width,
                 ["TemplateHeight"] = preparedTemplate.Height,
-                ["Domain"] = NormalizeDomain(domain)
+                ["Domain"] = NormalizeDomain(domain),
+                ["OriginMode"] = GetStringParam(@operator, "OriginMode", "Center")
             };
 
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
@@ -667,6 +674,19 @@ public class TemplateMatchOperator : OperatorBase
         return OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output));
     }
 
+    private Position ResolveReferenceOrigin(Operator @operator, Size templateSize)
+    {
+        var originMode = GetStringParam(@operator, "OriginMode", "Center");
+        return originMode.Trim().ToLowerInvariant() switch
+        {
+            "topleft" => new Position(0, 0),
+            "custom" => new Position(
+                GetDoubleParam(@operator, "OriginX", 0.0),
+                GetDoubleParam(@operator, "OriginY", 0.0)),
+            _ => new Position(templateSize.Width / 2.0, templateSize.Height / 2.0)
+        };
+    }
+
     private sealed record TemplateMatchCandidate(
         Point TopLeft,
         Point BottomRight,
@@ -676,6 +696,11 @@ public class TemplateMatchOperator : OperatorBase
         double RawResponse,
         Rect Bounds)
     {
+        public Position GetReferencePosition(Position origin)
+        {
+            return new Position(TopLeft.X + origin.X, TopLeft.Y + origin.Y);
+        }
+
         public TemplateMatchCandidate Offset(int offsetX, int offsetY)
         {
             var offsetTopLeft = new Point(TopLeft.X + offsetX, TopLeft.Y + offsetY);

@@ -127,7 +127,8 @@ public class LocalDeformableMatchingOperator : OperatorBase
         List<DeformableMatchResult>? candidateResults = null;
         try
         {
-            var candidates = GenerateCandidateWindows(searchImage, template.BaseImage, maxMatches, candidateThreshold, maxDeformation);
+            var candidateBudget = Math.Max(maxMatches * 4, 16);
+            var candidates = GenerateCandidateWindows(searchImage, template.BaseImage, candidateBudget, candidateThreshold, maxDeformation);
             candidateResults = EvaluateCandidates(
                 searchImage, template, candidates, parallelCandidates,
                 pyramidLevels, tpsGridSize, tpsLambda, maxDeformation,

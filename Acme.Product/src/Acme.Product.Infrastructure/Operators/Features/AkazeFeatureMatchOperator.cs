@@ -1,23 +1,16 @@
-// AkazeFeatureMatchOperator.cs
-// AKAZE特征匹配算子 - 基于AKAZE特征的鲁棒模板匹配
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// AKAZE特征匹配算子 - 基于AKAZE特征的鲁棒模板匹配
-/// </summary>
 [OperatorMeta(
     DisplayName = "AKAZE特征匹配",
-    Description = "基于AKAZE特征的鲁棒模板匹配，对光照/旋转/缩放变化具有强鲁棒性",
+    Description = "AKAZE feature matching with verified homography gating for robust template localization.",
     Category = "匹配定位",
     IconName = "feature-match"
 )]
@@ -33,6 +26,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("MinMatchCount", "最小匹配数", "int", DefaultValue = 10, Min = 3, Max = 100)]
 [OperatorParam("EnableSymmetryTest", "对称测试", "bool", DefaultValue = true)]
 [OperatorParam("MaxFeatures", "最大特征点", "int", DefaultValue = 500, Min = 100, Max = 2000)]
+[OperatorParam("OriginMode", "Origin Mode", "enum", DefaultValue = "Center", Options = new[] { "Center|Center", "TopLeft|TopLeft", "Custom|Custom" })]
+[OperatorParam("OriginX", "Origin X", "double", DefaultValue = 0.0)]
+[OperatorParam("OriginY", "Origin Y", "double", DefaultValue = 0.0)]
 public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
 {
     public override OperatorType OperatorType => OperatorType.AkazeFeatureMatch;
@@ -46,99 +42,72 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
     {
-        // 获取输入图像
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像。"));
         }
 
-        // 获取参数
         var templatePath = GetStringParam(@operator, "TemplatePath", "");
         var threshold = GetDoubleParam(@operator, "Threshold", 0.001, min: 0.0001, max: 0.1);
         var minMatchCount = GetIntParam(@operator, "MinMatchCount", 10, min: 3, max: 100);
         var enableSymmetryTest = GetBoolParam(@operator, "EnableSymmetryTest", true);
         var maxFeatures = GetIntParam(@operator, "MaxFeatures", 500, min: 100, max: 2000);
 
-        // 如果通过输入端口提供了模板图像
-        Mat? templateFromInput = null;
-        if (TryGetInputImage(inputs, "Template", out var templateWrapper) && templateWrapper != null)
-        {
-            templateFromInput = templateWrapper.GetMat();
-        }
-
         var srcImage = imageWrapper.GetMat();
-        
-        // 转换为灰度图
-        using var srcGray = new Mat();
-        if (srcImage.Channels() > 1)
-            Cv2.CvtColor(srcImage, srcGray, ColorConversionCodes.BGR2GRAY);
-        else
-            srcImage.CopyTo(srcGray);
-
-        // 创建AKAZE检测器
+        using var srcGray = ToGray(srcImage);
         using var akaze = AKAZE.Create(threshold: (float)threshold);
 
-        // 检测场景图像特征
-        KeyPoint[] srcKeyPoints;
-        using var srcDescriptors = new Mat();
-        akaze.DetectAndCompute(srcGray, null, out srcKeyPoints, srcDescriptors);
-
-        if (srcKeyPoints.Length < 4)
+        var srcDescriptors = new Mat();
+        akaze.DetectAndCompute(srcGray, null, out KeyPoint[] srcKeyPoints, srcDescriptors);
+        if (srcKeyPoints.Length < 4 || srcDescriptors.Empty())
         {
-            return Task.FromResult(CreateFailedOutput(srcImage, "场景特征点不足", 0, 0));
+            srcDescriptors.Dispose();
+            return Task.FromResult(CreateFailedOutput(srcImage, "场景特征点不足。", 0, 0));
         }
 
-        // 获取模板特征
-        KeyPoint[]? templateKeyPoints = null;
+        Mat? templateImage = null;
         Mat? templateDescriptors = null;
-        Mat? templateImage = templateFromInput;
-        bool shouldDisposeTemplate = false;
+        KeyPoint[]? templateKeyPoints = null;
+        var disposeTemplateImage = false;
 
         try
         {
-            if (templateFromInput != null)
+            if (TryGetInputImage(inputs, "Template", out var templateWrapper) && templateWrapper != null)
             {
-                // 使用输入的模板图像
-                using var templateGray = new Mat();
-                if (templateFromInput.Channels() > 1)
-                    Cv2.CvtColor(templateFromInput, templateGray, ColorConversionCodes.BGR2GRAY);
-                else
-                    templateFromInput.CopyTo(templateGray);
-
-                akaze.DetectAndCompute(templateGray, null, out templateKeyPoints!, templateDescriptors!);
+                templateImage = templateWrapper.GetMat();
+                using var templateGray = ToGray(templateImage);
+                templateDescriptors = new Mat();
+                akaze.DetectAndCompute(templateGray, null, out templateKeyPoints, templateDescriptors);
             }
-            else if (!string.IsNullOrEmpty(templatePath))
+            else if (!string.IsNullOrWhiteSpace(templatePath))
             {
-                // 从缓存或文件加载模板
-                var cached = GetOrLoadTemplate(templatePath, $"AKAZE:{threshold:F6}", img =>
-                {
-                    KeyPoint[] kpts;
-                    Mat descs = new Mat();
-                    akaze.DetectAndCompute(img, null, out kpts, descs);
-                    return (kpts, descs);
-                });
+                var cached = GetOrLoadTemplate(
+                    templatePath,
+                    $"AKAZE:{threshold:F6}:{maxFeatures}",
+                    templateGray =>
+                    {
+                        var descriptors = new Mat();
+                        akaze.DetectAndCompute(templateGray, null, out KeyPoint[] keyPoints, descriptors);
+                        return (keyPoints, descriptors);
+                    });
 
                 if (cached.HasValue)
                 {
                     (templateImage, templateKeyPoints, templateDescriptors) = cached.Value;
-                    shouldDisposeTemplate = true;
+                    disposeTemplateImage = true;
                 }
             }
 
-            if (templateKeyPoints == null || templateKeyPoints.Length < 4 || templateDescriptors == null || templateDescriptors.Empty())
+            if (templateImage == null || templateKeyPoints == null || templateKeyPoints.Length < 4 || templateDescriptors == null || templateDescriptors.Empty())
             {
-                return Task.FromResult(CreateFailedOutput(srcImage, "模板特征点不足", 0, 0));
+                return Task.FromResult(CreateFailedOutput(srcImage, "模板特征点不足。", 0, 0));
             }
 
-            // 限制特征点数量
-            var (filteredKpts, filteredDescs) = FilterFeatures(templateKeyPoints, templateDescriptors, maxFeatures);
-            
-            if (shouldDisposeTemplate)
-                templateDescriptors?.Dispose();
-            templateDescriptors = filteredDescs;
-            templateKeyPoints = filteredKpts;
+            var (filteredTemplateKeyPoints, filteredTemplateDescriptors) = FilterFeatures(templateKeyPoints, templateDescriptors, maxFeatures);
+            templateDescriptors.Dispose();
+            templateDescriptors = filteredTemplateDescriptors;
+            templateKeyPoints = filteredTemplateKeyPoints;
 
-            // 匹配描述符
             List<DMatch> goodMatches;
             if (enableSymmetryTest)
             {
@@ -148,64 +117,71 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
             {
                 using var matcher = new BFMatcher(NormTypes.Hamming, crossCheck: false);
                 var matches = matcher.KnnMatch(templateDescriptors, srcDescriptors, k: 2);
-                
                 goodMatches = new List<DMatch>();
-                foreach (var m in matches)
+                foreach (var match in matches)
                 {
-                    if (m.Length >= 2 && m[0].Distance < 0.75 * m[1].Distance)
-                        goodMatches.Add(m[0]);
+                    if (match.Length >= 2 && match[0].Distance < 0.75 * match[1].Distance)
+                    {
+                        goodMatches.Add(match[0]);
+                    }
                 }
             }
 
-            // 计算单应性矩阵
-            var (homography, inliers) = ComputeHomography(templateKeyPoints, srcKeyPoints, goodMatches);
+            var (homography, corners, metrics) = EstimateAndVerifyHomography(
+                templateKeyPoints,
+                srcKeyPoints,
+                goodMatches,
+                new Size(templateImage.Width, templateImage.Height),
+                srcImage.Size(),
+                ransacThreshold: 5.0,
+                minMatchCount,
+                minInliers: minMatchCount,
+                minInlierRatio: 0.25);
+            var origin = ResolveReferenceOrigin(@operator, templateImage.Size());
 
-            // 判断匹配结果
-            bool isMatch = inliers >= minMatchCount;
-            double inlierRatio = goodMatches.Count > 0 ? (double)inliers / goodMatches.Count : 0;
-            
-            if (inliers < minMatchCount)
-                isMatch = false;
-            else if (inlierRatio < 0.25)
-                isMatch = false;
-
-            // 创建输出图像
+            var verificationScore = HomographyVerificationHelper.ComputeVerificationScore(metrics, 5.0);
+            var isMatch = metrics.VerificationPassed;
             var resultImage = srcImage.Clone();
             var boxColor = isMatch ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
 
-            if (isMatch && homography != null && !homography.Empty())
+            if (homography != null && !homography.Empty() && isMatch)
             {
-                DrawPerspectiveBox(resultImage, homography, 
-                    templateImage?.Width ?? 100, 
-                    templateImage?.Height ?? 100, 
-                    boxColor);
+                DrawPerspectiveBox(resultImage, homography, templateImage.Width, templateImage.Height, boxColor);
             }
 
-            // 绘制匹配信息
             var representativePoint = new Point(resultImage.Width / 2, resultImage.Height / 2);
             if (goodMatches.Count > 0)
             {
                 var bestMatch = goodMatches[0];
-                representativePoint = new Point((int)srcKeyPoints[bestMatch.TrainIdx].Pt.X, 
-                                  (int)srcKeyPoints[bestMatch.TrainIdx].Pt.Y);
+                representativePoint = new Point(
+                    (int)srcKeyPoints[bestMatch.TrainIdx].Pt.X,
+                    (int)srcKeyPoints[bestMatch.TrainIdx].Pt.Y);
                 Cv2.DrawMarker(resultImage, representativePoint, boxColor, MarkerTypes.Cross, 20, 2);
             }
 
-            var position = TryGetProjectedCenter(homography, templateImage?.Width ?? 0, templateImage?.Height ?? 0, out var projectedCenter)
+            var position = TryProjectReferencePoint(homography, origin, corners, out var projectedCenter)
                 ? projectedCenter
                 : new Position(representativePoint.X, representativePoint.Y);
 
-            string info = $"{(isMatch ? "OK" : "NG")}: Inliers={inliers}/{goodMatches.Count}";
-            Cv2.PutText(resultImage, info, new Point(10, 30), 
-                HersheyFonts.HersheySimplex, 0.6, boxColor, 2);
+            Cv2.PutText(
+                resultImage,
+                $"{(isMatch ? "OK" : "NG")}: Inliers={metrics.InlierCount}/{metrics.MatchCount}",
+                new Point(10, 30),
+                HersheyFonts.HersheySimplex,
+                0.6,
+                boxColor,
+                2);
 
-            if (!isMatch)
+            if (!isMatch && !string.IsNullOrWhiteSpace(metrics.FailureReason))
             {
-                string reason = inliers < minMatchCount 
-                    ? $"内点数不足 ({inliers} < {minMatchCount})"
-                    : $"内点比例不足 ({inlierRatio:F2})";
-                Cv2.PutText(resultImage, reason, new Point(10, 60), 
-                    HersheyFonts.HersheySimplex, 0.6, boxColor, 2);
+                Cv2.PutText(
+                    resultImage,
+                    metrics.FailureReason,
+                    new Point(10, 60),
+                    HersheyFonts.HersheySimplex,
+                    0.5,
+                    boxColor,
+                    2);
             }
 
             homography?.Dispose();
@@ -213,22 +189,27 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
             return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, new Dictionary<string, object>
             {
                 { "IsMatch", isMatch },
-                { "Score", inlierRatio },
-                { "Inliers", inliers },
-                { "TotalMatches", goodMatches.Count },
+                { "Score", verificationScore },
+                { "Inliers", metrics.InlierCount },
+                { "TotalMatches", metrics.MatchCount },
                 { "Position", position },
                 { "MatchPoint", new Position(representativePoint.X, representativePoint.Y) },
                 { "X", position.X },
                 { "Y", position.Y },
-                { "ScoreDefinition", "InlierRatio" }
+                { "ScoreDefinition", "HomographyVerificationScore" },
+                { "FailureReason", metrics.FailureReason },
+                { "MeanReprojectionError", metrics.MeanReprojectionError },
+                { "MaxReprojectionError", metrics.MaxReprojectionError },
+                { "OriginMode", GetStringParam(@operator, "OriginMode", "Center") }
             })));
         }
         finally
         {
-            if (shouldDisposeTemplate)
+            srcDescriptors.Dispose();
+            templateDescriptors?.Dispose();
+            if (disposeTemplateImage)
             {
                 templateImage?.Dispose();
-                templateDescriptors?.Dispose();
             }
         }
     }
@@ -238,64 +219,84 @@ public class AkazeFeatureMatchOperator : FeatureMatchOperatorBase
         var threshold = GetDoubleParam(@operator, "Threshold", 0.001);
         if (threshold < 0.0001 || threshold > 0.1)
         {
-            return ValidationResult.Invalid("检测阈值必须在 0.0001-0.1 之间");
+            return ValidationResult.Invalid("检测阈值必须在 0.0001-0.1 之间。");
         }
 
         var minMatchCount = GetIntParam(@operator, "MinMatchCount", 10);
         if (minMatchCount < 3 || minMatchCount > 100)
         {
-            return ValidationResult.Invalid("最小匹配数必须在 3-100 之间");
+            return ValidationResult.Invalid("最小匹配数必须在 3-100 之间。");
         }
 
         return ValidationResult.Valid();
     }
 
-    private OperatorExecutionOutput CreateFailedOutput(Mat input, string reason, int score, int totalMatches)
+    private static Mat ToGray(Mat src)
+    {
+        if (src.Channels() == 1)
+        {
+            return src.Clone();
+        }
+
+        var gray = new Mat();
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        return gray;
+    }
+
+    private OperatorExecutionOutput CreateFailedOutput(Mat input, string reason, int inliers, int totalMatches)
     {
         var output = input.Clone();
-        Cv2.PutText(output, $"NG: {reason}", new Point(10, 30), 
-            HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 0, 255), 2);
-        Cv2.PutText(output, $"Score: {score}/{totalMatches}", new Point(10, 60), 
-            HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 0, 255), 2);
+        Cv2.PutText(output, $"NG: {reason}", new Point(10, 30), HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 0, 255), 2);
+        Cv2.PutText(output, $"Score: {inliers}/{totalMatches}", new Point(10, 60), HersheyFonts.HersheySimplex, 0.6, new Scalar(0, 0, 255), 2);
 
         return OperatorExecutionOutput.Success(CreateImageOutput(output, new Dictionary<string, object>
         {
             { "IsMatch", false },
             { "Score", 0.0 },
-            { "Inliers", score },
+            { "Inliers", inliers },
             { "TotalMatches", totalMatches },
             { "Message", reason },
+            { "FailureReason", reason },
             { "Position", new Position(0, 0) },
             { "MatchPoint", new Position(0, 0) },
             { "X", 0 },
             { "Y", 0 },
-            { "ScoreDefinition", "InlierRatio" }
+            { "ScoreDefinition", "HomographyVerificationScore" }
         }));
     }
 
-    private static bool TryGetProjectedCenter(Mat? homography, int templateWidth, int templateHeight, out Position center)
+    private Position ResolveReferenceOrigin(Operator @operator, Size templateSize)
+    {
+        var originMode = GetStringParam(@operator, "OriginMode", "Center");
+        return originMode.Trim().ToLowerInvariant() switch
+        {
+            "topleft" => new Position(0, 0),
+            "custom" => new Position(
+                GetDoubleParam(@operator, "OriginX", 0.0),
+                GetDoubleParam(@operator, "OriginY", 0.0)),
+            _ => new Position(templateSize.Width / 2.0, templateSize.Height / 2.0)
+        };
+    }
+
+    private static bool TryProjectReferencePoint(Mat? homography, Position origin, Point2f[] projectedCorners, out Position center)
     {
         center = new Position(0, 0);
-        if (homography == null || homography.Empty() || templateWidth <= 0 || templateHeight <= 0)
+        if (homography != null && !homography.Empty())
+        {
+            var projected = Cv2.PerspectiveTransform(new[] { new Point2f((float)origin.X, (float)origin.Y) }, homography);
+            if (projected.Length == 1)
+            {
+                center = new Position(projected[0].X, projected[0].Y);
+                return true;
+            }
+        }
+
+        if (projectedCorners.Length != 4)
         {
             return false;
         }
 
-        var corners = new[]
-        {
-            new Point2f(0, 0),
-            new Point2f(templateWidth, 0),
-            new Point2f(templateWidth, templateHeight),
-            new Point2f(0, templateHeight)
-        };
-
-        var projected = Cv2.PerspectiveTransform(corners, homography);
-        if (projected.Length != 4)
-        {
-            return false;
-        }
-
-        center = new Position(projected.Average(p => p.X), projected.Average(p => p.Y));
+        center = new Position(projectedCorners.Average(point => point.X), projectedCorners.Average(point => point.Y));
         return true;
     }
 }

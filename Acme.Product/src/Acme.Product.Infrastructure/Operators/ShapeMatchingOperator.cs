@@ -6,6 +6,7 @@ using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
+using Acme.Product.Core.ValueObjects;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 
@@ -32,6 +33,9 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("ScaleMax", "Scale Max", "double", DefaultValue = 1.0, Min = 0.2, Max = 3.0)]
 [OperatorParam("ScaleStep", "Scale Step", "double", DefaultValue = 0.1, Min = 0.01, Max = 1.0)]
 [OperatorParam("NumLevels", "Pyramid Levels", "int", DefaultValue = 3, Min = 1, Max = 6)]
+[OperatorParam("OriginMode", "Origin Mode", "enum", DefaultValue = "Center", Options = new[] { "Center|Center", "TopLeft|TopLeft", "Custom|Custom" })]
+[OperatorParam("OriginX", "Origin X", "double", DefaultValue = 0.0)]
+[OperatorParam("OriginY", "Origin Y", "double", DefaultValue = 0.0)]
 public class ShapeMatchingOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ShapeMatching;
@@ -91,6 +95,7 @@ public class ShapeMatchingOperator : OperatorBase
             {
                 using var srcGray = ToGray(src);
                 using var tmplGray = ToGray(templateMat);
+                var origin = ResolveReferenceOrigin(@operator, tmplGray.Size());
 
                 if (!HasSufficientSignal(tmplGray))
                 {
@@ -166,6 +171,8 @@ public class ShapeMatchingOperator : OperatorBase
                         { "Score", m.Score },
                         { "CenterX", m.SubpixelX + (m.Width / 2.0) },
                         { "CenterY", m.SubpixelY + (m.Height / 2.0) },
+                        { "ReferenceX", m.SubpixelX + origin.X },
+                        { "ReferenceY", m.SubpixelY + origin.Y },
                         { "Width", m.Width },
                         { "Height", m.Height }
                     }).ToList();
@@ -179,8 +186,16 @@ public class ShapeMatchingOperator : OperatorBase
                         { "FailureReason", string.Empty },
                         { "Matches", matchResults },
                         { "MatchCount", matchResults.Count },
-                        { "NumLevelsUsed", levelsUsed }
+                        { "NumLevelsUsed", levelsUsed },
+                        { "OriginMode", GetStringParam(@operator, "OriginMode", "Center") }
                     };
+
+                    if (matchResults.Count > 0)
+                    {
+                        additionalData["Position"] = new Position(
+                            Convert.ToDouble(matchResults[0]["ReferenceX"]),
+                            Convert.ToDouble(matchResults[0]["ReferenceY"]));
+                    }
 
                     if (matchResults.Count == 0)
                     {
@@ -222,6 +237,19 @@ public class ShapeMatchingOperator : OperatorBase
         var gray = new Mat();
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         return gray;
+    }
+
+    private Position ResolveReferenceOrigin(Operator @operator, Size templateSize)
+    {
+        var originMode = GetStringParam(@operator, "OriginMode", "Center");
+        return originMode.Trim().ToLowerInvariant() switch
+        {
+            "topleft" => new Position(0, 0),
+            "custom" => new Position(
+                GetDoubleParam(@operator, "OriginX", 0.0),
+                GetDoubleParam(@operator, "OriginY", 0.0)),
+            _ => new Position(templateSize.Width / 2.0, templateSize.Height / 2.0)
+        };
     }
 
     private static (List<Mat> srcPyramid, List<Mat> tmplPyramid) BuildPyramids(Mat srcGray, Mat tmplGray, int requestedLevels)
