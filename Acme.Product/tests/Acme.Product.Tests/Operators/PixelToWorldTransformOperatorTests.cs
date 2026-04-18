@@ -61,6 +61,26 @@ public class PixelToWorldTransformOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithPlanarBundle_ShouldEmitIndustrialAccuracyReport()
+    {
+        var op = new Operator("PixelToWorldTransform", OperatorType.PixelToWorldTransform, 0, 0);
+        op.Parameters.Add(TestHelpers.CreateParameter("TransformMode", "PixelToWorld"));
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["CalibrationData"] = CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson();
+        inputs["Points"] = new List<Acme.Product.Core.ValueObjects.Position> { new(160, 120), new(40, 60) };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var report = Assert.IsType<Dictionary<string, object>>(result.OutputData!["AccuracyReport"]);
+        report["RoundTripUnit"].Should().Be("px");
+        Convert.ToDouble(report["RoundTripMax"]).Should().BeLessThan(1e-9);
+        Convert.ToDouble(report["RoundTripRmse"]).Should().BeLessThan(1e-9);
+        Assert.IsType<List<double>>(report["RoundTripErrors"]).Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithWorldToPixelMode_ShouldTransformPoints()
     {
         var op = new Operator("PixelToWorldTransform", OperatorType.PixelToWorldTransform, 0, 0);
@@ -235,5 +255,9 @@ public class PixelToWorldTransformOperatorTests
         worldPoint.X.Should().BeApproximately(12.0, 0.2);
         worldPoint.Y.Should().BeApproximately(-6.0, 0.2);
         worldPoint.Z.Should().BeApproximately(0.0, 1e-6);
+
+        var report = Assert.IsType<Dictionary<string, object>>(pixelToWorld.OutputData["AccuracyReport"]);
+        report["RoundTripUnit"].Should().Be("px");
+        Convert.ToDouble(report["RoundTripMax"]).Should().BeLessThan(1e-6);
     }
 }

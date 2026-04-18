@@ -448,7 +448,7 @@ public class WidthMeasurementOperator : OperatorBase
             return false;
         }
 
-        var sampleCount = Math.Max((int)Math.Ceiling(segmentLength * 4.0), 32);
+        var sampleCount = Math.Max((int)Math.Ceiling(segmentLength * 8.0), 48);
         var profile = IndustrialCaliperKernel.SampleBandProfile(
             gray,
             new Point2d(start.X, start.Y),

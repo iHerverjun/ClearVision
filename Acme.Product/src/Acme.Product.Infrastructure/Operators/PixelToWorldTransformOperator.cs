@@ -207,6 +207,10 @@ public class PixelToWorldTransformOperator : OperatorBase
             }
         }
 
+        var accuracyReport = generateReport
+            ? BuildPlanarAccuracyReport(runtime, inputPoints, outputPoints, isPixelToWorld, unitScale, null)
+            : null;
+
         return BuildSuccessOutput(
             inputs,
             inputPoints,
@@ -218,6 +222,7 @@ public class PixelToWorldTransformOperator : OperatorBase
             worldPlaneZ,
             unitScale,
             generateReport,
+            accuracyReport,
             additionalDiagnostics: null);
     }
 
@@ -276,6 +281,10 @@ public class PixelToWorldTransformOperator : OperatorBase
             }
         }
 
+        var accuracyReport = generateReport
+            ? BuildRayPlaneAccuracyReport(context, distortion, inputPoints, outputPoints, isPixelToWorld, worldPlaneZ, unitScale, diagnostics)
+            : null;
+
         return BuildSuccessOutput(
             inputs,
             inputPoints,
@@ -287,6 +296,7 @@ public class PixelToWorldTransformOperator : OperatorBase
             worldPlaneZ,
             unitScale,
             generateReport,
+            accuracyReport,
             diagnostics);
     }
 
@@ -301,6 +311,7 @@ public class PixelToWorldTransformOperator : OperatorBase
         double worldPlaneZ,
         double unitScale,
         bool generateReport,
+        Dictionary<string, object>? accuracyReport,
         IReadOnlyList<string>? additionalDiagnostics)
     {
         var isPixelToWorld = transformMode.Equals("PixelToWorld", StringComparison.OrdinalIgnoreCase);
@@ -330,13 +341,7 @@ public class PixelToWorldTransformOperator : OperatorBase
 
         if (generateReport)
         {
-            resultData["AccuracyReport"] = new Dictionary<string, object>
-            {
-                ["InputPoints"] = inputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
-                ["OutputPoints"] = outputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
-                ["Diagnostics"] = additionalDiagnostics?.ToList() ?? new List<string>(),
-                ["TimestampUtc"] = DateTime.UtcNow
-            };
+            resultData["AccuracyReport"] = accuracyReport ?? CreateFallbackAccuracyReport(inputPoints, outputPoints, additionalDiagnostics);
         }
 
         Mat visualization;
@@ -356,6 +361,176 @@ public class PixelToWorldTransformOperator : OperatorBase
         }
 
         return OperatorExecutionOutput.Success(CreateImageOutput(visualization, resultData));
+    }
+
+    private static Dictionary<string, object> BuildPlanarAccuracyReport(
+        CalibrationPlanarTransformRuntime runtime,
+        IReadOnlyList<Point3d> inputPoints,
+        IReadOnlyList<Point3d> outputPoints,
+        bool isPixelToWorld,
+        double unitScale,
+        IReadOnlyList<string>? diagnostics)
+    {
+        var roundTripErrors = new List<double>(Math.Min(inputPoints.Count, outputPoints.Count));
+        for (var i = 0; i < inputPoints.Count && i < outputPoints.Count; i++)
+        {
+            if (isPixelToWorld)
+            {
+                var worldXmm = outputPoints[i].X * unitScale;
+                var worldYmm = outputPoints[i].Y * unitScale;
+                if (!runtime.TryApplyInverse(worldXmm, worldYmm, out var pixelX, out var pixelY, out _))
+                {
+                    continue;
+                }
+
+                roundTripErrors.Add(MeasurementGeometryHelper.Distance(inputPoints[i].X, inputPoints[i].Y, pixelX, pixelY));
+            }
+            else
+            {
+                if (!runtime.TryApplyInverse(outputPoints[i].X, outputPoints[i].Y, out var worldXmm, out var worldYmm, out _))
+                {
+                    continue;
+                }
+
+                roundTripErrors.Add(MeasurementGeometryHelper.Distance(
+                    inputPoints[i].X,
+                    inputPoints[i].Y,
+                    worldXmm / unitScale,
+                    worldYmm / unitScale));
+            }
+        }
+
+        return BuildAccuracyReportPayload(
+            inputPoints,
+            outputPoints,
+            roundTripErrors,
+            isPixelToWorld ? "px" : "world_unit",
+            diagnostics);
+    }
+
+    private static Dictionary<string, object> BuildRayPlaneAccuracyReport(
+        RayPlaneContext context,
+        DistortionContext distortion,
+        IReadOnlyList<Point3d> inputPoints,
+        IReadOnlyList<Point3d> outputPoints,
+        bool isPixelToWorld,
+        double worldPlaneZ,
+        double unitScale,
+        IReadOnlyList<string>? diagnostics)
+    {
+        var roundTripErrors = new List<double>(Math.Min(inputPoints.Count, outputPoints.Count));
+        for (var i = 0; i < inputPoints.Count && i < outputPoints.Count; i++)
+        {
+            if (isPixelToWorld)
+            {
+                var worldPointMm = new Point3d(
+                    outputPoints[i].X * unitScale,
+                    outputPoints[i].Y * unitScale,
+                    outputPoints[i].Z * unitScale);
+                if (!TryWorldToPixelByProjection(context, distortion, worldPointMm, out var pixelPoint, out _))
+                {
+                    continue;
+                }
+
+                roundTripErrors.Add(MeasurementGeometryHelper.Distance(inputPoints[i].X, inputPoints[i].Y, pixelPoint.X, pixelPoint.Y));
+            }
+            else
+            {
+                var planeZmm = Math.Abs(inputPoints[i].Z) > Epsilon
+                    ? inputPoints[i].Z * unitScale
+                    : worldPlaneZ;
+                if (!TryPixelToWorldByRayPlane(context, distortion, outputPoints[i].X, outputPoints[i].Y, planeZmm, out var worldPointMm, out _))
+                {
+                    continue;
+                }
+
+                roundTripErrors.Add(MeasurementGeometryHelper.Distance(
+                    inputPoints[i].X,
+                    inputPoints[i].Y,
+                    worldPointMm.X / unitScale,
+                    worldPointMm.Y / unitScale));
+            }
+        }
+
+        return BuildAccuracyReportPayload(
+            inputPoints,
+            outputPoints,
+            roundTripErrors,
+            isPixelToWorld ? "px" : "world_unit",
+            diagnostics);
+    }
+
+    private static Dictionary<string, object> BuildAccuracyReportPayload(
+        IReadOnlyList<Point3d> inputPoints,
+        IReadOnlyList<Point3d> outputPoints,
+        IReadOnlyList<double> roundTripErrors,
+        string roundTripUnit,
+        IReadOnlyList<string>? diagnostics)
+    {
+        var mean = roundTripErrors.Count > 0 ? roundTripErrors.Average() : 0.0;
+        var max = roundTripErrors.Count > 0 ? roundTripErrors.Max() : 0.0;
+        var rmse = roundTripErrors.Count > 0
+            ? Math.Sqrt(roundTripErrors.Select(static error => error * error).Average())
+            : 0.0;
+
+        return new Dictionary<string, object>
+        {
+            ["InputPoints"] = inputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
+            ["OutputPoints"] = outputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
+            ["RoundTripErrors"] = roundTripErrors.ToList(),
+            ["RoundTripUnit"] = roundTripUnit,
+            ["RoundTripMean"] = mean,
+            ["RoundTripMax"] = max,
+            ["RoundTripP95"] = ComputePercentile(roundTripErrors, 0.95),
+            ["RoundTripRmse"] = rmse,
+            ["Diagnostics"] = diagnostics?.ToList() ?? new List<string>(),
+            ["TimestampUtc"] = DateTime.UtcNow
+        };
+    }
+
+    private static Dictionary<string, object> CreateFallbackAccuracyReport(
+        IReadOnlyList<Point3d> inputPoints,
+        IReadOnlyList<Point3d> outputPoints,
+        IReadOnlyList<string>? diagnostics)
+    {
+        return new Dictionary<string, object>
+        {
+            ["InputPoints"] = inputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
+            ["OutputPoints"] = outputPoints.Select(p => new { p.X, p.Y, p.Z }).ToList(),
+            ["RoundTripErrors"] = new List<double>(),
+            ["RoundTripUnit"] = string.Empty,
+            ["RoundTripMean"] = 0.0,
+            ["RoundTripMax"] = 0.0,
+            ["RoundTripP95"] = 0.0,
+            ["RoundTripRmse"] = 0.0,
+            ["Diagnostics"] = diagnostics?.ToList() ?? new List<string>(),
+            ["TimestampUtc"] = DateTime.UtcNow
+        };
+    }
+
+    private static double ComputePercentile(IReadOnlyList<double> values, double percentile)
+    {
+        if (values.Count == 0)
+        {
+            return 0.0;
+        }
+
+        var ordered = values.OrderBy(static value => value).ToArray();
+        if (ordered.Length == 1)
+        {
+            return ordered[0];
+        }
+
+        var position = Math.Clamp(percentile, 0.0, 1.0) * (ordered.Length - 1);
+        var lower = (int)Math.Floor(position);
+        var upper = (int)Math.Ceiling(position);
+        if (lower == upper)
+        {
+            return ordered[lower];
+        }
+
+        var ratio = position - lower;
+        return ordered[lower] * (1.0 - ratio) + ordered[upper] * ratio;
     }
 
     private Mat DrawVisualization(

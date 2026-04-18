@@ -60,6 +60,124 @@ public sealed class MeasurementStabilityIntegrationTests
         ComputeStdDev(hues).Should().BeLessThan(1e-6);
     }
 
+    [Fact]
+    public async Task CaliperTool_Subpixel_Repeat100_ShouldRemainStable()
+    {
+        var exec = new CaliperToolOperator(NullLogger<CaliperToolOperator>.Instance);
+        var op = new Operator("caliper", OperatorType.CaliperTool, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Direction", "Horizontal", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("Polarity", "Both", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("PairDirection", "positive_to_negative", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("EdgeThreshold", 6.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("ExpectedCount", 1, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("SubpixelAccuracy", true, "bool"));
+
+        using var image = IndustrialMeasurementSceneFactory.CreateFilledVerticalStripeImage(240, 120, 90.25, 130.75, 12, 108);
+        var widths = new List<double>(100);
+        for (var i = 0; i < 100; i++)
+        {
+            var result = await exec.ExecuteAsync(op, new Dictionary<string, object>
+            {
+                ["Image"] = image.AddRef(),
+                ["SearchRegion"] = new Rect(60, 8, 120, 104)
+            });
+
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            widths.Add(Convert.ToDouble(result.OutputData!["Width"]));
+            (result.OutputData["Image"] as ImageWrapper)?.Dispose();
+        }
+
+        ComputeStdDev(widths).Should().BeLessThan(0.02);
+    }
+
+    [Fact]
+    public async Task GapMeasurement_Repeat100_ShouldRemainStable()
+    {
+        var exec = new GapMeasurementOperator(NullLogger<GapMeasurementOperator>.Instance);
+        var op = new Operator("gap", OperatorType.GapMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Direction", "Horizontal", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ExpectedCount", 2, "int"));
+        op.AddParameter(TestHelpers.CreateParameter("RobustMode", true, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("MultiScanCount", 16, "int"));
+
+        using var image = IndustrialMeasurementSceneFactory.CreateStripesImage(
+            width: 140,
+            height: 80,
+            stripes: new[]
+            {
+                (20.0, 30.0, 10.0, 70.0),
+                (48.5, 63.5, 10.0, 70.0),
+                (82.0, 92.0, 10.0, 70.0)
+            });
+
+        var means = new List<double>(100);
+        for (var i = 0; i < 100; i++)
+        {
+            var result = await exec.ExecuteAsync(op, new Dictionary<string, object> { ["Image"] = image.AddRef() });
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            means.Add(Convert.ToDouble(result.OutputData!["MeanGap"]));
+            (result.OutputData["Image"] as ImageWrapper)?.Dispose();
+        }
+
+        ComputeStdDev(means).Should().BeLessThan(0.02);
+    }
+
+    [Fact]
+    public async Task LineMeasurement_Repeat50_ShouldRemainStable()
+    {
+        var exec = new LineMeasurementOperator(NullLogger<LineMeasurementOperator>.Instance);
+        var op = new Operator("line", OperatorType.LineMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "FitLine", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("MinLength", 160.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 70, "int"));
+
+        using var image = IndustrialMeasurementSceneFactory.CreateLineImage(
+            width: 240,
+            height: 220,
+            start: new Point2d(24.5, 166.25),
+            end: new Point2d(216.5, 58.25),
+            thicknessPx: 6.0);
+
+        var angles = new List<double>(50);
+        for (var i = 0; i < 50; i++)
+        {
+            var result = await exec.ExecuteAsync(op, new Dictionary<string, object> { ["Image"] = image.AddRef() });
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            angles.Add(Convert.ToDouble(result.OutputData!["Angle"]));
+            (result.OutputData["Image"] as ImageWrapper)?.Dispose();
+        }
+
+        ComputeStdDev(angles).Should().BeLessThan(0.01);
+    }
+
+    [Fact]
+    public async Task PixelToWorld_PlanarRepeat100_ShouldRemainStable()
+    {
+        var exec = new PixelToWorldTransformOperator(NullLogger<PixelToWorldTransformOperator>.Instance);
+        var op = new Operator("p2w", OperatorType.PixelToWorldTransform, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("TransformMode", "PixelToWorld", "string"));
+
+        using var image = TestHelpers.CreateTestImage(width: 320, height: 240);
+        var points = new List<Position> { new(160, 120) };
+        var worlds = new List<double>(100);
+        for (var i = 0; i < 100; i++)
+        {
+            var result = await exec.ExecuteAsync(op, new Dictionary<string, object>
+            {
+                ["Image"] = image.AddRef(),
+                ["CalibrationData"] = Acme.Product.Tests.TestData.CalibrationBundleV2TestData.CreateAcceptedScaleOffsetBundleJson(),
+                ["Points"] = points
+            });
+
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            var world = ((List<Point3d>)result.OutputData!["TransformedPoints"]).Single();
+            worlds.Add(world.X);
+            (result.OutputData["Image"] as ImageWrapper)?.Dispose();
+        }
+
+        ComputeStdDev(worlds).Should().BeLessThan(1e-9);
+    }
+
     private static double ComputeStdDev(IReadOnlyList<double> values)
     {
         if (values.Count <= 1)

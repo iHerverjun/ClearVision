@@ -83,6 +83,42 @@ public class WidthMeasurementOperatorTests
         _operator.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithIndustrialManualLines_ShouldMeetIndustrialTolerance()
+    {
+        const double expectedWidth = 50.0;
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["MeasureMode"] = "ManualLines",
+            ["SampleCount"] = 32,
+            ["MultiScanCount"] = 48,
+            ["RobustMode"] = true,
+            ["OutlierSigmaK"] = 3.0,
+            ["MinValidSamples"] = 24
+        });
+
+        using var image = IndustrialMeasurementSceneFactory.CreateFilledVerticalStripeImage(
+            width: 220,
+            height: 180,
+            leftX: 70.0,
+            rightX: 120.0,
+            topY: 18,
+            bottomY: 162);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["Line1"] = new LineData(68f, 20f, 68f, 160f);
+        inputs["Line2"] = new LineData(122f, 20f, 122f, 160f);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Width"]).Should().BeApproximately(expectedWidth, 0.15);
+        Convert.ToDouble(result.OutputData["MeanWidth"]).Should().BeApproximately(expectedWidth, 0.15);
+        Convert.ToDouble(result.OutputData["P95Width"]).Should().BeLessThan(expectedWidth + 0.30);
+        Convert.ToDouble(result.OutputData["StdDev"]).Should().BeLessThan(0.15);
+        Convert.ToDouble(result.OutputData["ValidSampleRate"]).Should().BeGreaterThan(0.95);
+        Convert.ToInt32(result.OutputData["ValidSampleCount"]).Should().BeGreaterOrEqualTo(24);
+    }
+
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("Width", OperatorType.WidthMeasurement, 0, 0);

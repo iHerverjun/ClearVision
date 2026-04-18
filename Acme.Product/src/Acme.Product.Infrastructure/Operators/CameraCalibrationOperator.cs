@@ -389,8 +389,12 @@ public class CameraCalibrationOperator : OperatorBase
             ["Accepted"] = accepted,
             ["ReprojectionError"] = finalResult.MeanError,
             ["MaxReprojectionError"] = finalResult.MaxError,
+            ["PerViewErrors"] = finalResult.ViewErrors,
             ["ImageCount"] = samples.Count,
             ["TotalImages"] = imageFiles.Length,
+            ["RejectedDetectionCount"] = failedFiles.Count,
+            ["RejectedOutlierCount"] = outlierFiles.Count,
+            ["Diagnostics"] = diagnostics,
             ["OutputPath"] = outputPath,
             ["Message"] = accepted
                 ? $"Calibration accepted with {samples.Count}/{imageFiles.Length} samples."
@@ -422,11 +426,20 @@ public class CameraCalibrationOperator : OperatorBase
         corners = Array.Empty<Point2f>();
         if (patternType.Equals("Chessboard", StringComparison.OrdinalIgnoreCase))
         {
+            if (Cv2.FindChessboardCorners(
+                gray,
+                patternSize,
+                out corners,
+                ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck))
+            {
+                return true;
+            }
+
             return Cv2.FindChessboardCorners(
                 gray,
                 patternSize,
                 out corners,
-                ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck);
+                ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage);
         }
 
         if (patternType.Equals("CircleGrid", StringComparison.OrdinalIgnoreCase))

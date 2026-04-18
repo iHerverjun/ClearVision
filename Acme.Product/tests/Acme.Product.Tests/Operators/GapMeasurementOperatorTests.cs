@@ -2,6 +2,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
@@ -158,6 +159,42 @@ public class GapMeasurementOperatorTests
         Assert.Single(gaps);
         Assert.InRange(gaps[0], 18.0, 22.0);
         Assert.InRange(Convert.ToDouble(result.OutputData["MeanGap"]), 18.0, 22.0);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithIndustrialStripePattern_ShouldMeetIndustrialTolerance()
+    {
+        const double expectedGap = 18.5;
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "ExpectedCount", 2 },
+            { "RobustMode", true },
+            { "MultiScanCount", 16 },
+            { "MinValidSamples", 2 }
+        });
+
+        using var image = IndustrialMeasurementSceneFactory.CreateStripesImage(
+            width: 140,
+            height: 80,
+            stripes: new[]
+            {
+                (20.0, 30.0, 10.0, 70.0),
+                (48.5, 63.5, 10.0, 70.0),
+                (82.0, 92.0, 10.0, 70.0)
+            });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object> { { "Image", image } });
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        var gaps = Assert.IsType<List<double>>(result.OutputData!["Gaps"]);
+        Assert.Equal(2, gaps.Count);
+        gaps.Should().OnlyContain(gap => Math.Abs(gap - expectedGap) <= 0.15);
+        Convert.ToDouble(result.OutputData["MeanGap"]).Should().BeApproximately(expectedGap, 0.15);
+        Convert.ToDouble(result.OutputData["P95Gap"]).Should().BeLessThan(expectedGap + 0.30);
+        Convert.ToDouble(result.OutputData["StdDev"]).Should().BeLessThan(0.15);
+        Convert.ToDouble(result.OutputData["ValidSampleRate"]).Should().BeApproximately(1.0, 1e-6);
     }
 
     private static GapMeasurementOperator CreateSut()

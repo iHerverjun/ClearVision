@@ -92,7 +92,7 @@ public class CaliperToolOperator : OperatorBase
 
         var roi = ParseSearchRect(inputs, gray.Width, gray.Height);
         var scan = BuildScanLine(roi, direction, angleDeg);
-        var sampleCount = Math.Max((int)Math.Ceiling(scan.Length), 24);
+        var sampleCount = ResolveProfileSampleCount(scan.Length, subpixel);
         var averagingThickness = Math.Clamp(Math.Min(roi.Width, roi.Height) / 6.0, 3.0, 9.0);
         var profile = IndustrialCaliperKernel.SampleBandProfile(gray, scan.Start, scan.End, averagingThickness, sampleCount);
         var adaptiveThreshold = Math.Max(edgeThreshold, IndustrialCaliperKernel.EstimateEdgeThreshold(profile, minimumThreshold: 3.0));
@@ -125,15 +125,18 @@ public class CaliperToolOperator : OperatorBase
             }
 
             var point = IndustrialCaliperKernel.InterpolatePosition(scan.Start, scan.End, profilePosition, sampleCount);
+            var localizationSigmaPx = EstimateLocalizationSigmaPx(profile, profilePosition, sampleCount, scan.Length);
             detectedEdges.Add(new DetectedEdge(
                 (int)Math.Round(profilePosition),
                 edge.Polarity == IndustrialCaliperPolarity.DarkToLight ? EdgePolarity.DarkToLight : EdgePolarity.LightToDark,
-                point));
+                point,
+                localizationSigmaPx));
         }
 
         var pairs = BuildEdgePairs(detectedEdges, pairDirection, expectedCount);
 
         var pairDistances = new List<double>(pairs.Count);
+        var pairUncertainties = new List<double>(pairs.Count);
         var pairedEdgePoints = new List<Position>(pairs.Count * 2);
 
         foreach (var (first, second) in pairs)
@@ -142,6 +145,9 @@ public class CaliperToolOperator : OperatorBase
             var p2 = detectedEdges[second].Point;
             var distance = Math.Sqrt((p2.X - p1.X) * (p2.X - p1.X) + (p2.Y - p1.Y) * (p2.Y - p1.Y));
             pairDistances.Add(distance);
+            pairUncertainties.Add(Math.Sqrt(
+                (detectedEdges[first].LocalizationSigmaPx * detectedEdges[first].LocalizationSigmaPx) +
+                (detectedEdges[second].LocalizationSigmaPx * detectedEdges[second].LocalizationSigmaPx)));
             pairedEdgePoints.Add(p1);
             pairedEdgePoints.Add(p2);
         }
@@ -151,8 +157,13 @@ public class CaliperToolOperator : OperatorBase
             ? pairDistances.Select(d => (d - averageDistance) * (d - averageDistance)).Sum() / (pairDistances.Count - 1)
             : 0.0;
         var distanceStdDev = Math.Sqrt(Math.Max(0, variance));
+        var pairUncertainty = pairUncertainties.Count > 0 ? pairUncertainties.Average() : double.NaN;
         var pairCount = pairDistances.Count;
         var widthValue = averageDistance;
+        var samplePitchPx = scan.Length / Math.Max(sampleCount - 1, 1);
+        var reportedUncertaintyPx = pairCount > 0
+            ? Math.Max(distanceStdDev, pairUncertainty)
+            : double.NaN;
 
         var resultImage = src.Clone();
         var drawEdges = BuildDrawEdgeList(detectedEdges, pairs, pairedEdgePoints, measureMode);
@@ -175,10 +186,13 @@ public class CaliperToolOperator : OperatorBase
             { "PairDistances", pairDistances },
             { "AverageDistance", averageDistance },
             { "DistanceStdDev", distanceStdDev },
+            { "PairUncertainties", pairUncertainties },
+            { "SamplePitchPx", samplePitchPx },
+            { "ProfileSampleCount", sampleCount },
             { "StatusCode", pairCount > 0 ? "OK" : "NoFeature" },
             { "StatusMessage", pairCount > 0 ? "Success" : "No edge pair found" },
             { "Confidence", pairCount > 0 ? 1.0 : 0.0 },
-            { "UncertaintyPx", pairCount > 0 ? distanceStdDev : double.NaN }
+            { "UncertaintyPx", reportedUncertaintyPx }
         });
         // Override image width key with measured width to match operator output contract.
         output["Width"] = widthValue;
@@ -350,7 +364,68 @@ public class CaliperToolOperator : OperatorBase
 
     private readonly record struct EdgeCandidate(int Index, EdgePolarity Polarity);
 
-    private readonly record struct DetectedEdge(int Index, EdgePolarity Polarity, Position Point);
+    private readonly record struct DetectedEdge(int Index, EdgePolarity Polarity, Position Point, double LocalizationSigmaPx);
+
+    private static int ResolveProfileSampleCount(double scanLength, bool subpixel)
+    {
+        var oversample = subpixel ? 6.0 : 2.5;
+        var sampleCount = (int)Math.Ceiling(Math.Max(scanLength, 1.0) * oversample);
+        return Math.Clamp(Math.Max(sampleCount, 48), 48, 4096);
+    }
+
+    private static double EstimateLocalizationSigmaPx(
+        IReadOnlyList<double> samples,
+        double edgePosition,
+        int sampleCount,
+        double physicalLengthPx)
+    {
+        if (samples.Count < 3)
+        {
+            return physicalLengthPx / Math.Max(sampleCount - 1, 1);
+        }
+
+        var centerIndex = Math.Clamp((int)Math.Round(edgePosition), 1, samples.Count - 2);
+        var localGradient = Math.Max(
+            Math.Max(
+                Math.Abs(samples[centerIndex] - samples[centerIndex - 1]),
+                Math.Abs(samples[centerIndex + 1] - samples[centerIndex])),
+            Math.Abs(samples[centerIndex + 1] - samples[centerIndex - 1]) * 0.5);
+        var localNoise = EstimateLocalNoise(samples, centerIndex, radius: 4);
+        var samplePitchPx = physicalLengthPx / Math.Max(sampleCount - 1, 1);
+        if (localGradient < 1e-6)
+        {
+            return samplePitchPx;
+        }
+
+        var sigmaSamples = Math.Clamp((localNoise + 0.25) / localGradient, 0.02, 1.0);
+        return Math.Max(samplePitchPx * sigmaSamples, samplePitchPx * 0.05);
+    }
+
+    private static double EstimateLocalNoise(IReadOnlyList<double> samples, int centerIndex, int radius)
+    {
+        var start = Math.Max(1, centerIndex - radius);
+        var end = Math.Min(samples.Count - 2, centerIndex + radius);
+        if (end < start)
+        {
+            return 0.0;
+        }
+
+        var residuals = new List<double>(end - start + 1);
+        for (var i = start; i <= end; i++)
+        {
+            var predicted = (samples[i - 1] + samples[i + 1]) * 0.5;
+            residuals.Add(Math.Abs(samples[i] - predicted));
+        }
+
+        if (residuals.Count == 0)
+        {
+            return 0.0;
+        }
+
+        residuals.Sort();
+        var median = residuals[residuals.Count / 2];
+        return median * 1.4826;
+    }
 
     private static List<EdgeCandidate> DetectEdgesSigned(IReadOnlyList<double> samples, double threshold, string polarity)
     {

@@ -80,7 +80,8 @@ public class LineMeasurementOperator : OperatorBase
             "FitLine" => DetectFitLine(gray, edges, resultImage, src.Width, src.Height, threshold, minLength, maxGap),
             _ => new List<LineMeasurementResult>()
         })
-        .OrderByDescending(result => result.Length)
+        .OrderBy(result => double.IsFinite(result.ResidualMean) ? result.ResidualMean : double.PositiveInfinity)
+        .ThenByDescending(result => result.Length)
         .ToList();
 
         if (lineResults.Count == 0)
@@ -355,8 +356,8 @@ public class LineMeasurementOperator : OperatorBase
         var normalY = dx;
         var searchHalfWidth = Math.Clamp(length / 30.0, 6.0, 18.0);
         var averagingThickness = Math.Clamp(length / 80.0, 3.0, 7.0);
-        var sampleCount = 33;
-        var sections = Math.Clamp((int)Math.Ceiling(length / 14.0), 12, 96);
+        var sampleCount = 41;
+        var sections = Math.Clamp((int)Math.Ceiling(length / 10.0), 16, 128);
         var refinedCenters = new List<Point2f>(sections);
 
         for (var i = 0; i < sections; i++)

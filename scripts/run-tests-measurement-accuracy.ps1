@@ -17,12 +17,18 @@ $runner = Join-Path $scriptRoot "run-dotnet-test-serial.ps1"
 $project = Join-Path $repoRoot "Acme.Product\tests\Acme.Product.Tests\Acme.Product.Tests.csproj"
 
 $testClasses = @(
+    "AngleMeasurementOperatorTests",
+    "CaliperToolOperatorTests",
     "LineMeasurementOperatorTests",
     "LineLineDistanceOperatorTests",
     "GeoMeasurementOperatorTests",
     "MeasureDistanceOperatorTests",
     "PointLineDistanceOperatorTests",
     "WidthMeasurementOperatorTests",
+    "GapMeasurementOperatorTests",
+    "CircleMeasurementOperatorTests",
+    "CameraCalibrationOperatorTests",
+    "PixelToWorldTransformOperatorTests",
     "ColorMeasurementOperatorTests",
     "HistogramAnalysisOperatorTests",
     "GeometricFittingOperatorTests",

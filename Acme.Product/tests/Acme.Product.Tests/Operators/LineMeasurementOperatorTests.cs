@@ -78,4 +78,33 @@ public class LineMeasurementOperatorTests
         Cv2.Line(mat, new Point(20, 180), new Point(220, 40), Scalar.White, 3);
         return new ImageWrapper(mat);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithIndustrialLineScene_ShouldMeetIndustrialTolerance()
+    {
+        var op = new Operator("line", OperatorType.LineMeasurement, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Method", "ProbabilisticHough", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("MinLength", 160.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("Threshold", 70, "int"));
+
+        var expectedStart = new Point2d(20.0, 100.0);
+        var expectedEnd = new Point2d(220.0, 100.0);
+        using var image = IndustrialMeasurementSceneFactory.CreateLineImage(
+            width: 240,
+            height: 220,
+            start: expectedStart,
+            end: expectedEnd,
+            thicknessPx: 2.0);
+
+        var result = await _operator.ExecuteAsync(op, TestHelpers.CreateImageInputs(image));
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        var line = result.OutputData!["Line"].Should().BeOfType<LineData>().Subject;
+        var expectedAngle = Math.Atan2(expectedEnd.Y - expectedStart.Y, expectedEnd.X - expectedStart.X) * 180.0 / Math.PI;
+        Convert.ToDouble(result.OutputData["Angle"]).Should().BeApproximately(expectedAngle, 0.05);
+        Convert.ToDouble(result.OutputData["ResidualMean"]).Should().BeLessThan(0.20);
+        Convert.ToDouble(result.OutputData["ResidualMax"]).Should().BeLessThan(0.20);
+        Convert.ToDouble(result.OutputData["UncertaintyPx"]).Should().BeLessThan(0.20);
+        line.Length.Should().BeGreaterOrEqualTo(200.0f);
+    }
 }

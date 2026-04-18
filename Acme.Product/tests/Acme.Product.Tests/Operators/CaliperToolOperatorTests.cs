@@ -2,6 +2,7 @@
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
@@ -139,6 +140,47 @@ public class CaliperToolOperatorTests
         var validation = _operator.ValidateParameters(op);
 
         Assert.False(validation.IsValid);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithIndustrialSubpixelStripe_ShouldMeetIndustrialTolerance()
+    {
+        const double expectedWidth = 40.0;
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "Direction", "Horizontal" },
+            { "Polarity", "Both" },
+            { "PairDirection", "positive_to_negative" },
+            { "EdgeThreshold", 6.0 },
+            { "ExpectedCount", 1 },
+            { "SubpixelAccuracy", true }
+        });
+
+        using var image = IndustrialMeasurementSceneFactory.CreateFilledVerticalStripeImage(
+            width: 240,
+            height: 120,
+            leftX: 90.0,
+            rightX: 130.0,
+            topY: 12,
+            bottomY: 108);
+        var inputs = TestHelpers.CreateImageInputs(image);
+        inputs["SearchRegion"] = new Rect(60, 8, 120, 104);
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        var width = Convert.ToDouble(result.OutputData!["Width"]);
+        var uncertainty = Convert.ToDouble(result.OutputData["UncertaintyPx"]);
+        var distances = Assert.IsType<List<double>>(result.OutputData["PairDistances"]);
+        var pairUncertainties = Assert.IsType<List<double>>(result.OutputData["PairUncertainties"]);
+
+        width.Should().BeApproximately(expectedWidth, 0.15);
+        distances.Should().ContainSingle();
+        distances[0].Should().BeApproximately(expectedWidth, 0.15);
+        pairUncertainties.Should().ContainSingle();
+        pairUncertainties[0].Should().BeLessThan(0.15);
+        uncertainty.Should().BeLessThan(0.15);
+        Convert.ToDouble(result.OutputData["SamplePitchPx"]).Should().BeLessThan(0.2);
     }
 
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)

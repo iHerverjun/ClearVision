@@ -103,6 +103,8 @@ public class CircleMeasurementOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure("[InvalidParameter] Method must be HoughCircle or FitEllipse"));
         }
 
+        SortCircleCandidates(circleResults, circleDataList);
+
         // P0: 使用ImageWrapper实现零拷贝输出
         // Sprint 1 Task 1.2: 添加 CircleData 输出端口
         var additionalData = new Dictionary<string, object>
@@ -145,6 +147,45 @@ public class CircleMeasurementOperator : OperatorBase
             : (hasFeature ? 0.5 : double.NaN);
         
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
+    }
+
+    private static void SortCircleCandidates(
+        List<Dictionary<string, object>> circleResults,
+        List<CircleData> circleDataList)
+    {
+        if (circleResults.Count <= 1 || circleResults.Count != circleDataList.Count)
+        {
+            return;
+        }
+
+        var ordered = Enumerable.Range(0, circleResults.Count)
+            .OrderBy(index =>
+            {
+                if (circleResults[index].TryGetValue("ResidualRmse", out var rmse) && rmse != null)
+                {
+                    var value = Convert.ToDouble(rmse);
+                    return double.IsFinite(value) ? value : double.PositiveInfinity;
+                }
+
+                return double.PositiveInfinity;
+            })
+            .ThenByDescending(index =>
+            {
+                if (circleResults[index].TryGetValue("Circularity", out var circularity) && circularity != null)
+                {
+                    return Convert.ToDouble(circularity);
+                }
+
+                return 0.0;
+            })
+            .ToArray();
+
+        var sortedResults = ordered.Select(index => circleResults[index]).ToList();
+        var sortedCircles = ordered.Select(index => circleDataList[index]).ToList();
+        circleResults.Clear();
+        circleResults.AddRange(sortedResults);
+        circleDataList.Clear();
+        circleDataList.AddRange(sortedCircles);
     }
 
     private void TryDetectByHough(
@@ -339,8 +380,8 @@ public class CircleMeasurementOperator : OperatorBase
 
         var searchHalfWidth = Math.Clamp(seedRadius * 0.20, 6.0, 18.0);
         var averagingThickness = Math.Clamp(seedRadius / 18.0, 3.0, 7.0);
-        const int sampleCount = 33;
-        const int angularSamples = 36;
+        var sampleCount = Math.Clamp((int)Math.Ceiling(searchHalfWidth * 6.0), 33, 81);
+        var angularSamples = Math.Clamp((int)Math.Ceiling(seedRadius * 1.5), 36, 120);
         var expectedPosition = (sampleCount - 1) * 0.5;
         var edgePoints = new List<Point2f>(angularSamples);
 
