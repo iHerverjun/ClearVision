@@ -57,7 +57,7 @@ public class PixelToWorldTransformOperator : OperatorBase
         }
 
         var worldPlaneZ = GetDoubleParam(@operator, "WorldPlaneZ", 0.0);
-        var unitScale = GetDoubleParam(@operator, "UnitScale", 1.0);
+        var configuredUnitScale = GetDoubleParam(@operator, "UnitScale", 1.0);
         var useDistortion = GetBoolParam(@operator, "UseDistortion", true);
         var generateReport = GetBoolParam(@operator, "GenerateReport", true);
 
@@ -75,6 +75,11 @@ public class PixelToWorldTransformOperator : OperatorBase
         {
             return Task.FromResult(OperatorExecutionOutput.Failure(acceptedError));
         }
+
+        var unitScale = ResolveEffectiveUnitScale(
+            bundle.Unit,
+            configuredUnitScale,
+            IsParameterExplicitlyConfigured(@operator, "UnitScale"));
 
         if (!TryGetInputPoints(@operator, inputs, out var inputPoints, out var pointError))
         {
@@ -119,6 +124,38 @@ public class PixelToWorldTransformOperator : OperatorBase
         }
 
         return ValidationResult.Valid();
+    }
+
+    private static double ResolveEffectiveUnitScale(string? bundleUnit, double configuredUnitScale, bool unitScaleExplicitlyConfigured)
+    {
+        if (unitScaleExplicitlyConfigured)
+        {
+            return configuredUnitScale;
+        }
+
+        return NormalizeUnitToken(bundleUnit) switch
+        {
+            "m" or "meter" or "meters" => 1000.0,
+            "cm" or "centimeter" or "centimeters" => 10.0,
+            "um" or "micrometer" or "micrometers" => 0.001,
+            _ => configuredUnitScale
+        };
+    }
+
+    private static bool IsParameterExplicitlyConfigured(Operator @operator, string parameterName)
+    {
+        return @operator.Parameters.Any(parameter =>
+            string.Equals(parameter.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeUnitToken(string? rawUnit)
+    {
+        if (string.IsNullOrWhiteSpace(rawUnit))
+        {
+            return string.Empty;
+        }
+
+        return rawUnit.Trim().ToLowerInvariant();
     }
 
     private OperatorExecutionOutput ExecutePlanarPath(
