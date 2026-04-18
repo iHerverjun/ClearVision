@@ -12,6 +12,11 @@
 - If several test classes need validation in the same test project, pass them together via repeated `-FullyQualifiedName` values instead of spawning parallel test commands.
 - After the same project has already built successfully in the current session, prefer `-NoBuild -NoRestore` on follow-up runs.
 
+## Temporary Build Output
+- For ad hoc `dotnet publish` or packaging verification, write temporary output only under `./.tmp/publish-check/` or outside the repo.
+- Treat `./.tmp/publish-check/` as disposable scratch space: clean it up after verification unless the user asks to keep it.
+- Do not create new unignored temp publish directories in the repo root.
+
 ## Example
 ```powershell
 ./scripts/run-dotnet-test-serial.ps1 `
