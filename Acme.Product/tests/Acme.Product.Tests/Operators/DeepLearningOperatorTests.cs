@@ -396,7 +396,7 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
-    public void PreprocessImage_WithOutOfRangeFloatInput_ShouldApplyMinMaxNormalization()
+    public void PreprocessImage_WithOutOfRangeFloatInput_ShouldFailClosed()
     {
         var method = typeof(DeepLearningOperator).GetMethod(
             "PreprocessImage",
@@ -407,10 +407,11 @@ public class DeepLearningOperatorTests
         using var gray32 = new OpenCvSharp.Mat(64, 64, OpenCvSharp.MatType.CV_32FC1, new OpenCvSharp.Scalar(-10.0));
         gray32.Set(0, 0, 10.0f);
 
-        var tensor = method!.Invoke(_operator, new object?[] { gray32, 64 }).Should().BeAssignableTo<DenseTensor<float>>().Subject;
-        var values = tensor.ToArray();
-        values.Min().Should().BeLessOrEqualTo(0.01f);
-        values.Max().Should().BeGreaterOrEqualTo(0.99f);
+        var action = () => method!.Invoke(_operator, new object?[] { gray32, 64 });
+
+        action.Should().Throw<TargetInvocationException>()
+            .WithInnerException<InvalidOperationException>()
+            .WithMessage("*[0,1]*[0,255]*[0,65535]*");
     }
 
     [Fact]
@@ -476,7 +477,7 @@ public class DeepLearningOperatorTests
     }
 
     [Fact]
-    public void SelectDetectionOutputIndex_WhenNoRank3Output_ShouldFallbackToFirstOutput()
+    public void SelectDetectionOutputIndex_WhenNoRank3Output_ShouldFailClosed()
     {
         var outputNames = new[] { "output0", "output1" };
         var outputShapes = new[]
@@ -485,10 +486,11 @@ public class DeepLearningOperatorTests
             new[] { 1, 2, 32, 32 }
         };
 
-        var (selectedIndex, selectionRule) = InvokeSelectDetectionOutputIndex(outputNames, outputShapes, 80);
+        var action = () => InvokeSelectDetectionOutputIndex(outputNames, outputShapes, 0);
 
-        selectedIndex.Should().Be(0);
-        selectionRule.Should().Be("FirstOutputFallback");
+        action.Should().Throw<TargetInvocationException>()
+            .WithInnerException<InvalidOperationException>()
+            .WithMessage("*Could not identify*");
     }
 
     [Fact]

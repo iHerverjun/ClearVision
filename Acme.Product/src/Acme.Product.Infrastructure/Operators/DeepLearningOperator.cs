@@ -743,31 +743,16 @@ public class DeepLearningOperator : OperatorBase
                     return;
                 }
 
-                ConvertToByteDepthWithRangeNormalization(src, dst, targetType, floatMin, floatMax);
-                return;
+                if (floatMin >= 0d && floatMax <= 65535d)
+                {
+                    src.ConvertTo(dst, targetType, 1.0 / 256.0);
+                    return;
+                }
+
+                throw new InvalidOperationException("DeepLearning preprocessing only supports float images in [0,1], [0,255], or [0,65535].");
             default:
-                var (minValue, maxValue) = GetGlobalMinMax(src);
-                ConvertToByteDepthWithRangeNormalization(src, dst, targetType, minValue, maxValue);
-                return;
+                throw new NotSupportedException($"Unsupported image depth for deep learning preprocessing: {src.Depth()}.");
         }
-    }
-
-    private static void ConvertToByteDepthWithRangeNormalization(Mat src, Mat dst, MatType targetType, double minValue, double maxValue)
-    {
-        if (!double.IsFinite(minValue) || !double.IsFinite(maxValue))
-        {
-            throw new InvalidOperationException("Input image contains non-finite values and cannot be normalized.");
-        }
-
-        if (maxValue <= minValue)
-        {
-            src.ConvertTo(dst, targetType, 0.0, 0.0);
-            return;
-        }
-
-        var scale = 255.0 / (maxValue - minValue);
-        var shift = -minValue * scale;
-        src.ConvertTo(dst, targetType, scale, shift);
     }
 
     private static (double Min, double Max) GetGlobalMinMax(Mat src)
@@ -894,6 +879,9 @@ public class DeepLearningOperator : OperatorBase
             {
                 return (bestIndex, bestRule);
             }
+
+            throw new InvalidOperationException(
+                $"No output tensor matched the configured label count ({knownLabelCount}).");
         }
 
         var heuristicIndex = -1;
@@ -917,16 +905,7 @@ public class DeepLearningOperator : OperatorBase
             return (heuristicIndex, "Rank3Heuristic");
         }
 
-        var firstRank3Index = outputShapes
-            .Select((shape, index) => (shape, index))
-            .FirstOrDefault(candidate => candidate.shape.Length == 3)
-            .index;
-        if (firstRank3Index > 0 || outputShapes[0].Length == 3)
-        {
-            return (firstRank3Index, "Rank3Fallback");
-        }
-
-        return (0, "FirstOutputFallback");
+        throw new InvalidOperationException("Could not identify a rank-3 detection output tensor.");
     }
 
     private static bool TryMatchKnownLabelShape(int[] shape, int knownLabelCount, out int anchorDim, out string rule)
