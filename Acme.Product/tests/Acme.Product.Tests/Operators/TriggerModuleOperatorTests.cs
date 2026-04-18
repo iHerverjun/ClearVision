@@ -52,6 +52,21 @@ public class TriggerModuleOperatorTests
         Assert.False(validation.IsValid);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ExternalSignalModeWithoutSignal_ShouldReturnFailure()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "TriggerMode", "ExternalSignal" }
+        });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Signal input is required", result.ErrorMessage ?? string.Empty);
+    }
+
     private static TriggerModuleOperator CreateSut()
     {
         return new TriggerModuleOperator(Substitute.For<ILogger<TriggerModuleOperator>>());

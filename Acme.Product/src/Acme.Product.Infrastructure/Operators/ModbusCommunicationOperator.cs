@@ -85,6 +85,11 @@ public class ModbusCommunicationOperator : OperatorBase
             status = false;
         }
 
+        if (!status)
+        {
+            return OperatorExecutionOutput.Failure(response);
+        }
+
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Response", response },

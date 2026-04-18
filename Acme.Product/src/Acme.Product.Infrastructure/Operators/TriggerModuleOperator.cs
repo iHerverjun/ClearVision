@@ -46,6 +46,12 @@ public class TriggerModuleOperator : OperatorBase
         var autoRepeat = GetBoolParam(@operator, "AutoRepeat", true);
 
         var now = DateTime.UtcNow;
+        if (mode.Equals("ExternalSignal", StringComparison.OrdinalIgnoreCase) &&
+            !TryGetSignalInput(inputs, out _))
+        {
+            return Task.FromResult(OperatorExecutionOutput.Failure("Signal input is required in ExternalSignal mode."));
+        }
+
         var triggered = false;
         var count = 0;
 
@@ -61,7 +67,7 @@ public class TriggerModuleOperator : OperatorBase
             }
             else
             {
-                triggered = TryGetSignalInput(inputs, out var signal) ? signal : true;
+                triggered = TryGetSignalInput(inputs, out var signal) && signal;
             }
 
             if (triggered)

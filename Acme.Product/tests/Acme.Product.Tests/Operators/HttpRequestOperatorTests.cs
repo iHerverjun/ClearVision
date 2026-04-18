@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -75,6 +76,24 @@ public class HttpRequestOperatorTests
         request.Path.Should().Be("/ingest");
         request.Body.Should().Be("{\"job\":\"demo\"}");
         request.Headers["X-Correlation-Id"].Should().Be("abc-123");
+    }
+
+    [Theory]
+    [InlineData("GET", true)]
+    [InlineData("HEAD", true)]
+    [InlineData("OPTIONS", true)]
+    [InlineData("POST", false)]
+    [InlineData("PUT", false)]
+    [InlineData("DELETE", false)]
+    public void AutomaticRetryPolicy_ShouldOnlyRetrySafeMethods(string method, bool expected)
+    {
+        var helper = typeof(HttpRequestOperator).GetMethod(
+            "IsAutomaticRetryAllowed",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        helper.Should().NotBeNull();
+        var actual = (bool)helper!.Invoke(null, new object[] { method })!;
+        actual.Should().Be(expected);
     }
 
     private static async Task<CapturedRequest> ServeOnceAsync(TcpListener listener, string responseBody)

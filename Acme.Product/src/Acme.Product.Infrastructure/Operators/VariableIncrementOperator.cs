@@ -82,6 +82,7 @@ public class VariableIncrementOperator : OperatorBase
         if (shouldReset)
         {
             newValue = resetValue + delta;
+            _variableContext.SetValue(variableName, newValue);
             Logger.LogInformation("[VariableIncrement] 变量 {VariableName} 重置为 {ResetValue} 后递增 {Delta}", 
                 variableName, resetValue, delta);
         }

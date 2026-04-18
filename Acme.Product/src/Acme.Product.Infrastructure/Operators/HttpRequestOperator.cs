@@ -66,6 +66,8 @@ public class HttpRequestOperator : OperatorBase
         var timeoutMs = GetIntParam(@operator, "TimeoutMs", 10000, 1000, 60000);
         var retryCount = GetIntParam(@operator, "RetryCount", 0, 0, 5);
         var retryDelayMs = GetIntParam(@operator, "RetryDelayMs", 1000, 0, 10000);
+        var normalizedMethod = method.Trim().ToUpperInvariant();
+        var maxAttempts = IsAutomaticRetryAllowed(normalizedMethod) ? retryCount : 0;
 
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -104,7 +106,7 @@ public class HttpRequestOperator : OperatorBase
         }
 
         // 执行请求（带重试）
-        for (int attempt = 0; attempt <= retryCount; attempt++)
+        for (int attempt = 0; attempt <= maxAttempts; attempt++)
         {
             try
             {
@@ -119,10 +121,10 @@ public class HttpRequestOperator : OperatorBase
                 }
 
                 // 如果不是最后一次尝试，等待后重试
-                if (attempt < retryCount)
+                if (attempt < maxAttempts)
                 {
                     Logger.LogWarning("[HttpRequest] 请求失败，{Delay}ms 后重试 ({Attempt}/{RetryCount})", 
-                        retryDelayMs, attempt + 1, retryCount);
+                        retryDelayMs, attempt + 1, maxAttempts);
                     await Task.Delay(retryDelayMs, cancellationToken);
                 }
                 else
@@ -133,10 +135,10 @@ public class HttpRequestOperator : OperatorBase
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // 超时
-                if (attempt < retryCount)
+                if (attempt < maxAttempts)
                 {
                     Logger.LogWarning("[HttpRequest] 请求超时，{Delay}ms 后重试 ({Attempt}/{RetryCount})", 
-                        retryDelayMs, attempt + 1, retryCount);
+                        retryDelayMs, attempt + 1, maxAttempts);
                     await Task.Delay(retryDelayMs, cancellationToken);
                 }
                 else
@@ -148,7 +150,7 @@ public class HttpRequestOperator : OperatorBase
             {
                 Logger.LogError(ex, "[HttpRequest] 请求异常");
                 
-                if (attempt < retryCount)
+                if (attempt < maxAttempts)
                 {
                     await Task.Delay(retryDelayMs, cancellationToken);
                 }
@@ -160,6 +162,17 @@ public class HttpRequestOperator : OperatorBase
         }
 
         return OperatorExecutionOutput.Failure("HTTP 请求失败（超出重试次数）");
+    }
+
+    private static bool IsAutomaticRetryAllowed(string normalizedMethod)
+    {
+        return normalizedMethod switch
+        {
+            "GET" => true,
+            "HEAD" => true,
+            "OPTIONS" => true,
+            _ => false
+        };
     }
 
     private async Task<RequestResult> ExecuteRequestAsync(

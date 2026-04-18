@@ -85,6 +85,11 @@ public class TcpCommunicationOperator : OperatorBase
             status = false;
         }
 
+        if (!status)
+        {
+            return OperatorExecutionOutput.Failure(response);
+        }
+
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Response", response },
@@ -216,13 +221,13 @@ public class TcpCommunicationOperator : OperatorBase
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
-        var host = GetStringParam(@operator, "Host", "127.0.0.1");
+        var host = GetStringParam(@operator, "IpAddress", "127.0.0.1");
         var port = GetIntParam(@operator, "Port", 8080);
         var timeout = GetIntParam(@operator, "Timeout", 5000);
         var mode = GetStringParam(@operator, "Mode", "Client");
         var encoding = GetStringParam(@operator, "Encoding", "UTF8");
 
-        if (@operator.Parameters.Any(p => p.Name == "Host") && string.IsNullOrEmpty(host))
+        if (@operator.Parameters.Any(p => p.Name == "IpAddress") && string.IsNullOrEmpty(host))
         {
             return ValidationResult.Invalid("主机地址不能为空");
         }

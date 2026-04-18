@@ -127,6 +127,16 @@ public class Sprint3_LogicGateTests
         Assert.False(result.IsValid);
     }
 
+    [Fact]
+    public async Task LogicGate_WithMissingBinaryInput_ShouldFailClosed()
+    {
+        var oper = CreateOperator(new Dictionary<string, object> { { "Operation", "AND" } });
+        var result = await _operator.ExecuteAsync(oper, new Dictionary<string, object> { { "InputA", true } });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("InputB", result.ErrorMessage ?? string.Empty);
+    }
+
     private Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator(Guid.NewGuid(), "TestLogicGate", OperatorType.LogicGate, 0, 0);

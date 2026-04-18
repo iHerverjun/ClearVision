@@ -1,43 +1,36 @@
-// LogicGateOperator.cs
-// 逻辑门算子 - Sprint 3 Task 3.2
-// 支持：AND/OR/NOT/XOR/NAND/NOR
-// 作者：蘅芜君
-
+using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Microsoft.Extensions.Logging;
-
-using Acme.Product.Core.Attributes;
+
 namespace Acme.Product.Infrastructure.Operators;
 
-/// <summary>
-/// 逻辑门算子
-/// 
-/// 功能：
-/// - 双输入：AND, OR, XOR, NAND, NOR
-/// - 单输入：NOT
-/// - 输出：Result（Boolean）
-/// 
-/// 使用场景：
-/// - 外观OK AND 尺寸OK AND 条码OK → 产品合格
-/// - 多条件组合判定
-/// </summary>
 [OperatorMeta(
     DisplayName = "逻辑门",
-    Description = "布尔逻辑运算 (AND, OR, NOT, XOR...)",
+    Description = "布尔逻辑运算 (AND, OR, NOT, XOR, NAND, NOR)",
     Category = "通用",
     IconName = "logic"
 )]
 [InputPort("InputA", "输入 A", PortDataType.Boolean, IsRequired = true)]
 [InputPort("InputB", "输入 B", PortDataType.Boolean, IsRequired = false)]
 [OutputPort("Result", "输出", PortDataType.Boolean)]
-[OperatorParam("Operation", "逻辑操作", "enum", DefaultValue = "AND", Options = new[] { "AND|AND (与)", "OR|OR (或)", "NOT|NOT (非)", "XOR|XOR (异或)", "NAND|NAND (与非)", "NOR|NOR (或非)" })]
+[OperatorParam("Operation", "逻辑操作", "enum", DefaultValue = "AND", Options = new[]
+{
+    "AND|AND",
+    "OR|OR",
+    "NOT|NOT",
+    "XOR|XOR",
+    "NAND|NAND",
+    "NOR|NOR"
+})]
 public class LogicGateOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.LogicGate;
 
-    public LogicGateOperator(ILogger<LogicGateOperator> logger) : base(logger) { }
+    public LogicGateOperator(ILogger<LogicGateOperator> logger) : base(logger)
+    {
+    }
 
     protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
@@ -46,28 +39,25 @@ public class LogicGateOperator : OperatorBase
     {
         if (inputs == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("LogicGate 算子需要输入数据"));
+            return Task.FromResult(OperatorExecutionOutput.Failure("LogicGate requires input data."));
         }
 
-        // 获取参数
         var operation = GetStringParam(@operator, "Operation", "AND");
-
-        // 获取输入值
-        bool inputA = false;
-        bool inputB = false;
-
-        if (inputs.TryGetValue("InputA", out var valAObj) && valAObj != null)
+        if (!TryConvertToBool(inputs.TryGetValue("InputA", out var valAObj) ? valAObj : null, out var inputA))
         {
-            inputA = ConvertToBool(valAObj);
+            return Task.FromResult(OperatorExecutionOutput.Failure("InputA must be a valid boolean-compatible value."));
         }
 
-        if (inputs.TryGetValue("InputB", out var valBObj) && valBObj != null)
+        var inputB = false;
+        if (!operation.Equals("NOT", StringComparison.OrdinalIgnoreCase))
         {
-            inputB = ConvertToBool(valBObj);
+            if (!inputs.TryGetValue("InputB", out var valBObj) || !TryConvertToBool(valBObj, out inputB))
+            {
+                return Task.FromResult(OperatorExecutionOutput.Failure("InputB must be provided for binary logic operations."));
+            }
         }
 
-        // 执行逻辑运算
-        bool result = operation.ToUpper() switch
+        var result = operation.ToUpperInvariant() switch
         {
             "AND" => inputA && inputB,
             "OR" => inputA || inputB,
@@ -75,7 +65,7 @@ public class LogicGateOperator : OperatorBase
             "XOR" => inputA ^ inputB,
             "NAND" => !(inputA && inputB),
             "NOR" => !(inputA || inputB),
-            _ => throw new ArgumentException($"不支持的操作: {operation}")
+            _ => throw new ArgumentException($"Unsupported operation: {operation}")
         };
 
         Logger.LogDebug("[LogicGate] {InputA} {Operation} {InputB} = {Result}", inputA, operation, inputB, result);
@@ -89,34 +79,70 @@ public class LogicGateOperator : OperatorBase
         }));
     }
 
-    /// <summary>
-    /// 转换为布尔值
-    /// </summary>
-    private static bool ConvertToBool(object value)
+    private static bool TryConvertToBool(object? value, out bool result)
     {
-        if (value is bool b) return b;
-        if (value is string s)
+        result = false;
+        if (value is null)
         {
-            if (bool.TryParse(s, out var parsed)) return parsed;
-            // 字符串非空为 true
-            return !string.IsNullOrWhiteSpace(s);
+            return false;
         }
-        if (value is int i) return i != 0;
-        if (value is double d) return d != 0;
-        if (value is float f) return f != 0;
-        // 其他类型：非空为 true
-        return value != null;
+
+        switch (value)
+        {
+            case bool b:
+                result = b;
+                return true;
+            case int i:
+                result = i != 0;
+                return true;
+            case long l:
+                result = l != 0;
+                return true;
+            case double d:
+                result = Math.Abs(d) > double.Epsilon;
+                return true;
+            case float f:
+                result = Math.Abs(f) > float.Epsilon;
+                return true;
+            case string s:
+                if (bool.TryParse(s, out var parsedBool))
+                {
+                    result = parsedBool;
+                    return true;
+                }
+
+                if (int.TryParse(s, out var parsedInt))
+                {
+                    result = parsedInt != 0;
+                    return true;
+                }
+
+                if (s.Equals("yes", StringComparison.OrdinalIgnoreCase) || s.Equals("on", StringComparison.OrdinalIgnoreCase))
+                {
+                    result = true;
+                    return true;
+                }
+
+                if (s.Equals("no", StringComparison.OrdinalIgnoreCase) || s.Equals("off", StringComparison.OrdinalIgnoreCase))
+                {
+                    result = false;
+                    return true;
+                }
+
+                return false;
+            default:
+                return false;
+        }
     }
 
     public override ValidationResult ValidateParameters(Operator @operator)
     {
         var operation = GetStringParam(@operator, "Operation", "AND");
-
         var validOperations = new[] { "AND", "OR", "NOT", "XOR", "NAND", "NOR" };
 
         if (!validOperations.Contains(operation, StringComparer.OrdinalIgnoreCase))
         {
-            return ValidationResult.Invalid($"Operation 必须是以下之一: {string.Join(", ", validOperations)}");
+            return ValidationResult.Invalid($"Operation must be one of: {string.Join(", ", validOperations)}");
         }
 
         return ValidationResult.Valid();

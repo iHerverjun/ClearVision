@@ -1,7 +1,3 @@
-// ModbusCommunicationOperatorTests.cs
-// ModbusCommunicationOperatorTests测试
-// 作者：蘅芜君
-
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Infrastructure.Operators;
@@ -29,15 +25,15 @@ public class ModbusCommunicationOperatorTests
     [Fact]
     public void ValidateParameters_Default_ShouldBeValid()
     {
-        var op = new Operator("测试", OperatorType.ModbusCommunication, 0, 0);
+        var op = new Operator("test", OperatorType.ModbusCommunication, 0, 0);
         _operator.ValidateParameters(op).IsValid.Should().BeTrue();
     }
 
     [Fact]
     public void ValidateParameters_WithInvalidPort_ShouldReturnInvalid()
     {
-        var op = new Operator("测试", OperatorType.ModbusCommunication, 0, 0);
-        op.AddParameter(new(Guid.NewGuid(), "Port", "端口", "", "int", 70000, 0, 65535, true));
+        var op = new Operator("test", OperatorType.ModbusCommunication, 0, 0);
+        op.AddParameter(new(Guid.NewGuid(), "Port", "Port", "", "int", 70000, 0, 65535, true));
         var result = _operator.ValidateParameters(op);
         result.IsValid.Should().BeFalse();
     }
@@ -45,9 +41,21 @@ public class ModbusCommunicationOperatorTests
     [Fact]
     public void ValidateParameters_WithInvalidSlaveId_ShouldReturnInvalid()
     {
-        var op = new Operator("测试", OperatorType.ModbusCommunication, 0, 0);
-        op.AddParameter(new(Guid.NewGuid(), "SlaveId", "从机ID", "", "int", 256, 0, 255, true));
+        var op = new Operator("test", OperatorType.ModbusCommunication, 0, 0);
+        op.AddParameter(new(Guid.NewGuid(), "SlaveId", "SlaveId", "", "int", 256, 0, 255, true));
         var result = _operator.ValidateParameters(op);
         result.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithUnsupportedRtuMode_ShouldReturnFailure()
+    {
+        var op = new Operator("test", OperatorType.ModbusCommunication, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("Protocol", "RTU", "string"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>());
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
 }
