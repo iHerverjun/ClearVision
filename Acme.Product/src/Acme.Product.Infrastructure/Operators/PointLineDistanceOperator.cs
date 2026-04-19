@@ -77,6 +77,14 @@ public class PointLineDistanceOperator : OperatorBase
         var distance = parsedModel == DistanceModel.Segment
             ? MeasurementGeometryHelper.DistancePointToSegment(point.X, point.Y, line)
             : MeasurementGeometryHelper.DistancePointToInfiniteLine(point.X, point.Y, line);
+        var pointSigmaPx = MeasurementGeometryHelper.EstimatePointSigma(point);
+        var lineSigmaPx = MeasurementGeometryHelper.EstimateLineSigma(line);
+        var uncertaintyPx = MeasurementGeometryHelper.PropagatePointLineDistanceUncertainty(
+            point,
+            pointSigmaPx,
+            line,
+            lineSigmaPx,
+            parsedModel == DistanceModel.Segment);
 
         var output = new Dictionary<string, object>
         {
@@ -88,8 +96,8 @@ public class PointLineDistanceOperator : OperatorBase
             { "Unit", "Pixel" },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", ComputeConfidence(uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -261,6 +269,16 @@ public class PointLineDistanceOperator : OperatorBase
         }
 
         return double.TryParse(raw.ToString(), out value);
+    }
+
+    private static double ComputeConfidence(double uncertaintyPx)
+    {
+        if (!double.IsFinite(uncertaintyPx) || uncertaintyPx < 0)
+        {
+            return 0.0;
+        }
+
+        return 1.0 / (1.0 + uncertaintyPx);
     }
 
     private enum DistanceModel

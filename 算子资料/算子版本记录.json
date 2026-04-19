@@ -737,6 +737,11 @@
           "version": "2.0.0",
           "sourceHash": "3BE4DD1A8F27517A2DAFFEE1073936D0FE723857E96FBBA07A9B748DA38FC573",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "2.0.0",
+          "sourceHash": "63D15F76BCB1721C13457B39DBC8937A697CB2A16951FA9A2AA4B0AA5ACE7711",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -842,8 +847,8 @@
     },
     {
       "id": "ContourMeasurement",
-      "displayName": "\u8F6E\u5ED3\u6D4B\u91CF",
-      "category": "\u68C0\u6D4B",
+      "displayName": "Contour Measurement",
+      "category": "Detection",
       "records": [
         {
           "version": "1.0.0",
@@ -854,6 +859,11 @@
           "version": "1.0.0",
           "sourceHash": "9E59A9BBDB9FFF6930DFD634970C1F50BA6377EC35352E04DBC1D9248D550EEE",
           "recordedAt": "2026-04-12T12:53:52.9929473\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "287892D24DDD12C7C807AEFE91ED38DE322AC71C37E0C7B971D27FD61CEA7E68",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -1515,6 +1525,11 @@
           "version": "1.0.0",
           "sourceHash": "E0AD164B2935B3D91394421B75D4DDF30610600B36E91DBC401B59FF259C13FA",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "D59CA00865CD3C0A1E3B7BB287DC584382F272E8A25C1D89117402C8A1552715",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -1562,6 +1577,11 @@
           "version": "1.0.0",
           "sourceHash": "561C6CE8FB9B29FC46335D0EF7FFFAC482CD6133682C20A17157568C342DC4B1",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "2F9F03D7CF54B5D57CCE0C8B6089731FDE6E656A8678559C24D036D6B0F54F07",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -1604,6 +1624,11 @@
           "version": "1.0.0",
           "sourceHash": "AB2F9D1AB90734413848E96916B0155C28F80C77E3581660E93E7741AF8488FA",
           "recordedAt": "2026-04-13T23:21:39.1176099\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "AA2D1B8DE5C8BAC03F2C9FB1AD4F6EB4E70B666746CF64CF5D2CB64FEB6D9BF6",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -1774,6 +1799,11 @@
           "version": "1.0.0",
           "sourceHash": "A1A8C84771EAD6956A129C6AC878C90EFF8919BA923159595E88477A7A8D737F",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "CEEF418CF4C8DBBD238AC1FD992C360EAE9C63E514167EFBF0C19C5C75D5FFC7",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -2224,6 +2254,11 @@
           "version": "1.0.0",
           "sourceHash": "5843980A97C56B44B26340C02837470A15453D87333E1858ABD5E301B60B312B",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "ABBB20C384038A131765D74944E6DF270B2D6E9B922D752133E96115FF2436A2",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -2386,6 +2421,11 @@
           "version": "1.0.0",
           "sourceHash": "7B17102BB6A12F15D3EAC6E2D48DFA8FCDF3A78536904CCAB05BCA63C91B4B73",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "0191042C742434CD25D42B20B63D099B003228BE7FAD7DA5C8CABDF5D578B64F",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -2860,6 +2900,11 @@
           "version": "1.0.0",
           "sourceHash": "997FBE6B445A1FE1A2DE1D3348E6D4D78BC0375D6067AF1CC9FBA2078651DCBE",
           "recordedAt": "2026-04-18T22:49:10.0250597\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "EAC2DE279DF53B2D5AEEE81A5258D966391D5A0D2131B4FD18F836C932D80AC0",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -3045,6 +3090,11 @@
           "version": "1.0.0",
           "sourceHash": "A010E18F79D66FA95EE2373E2317C483AD7D6F49F5715E2DBFEB79BF24B4A806",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "263D1CBA61AAEE9C42174903283B0E6A0930CDFE138736D4F380501A56F04E95",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },
@@ -3697,6 +3747,11 @@
           "version": "1.0.0",
           "sourceHash": "3E591B8FF8485576BFC00FA055F9FA38EEB348C20EDE63A77CCD5DE98BECB53E",
           "recordedAt": "2026-04-12T20:43:23.0238145\u002B08:00"
+        },
+        {
+          "version": "1.0.0",
+          "sourceHash": "B9B31746D5BA0FF4136443777080C9459FBA92005DBE4C5783F1F2FD52F3C7D6",
+          "recordedAt": "2026-04-19T13:57:48.4747228\u002B08:00"
         }
       ]
     },

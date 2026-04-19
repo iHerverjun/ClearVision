@@ -61,6 +61,7 @@ public class GeoMeasurementOperator : OperatorBase
         {
             return Task.FromResult(OperatorExecutionOutput.Failure(error ?? "Unsupported geometry type combination"));
         }
+        var uncertaintyPx = ComputeMeasurementUncertainty(element1Obj, element2Obj, type1, type2, distanceModel);
 
         var output = new Dictionary<string, object>
         {
@@ -76,8 +77,8 @@ public class GeoMeasurementOperator : OperatorBase
             { "IntersectionCount", measurement.IntersectionCount },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", ComputeConfidence(uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -339,6 +340,149 @@ public class GeoMeasurementOperator : OperatorBase
         }
 
         return false;
+    }
+
+    private static double ComputeMeasurementUncertainty(
+        object element1,
+        object element2,
+        GeoElementType type1,
+        GeoElementType type2,
+        DistanceModel distanceModel)
+    {
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Point &&
+            TryParsePoint(element1, out var point1) &&
+            TryParsePoint(element2, out var point2))
+        {
+            return MeasurementGeometryHelper.PropagatePointPointDistanceUncertainty(
+                point1,
+                MeasurementGeometryHelper.EstimatePointSigma(point1),
+                point2,
+                MeasurementGeometryHelper.EstimatePointSigma(point2));
+        }
+
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Line &&
+            TryParsePoint(element1, out var point) &&
+            TryParseLine(element2, out var line))
+        {
+            return MeasurementGeometryHelper.PropagatePointLineDistanceUncertainty(
+                point,
+                MeasurementGeometryHelper.EstimatePointSigma(point),
+                line,
+                MeasurementGeometryHelper.EstimateLineSigma(line),
+                distanceModel == DistanceModel.Segment);
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Point &&
+            TryParseLine(element1, out line) &&
+            TryParsePoint(element2, out point))
+        {
+            return MeasurementGeometryHelper.PropagatePointLineDistanceUncertainty(
+                point,
+                MeasurementGeometryHelper.EstimatePointSigma(point),
+                line,
+                MeasurementGeometryHelper.EstimateLineSigma(line),
+                distanceModel == DistanceModel.Segment);
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Line &&
+            TryParseLine(element1, out var line1) &&
+            TryParseLine(element2, out var line2))
+        {
+            return MeasurementGeometryHelper.PropagateLineLineDistanceUncertainty(
+                line1,
+                MeasurementGeometryHelper.EstimateLineSigma(line1),
+                line2,
+                MeasurementGeometryHelper.EstimateLineSigma(line2),
+                distanceModel == DistanceModel.Segment,
+                0.5);
+        }
+
+        if (type1 == GeoElementType.Point && type2 == GeoElementType.Circle &&
+            TryParsePoint(element1, out point) &&
+            TryParseCircle(element2, out var circle))
+        {
+            var circleSigma = MeasurementGeometryHelper.EstimateCircleSigma(circle.CenterX, circle.CenterY, circle.Radius);
+            return MeasurementGeometryHelper.PropagatePointCircleGapUncertainty(
+                point,
+                MeasurementGeometryHelper.EstimatePointSigma(point),
+                new Position(circle.CenterX, circle.CenterY),
+                circleSigma,
+                circle.Radius,
+                circleSigma);
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Point &&
+            TryParseCircle(element1, out circle) &&
+            TryParsePoint(element2, out point))
+        {
+            var circleSigma = MeasurementGeometryHelper.EstimateCircleSigma(circle.CenterX, circle.CenterY, circle.Radius);
+            return MeasurementGeometryHelper.PropagatePointCircleGapUncertainty(
+                point,
+                MeasurementGeometryHelper.EstimatePointSigma(point),
+                new Position(circle.CenterX, circle.CenterY),
+                circleSigma,
+                circle.Radius,
+                circleSigma);
+        }
+
+        if (type1 == GeoElementType.Line && type2 == GeoElementType.Circle &&
+            TryParseLine(element1, out line) &&
+            TryParseCircle(element2, out circle))
+        {
+            var circleSigma = MeasurementGeometryHelper.EstimateCircleSigma(circle.CenterX, circle.CenterY, circle.Radius);
+            return MeasurementGeometryHelper.PropagateLineCircleGapUncertainty(
+                line,
+                MeasurementGeometryHelper.EstimateLineSigma(line),
+                new Position(circle.CenterX, circle.CenterY),
+                circleSigma,
+                circle.Radius,
+                circleSigma,
+                distanceModel == DistanceModel.Segment);
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Line &&
+            TryParseCircle(element1, out circle) &&
+            TryParseLine(element2, out line))
+        {
+            var circleSigma = MeasurementGeometryHelper.EstimateCircleSigma(circle.CenterX, circle.CenterY, circle.Radius);
+            return MeasurementGeometryHelper.PropagateLineCircleGapUncertainty(
+                line,
+                MeasurementGeometryHelper.EstimateLineSigma(line),
+                new Position(circle.CenterX, circle.CenterY),
+                circleSigma,
+                circle.Radius,
+                circleSigma,
+                distanceModel == DistanceModel.Segment);
+        }
+
+        if (type1 == GeoElementType.Circle && type2 == GeoElementType.Circle &&
+            TryParseCircle(element1, out var circle1) &&
+            TryParseCircle(element2, out var circle2))
+        {
+            var circle1Sigma = MeasurementGeometryHelper.EstimateCircleSigma(circle1.CenterX, circle1.CenterY, circle1.Radius);
+            var circle2Sigma = MeasurementGeometryHelper.EstimateCircleSigma(circle2.CenterX, circle2.CenterY, circle2.Radius);
+            return MeasurementGeometryHelper.PropagateCircleCircleGapUncertainty(
+                new Position(circle1.CenterX, circle1.CenterY),
+                circle1Sigma,
+                circle1.Radius,
+                circle1Sigma,
+                new Position(circle2.CenterX, circle2.CenterY),
+                circle2Sigma,
+                circle2.Radius,
+                circle2Sigma);
+        }
+
+        return double.NaN;
+    }
+
+    private static double ComputeConfidence(double uncertaintyPx)
+    {
+        if (!double.IsFinite(uncertaintyPx) || uncertaintyPx < 0)
+        {
+            return 0.0;
+        }
+
+        return 1.0 / (1.0 + uncertaintyPx);
     }
 
     private static GeoElementType ResolveType(object raw, string preferred)

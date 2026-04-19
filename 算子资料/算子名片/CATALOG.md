@@ -1,6 +1,6 @@
 # 算子目录 / Operator Catalog
 
-> 生成时间 / Generated At: `2026-04-18 22:49:10 +08:00`
+> 生成时间 / Generated At: `2026-04-19 13:57:48 +08:00`
 > 算子总数 / Total Operators: **155**
 
 ## 分类统计 / Category Summary
@@ -12,7 +12,7 @@
 | AI检测 | 5 | 3.2% |
 | Analysis | 1 | 0.6% |
 | Communication | 1 | 0.6% |
-| Detection | 1 | 0.6% |
+| Detection | 2 | 1.3% |
 | Flow Control | 1 | 0.6% |
 | Frequency | 3 | 1.9% |
 | Morphology | 5 | 3.2% |
@@ -25,7 +25,7 @@
 | 拆分组合 | 2 | 1.3% |
 | 数据处理 | 10 | 6.5% |
 | 标定 | 12 | 7.7% |
-| 检测 | 19 | 12.3% |
+| 检测 | 18 | 11.6% |
 | 流程控制 | 5 | 3.2% |
 | 特征提取 | 4 | 2.6% |
 | 识别 | 2 | 1.3% |
@@ -87,10 +87,11 @@
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.MitsubishiMcCommunication` | Mitsubishi MC Communication | 1 | 2 | 13 | 80 (B) | `1.0.0` | 该算子不执行图像算法，而是把流程参数映射为通信请求，与外部设备或服务完成读写和响应解… | [MitsubishiMcCommunication](./MitsubishiMcCommunication.md) |
 
-### Detection (1)
+### Detection (2)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.AngleMeasurement` | Angle Measurement | 6 | 3 | 7 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [AngleMeasurement](./AngleMeasurement.md) |
+| `OperatorType.ContourMeasurement` | Contour Measurement | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./ContourMeasurement.md) |
 
 ### Flow Control (1)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
@@ -202,14 +203,13 @@
 | `OperatorType.TranslationRotationCalibration` | 平移旋转标定 | 1 | 3 | 3 | 100 (A) | `1.0.0` | - | [TranslationRotationCalibration](./TranslationRotationCalibration.md) |
 | `OperatorType.Undistort` | Undistort | 2 | 1 | 0 | 91 (A) | `1.0.0` | - | [Undistort](./Undistort.md) |
 
-### 检测 (19)
+### 检测 (18)
 | 枚举 (Enum) | 显示名 (DisplayName) | 输入 | 输出 | 参数 | 质量 (Q) | 版本 (Version) | 算法 (Algorithm) | 文档 |
 |------|------|------:|------:|------:|------|------|------|------|
 | `OperatorType.ArcCaliper` | Arc Caliper | 7 | 2 | 0 | 58 (C) | `1.0.0` | - | [ArcCaliper](./ArcCaliper.md) |
 | `OperatorType.CaliperTool` | 卡尺工具 | 2 | 7 | 9 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [CaliperTool](./CaliperTool.md) |
 | `OperatorType.CircleMeasurement` | 圆测量 | 1 | 7 | 7 | 100 (A) | `1.0.0` | 该算子基于高斯卷积平滑图像，在抑制高频噪声的同时尽量保持整体结构稳定。 | [CircleMeasurement](./CircleMeasurement.md) |
 | `OperatorType.ContourExtrema` | Contour Extrema | 3 | 6 | 0 | 58 (C) | `1.0.0` | - | [ContourExtrema](./ContourExtrema.md) |
-| `OperatorType.ContourMeasurement` | 轮廓测量 | 1 | 4 | 4 | 94 (A) | `1.0.0` | 该算子基于固定阈值或自动阈值策略把图像分成前景和背景两类，可用于快速分割。 | [ContourMeasurement](./ContourMeasurement.md) |
 | `OperatorType.GapMeasurement` | 间隙测量 | 2 | 9 | 8 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GapMeasurement](./GapMeasurement.md) |
 | `OperatorType.GeoMeasurement` | 几何测量 | 2 | 5 | 3 | 96 (A) | `1.0.0` | 该算子围绕边缘、轮廓、点线关系或几何模型参数完成测量与定位。 | [GeoMeasurement](./GeoMeasurement.md) |
 | `OperatorType.GeometricFitting` | Geometric Fitting | 1 | 2 | 8 | 100 (A) | `1.0.0` | 当前实现的几何拟合流程并不是直接接收点集输入，而是： | [GeometricFitting](./GeometricFitting.md) |

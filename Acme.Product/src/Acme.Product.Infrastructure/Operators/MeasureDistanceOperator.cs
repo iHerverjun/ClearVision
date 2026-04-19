@@ -1,3 +1,4 @@
+using System.Collections;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -44,10 +45,10 @@ public class MeasureDistanceOperator : OperatorBase
         if (inputs != null &&
             inputs.TryGetValue("PointA", out var pointAObj) &&
             inputs.TryGetValue("PointB", out var pointBObj) &&
-            TryParsePoint(pointAObj, out var pointA) &&
-            TryParsePoint(pointBObj, out var pointB))
+            TryParsePoint(pointAObj, out var pointA, out var sigmaA) &&
+            TryParsePoint(pointBObj, out var pointB, out var sigmaB))
         {
-            return Task.FromResult(BuildPointInputResult(pointA, pointB, measureType));
+            return Task.FromResult(BuildPointInputResult(pointA, sigmaA, pointB, sigmaB, measureType));
         }
 
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
@@ -66,8 +67,8 @@ public class MeasureDistanceOperator : OperatorBase
         var x2 = GetIntParam(@operator, "X2", 100);
         var y2 = GetIntParam(@operator, "Y2", 100);
 
-        var p1 = new Point(x1, y1);
-        var p2 = new Point(x2, y2);
+        var p1 = new Position(x1, y1);
+        var p2 = new Position(x2, y2);
         var resultImage = src.Clone();
 
         if (!TryMeasure(p1, p2, normalizedType, out var distance, out var drawnEndPoint, out var label, out var error))
@@ -75,6 +76,7 @@ public class MeasureDistanceOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure(error ?? $"Unsupported measure type: {measureType}"));
         }
 
+        var uncertaintyPx = ComputeDistanceUncertaintyPx(normalizedType, 0.5, 0.5);
         DrawLineDistance(resultImage, p1, drawnEndPoint, label);
         var output = CreateImageOutput(resultImage, new Dictionary<string, object>
         {
@@ -88,8 +90,8 @@ public class MeasureDistanceOperator : OperatorBase
             { "DeltaY", drawnEndPoint.Y - p1.Y },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", ComputeConfidence(uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         });
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -107,13 +109,20 @@ public class MeasureDistanceOperator : OperatorBase
         return ValidationResult.Valid();
     }
 
-    private static OperatorExecutionOutput BuildPointInputResult(Point pointA, Point pointB, string measureType)
+    private static OperatorExecutionOutput BuildPointInputResult(
+        Position pointA,
+        double pointASigmaPx,
+        Position pointB,
+        double pointBSigmaPx,
+        string measureType)
     {
-        if (!TryMeasure(pointA, pointB, measureType.Trim().ToLowerInvariant(), out var distance, out var resolvedEndPoint, out _, out var error))
+        var normalizedType = measureType.Trim().ToLowerInvariant();
+        if (!TryMeasure(pointA, pointB, normalizedType, out var distance, out var resolvedEndPoint, out _, out var error))
         {
             return OperatorExecutionOutput.Failure(error ?? "Unsupported measure type");
         }
 
+        var uncertaintyPx = ComputeDistanceUncertaintyPx(normalizedType, pointASigmaPx, pointBSigmaPx);
         return OperatorExecutionOutput.Success(new Dictionary<string, object>
         {
             { "Distance", distance },
@@ -126,19 +135,26 @@ public class MeasureDistanceOperator : OperatorBase
             { "DeltaY", resolvedEndPoint.Y - pointA.Y },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", ComputeConfidence(uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         });
     }
 
-    private static bool TryMeasure(Point start, Point end, string normalizedType, out double distance, out Point drawnEndPoint, out string label, out string? error)
+    private static bool TryMeasure(
+        Position start,
+        Position end,
+        string normalizedType,
+        out double distance,
+        out Position drawnEndPoint,
+        out string label,
+        out string? error)
     {
         distance = 0;
         drawnEndPoint = end;
         label = string.Empty;
         error = null;
 
-        if (start.X == end.X && start.Y == end.Y)
+        if (Distance(start, end) < 1e-9)
         {
             error = "[DegenerateGeometry] Start and end points are identical";
             return false;
@@ -159,7 +175,7 @@ public class MeasureDistanceOperator : OperatorBase
                     return false;
                 }
 
-                drawnEndPoint = new Point(end.X, start.Y);
+                drawnEndPoint = new Position(end.X, start.Y);
                 label = $"H: {distance:F2}px";
                 return true;
             case "vertical":
@@ -170,7 +186,7 @@ public class MeasureDistanceOperator : OperatorBase
                     return false;
                 }
 
-                drawnEndPoint = new Point(start.X, end.Y);
+                drawnEndPoint = new Position(start.X, end.Y);
                 label = $"V: {distance:F2}px";
                 return true;
             default:
@@ -179,8 +195,10 @@ public class MeasureDistanceOperator : OperatorBase
         }
     }
 
-    private static void DrawLineDistance(Mat image, Point p1, Point p2, string label)
+    private static void DrawLineDistance(Mat image, Position start, Position end, string label)
     {
+        var p1 = ToCvPoint(start);
+        var p2 = ToCvPoint(end);
         Cv2.Line(image, p1, p2, new Scalar(0, 255, 0), 2);
         Cv2.Circle(image, p1, 5, new Scalar(255, 0, 0), -1);
         Cv2.Circle(image, p2, 5, new Scalar(255, 0, 0), -1);
@@ -188,16 +206,17 @@ public class MeasureDistanceOperator : OperatorBase
         Cv2.PutText(image, label, textPoint, HersheyFonts.HersheySimplex, 0.7, new Scalar(0, 0, 255), 2);
     }
 
-    private static double Distance(Point p1, Point p2)
+    private static double Distance(Position p1, Position p2)
     {
         var dx = p2.X - p1.X;
         var dy = p2.Y - p1.Y;
         return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
-    private static bool TryParsePoint(object? obj, out Point point)
+    private static bool TryParsePoint(object? obj, out Position point, out double sigmaPx)
     {
-        point = default;
+        point = new Position(0, 0);
+        sigmaPx = 0.0;
         if (obj == null)
         {
             return false;
@@ -206,17 +225,47 @@ public class MeasureDistanceOperator : OperatorBase
         switch (obj)
         {
             case Point p:
-                point = p;
+                point = new Position(p.X, p.Y);
+                sigmaPx = 0.5;
                 return true;
             case Point2f p2f:
-                point = new Point((int)Math.Round(p2f.X), (int)Math.Round(p2f.Y));
+                point = new Position(p2f.X, p2f.Y);
+                sigmaPx = 0.08;
                 return true;
             case Point2d p2d:
-                point = new Point((int)Math.Round(p2d.X), (int)Math.Round(p2d.Y));
+                point = new Position(p2d.X, p2d.Y);
+                sigmaPx = 0.05;
                 return true;
             case Position pos:
-                point = new Point((int)Math.Round(pos.X), (int)Math.Round(pos.Y));
+                point = pos;
+                sigmaPx = HasFractionalComponent(pos.X) || HasFractionalComponent(pos.Y) ? 0.05 : 0.5;
                 return true;
+        }
+
+        if (obj is IDictionary<string, object> dict &&
+            TryGetDouble(dict, "X", out var parsedX) &&
+            TryGetDouble(dict, "Y", out var parsedY))
+        {
+            point = new Position(parsedX, parsedY);
+            sigmaPx = HasFractionalComponent(parsedX) || HasFractionalComponent(parsedY) ? 0.05 : 0.5;
+            return true;
+        }
+
+        if (obj is IDictionary legacyDict)
+        {
+            var normalized = legacyDict.Cast<DictionaryEntry>()
+                .Where(entry => entry.Key != null)
+                .ToDictionary(
+                    entry => entry.Key!.ToString() ?? string.Empty,
+                    entry => entry.Value ?? 0.0,
+                    StringComparer.OrdinalIgnoreCase);
+
+            if (TryGetDouble(normalized, "X", out parsedX) && TryGetDouble(normalized, "Y", out parsedY))
+            {
+                point = new Position(parsedX, parsedY);
+                sigmaPx = HasFractionalComponent(parsedX) || HasFractionalComponent(parsedY) ? 0.05 : 0.5;
+                return true;
+            }
         }
 
         var str = obj.ToString()?.Trim('(', ')', '[', ']', ' ');
@@ -231,12 +280,62 @@ public class MeasureDistanceOperator : OperatorBase
             return false;
         }
 
-        if (!double.TryParse(parts[0], out var x) || !double.TryParse(parts[1], out var y))
+        if (!double.TryParse(parts[0], out var stringX) || !double.TryParse(parts[1], out var stringY))
         {
             return false;
         }
 
-        point = new Point((int)Math.Round(x), (int)Math.Round(y));
+        point = new Position(stringX, stringY);
+        sigmaPx = HasFractionalComponent(stringX) || HasFractionalComponent(stringY) ? 0.05 : 0.5;
         return true;
+    }
+
+    private static double ComputeDistanceUncertaintyPx(string normalizedType, double sigmaPointA, double sigmaPointB)
+    {
+        return normalizedType switch
+        {
+            "pointtopoint" => Math.Sqrt((sigmaPointA * sigmaPointA) + (sigmaPointB * sigmaPointB)),
+            "horizontal" => Math.Sqrt((sigmaPointA * sigmaPointA) + (sigmaPointB * sigmaPointB)),
+            "vertical" => Math.Sqrt((sigmaPointA * sigmaPointA) + (sigmaPointB * sigmaPointB)),
+            _ => double.NaN
+        };
+    }
+
+    private static double ComputeConfidence(double uncertaintyPx)
+    {
+        if (!double.IsFinite(uncertaintyPx) || uncertaintyPx < 0)
+        {
+            return 0.0;
+        }
+
+        return 1.0 / (1.0 + uncertaintyPx);
+    }
+
+    private static bool HasFractionalComponent(double value)
+    {
+        return Math.Abs(value - Math.Round(value)) > 1e-9;
+    }
+
+    private static bool TryGetDouble(IDictionary<string, object> dict, string key, out double value)
+    {
+        value = 0.0;
+        if (!dict.TryGetValue(key, out var raw) || raw == null)
+        {
+            return false;
+        }
+
+        return raw switch
+        {
+            double d => (value = d) == d,
+            float f => (value = f) == f,
+            int i => (value = i) == i,
+            long l => (value = l) == l,
+            _ => double.TryParse(raw.ToString(), out value)
+        };
+    }
+
+    private static Point ToCvPoint(Position point)
+    {
+        return new Point((int)Math.Round(point.X), (int)Math.Round(point.Y));
     }
 }

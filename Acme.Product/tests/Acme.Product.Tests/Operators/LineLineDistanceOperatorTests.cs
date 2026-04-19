@@ -69,6 +69,31 @@ public class LineLineDistanceOperatorTests
         _operator.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ParallelSubpixelLines_ShouldPropagateMeasurementUncertainty()
+    {
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["DistanceModel"] = "InfiniteLine",
+            ["ParallelThreshold"] = 0.5
+        });
+        var inputs = new Dictionary<string, object>
+        {
+            ["Line1"] = new LineData(0.25f, 2.50f, 40.25f, 2.50f),
+            ["Line2"] = new LineData(0.25f, 15.00f, 40.25f, 15.00f)
+        };
+
+        var result = await _operator.ExecuteAsync(op, inputs);
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(12.5, 1e-6);
+        Convert.ToDouble(result.OutputData["Angle"]).Should().BeApproximately(0.0, 1e-6);
+        var uncertaintyPx = Convert.ToDouble(result.OutputData["UncertaintyPx"]);
+        uncertaintyPx.Should().BeGreaterThan(0.01);
+        uncertaintyPx.Should().BeLessThan(0.20);
+        Convert.ToDouble(result.OutputData["Confidence"]).Should().BeGreaterThan(0.8);
+    }
+
     private static Operator CreateOperator(Dictionary<string, object>? parameters = null)
     {
         var op = new Operator("L2L", OperatorType.LineLineDistance, 0, 0);

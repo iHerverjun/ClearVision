@@ -97,6 +97,15 @@ public class LineLineDistanceOperator : OperatorBase
                 : 0.0,
             _ => 0.0
         };
+        var line1SigmaPx = MeasurementGeometryHelper.EstimateLineSigma(line1);
+        var line2SigmaPx = MeasurementGeometryHelper.EstimateLineSigma(line2);
+        var uncertaintyPx = MeasurementGeometryHelper.PropagateLineLineDistanceUncertainty(
+            line1,
+            line1SigmaPx,
+            line2,
+            line2SigmaPx,
+            parsedModel == DistanceModel.Segment,
+            parallelThreshold);
 
         var output = new Dictionary<string, object>
         {
@@ -109,8 +118,8 @@ public class LineLineDistanceOperator : OperatorBase
             { "Unit", "Pixel" },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", parsedModel == DistanceModel.Segment ? 0.01 : 0.0 }
+            { "Confidence", ComputeConfidence(uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -217,6 +226,16 @@ public class LineLineDistanceOperator : OperatorBase
             long l => (value = l) == l,
             _ => double.TryParse(raw.ToString(), out value)
         };
+    }
+
+    private static double ComputeConfidence(double uncertaintyPx)
+    {
+        if (!double.IsFinite(uncertaintyPx) || uncertaintyPx < 0)
+        {
+            return 0.0;
+        }
+
+        return 1.0 / (1.0 + uncertaintyPx);
     }
 
     private enum DistanceModel

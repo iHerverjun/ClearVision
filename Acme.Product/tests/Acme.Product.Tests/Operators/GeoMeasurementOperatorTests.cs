@@ -97,6 +97,58 @@ public class GeoMeasurementOperatorTests
         sut.ValidateParameters(op).IsValid.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_PointLine_ShouldReuseDedicatedUncertaintyPropagation()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Point",
+            ["Element2Type"] = "Line",
+            ["DistanceModel"] = "InfiniteLine"
+        });
+
+        var point = new Position(20.25, 10.50);
+        var line = new LineData(0.25f, 0.25f, 40.25f, 0.25f);
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Element1"] = point,
+            ["Element2"] = line
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(10.25, 1e-6);
+        var uncertaintyPx = Convert.ToDouble(result.OutputData["UncertaintyPx"]);
+        uncertaintyPx.Should().BeGreaterThan(0.01);
+        uncertaintyPx.Should().BeLessThan(0.20);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LineLine_ShouldReuseDedicatedUncertaintyPropagation()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Line",
+            ["Element2Type"] = "Line",
+            ["DistanceModel"] = "InfiniteLine"
+        });
+
+        var line1 = new LineData(0.25f, 2.50f, 40.25f, 2.50f);
+        var line2 = new LineData(0.25f, 15.00f, 40.25f, 15.00f);
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Element1"] = line1,
+            ["Element2"] = line2
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(12.5, 1e-6);
+        var uncertaintyPx = Convert.ToDouble(result.OutputData["UncertaintyPx"]);
+        uncertaintyPx.Should().BeGreaterThan(0.01);
+        uncertaintyPx.Should().BeLessThan(0.20);
+    }
+
     private static GeoMeasurementOperator CreateSut()
     {
         return new GeoMeasurementOperator(Substitute.For<ILogger<GeoMeasurementOperator>>());

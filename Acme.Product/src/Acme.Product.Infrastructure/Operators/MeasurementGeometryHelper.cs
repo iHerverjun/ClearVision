@@ -6,6 +6,30 @@ internal static class MeasurementGeometryHelper
 {
     public static readonly Position NoIntersection = new(double.NaN, double.NaN);
 
+    public static double EstimatePointSigma(Position point)
+    {
+        return HasFractionalComponent(point.X) || HasFractionalComponent(point.Y) ? 0.05 : 0.5;
+    }
+
+    public static double EstimateLineSigma(LineData line)
+    {
+        return HasFractionalComponent(line.StartX) ||
+               HasFractionalComponent(line.StartY) ||
+               HasFractionalComponent(line.EndX) ||
+               HasFractionalComponent(line.EndY)
+            ? 0.05
+            : 0.5;
+    }
+
+    public static double EstimateCircleSigma(double centerX, double centerY, double radius)
+    {
+        return HasFractionalComponent(centerX) ||
+               HasFractionalComponent(centerY) ||
+               HasFractionalComponent(radius)
+            ? 0.05
+            : 0.5;
+    }
+
     public static bool IsFinite(LineData line)
     {
         return double.IsFinite(line.StartX) &&
@@ -166,5 +190,257 @@ internal static class MeasurementGeometryHelper
         var d3 = DistancePointToSegment(second.StartX, second.StartY, first);
         var d4 = DistancePointToSegment(second.EndX, second.EndY, first);
         return Math.Min(Math.Min(d1, d2), Math.Min(d3, d4));
+    }
+
+    public static double PropagatePointLineDistanceUncertainty(
+        Position point,
+        double pointSigmaPx,
+        LineData line,
+        double lineSigmaPx,
+        bool segmentModel)
+    {
+        var variables = new[] { point.X, point.Y, (double)line.StartX, line.StartY, line.EndX, line.EndY };
+        var sigmas = new[] { pointSigmaPx, pointSigmaPx, lineSigmaPx, lineSigmaPx, lineSigmaPx, lineSigmaPx };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values =>
+            {
+                var candidateLine = new LineData(
+                    (float)values[2],
+                    (float)values[3],
+                    (float)values[4],
+                    (float)values[5]);
+
+                return segmentModel
+                    ? DistancePointToSegment(values[0], values[1], candidateLine)
+                    : DistancePointToInfiniteLine(values[0], values[1], candidateLine);
+            });
+    }
+
+    public static double PropagateLineLineDistanceUncertainty(
+        LineData first,
+        double firstSigmaPx,
+        LineData second,
+        double secondSigmaPx,
+        bool segmentModel,
+        double parallelThresholdDeg)
+    {
+        var variables = new[]
+        {
+            (double)first.StartX, first.StartY, first.EndX, first.EndY,
+            (double)second.StartX, second.StartY, second.EndX, second.EndY
+        };
+        var sigmas = new[]
+        {
+            firstSigmaPx, firstSigmaPx, firstSigmaPx, firstSigmaPx,
+            secondSigmaPx, secondSigmaPx, secondSigmaPx, secondSigmaPx
+        };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values =>
+            {
+                var candidateFirst = new LineData(
+                    (float)values[0],
+                    (float)values[1],
+                    (float)values[2],
+                    (float)values[3]);
+                var candidateSecond = new LineData(
+                    (float)values[4],
+                    (float)values[5],
+                    (float)values[6],
+                    (float)values[7]);
+
+                if (segmentModel)
+                {
+                    return DistanceSegmentToSegment(candidateFirst, candidateSecond);
+                }
+
+                var angleDeg = AngleBetweenLineDirections(candidateFirst, candidateSecond);
+                return angleDeg <= parallelThresholdDeg
+                    ? DistancePointToInfiniteLine(candidateFirst.StartX, candidateFirst.StartY, candidateSecond)
+                    : 0.0;
+            });
+    }
+
+    public static double PropagatePointPointDistanceUncertainty(
+        Position first,
+        double firstSigmaPx,
+        Position second,
+        double secondSigmaPx)
+    {
+        var variables = new[] { first.X, first.Y, second.X, second.Y };
+        var sigmas = new[] { firstSigmaPx, firstSigmaPx, secondSigmaPx, secondSigmaPx };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values => Distance(values[0], values[1], values[2], values[3]));
+    }
+
+    public static double PropagatePointCircleGapUncertainty(
+        Position point,
+        double pointSigmaPx,
+        Position center,
+        double centerSigmaPx,
+        double radius,
+        double radiusSigmaPx)
+    {
+        var variables = new[] { point.X, point.Y, center.X, center.Y, radius };
+        var sigmas = new[] { pointSigmaPx, pointSigmaPx, centerSigmaPx, centerSigmaPx, radiusSigmaPx };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values => Math.Abs(Distance(values[0], values[1], values[2], values[3]) - values[4]));
+    }
+
+    public static double PropagateLineCircleGapUncertainty(
+        LineData line,
+        double lineSigmaPx,
+        Position center,
+        double centerSigmaPx,
+        double radius,
+        double radiusSigmaPx,
+        bool segmentModel)
+    {
+        var variables = new[]
+        {
+            (double)line.StartX, line.StartY, line.EndX, line.EndY,
+            center.X, center.Y, radius
+        };
+        var sigmas = new[]
+        {
+            lineSigmaPx, lineSigmaPx, lineSigmaPx, lineSigmaPx,
+            centerSigmaPx, centerSigmaPx, radiusSigmaPx
+        };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values =>
+            {
+                var candidateLine = new LineData(
+                    (float)values[0],
+                    (float)values[1],
+                    (float)values[2],
+                    (float)values[3]);
+                var centerDistance = segmentModel
+                    ? DistancePointToSegment(values[4], values[5], candidateLine)
+                    : DistancePointToInfiniteLine(values[4], values[5], candidateLine);
+
+                return Math.Max(0.0, centerDistance - values[6]);
+            });
+    }
+
+    public static double PropagateCircleCircleGapUncertainty(
+        Position firstCenter,
+        double firstCenterSigmaPx,
+        double firstRadius,
+        double firstRadiusSigmaPx,
+        Position secondCenter,
+        double secondCenterSigmaPx,
+        double secondRadius,
+        double secondRadiusSigmaPx)
+    {
+        var variables = new[]
+        {
+            firstCenter.X, firstCenter.Y, firstRadius,
+            secondCenter.X, secondCenter.Y, secondRadius
+        };
+        var sigmas = new[]
+        {
+            firstCenterSigmaPx, firstCenterSigmaPx, firstRadiusSigmaPx,
+            secondCenterSigmaPx, secondCenterSigmaPx, secondRadiusSigmaPx
+        };
+
+        return PropagateCoordinateUncertainty(
+            variables,
+            sigmas,
+            values =>
+            {
+                var centerDistance = Distance(values[0], values[1], values[3], values[4]);
+                var radiusSum = values[2] + values[5];
+                var radiusDelta = Math.Abs(values[2] - values[5]);
+
+                if (centerDistance > radiusSum)
+                {
+                    return centerDistance - radiusSum;
+                }
+
+                if (centerDistance < radiusDelta)
+                {
+                    return radiusDelta - centerDistance;
+                }
+
+                return 0.0;
+            });
+    }
+
+    public static double PropagateCustomCoordinateUncertainty(
+        IReadOnlyList<double> variables,
+        IReadOnlyList<double> sigmas,
+        Func<double[], double> evaluator)
+    {
+        return PropagateCoordinateUncertainty(variables, sigmas, evaluator);
+    }
+
+    private static double PropagateCoordinateUncertainty(
+        IReadOnlyList<double> variables,
+        IReadOnlyList<double> sigmas,
+        Func<double[], double> evaluator)
+    {
+        if (variables.Count != sigmas.Count)
+        {
+            return double.NaN;
+        }
+
+        var baseVector = variables.ToArray();
+        var baseValue = evaluator(baseVector);
+        if (!double.IsFinite(baseValue))
+        {
+            return double.NaN;
+        }
+
+        var variance = 0.0;
+        for (var i = 0; i < baseVector.Length; i++)
+        {
+            var sigma = sigmas[i];
+            if (!double.IsFinite(sigma) || sigma <= 0.0)
+            {
+                continue;
+            }
+
+            var step = DetermineFiniteDifferenceStep(baseVector[i]);
+            var plus = (double[])baseVector.Clone();
+            var minus = (double[])baseVector.Clone();
+            plus[i] += step;
+            minus[i] -= step;
+
+            var fPlus = evaluator(plus);
+            var fMinus = evaluator(minus);
+            if (!double.IsFinite(fPlus) || !double.IsFinite(fMinus))
+            {
+                continue;
+            }
+
+            var derivative = (fPlus - fMinus) / (2.0 * step);
+            variance += derivative * derivative * sigma * sigma;
+        }
+
+        return Math.Sqrt(Math.Max(variance, 0.0));
+    }
+
+    private static double DetermineFiniteDifferenceStep(double value)
+    {
+        return Math.Max(1e-4, Math.Abs(value) * 1e-4);
+    }
+
+    private static bool HasFractionalComponent(double value)
+    {
+        return Math.Abs(value - Math.Round(value)) > 1e-6;
     }
 }
