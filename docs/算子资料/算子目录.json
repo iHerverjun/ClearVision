@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T22:49:10.0250597+08:00",
+  "generatedAt": "2026-04-19T13:58:24.7155550+08:00",
   "totalCount": 155,
   "categories": {
     "3D": {
@@ -48,9 +48,10 @@
       ]
     },
     "Detection": {
-      "count": 1,
+      "count": 2,
       "operators": [
-        "AngleMeasurement"
+        "AngleMeasurement",
+        "ContourMeasurement"
       ]
     },
     "Flow Control": {
@@ -176,13 +177,12 @@
       ]
     },
     "检测": {
-      "count": 19,
+      "count": 18,
       "operators": [
         "ArcCaliper",
         "CaliperTool",
         "CircleMeasurement",
         "ContourExtrema",
-        "ContourMeasurement",
         "GapMeasurement",
         "GeoMeasurement",
         "GeometricFitting",
@@ -3209,9 +3209,9 @@
     {
       "id": "ContourMeasurement",
       "type": 21,
-      "displayName": "轮廓测量",
-      "description": "轮廓分析与测量",
-      "category": "检测",
+      "displayName": "Contour Measurement",
+      "description": "Measures contour area, perimeter, and centroid with grayscale-weighted area estimation.",
+      "category": "Detection",
       "version": "1.0.0",
       "tags": [
         "功能域:测量",
@@ -3222,7 +3222,7 @@
       "inputPorts": [
         {
           "name": "Image",
-          "displayName": "输入图像",
+          "displayName": "Input Image",
           "dataType": "Image",
           "isRequired": true
         }
@@ -3230,25 +3230,25 @@
       "outputPorts": [
         {
           "name": "Image",
-          "displayName": "结果图像",
+          "displayName": "Result Image",
           "dataType": "Image",
           "isRequired": null
         },
         {
           "name": "Area",
-          "displayName": "面积",
+          "displayName": "Area",
           "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "Perimeter",
-          "displayName": "周长",
+          "displayName": "Perimeter",
           "dataType": "Float",
           "isRequired": null
         },
         {
           "name": "ContourCount",
-          "displayName": "轮廓数量",
+          "displayName": "Contour Count",
           "dataType": "Integer",
           "isRequired": null
         }
@@ -3256,7 +3256,7 @@
       "parameters": [
         {
           "name": "Threshold",
-          "displayName": "二值化阈值",
+          "displayName": "Threshold",
           "dataType": "double",
           "description": null,
           "defaultValue": "127",
@@ -3267,7 +3267,7 @@
         },
         {
           "name": "MinArea",
-          "displayName": "最小面积",
+          "displayName": "Min Area",
           "dataType": "int",
           "description": null,
           "defaultValue": "100",
@@ -3278,7 +3278,7 @@
         },
         {
           "name": "MaxArea",
-          "displayName": "最大面积",
+          "displayName": "Max Area",
           "dataType": "int",
           "description": null,
           "defaultValue": "100000",
@@ -3289,7 +3289,7 @@
         },
         {
           "name": "SortBy",
-          "displayName": "排序依据",
+          "displayName": "Sort By",
           "dataType": "enum",
           "description": null,
           "defaultValue": "Area",
@@ -3299,11 +3299,11 @@
           "options": [
             {
               "value": "Area",
-              "label": "面积"
+              "label": "Area"
             },
             {
               "value": "Perimeter",
-              "label": "周长"
+              "label": "Perimeter"
             }
           ]
         }
@@ -4857,7 +4857,7 @@
           "displayName": "Contour Selection",
           "dataType": "enum",
           "description": null,
-          "defaultValue": "LargestContour",
+          "defaultValue": "BestResidual",
           "min": null,
           "max": null,
           "isRequired": true,
