@@ -12,6 +12,25 @@ if ! echo "${changed_files}" | grep -Eq '^(Acme\.Product/src/Acme\.Product\.Infr
 fi
 
 echo "[pre-commit] Operator-related changes detected. Regenerating operator catalog..."
-dotnet run --project scripts/OperatorDocGenerator/OperatorDocGenerator.csproj -- .
-git add -- '算子资料'
-echo "[pre-commit] Staged updated 算子资料 outputs"
+
+generator_dll=""
+for candidate in \
+  "scripts/OperatorDocGenerator/bin/Debug/net8.0/OperatorDocGenerator.dll" \
+  "scripts/OperatorDocGenerator/bin/Release/net8.0/OperatorDocGenerator.dll"
+do
+  if [[ -f "${candidate}" ]]; then
+    generator_dll="${candidate}"
+    break
+  fi
+done
+
+if [[ -n "${generator_dll}" ]]; then
+  echo "[pre-commit] Using prebuilt generator: ${generator_dll}"
+  dotnet "${generator_dll}" .
+else
+  echo "[pre-commit] Prebuilt generator not found. Falling back to dotnet run."
+  dotnet run --project scripts/OperatorDocGenerator/OperatorDocGenerator.csproj -- .
+fi
+
+git add -- 'docs/算子资料' '算子资料'
+echo "[pre-commit] Staged updated docs/算子资料 and 算子资料 outputs"
