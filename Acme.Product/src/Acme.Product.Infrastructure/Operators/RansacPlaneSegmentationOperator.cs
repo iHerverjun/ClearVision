@@ -28,6 +28,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("DistanceThreshold", "Distance Threshold", "double", DefaultValue = 0.01, Min = 1e-6)]
 [OperatorParam("MaxIterations", "Max Iterations", "int", DefaultValue = 1000, Min = 1, Max = 200000)]
 [OperatorParam("MinInliers", "Min Inliers", "int", DefaultValue = 100, Min = 1, Max = 10000000)]
+[OperatorParam("RandomSeed", "Random Seed (0=DeterministicFromInput)", "int", DefaultValue = 0, Min = 0, Max = 2147483647)]
 public sealed class RansacPlaneSegmentationOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.RansacPlaneSegmentation;
@@ -59,8 +60,10 @@ public sealed class RansacPlaneSegmentationOperator : OperatorBase
         var distanceThreshold = (float)GetDoubleParam(@operator, "DistanceThreshold", 0.01, min: 1e-6, max: 1000);
         var maxIterations = GetIntParam(@operator, "MaxIterations", 1000, min: 1, max: 200000);
         var minInliers = GetIntParam(@operator, "MinInliers", 100, min: 1, max: 10_000_000);
+        var randomSeed = GetIntParam(@operator, "RandomSeed", 0, min: 0, max: int.MaxValue);
+        int? resolvedSeed = randomSeed == 0 ? null : randomSeed;
 
-        var segmenter = new RansacPlaneSegmentation();
+        var segmenter = new RansacPlaneSegmentation(seed: resolvedSeed);
         RansacPlaneResult result;
         PointCloudModel inlierCloud;
 
@@ -105,6 +108,7 @@ public sealed class RansacPlaneSegmentationOperator : OperatorBase
         _ = GetDoubleParam(@operator, "DistanceThreshold", 0.01, min: 1e-6, max: 1000);
         _ = GetIntParam(@operator, "MaxIterations", 1000, min: 1, max: 200000);
         _ = GetIntParam(@operator, "MinInliers", 100, min: 1, max: 10_000_000);
+        _ = GetIntParam(@operator, "RandomSeed", 0, min: 0, max: int.MaxValue);
         return ValidationResult.Valid();
     }
 }

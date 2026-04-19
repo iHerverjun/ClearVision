@@ -1,14 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <AcmeOperatorLibraryPackageVersion Condition="'$(AcmeOperatorLibraryPackageVersion)' == ''">1.0.2</AcmeOperatorLibraryPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Acme.OperatorLibrary" Version="1.0.2-local" />
+    <PackageReference Include="Acme.OperatorLibrary" Version="$(AcmeOperatorLibraryPackageVersion)" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7" />

@@ -1,7 +1,4 @@
-// OperatorFactory.cs
-// 算子工厂
-// 负责按算子类型创建并组装执行实例
-// 作者：蘅芜君
+using System.Diagnostics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Services;
@@ -16,9 +13,15 @@ namespace Acme.Product.Infrastructure.Services;
 public class OperatorFactory : IOperatorFactory
 {
     private readonly Dictionary<OperatorType, OperatorMetadata> _metadata = new();
+    private readonly Func<List<OperatorMetadata>>? _scanMetadata;
+    private readonly bool? _strictMetadataScan;
 
-    public OperatorFactory()
+    public OperatorFactory(
+        Func<List<OperatorMetadata>>? scanMetadata = null,
+        bool? strictMetadataScan = null)
     {
+        _scanMetadata = scanMetadata;
+        _strictMetadataScan = strictMetadataScan;
         InitializeDefaultOperators();
     }
 
@@ -29,10 +32,11 @@ public class OperatorFactory : IOperatorFactory
 
         if (metadata == null)
         {
-            // Keep a minimal fallback so unknown types can still flow through the canvas.
-            op.AddInputPort("Input", PortDataType.Any, false);
-            op.AddOutputPort("Output", PortDataType.Any);
-            return op;
+            var message =
+                $"[OperatorFactory] Metadata missing for operator type '{type}'. " +
+                "Operator creation aborted to prevent fail-open Any-port fallback.";
+            Trace.TraceError(message);
+            throw new InvalidOperationException(message);
         }
 
         foreach (var portDef in metadata.InputPorts)
@@ -86,6 +90,6 @@ public class OperatorFactory : IOperatorFactory
 
     private void InitializeDefaultOperators()
     {
-        OperatorFactoryMetadataMerge.Apply(_metadata);
+        OperatorFactoryMetadataMerge.Apply(_metadata, _scanMetadata, _strictMetadataScan);
     }
 }

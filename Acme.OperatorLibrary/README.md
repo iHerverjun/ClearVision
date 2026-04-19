@@ -1,4 +1,4 @@
-﻿# Acme.OperatorLibrary
+# Acme.OperatorLibrary
 
 Industrial Vision Operator Library for ClearVision.
 
@@ -18,9 +18,9 @@ Industrial Vision Operator Library for ClearVision.
 ./pack.ps1
 ```
 
-2. Generated package output:
+2. Generated package output (default):
 
-- `./nupkg/Acme.OperatorLibrary.1.0.2-local.nupkg`
+- `./nupkg/Acme.OperatorLibrary.1.0.2.nupkg`
 
 3. Add local source in another project:
 
@@ -33,8 +33,43 @@ Industrial Vision Operator Library for ClearVision.
 4. Reference package:
 
 ```xml
-<PackageReference Include="Acme.OperatorLibrary" Version="1.0.2-local" />
+<PackageReference Include="Acme.OperatorLibrary" Version="1.0.2" />
 ```
+
+## Industrial Acceptance Scope
+
+Package acceptance tests are not limited to smoke instantiation. The baseline now includes representative operators across all major modules:
+
+- ImageProcessing: mean filter runtime boundary path (kernel clamp + image output contract)
+- Measurement: caliper success path and expected-count failure path
+- Calibration: parameter validation and missing folder failure path
+- Communication: Modbus validation boundary and RTU fail-fast path
+- FlowControl: TryCatch passthrough contract
+- AI: DeepLearning missing model validation/runtime failure path
+
+Acceptance criteria: each representative operator must cover at least one normal path plus parameter, exception, or boundary behavior.
+
+## Packaging Version & Traceability
+
+The package no longer uses the fixed `*-local` version strategy.
+
+- Default local version: `VersionPrefix` (`1.0.2` currently)
+- CI version injection: pass `PackageVersion` (for example `1.0.2-ci.20260419.1`)
+- Reproducibility metadata: `SourceRevisionId`, `RepositoryCommit`, `RepositoryBranch`, `PublishRepositoryUrl`, deterministic/CI build flags
+- Symbols: `.snupkg` is still generated for debugging compatibility
+
+`pack.ps1` supports explicit metadata injection:
+
+```powershell
+./pack.ps1 `
+  -PackageVersion "1.0.2-ci.20260419.1" `
+  -SourceRevisionId "a1b2c3d4" `
+  -RepositoryBranch "main" `
+  -RepositoryCommit "a1b2c3d4" `
+  -RunSmokeTest
+```
+
+It also reads common CI environment variables (`ACME_OPERATORLIB_PACKAGE_VERSION`, `GITHUB_SHA`, `GITHUB_REF_NAME`, `BUILD_SOURCEVERSION`, `BUILD_SOURCEBRANCHNAME`) when parameters are omitted.
 
 ## Notes
 
@@ -58,7 +93,7 @@ Industrial Vision Operator Library for ClearVision.
 
 ## Phase 3.4 Module Namespaces
 
-The package now exposes module-level namespace indexes:
+The package exposes module-level namespace indexes:
 
 - `Acme.OperatorLibrary.ImageProcessing`
 - `Acme.OperatorLibrary.Measurement`
@@ -67,4 +102,4 @@ The package now exposes module-level namespace indexes:
 - `Acme.OperatorLibrary.FlowControl`
 - `Acme.OperatorLibrary.AI`
 
-Use `Operators.Types` in each namespace to get the grouped `OperatorType` list.
+Use `Operators.Types` in each namespace to get grouped `OperatorType` lists.

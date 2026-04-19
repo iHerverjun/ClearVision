@@ -143,6 +143,34 @@ public class FrameAveragingOperatorTests
         Assert.Equal(0, pixel.Item2);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_MedianMode_EvenFrameCount_ShouldUseUpperMedianOrder()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            { "FrameCount", 4 },
+            { "Mode", "Median" }
+        });
+
+        using var frame1 = CreateGrayImage(10);
+        using var frame2 = CreateGrayImage(20);
+        using var frame3 = CreateGrayImage(30);
+        using var frame4 = CreateGrayImage(200);
+
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame1));
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame2));
+        _ = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame3));
+        var fourth = await sut.ExecuteAsync(op, TestHelpers.CreateImageInputs(frame4));
+
+        Assert.True(fourth.IsSuccess);
+        Assert.NotNull(fourth.OutputData);
+
+        using var output = Assert.IsType<ImageWrapper>(fourth.OutputData!["Image"]);
+        using var resultMat = output.GetMat();
+        Assert.Equal(30, resultMat.At<byte>(0, 0));
+    }
+
     private static FrameAveragingOperator CreateSut()
     {
         return new FrameAveragingOperator(Substitute.For<ILogger<FrameAveragingOperator>>());

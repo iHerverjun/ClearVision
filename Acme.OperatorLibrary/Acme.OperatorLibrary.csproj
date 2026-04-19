@@ -10,7 +10,8 @@
     <DefineConstants>$(DefineConstants);ACME_OPERATORLIB_PACKAGE</DefineConstants>
 
     <PackageId>Acme.OperatorLibrary</PackageId>
-    <Version>1.0.2-local</Version>
+    <VersionPrefix>1.0.2</VersionPrefix>
+    <Version Condition="'$(PackageVersion)' == ''">$(VersionPrefix)</Version>
     <Authors>蘅芜君</Authors>
     <Description>工业视觉算子库 - 包含 100+ 图像处理、测量、标定、通信算子 / Industrial Vision Operator Library</Description>
     <PackageTags>opencv;machine-vision;operator;image-processing;measurement;calibration</PackageTags>
@@ -19,6 +20,15 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/HerverJun/ClearVision</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(ContinuousIntegrationBuild)' == '' and '$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <RepositoryBranch Condition="'$(RepositoryBranch)' == '' and '$(GITHUB_REF_NAME)' != ''">$(GITHUB_REF_NAME)</RepositoryBranch>
+    <RepositoryBranch Condition="'$(RepositoryBranch)' == '' and '$(BUILD_SOURCEBRANCHNAME)' != ''">$(BUILD_SOURCEBRANCHNAME)</RepositoryBranch>
+    <RepositoryCommit Condition="'$(RepositoryCommit)' == '' and '$(GITHUB_SHA)' != ''">$(GITHUB_SHA)</RepositoryCommit>
+    <RepositoryCommit Condition="'$(RepositoryCommit)' == '' and '$(BUILD_SOURCEVERSION)' != ''">$(BUILD_SOURCEVERSION)</RepositoryCommit>
+    <SourceRevisionId Condition="'$(SourceRevisionId)' == '' and '$(RepositoryCommit)' != ''">$(RepositoryCommit)</SourceRevisionId>
+    <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>

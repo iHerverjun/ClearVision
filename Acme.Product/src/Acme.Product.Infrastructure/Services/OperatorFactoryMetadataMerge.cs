@@ -11,6 +11,9 @@ namespace Acme.Product.Infrastructure.Services;
 
 internal static class OperatorFactoryMetadataMerge
 {
+    private const string StrictMetadataScanSwitchName = "Acme.Product.OperatorFactory.StrictMetadataScan";
+    private const string StrictMetadataScanEnvironmentVariable = "ACME_OPERATOR_FACTORY_STRICT_METADATA_SCAN";
+
     public static bool IsLegacyAlias(OperatorType type) => OperatorTypeAliasResolver.IsLegacyAlias(type);
 
     public static OperatorType ResolveExecutionType(OperatorType type)
@@ -18,18 +21,79 @@ internal static class OperatorFactoryMetadataMerge
         return OperatorTypeAliasResolver.Resolve(type);
     }
 
-    public static void Apply(Dictionary<OperatorType, OperatorMetadata> metadata)
+    public static bool IsStrictMetadataScanEnabled(bool? strictModeOverride = null)
+    {
+        if (strictModeOverride.HasValue)
+        {
+            return strictModeOverride.Value;
+        }
+
+        if (AppContext.TryGetSwitch(StrictMetadataScanSwitchName, out var strictBySwitch))
+        {
+            return strictBySwitch;
+        }
+
+        var raw = Environment.GetEnvironmentVariable(StrictMetadataScanEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return true;
+        }
+
+        if (bool.TryParse(raw, out var strictByEnvironment))
+        {
+            return strictByEnvironment;
+        }
+
+        if (string.Equals(raw, "1", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(raw, "0", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static void Apply(
+        Dictionary<OperatorType, OperatorMetadata> metadata,
+        Func<List<OperatorMetadata>>? scanMetadata = null,
+        bool? strictModeOverride = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
+
+        var strictMode = IsStrictMetadataScanEnabled(strictModeOverride);
+        var scanner = scanMetadata ?? (() => new OperatorMetadataScanner().Scan());
 
         List<OperatorMetadata> scannedMetadata;
         try
         {
-            scannedMetadata = new OperatorMetadataScanner().Scan();
+            scannedMetadata = scanner();
         }
         catch (Exception ex)
         {
-            Trace.TraceWarning($"[OperatorFactory] Attribute metadata scan failed: {ex.Message}");
+            Trace.TraceError($"[OperatorFactory] Attribute metadata scan failed. StrictMode={strictMode}. Error={ex}");
+            if (strictMode)
+            {
+                throw new InvalidOperationException(
+                    "[OperatorFactory] Metadata initialization failed. " +
+                    $"Set {StrictMetadataScanEnvironmentVariable}=false to allow degraded startup.",
+                    ex);
+            }
+
+            return;
+        }
+
+        if (scannedMetadata.Count == 0)
+        {
+            Trace.TraceError($"[OperatorFactory] Attribute metadata scan produced 0 items. StrictMode={strictMode}.");
+            if (strictMode)
+            {
+                throw new InvalidOperationException("[OperatorFactory] Metadata initialization failed because scan returned no metadata.");
+            }
+
             return;
         }
 

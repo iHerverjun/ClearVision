@@ -18,13 +18,17 @@ public sealed class RansacPlaneSegmentation
     private const int CoarseEvaluationThreshold = 200_000;
     private const int MaxCoarseSamples = 32_768;
     private const int MaxCandidatePlanes = 8;
+    private const int MaxSeedHashSamples = 1_024;
+    private const uint FnvOffset = 2166136261;
+    private const uint FnvPrime = 16777619;
+    private const int SeedFallback = 20260419;
 
-    private readonly Random _rng;
+    private readonly int? _seed;
     private readonly MatPool _pool;
 
     public RansacPlaneSegmentation(int? seed = null, MatPool? pool = null)
     {
-        _rng = seed.HasValue ? new Random(seed.Value) : new Random();
+        _seed = seed;
         _pool = pool ?? MatPool.Shared;
     }
 
@@ -49,6 +53,7 @@ public sealed class RansacPlaneSegmentation
         }
 
         var pIdx = cloud.Points.GetGenericIndexer<float>();
+        var rng = new Random(ResolveSeed(cloud, pIdx, distanceThreshold, maxIterations, minInliers));
 
         var scratch = new int[n];
         int bestCount = 0;
@@ -64,7 +69,7 @@ public sealed class RansacPlaneSegmentation
 
         for (int iter = 0; iter < maxIterations; iter++)
         {
-            if (!TrySample3Distinct(n, out var i1, out var i2, out var i3))
+            if (!TrySample3Distinct(rng, n, out var i1, out var i2, out var i3))
             {
                 continue;
             }
@@ -85,6 +90,7 @@ public sealed class RansacPlaneSegmentation
 
             normal = Vector3.Normalize(normal);
             var d = -Vector3.Dot(normal, p1);
+            (normal, d) = CanonicalizePlane(normal, d);
 
             if (useCoarseEvaluation)
             {
@@ -101,7 +107,8 @@ public sealed class RansacPlaneSegmentation
 
             var count = CollectInliers(pIdx, n, normal, d, distanceThreshold, scratch);
 
-            if (count > bestCount)
+            if (count > bestCount ||
+                (count == bestCount && IsPreferredPlane(normal, d, bestNormal, bestD)))
             {
                 bestCount = count;
                 bestNormal = normal;
@@ -119,10 +126,12 @@ public sealed class RansacPlaneSegmentation
         {
             foreach (var candidate in candidatePlanes!
                          .OrderByDescending(x => x.InlierCount)
+                         .ThenBy(x => PlaneStableScore(x.Normal, x.D))
                          .Take(MaxCandidatePlanes))
             {
                 var count = CountInliersAll(pIdx, n, candidate.Normal, candidate.D, distanceThreshold);
-                if (count > bestCount)
+                if (count > bestCount ||
+                    (count == bestCount && IsPreferredPlane(candidate.Normal, candidate.D, bestNormal, bestD)))
                 {
                     bestCount = count;
                     bestNormal = candidate.Normal;
@@ -149,6 +158,7 @@ public sealed class RansacPlaneSegmentation
 
         // Refine using PCA on inliers (smallest eigenvector of covariance matrix).
         (bestNormal, bestD) = RefinePlanePca(pIdx, bestInliers, bestNormal);
+        (bestNormal, bestD) = CanonicalizePlane(bestNormal, bestD);
 
         // Recompute inliers with refined model (keeps behavior consistent with threshold).
         int refinedCount = CollectInliers(pIdx, n, bestNormal, bestD, distanceThreshold, scratch);
@@ -252,7 +262,9 @@ public sealed class RansacPlaneSegmentation
             }
         }
 
-        if (candidate.InlierCount > candidates[minIndex].InlierCount)
+        if (candidate.InlierCount > candidates[minIndex].InlierCount ||
+            (candidate.InlierCount == candidates[minIndex].InlierCount &&
+             IsPreferredPlane(candidate.Normal, candidate.D, candidates[minIndex].Normal, candidates[minIndex].D)))
         {
             candidates[minIndex] = candidate;
         }
@@ -312,14 +324,14 @@ public sealed class RansacPlaneSegmentation
         return new PointCloud(outPoints, outColors, outNormals, isOrganized: false, pool: _pool);
     }
 
-    private bool TrySample3Distinct(int n, out int i1, out int i2, out int i3)
+    private static bool TrySample3Distinct(Random rng, int n, out int i1, out int i2, out int i3)
     {
         // Avoid unbounded loops on tiny n.
         for (int attempt = 0; attempt < 16; attempt++)
         {
-            i1 = _rng.Next(n);
-            i2 = _rng.Next(n);
-            i3 = _rng.Next(n);
+            i1 = rng.Next(n);
+            i2 = rng.Next(n);
+            i3 = rng.Next(n);
             if (i1 != i2 && i1 != i3 && i2 != i3)
             {
                 return true;
@@ -409,6 +421,96 @@ public sealed class RansacPlaneSegmentation
 
         var centroid = new Vector3((float)cx, (float)cy, (float)cz);
         var d = -Vector3.Dot(normal, centroid);
+        return (normal, d);
+    }
+
+    private int ResolveSeed(
+        PointCloud cloud,
+        OpenCvSharp.MatIndexer<float> points,
+        float distanceThreshold,
+        int maxIterations,
+        int minInliers)
+    {
+        if (_seed.HasValue)
+        {
+            return _seed.Value;
+        }
+
+        unchecked
+        {
+            uint hash = FnvOffset;
+            Mix(ref hash, (uint)cloud.Count);
+            Mix(ref hash, (uint)maxIterations);
+            Mix(ref hash, (uint)minInliers);
+            Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(distanceThreshold));
+
+            int sampleCount = Math.Min(cloud.Count, MaxSeedHashSamples);
+            int step = Math.Max(1, cloud.Count / Math.Max(1, sampleCount));
+
+            for (int i = 0; i < cloud.Count; i += step)
+            {
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[i, 0]));
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[i, 1]));
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[i, 2]));
+            }
+
+            var last = cloud.Count - 1;
+            if (last >= 0 && last % step != 0)
+            {
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[last, 0]));
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[last, 1]));
+                Mix(ref hash, (uint)BitConverter.SingleToInt32Bits(points[last, 2]));
+            }
+
+            var seed = (int)(hash & 0x7fffffff);
+            return seed == 0 ? SeedFallback : seed;
+        }
+    }
+
+    private static void Mix(ref uint hash, uint value)
+    {
+        hash ^= value;
+        hash *= FnvPrime;
+    }
+
+    private static bool IsPreferredPlane(Vector3 candidateNormal, float candidateD, Vector3 currentNormal, float currentD)
+    {
+        return PlaneStableScore(candidateNormal, candidateD) < PlaneStableScore(currentNormal, currentD);
+    }
+
+    private static double PlaneStableScore(Vector3 normal, float d)
+    {
+        var (cn, cd) = CanonicalizePlane(normal, d);
+        return
+            Math.Round(Math.Abs(cd), 9) * 1_000_000_000_000.0 +
+            Math.Round(cn.Z, 9) * 1_000_000.0 +
+            Math.Round(cn.Y, 9) * 1_000.0 +
+            Math.Round(cn.X, 9);
+    }
+
+    private static (Vector3 Normal, float D) CanonicalizePlane(Vector3 normal, float d)
+    {
+        if (normal.LengthSquared() < 1e-18f)
+        {
+            return (normal, d);
+        }
+
+        normal = Vector3.Normalize(normal);
+
+        var ax = MathF.Abs(normal.X);
+        var ay = MathF.Abs(normal.Y);
+        var az = MathF.Abs(normal.Z);
+
+        bool flip = (az >= ay && az >= ax && normal.Z < 0f) ||
+                    (ay > az && ay >= ax && normal.Y < 0f) ||
+                    (ax > az && ax > ay && normal.X < 0f);
+
+        if (flip)
+        {
+            normal = -normal;
+            d = -d;
+        }
+
         return (normal, d);
     }
 

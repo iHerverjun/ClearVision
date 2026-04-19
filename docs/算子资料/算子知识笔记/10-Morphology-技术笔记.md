@@ -1,4 +1,4 @@
-# Morphology 技术笔记
+# -Morphology 技术笔记
 
 > **对应算子**: `MorphologyOperator`（兼容旧流程） / `MorphologicalOperationOperator`（新流程推荐）
 > **OperatorType**: `OperatorType.Morphology` / `OperatorType.MorphologicalOperation`
@@ -288,7 +288,7 @@
  ███      ···      ███
 █████  →  ███  →  █████    毛刺去除，主体保留
  ███      ···      ███
-  ↑                     
+  ↑                   
  小毛刺被腐蚀掉，膨胀时回不来了
 ```
 

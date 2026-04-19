@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using OpenCvSharp;
+using System.Reflection;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -335,6 +336,31 @@ public class GeometricFittingOperatorTests
         Convert.ToDouble(result.OutputData["UncertaintyPx"]).Should().BeLessThan(0.20);
     }
 
+    [Fact]
+    public void EllipseResidual_WithHighEccentricityAndRotation_ShouldBeStableForNormalOffsets()
+    {
+        var residualMethod = typeof(GeometricFittingOperator).GetMethod(
+            "ApproximateGeometricDistancePointToEllipse",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        residualMethod.Should().NotBeNull();
+
+        var ellipse = new RotatedRect(
+            center: new Point2f(160f, 120f),
+            size: new Size2f(240f, 40f),
+            angle: 33f);
+
+        const double expectedOffset = 1.5;
+        var sampleAngles = new[] { 15.0, 40.0, 70.0, 110.0, 150.0, 200.0, 250.0, 320.0 };
+        foreach (var angle in sampleAngles)
+        {
+            var offsetPoint = CreatePointOffsetAlongEllipseNormal(ellipse, angle, expectedOffset);
+            var residual = Convert.ToDouble(residualMethod!.Invoke(null, new object[] { offsetPoint, ellipse }));
+
+            residual.Should().BeGreaterThan(0.0);
+            residual.Should().BeApproximately(expectedOffset, 0.40);
+        }
+    }
+
     private static double NormalizeAngleDifference(double deltaDegrees)
     {
         var normalized = deltaDegrees % 180.0;
@@ -358,5 +384,33 @@ public class GeometricFittingOperatorTests
             NormalizeAngleDifference((actualAngle + 90.0) - expectedAngle),
             NormalizeAngleDifference((actualAngle - 90.0) - expectedAngle)
         }.Min();
+    }
+
+    private static Point2f CreatePointOffsetAlongEllipseNormal(RotatedRect ellipse, double angleDegrees, double offsetPixels)
+    {
+        var a = ellipse.Size.Width / 2.0;
+        var b = ellipse.Size.Height / 2.0;
+        var t = angleDegrees * Math.PI / 180.0;
+
+        var x = a * Math.Cos(t);
+        var y = b * Math.Sin(t);
+
+        // Normal direction from implicit ellipse gradient in local coordinates.
+        var gx = x / (a * a);
+        var gy = y / (b * b);
+        var gNorm = Math.Sqrt((gx * gx) + (gy * gy));
+        gx /= gNorm;
+        gy /= gNorm;
+
+        var localOffsetX = x + (offsetPixels * gx);
+        var localOffsetY = y + (offsetPixels * gy);
+
+        var angleRad = ellipse.Angle * Math.PI / 180.0;
+        var cosA = Math.Cos(angleRad);
+        var sinA = Math.Sin(angleRad);
+
+        var worldX = (localOffsetX * cosA) - (localOffsetY * sinA) + ellipse.Center.X;
+        var worldY = (localOffsetX * sinA) + (localOffsetY * cosA) + ellipse.Center.Y;
+        return new Point2f((float)worldX, (float)worldY);
     }
 }

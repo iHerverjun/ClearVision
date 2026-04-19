@@ -60,7 +60,7 @@ public class FrameAveragingOperator : OperatorBase, IDisposable
         var nowUtc = DateTime.UtcNow;
         var state = _states.GetOrAdd(@operator.Id, static _ => new FrameWindowState());
 
-        List<Mat> snapshot;
+        Mat[] snapshot;
         lock (state.SyncRoot)
         {
             if (state.Frames.Count > 0)
@@ -79,7 +79,7 @@ public class FrameAveragingOperator : OperatorBase, IDisposable
                 old.Dispose();
             }
 
-            snapshot = state.Frames.Select(f => f.Clone()).ToList();
+            snapshot = state.Frames.Select(static frame => new Mat(frame)).ToArray();
             state.LastTouchedUtc = nowUtc;
         }
 
@@ -102,7 +102,7 @@ public class FrameAveragingOperator : OperatorBase, IDisposable
 
         var output = new Dictionary<string, object>
         {
-            { "FrameCount", snapshot.Count }
+            { "FrameCount", snapshot.Length }
         };
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(result, output)));
@@ -291,13 +291,76 @@ public class FrameAveragingOperator : OperatorBase, IDisposable
                     samples[frame] = frameIndexers[frame][row, col];
                 }
 
-                Array.Sort(samples);
-                resultIndexer[row, col] = samples[medianIndex];
+                resultIndexer[row, col] = SelectKthInPlace(samples, medianIndex);
             }
         }
 
         using var reshaped = resultFlat.Reshape(channels, rows);
         return reshaped.Clone();
+    }
+
+    private static T SelectKthInPlace<T>(T[] values, int k)
+        where T : IComparable<T>
+    {
+        var left = 0;
+        var right = values.Length - 1;
+
+        while (left <= right)
+        {
+            if (left == right)
+            {
+                return values[left];
+            }
+
+            var pivotIndex = left + ((right - left) / 2);
+            pivotIndex = Partition(values, left, right, pivotIndex);
+
+            if (k == pivotIndex)
+            {
+                return values[k];
+            }
+
+            if (k < pivotIndex)
+            {
+                right = pivotIndex - 1;
+            }
+            else
+            {
+                left = pivotIndex + 1;
+            }
+        }
+
+        return values[k];
+    }
+
+    private static int Partition<T>(T[] values, int left, int right, int pivotIndex)
+        where T : IComparable<T>
+    {
+        var pivotValue = values[pivotIndex];
+        Swap(values, pivotIndex, right);
+        var storeIndex = left;
+
+        for (var i = left; i < right; i++)
+        {
+            if (values[i].CompareTo(pivotValue) < 0)
+            {
+                Swap(values, storeIndex, i);
+                storeIndex++;
+            }
+        }
+
+        Swap(values, storeIndex, right);
+        return storeIndex;
+    }
+
+    private static void Swap<T>(T[] values, int i, int j)
+    {
+        if (i == j)
+        {
+            return;
+        }
+
+        (values[i], values[j]) = (values[j], values[i]);
     }
 
     private static void EnsureSameShapeAndType(IReadOnlyList<Mat> frames)

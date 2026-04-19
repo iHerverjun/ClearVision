@@ -105,5 +105,13 @@ docs/templates/temp.md
 test_zxing.cs
 /.tmp/localdeform-debug/
 /.tmp/publish-check/
+/.tmp/NuGet/
+/.tmp/appdata/
+/.tmp/fake-user/
+/.tmp/nuget-packages/
+/.tmp/nuget.config
+/.tmp/nuget-offline.config
+/.tmp/test_results/
+/.tmp/userprofile/
 401.py
 .codex-tools/

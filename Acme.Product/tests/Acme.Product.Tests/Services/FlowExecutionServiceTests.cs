@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Acme.Product.Core.Entities;
@@ -142,6 +143,62 @@ public class FlowExecutionServiceTests
     }
 
     [Fact]
+    public async Task ExecuteFlowDebugAsync_CachedIntermediateResult_ShouldStayIsolatedFromExternalMutation()
+    {
+        var executeCount = 0;
+        _executor.ValidateParameters(Arg.Any<Operator>()).Returns(new ValidationResult { IsValid = true });
+        _executor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                executeCount++;
+                return Task.FromResult(OperatorExecutionOutput.Success(
+                    new Dictionary<string, object>
+                    {
+                        ["Image"] = new byte[] { 10, 20, 30 },
+                        ["Score"] = 7
+                    },
+                    executionTimeMs: 3));
+            });
+
+        var flow = new OperatorFlow("CacheIsolationFlow");
+        var op = CreateOperatorWithPorts("Single", OperatorType.Thresholding);
+        flow.AddOperator(op);
+
+        var debugSessionId = Guid.NewGuid();
+        var debugOptions = new DebugOptions
+        {
+            DebugSessionId = debugSessionId,
+            EnableIntermediateCache = true
+        };
+        var inputData = new Dictionary<string, object> { ["Image"] = new byte[] { 1, 2, 3 } };
+
+        var firstResult = await _sut.ExecuteFlowDebugAsync(flow, debugOptions, inputData);
+        var firstSnapshotBytes = (byte[])firstResult.DebugOperatorResults.Single().OutputSnapshot!["Image"];
+        firstSnapshotBytes[0] = 99;
+
+        var firstIntermediateBytes = (byte[])firstResult.IntermediateResults[op.Id]["Image"];
+        firstIntermediateBytes[1] = 88;
+
+        var externalCacheRead = _sut.GetDebugIntermediateResult(debugSessionId, op.Id)!;
+        ((byte[])externalCacheRead["Image"])[2] = 77;
+
+        var secondResult = await _sut.ExecuteFlowDebugAsync(flow, debugOptions, inputData);
+
+        firstResult.IsSuccess.Should().BeTrue();
+        secondResult.IsSuccess.Should().BeTrue();
+        executeCount.Should().Be(1, "second debug run should hit intermediate cache");
+
+        var secondSnapshotBytes = (byte[])secondResult.DebugOperatorResults.Single().OutputSnapshot!["Image"];
+        secondSnapshotBytes.Should().Equal(10, 20, 30);
+
+        var secondCacheRead = _sut.GetDebugIntermediateResult(debugSessionId, op.Id)!;
+        ((byte[])secondCacheRead["Image"]).Should().Equal(10, 20, 30);
+    }
+
+    [Fact]
     public async Task ExecuteFlowAsync_WhenParallelLayerFails_CancelsSiblingOperators()
     {
         var slowStartedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -210,6 +267,121 @@ public class FlowExecutionServiceTests
         result.ErrorMessage.Should().Contain("Fail");
     }
 
+    [Fact]
+    public void PrepareOperatorInputs_LargeGraph_ShouldPreserveSemantics_AndHitIndexLookups()
+    {
+        // Arrange: build a large graph with many unrelated nodes/connections.
+        var flow = new OperatorFlow("LargeGraph");
+
+        var source = new Operator("Source", OperatorType.Thresholding, 0, 0);
+        source.AddOutputPort("Image", PortDataType.Image);
+
+        var branch = new Operator("Branch", OperatorType.ConditionalBranch, 0, 0);
+        branch.AddOutputPort("True", PortDataType.Image);
+        branch.AddOutputPort("False", PortDataType.Image);
+
+        var target = new Operator("Target", OperatorType.Thresholding, 0, 0);
+        target.AddInputPort("Foreground", PortDataType.Image, true);
+        target.AddInputPort("DecisionInput", PortDataType.Image, true);
+
+        flow.AddOperator(source);
+        flow.AddOperator(branch);
+        flow.AddOperator(target);
+
+        var previousNoise = new Operator("Noise-0", OperatorType.Thresholding, 0, 0);
+        previousNoise.AddInputPort("Input", PortDataType.Image, true);
+        previousNoise.AddOutputPort("Output", PortDataType.Image);
+        flow.AddOperator(previousNoise);
+        flow.AddConnection(CreateConnection(source, previousNoise));
+
+        for (var i = 1; i < 180; i++)
+        {
+            var currentNoise = new Operator($"Noise-{i}", OperatorType.Thresholding, 0, 0);
+            currentNoise.AddInputPort("Input", PortDataType.Image, true);
+            currentNoise.AddOutputPort("Output", PortDataType.Image);
+            flow.AddOperator(currentNoise);
+            flow.AddConnection(CreateConnection(previousNoise, currentNoise));
+            previousNoise = currentNoise;
+        }
+
+        flow.AddConnection(new OperatorConnection(
+            source.Id,
+            source.OutputPorts.Single(p => p.Name == "Image").Id,
+            target.Id,
+            target.InputPorts.Single(p => p.Name == "Foreground").Id));
+
+        flow.AddConnection(new OperatorConnection(
+            branch.Id,
+            branch.OutputPorts.Single(p => p.Name == "True").Id,
+            target.Id,
+            target.InputPorts.Single(p => p.Name == "DecisionInput").Id));
+
+        var operatorOutputs = new Dictionary<Guid, Dictionary<string, object>>
+        {
+            [source.Id] = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Image"] = "image-from-source",
+                ["Metadata"] = "meta-from-source"
+            },
+            [branch.Id] = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["True"] = "true-branch-image",
+                ["False"] = null!,
+                ["Result"] = true,
+                ["Condition"] = "Score > 0.5",
+                ["ActualValue"] = 0.82d
+            }
+        };
+
+        var buildIndexMethod = typeof(FlowExecutionService)
+            .GetMethod("BuildFlowInputPreparationIndex", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var index = buildIndexMethod.Invoke(null, [flow]);
+
+        var prepareMethod = typeof(FlowExecutionService)
+            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(method => method.Name == "PrepareOperatorInputs" && method.GetParameters().Length == 4);
+
+        // Act
+        var inputs = (Dictionary<string, object>)prepareMethod.Invoke(_sut, [flow, target, operatorOutputs, index])!;
+
+        // Assert: mapping and branch routing semantics remain unchanged.
+        inputs["Foreground"].Should().Be("image-from-source");
+        inputs["DecisionInput"].Should().Be("true-branch-image");
+        inputs["True"].Should().Be("true-branch-image");
+        inputs["ConditionResult"].Should().Be(true);
+        inputs["Condition"].Should().Be("Score > 0.5");
+        inputs["ActualValue"].Should().Be(0.82d);
+        inputs["Metadata"].Should().Be("meta-from-source");
+        inputs.ContainsKey("False").Should().BeFalse("null branch payload should not be propagated");
+
+        // Assert: indexed lookups are exercised in large graph path.
+        ReadIndexLookupCount(index!, "IncomingConnectionLookupCount").Should().BeGreaterThan(0);
+        ReadIndexLookupCount(index!, "SourceOperatorLookupCount").Should().BeGreaterThan(0);
+        ReadIndexLookupCount(index!, "SourcePortLookupCount").Should().BeGreaterThan(0);
+        ReadIndexLookupCount(index!, "TargetPortLookupCount").Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void CreateDebugCacheFingerprint_SameTextDifferentScalarTypes_ShouldNotCollide()
+    {
+        var method = typeof(FlowExecutionService).GetMethod(
+            "CreateDebugCacheFingerprint",
+            BindingFlags.Static | BindingFlags.NonPublic);
+
+        method.Should().NotBeNull();
+
+        var op = CreateOperatorWithPorts("FingerprintTarget", OperatorType.Thresholding);
+        var intInputs = new Dictionary<string, object> { ["Value"] = 1 };
+        var stringInputs = new Dictionary<string, object> { ["Value"] = "1" };
+
+        var intFingerprint = method!.Invoke(null, new object?[] { op, intInputs }) as string;
+        var stringFingerprint = method.Invoke(null, new object?[] { op, stringInputs }) as string;
+
+        intFingerprint.Should().NotBeNullOrWhiteSpace();
+        stringFingerprint.Should().NotBeNullOrWhiteSpace();
+        intFingerprint.Should().NotBe(stringFingerprint);
+    }
+
     private static Operator CreateOperatorWithPorts(string name, OperatorType type)
     {
         var op = new Operator(name, type, 0, 0);
@@ -266,5 +438,11 @@ public class FlowExecutionServiceTests
         slowReadyTcs.TrySetResult(true);
         await releaseFailuresTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
         return OperatorExecutionOutput.Failure("secondary boom");
+    }
+
+    private static int ReadIndexLookupCount(object index, string propertyName)
+    {
+        var property = index.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)!;
+        return (int)property.GetValue(index)!;
     }
 }

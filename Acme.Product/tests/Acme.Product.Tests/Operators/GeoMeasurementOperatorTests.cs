@@ -5,6 +5,7 @@ using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Globalization;
 
 namespace Acme.Product.Tests.Operators;
 
@@ -147,6 +148,112 @@ public class GeoMeasurementOperatorTests
         var uncertaintyPx = Convert.ToDouble(result.OutputData["UncertaintyPx"]);
         uncertaintyPx.Should().BeGreaterThan(0.01);
         uncertaintyPx.Should().BeLessThan(0.20);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PointPoint_WithInvariantDecimalStringsUnderDeCulture_ShouldSucceed()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Point",
+            ["Element2Type"] = "Point"
+        });
+
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            CultureInfo.CurrentUICulture = new CultureInfo("de-DE");
+
+            var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+            {
+                ["Element1"] = new Dictionary<string, object> { ["X"] = "1.5", ["Y"] = "2.5" },
+                ["Element2"] = new Dictionary<string, object> { ["X"] = "4.5", ["Y"] = "6.5" }
+            });
+
+            result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+            Convert.ToDouble(result.OutputData!["Distance"]).Should().BeApproximately(5.0, 1e-6);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PointPoint_WithCommaDecimalStrings_ShouldFailInsteadOfMisparse()
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Point",
+            ["Element2Type"] = "Point"
+        });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Element1"] = new Dictionary<string, object> { ["X"] = "1,5", ["Y"] = "2,5" },
+            ["Element2"] = new Dictionary<string, object> { ["X"] = "4,5", ["Y"] = "6,5" }
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public async Task ExecuteAsync_PointPoint_WithNonFiniteCoordinate_ShouldFail(double invalidValue)
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Point",
+            ["Element2Type"] = "Point"
+        });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Element1"] = new Dictionary<string, object> { ["X"] = invalidValue, ["Y"] = 0.0 },
+            ["Element2"] = new Dictionary<string, object> { ["X"] = 10.0, ["Y"] = 0.0 }
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Theory]
+    [InlineData(-1.0)]
+    [InlineData(0.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public async Task ExecuteAsync_PointCircle_WithInvalidRadius_ShouldFail(double invalidRadius)
+    {
+        var sut = CreateSut();
+        var op = CreateOperator(new Dictionary<string, object>
+        {
+            ["Element1Type"] = "Point",
+            ["Element2Type"] = "Circle"
+        });
+
+        var result = await sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Element1"] = new Position(0, 0),
+            ["Element2"] = new Dictionary<string, object>
+            {
+                ["CenterX"] = 0.0,
+                ["CenterY"] = 0.0,
+                ["Radius"] = invalidRadius
+            }
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
 
     private static GeoMeasurementOperator CreateSut()

@@ -261,6 +261,82 @@ public class DeepLearningOperatorTests
         result.As<System.Collections.IEnumerable>().Cast<object>().Should().HaveCount(2);
     }
 
+    [Fact]
+    public void ApplyNmsWithStats_WithHeavyOverlap_ShouldKeepTopCandidateAndAvoidQuadraticComparisons()
+    {
+        var detections = Enumerable.Range(0, 800)
+            .Select(i => CreateInnerDetectionResult(
+                x: 100f + (i % 3) * 0.2f,
+                y: 120f + (i % 3) * 0.2f,
+                width: 64f,
+                height: 64f,
+                confidence: 0.99f - (i * 0.0005f),
+                classId: 0))
+            .ToList();
+
+        var (kept, comparisons) = InvokeApplyNmsWithStats(detections, 0.45f);
+
+        kept.Should().HaveCount(1);
+        comparisons.Should().BeLessThan(2000);
+    }
+
+    [Fact]
+    public void ApplyNmsWithStats_WithInvalidCandidates_ShouldDiscardInvalidBoxes()
+    {
+        var detections = new List<object>
+        {
+            CreateInnerDetectionResult(
+                x: 12f,
+                y: 12f,
+                width: 0f,
+                height: 25f,
+                confidence: 0.99f,
+                classId: 0),
+            CreateInnerDetectionResult(
+                x: 10f,
+                y: 10f,
+                width: 20f,
+                height: 20f,
+                confidence: 0.90f,
+                classId: 0)
+        };
+
+        var (kept, _) = InvokeApplyNmsWithStats(detections, 0.45f);
+
+        kept.Should().HaveCount(1);
+        GetPropertyValue<float>(kept[0], "Width").Should().BeGreaterThan(0f);
+        GetPropertyValue<float>(kept[0], "Height").Should().BeGreaterThan(0f);
+    }
+
+    [Fact]
+    public void ApplyNmsWithStats_WithLargeSeparatedCandidates_ShouldSignificantlyReduceIoUChecks()
+    {
+        var detections = new List<object>();
+        const int rows = 20;
+        const int cols = 20;
+        const int spacing = 72;
+        for (var row = 0; row < rows; row++)
+        {
+            for (var col = 0; col < cols; col++)
+            {
+                detections.Add(CreateInnerDetectionResult(
+                    x: col * spacing,
+                    y: row * spacing,
+                    width: 10f,
+                    height: 10f,
+                    confidence: 0.95f,
+                    classId: 0));
+            }
+        }
+
+        var (kept, comparisons) = InvokeApplyNmsWithStats(detections, 0.45f);
+        var naiveComparisons = kept.Count * (kept.Count - 1L) / 2L;
+
+        kept.Should().HaveCount(rows * cols);
+        comparisons.Should().BeLessThan(5000);
+        comparisons.Should().BeLessThan(naiveComparisons / 10);
+    }
+
     [Theory]
     [InlineData(3, "Object", "Objects: 3")]
     [InlineData(2, "Defect", "Defects: 2")]
@@ -770,6 +846,36 @@ public class DeepLearningOperatorTests
         var selectedIndex = (int)(tupleType.GetField("Item1")!.GetValue(tuple)!);
         var selectionRule = (string)(tupleType.GetField("Item2")!.GetValue(tuple)!);
         return (selectedIndex, selectionRule);
+    }
+
+    private (List<object> Kept, long Comparisons) InvokeApplyNmsWithStats(
+        IReadOnlyList<object> detections,
+        float iouThreshold)
+    {
+        var method = typeof(DeepLearningOperator).GetMethod(
+            "ApplyNmsWithStats",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        method.Should().NotBeNull();
+
+        var nestedType = typeof(DeepLearningOperator).GetNestedType("DetectionResult", BindingFlags.NonPublic);
+        nestedType.Should().NotBeNull();
+
+        var listType = typeof(List<>).MakeGenericType(nestedType!);
+        var typedDetections = Activator.CreateInstance(listType).Should().BeAssignableTo<System.Collections.IList>().Subject;
+        foreach (var detection in detections)
+        {
+            typedDetections.Add(detection);
+        }
+
+        var tuple = method!.Invoke(_operator, new object?[] { typedDetections, iouThreshold });
+        tuple.Should().NotBeNull();
+
+        var tupleType = tuple!.GetType();
+        var kept = ((System.Collections.IEnumerable)tupleType.GetField("Item1")!.GetValue(tuple)!)
+            .Cast<object>()
+            .ToList();
+        var comparisons = (long)tupleType.GetField("Item2")!.GetValue(tuple)!;
+        return (kept, comparisons);
     }
 
     private static string[] InvokeParseMetadataNames(string rawNames)

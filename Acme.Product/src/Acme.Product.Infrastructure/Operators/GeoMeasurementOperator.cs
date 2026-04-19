@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using Acme.Product.Core.Attributes;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -596,6 +597,11 @@ public class GeoMeasurementOperator : OperatorBase
 
         if (obj is Position position)
         {
+            if (!IsFinite(position.X) || !IsFinite(position.Y))
+            {
+                return false;
+            }
+
             point = position;
             return true;
         }
@@ -629,6 +635,14 @@ public class GeoMeasurementOperator : OperatorBase
 
         if (raw is LineData data)
         {
+            if (!IsFinite(data.StartX) ||
+                !IsFinite(data.StartY) ||
+                !IsFinite(data.EndX) ||
+                !IsFinite(data.EndY))
+            {
+                return false;
+            }
+
             line = data;
             return true;
         }
@@ -664,6 +678,11 @@ public class GeoMeasurementOperator : OperatorBase
 
         if (raw is CircleData data)
         {
+            if (!IsValidRadius(data.Radius) || !IsFinite(data.CenterX) || !IsFinite(data.CenterY))
+            {
+                return false;
+            }
+
             circle = new CircleSpec(data.CenterX, data.CenterY, data.Radius);
             return true;
         }
@@ -672,7 +691,8 @@ public class GeoMeasurementOperator : OperatorBase
         {
             if (TryGetDouble(dict, "CenterX", out var cx) &&
                 TryGetDouble(dict, "CenterY", out var cy) &&
-                TryGetDouble(dict, "Radius", out var radius))
+                TryGetDouble(dict, "Radius", out var radius) &&
+                IsValidRadius(radius))
             {
                 circle = new CircleSpec(cx, cy, radius);
                 return true;
@@ -680,7 +700,8 @@ public class GeoMeasurementOperator : OperatorBase
 
             if (TryGetDouble(dict, "X", out cx) &&
                 TryGetDouble(dict, "Y", out cy) &&
-                TryGetDouble(dict, "R", out radius))
+                TryGetDouble(dict, "R", out radius) &&
+                IsValidRadius(radius))
             {
                 circle = new CircleSpec(cx, cy, radius);
                 return true;
@@ -706,14 +727,22 @@ public class GeoMeasurementOperator : OperatorBase
             return false;
         }
 
-        return raw switch
+        var parsed = raw switch
         {
-            double d => (value = d) == d,
-            float f => (value = f) == f,
-            int i => (value = i) == i,
-            long l => (value = l) == l,
-            _ => double.TryParse(raw.ToString(), out value)
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            _ => TryParseInvariantDouble(raw.ToString(), out var invariantValue) ? invariantValue : double.NaN
         };
+
+        if (!IsFinite(parsed))
+        {
+            return false;
+        }
+
+        value = parsed;
+        return true;
     }
 
     private static bool TryGetFloat(IDictionary<string, object> dict, string key, out float value)
@@ -724,15 +753,45 @@ public class GeoMeasurementOperator : OperatorBase
             return false;
         }
 
-        return raw switch
+        var parsed = raw switch
         {
-            float f => (value = f) == f,
-            double d => (value = (float)d) == (float)d,
-            int i => (value = i) == i,
-            long l => (value = l) == l,
-            _ => float.TryParse(raw.ToString(), out value)
+            float f => f,
+            double d => (float)d,
+            int i => i,
+            long l => l,
+            _ => TryParseInvariantFloat(raw.ToString(), out var invariantValue) ? invariantValue : float.NaN
         };
+
+        if (!IsFinite(parsed))
+        {
+            return false;
+        }
+
+        value = parsed;
+        return true;
     }
+
+    private static bool TryParseInvariantDouble(string? raw, out double value)
+    {
+        value = 0;
+        return !string.IsNullOrWhiteSpace(raw) &&
+               double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryParseInvariantFloat(string? raw, out float value)
+    {
+        value = 0;
+        return !string.IsNullOrWhiteSpace(raw) &&
+               float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool IsFinite(double value) => double.IsFinite(value);
+
+    private static bool IsFinite(float value) => float.IsFinite(value);
+
+    private static bool IsValidRadius(double radius) => IsFinite(radius) && radius > 0;
+
+    private static bool IsValidRadius(float radius) => IsFinite(radius) && radius > 0;
 
     private enum GeoElementType
     {

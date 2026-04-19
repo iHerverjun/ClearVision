@@ -270,16 +270,14 @@ public class GeometricToleranceOperator : OperatorBase
                 var actual = ProjectToFrame(featureCenter, frame);
                 var deltaX = actual.X - nominalX;
                 var deltaY = actual.Y - nominalY;
-                var zoneDeviation = evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase)
-                    ? Math.Max(Math.Abs(deltaX), Math.Abs(deltaY))
-                    : Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
-                var acceptanceLimit = evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase) ? zoneSize / 2.0 : zoneSize / 2.0;
+                var zoneDeviation = ComputePositionZoneDeviation(evaluationMode, deltaX, deltaY);
+                var acceptanceLimit = GetAcceptanceLimit(toleranceType, evaluationMode, zoneSize);
                 evaluation = new ToleranceEvaluation(
                     ZoneDeviation: zoneDeviation,
                     AngularDeviationDeg: 0.0,
                     LinearBand: zoneDeviation,
                     Accepted: zoneDeviation <= acceptanceLimit,
-                    ResultText: $"Position deviation = {zoneDeviation:F4}px relative to nominal ({nominalX:F2}, {nominalY:F2})");
+                    ResultText: $"Position deviation ({evaluationMode}) = {zoneDeviation:F4}px relative to nominal ({nominalX:F2}, {nominalY:F2})");
                 return true;
 
             case "Concentricity":
@@ -390,10 +388,27 @@ public class GeometricToleranceOperator : OperatorBase
         return toleranceType switch
         {
             "Position" when evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase) => zoneSize / 2.0,
+            "Position" when evaluationMode.Equals("Projected2D", StringComparison.OrdinalIgnoreCase) => zoneSize / 2.0,
             "Position" => zoneSize / 2.0,
             "Concentricity" => zoneSize / 2.0,
             _ => zoneSize
         };
+    }
+
+    private static double ComputePositionZoneDeviation(string evaluationMode, double deltaX, double deltaY)
+    {
+        if (evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Max(Math.Abs(deltaX), Math.Abs(deltaY));
+        }
+
+        if (evaluationMode.Equals("Projected2D", StringComparison.OrdinalIgnoreCase))
+        {
+            // Projected2D uses additive projected offsets along datum-frame X/Y (L1) for a distinct, explainable zone.
+            return Math.Abs(deltaX) + Math.Abs(deltaY);
+        }
+
+        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
     }
 
     private static double ComputeUncertaintyPx(
@@ -518,9 +533,7 @@ public class GeometricToleranceOperator : OperatorBase
                         var actual = ProjectToFrame(candidateFeatureCenter, frame);
                         var deltaX = actual.X - nominalX;
                         var deltaY = actual.Y - nominalY;
-                        return evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase)
-                            ? Math.Max(Math.Abs(deltaX), Math.Abs(deltaY))
-                            : Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+                        return ComputePositionZoneDeviation(evaluationMode, deltaX, deltaY);
                     });
 
             case "Concentricity":
@@ -568,8 +581,13 @@ public class GeometricToleranceOperator : OperatorBase
         if (geometry is IDictionary<string, object> dict &&
             TryGetDouble(dict, "UncertaintyPx", out var typedValue))
         {
-            uncertaintyPx = typedValue;
-            return true;
+            if (double.IsFinite(typedValue) && typedValue > 0.0)
+            {
+                uncertaintyPx = typedValue;
+                return true;
+            }
+
+            return false;
         }
 
         if (geometry is IDictionary legacy)

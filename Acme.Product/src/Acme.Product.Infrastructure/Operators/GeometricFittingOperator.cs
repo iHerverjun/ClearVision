@@ -843,7 +843,7 @@ public class GeometricFittingOperator : OperatorBase
         var residuals = new List<double>();
         for (var p = 0; p < points.Length; p++)
         {
-            var residual = Math.Abs(DistancePointToEllipse(points[p], model));
+            var residual = Math.Abs(ApproximateGeometricDistancePointToEllipse(points[p], model));
             if (residual <= threshold)
             {
                 indices.Add(p);
@@ -863,7 +863,7 @@ public class GeometricFittingOperator : OperatorBase
             return default;
         }
 
-        var residuals = points.Select(point => Math.Abs(DistancePointToEllipse(point, model))).ToArray();
+        var residuals = points.Select(point => Math.Abs(ApproximateGeometricDistancePointToEllipse(point, model))).ToArray();
         return new EllipseResidualStats(residuals.Average(), residuals.Max());
     }
 
@@ -894,6 +894,46 @@ public class GeometricFittingOperator : OperatorBase
         var theoreticalRadius = radiusEstimate / (Math.Sqrt(distSquare) + 1e-9);
 
         return Math.Abs(radiusEstimate - theoreticalRadius);
+    }
+
+    private static double ApproximateGeometricDistancePointToEllipse(Point2f point, RotatedRect ellipse)
+    {
+        var a = ellipse.Size.Width / 2.0;
+        var b = ellipse.Size.Height / 2.0;
+        if (a < 1e-6 || b < 1e-6)
+        {
+            return double.MaxValue;
+        }
+
+        var angleRad = ellipse.Angle * Math.PI / 180.0;
+        var cosA = Math.Cos(angleRad);
+        var sinA = Math.Sin(angleRad);
+
+        var dx = point.X - ellipse.Center.X;
+        var dy = point.Y - ellipse.Center.Y;
+
+        var localX = (dx * cosA) + (dy * sinA);
+        var localY = (-dx * sinA) + (dy * cosA);
+
+        var a2 = a * a;
+        var b2 = b * b;
+
+        // Implicit ellipse: F(x,y)=x^2/a^2 + y^2/b^2 - 1.
+        // First-order geometric distance approximation near the boundary: |F| / ||grad(F)||.
+        var normalizedX = localX / a;
+        var normalizedY = localY / b;
+        var f = (normalizedX * normalizedX) + (normalizedY * normalizedY) - 1.0;
+
+        var gradX = (2.0 * localX) / a2;
+        var gradY = (2.0 * localY) / b2;
+        var gradNorm = Math.Sqrt((gradX * gradX) + (gradY * gradY));
+        if (gradNorm > 1e-9)
+        {
+            return Math.Abs(f) / gradNorm;
+        }
+
+        // Degenerate fallback near center where grad(F) tends to zero.
+        return Math.Min(a, b);
     }
 
     private static bool TryCreateLineModel(Point2f p1, Point2f p2, out LineModel model)

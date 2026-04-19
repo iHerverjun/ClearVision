@@ -231,7 +231,7 @@ public class DeepLearningOperator : OperatorBase
     /// <summary>
     /// 执行算子核心逻辑
     /// </summary>
-    protected override Task<OperatorExecutionOutput> ExecuteCoreAsync(
+    protected override async Task<OperatorExecutionOutput> ExecuteCoreAsync(
         Operator @operator,
         Dictionary<string, object>? inputs,
         CancellationToken cancellationToken)
@@ -239,7 +239,7 @@ public class DeepLearningOperator : OperatorBase
         // 1. 获取输入图像
         if (!TryGetInputImage(inputs, out var imageWrapper) || imageWrapper == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未提供输入图像"));
+            return OperatorExecutionOutput.Failure("未提供输入图像");
         }
 
         // 2. 获取参数
@@ -260,19 +260,19 @@ public class DeepLearningOperator : OperatorBase
         // 3. 验证模型路径
         if (string.IsNullOrWhiteSpace(modelPath))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("未指定模型路径"));
+            return OperatorExecutionOutput.Failure("未指定模型路径");
         }
 
         if (!File.Exists(modelPath))
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure($"模型文件不存在: {modelPath}"));
+            return OperatorExecutionOutput.Failure($"模型文件不存在: {modelPath}");
         }
 
         // 4. 解码图像
         var src = imageWrapper.GetMat();
         if (src.Empty())
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("无法解码输入图像"));
+            return OperatorExecutionOutput.Failure("无法解码输入图像");
         }
 
         var originalWidth = src.Width;
@@ -281,10 +281,10 @@ public class DeepLearningOperator : OperatorBase
         // 5. 加载模型（支持GPU加速 - P3-O3.1）
         var useGpu = GetBoolParam(@operator, "UseGpu", true);
         var gpuDeviceId = GetIntParam(@operator, "GpuDeviceId", 0, 0, 15);
-        using var modelSessionLease = AcquireModelSessionWithVerifiedExecutionProvider(modelPath, useGpu, gpuDeviceId, cancellationToken);
+        using var modelSessionLease = await AcquireModelSessionWithVerifiedExecutionProviderAsync(modelPath, useGpu, gpuDeviceId, cancellationToken).ConfigureAwait(false);
         if (modelSessionLease == null)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure("模型加载失败"));
+            return OperatorExecutionOutput.Failure("模型加载失败");
         }
 
         var session = modelSessionLease.Session;
@@ -293,7 +293,7 @@ public class DeepLearningOperator : OperatorBase
         var labelContract = ResolveLabelContract(session, labelsPath, modelPath, targetClassesStr);
         if (!labelContract.IsValid)
         {
-            return Task.FromResult(OperatorExecutionOutput.Failure(labelContract.ValidationMessage!));
+            return OperatorExecutionOutput.Failure(labelContract.ValidationMessage!);
         }
 
         labels = labelContract.ResolvedLabels;
@@ -301,7 +301,7 @@ public class DeepLearningOperator : OperatorBase
         if (unresolvedTargetClasses.Count > 0)
         {
             const string labelSource = "the active labels";
-            return Task.FromResult(OperatorExecutionOutput.Failure(
+            return OperatorExecutionOutput.Failure(
                 $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model."));
         }
 
@@ -390,10 +390,10 @@ public class DeepLearningOperator : OperatorBase
 
         Logger.LogInformation("[DeepLearning] 执行完毕. 检测总数: {Count}, 过滤后输出: {DefectCount}", detections.Count, detections.Count);
 
-        return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(outputImage, additionalData)));
+        return OperatorExecutionOutput.Success(CreateImageOutput(outputImage, additionalData));
     }
 
-    private CachedModelSession.ModelSessionLease? AcquireModelSessionWithVerifiedExecutionProvider(
+    private async Task<CachedModelSession.ModelSessionLease?> AcquireModelSessionWithVerifiedExecutionProviderAsync(
         string modelPath,
         bool useGpu = true,
         int gpuDeviceId = 0,
@@ -416,7 +416,7 @@ public class DeepLearningOperator : OperatorBase
         var lockAcquired = false;
         try
         {
-            lockObj.WaitAsync(cancellationToken).ConfigureAwait(false).GetAwaiter().GetResult();
+            await lockObj.WaitAsync(cancellationToken).ConfigureAwait(false);
             lockAcquired = true;
 
             if (_modelCache.TryGetValue(cacheKey, out cachedSessionEntry))
@@ -1359,13 +1359,26 @@ public class DeepLearningOperator : OperatorBase
     /// </summary>
     private List<DetectionResult> ApplyNMS(List<DetectionResult> detections, float iouThreshold)
     {
+        var (keep, _) = ApplyNmsWithStats(detections, iouThreshold);
+        return keep;
+    }
+
+    private (List<DetectionResult> Kept, long IoUComparisons) ApplyNmsWithStats(
+        List<DetectionResult> detections,
+        float iouThreshold)
+    {
         if (detections.Count == 0)
-            return detections;
+        {
+            return (detections, 0);
+        }
 
         var keep = new List<DetectionResult>(detections.Count);
+        var iouComparisons = 0L;
         var indicesByClass = new Dictionary<int, List<int>>();
+        var nmsBoxes = new NmsBox[detections.Count];
         for (var i = 0; i < detections.Count; i++)
         {
+            nmsBoxes[i] = ToNmsBox(detections[i]);
             var classId = detections[i].ClassId;
             if (!indicesByClass.TryGetValue(classId, out var indices))
             {
@@ -1376,32 +1389,147 @@ public class DeepLearningOperator : OperatorBase
             indices.Add(i);
         }
 
+        var cellSize = GetNmsCellSize(detections);
         foreach (var indices in indicesByClass.Values)
         {
             indices.Sort((left, right) => detections[right].Confidence.CompareTo(detections[left].Confidence));
-            var removed = new bool[indices.Count];
-            for (int i = 0; i < indices.Count; i++)
+            var keptBySpatialCell = new Dictionary<long, List<int>>();
+            var candidateNeighbors = new HashSet<int>();
+
+            for (var i = 0; i < indices.Count; i++)
             {
-                if (removed[i])
-                    continue;
-
-                var current = detections[indices[i]];
-                keep.Add(current);
-
-                for (int j = i + 1; j < indices.Count; j++)
+                var candidateIndex = indices[i];
+                var candidateBox = nmsBoxes[candidateIndex];
+                if (!candidateBox.IsValid)
                 {
-                    if (removed[j])
-                        continue;
+                    continue;
+                }
 
-                    if (CalculateIoU(current, detections[indices[j]]) > iouThreshold)
+                candidateNeighbors.Clear();
+                var minCellX = QuantizeToCell(candidateBox.X1, cellSize);
+                var maxCellX = QuantizeToCell(candidateBox.X2, cellSize);
+                var minCellY = QuantizeToCell(candidateBox.Y1, cellSize);
+                var maxCellY = QuantizeToCell(candidateBox.Y2, cellSize);
+
+                for (var cellX = minCellX; cellX <= maxCellX; cellX++)
+                {
+                    for (var cellY = minCellY; cellY <= maxCellY; cellY++)
                     {
-                        removed[j] = true;
+                        var key = BuildSpatialKey(cellX, cellY);
+                        if (!keptBySpatialCell.TryGetValue(key, out var neighborIndexes))
+                        {
+                            continue;
+                        }
+
+                        for (var idx = 0; idx < neighborIndexes.Count; idx++)
+                        {
+                            candidateNeighbors.Add(neighborIndexes[idx]);
+                        }
+                    }
+                }
+
+                var suppressed = false;
+                foreach (var keptIndex in candidateNeighbors)
+                {
+                    iouComparisons++;
+                    if (CalculateIoU(candidateBox, nmsBoxes[keptIndex]) > iouThreshold)
+                    {
+                        suppressed = true;
+                        break;
+                    }
+                }
+
+                if (suppressed)
+                {
+                    continue;
+                }
+
+                keep.Add(detections[candidateIndex]);
+                for (var cellX = minCellX; cellX <= maxCellX; cellX++)
+                {
+                    for (var cellY = minCellY; cellY <= maxCellY; cellY++)
+                    {
+                        var key = BuildSpatialKey(cellX, cellY);
+                        if (!keptBySpatialCell.TryGetValue(key, out var cellEntries))
+                        {
+                            cellEntries = new List<int>();
+                            keptBySpatialCell[key] = cellEntries;
+                        }
+
+                        cellEntries.Add(candidateIndex);
                     }
                 }
             }
         }
 
-        return keep;
+        return (keep, iouComparisons);
+    }
+
+    private readonly struct NmsBox
+    {
+        public NmsBox(float x1, float y1, float x2, float y2, float area)
+        {
+            X1 = x1;
+            Y1 = y1;
+            X2 = x2;
+            Y2 = y2;
+            Area = area;
+        }
+
+        public float X1 { get; }
+        public float Y1 { get; }
+        public float X2 { get; }
+        public float Y2 { get; }
+        public float Area { get; }
+        public bool IsValid => Area > 0f;
+    }
+
+    private static NmsBox ToNmsBox(DetectionResult detection)
+    {
+        var x1 = detection.X;
+        var y1 = detection.Y;
+        var x2 = x1 + Math.Max(0f, detection.Width);
+        var y2 = y1 + Math.Max(0f, detection.Height);
+        var width = Math.Max(0f, x2 - x1);
+        var height = Math.Max(0f, y2 - y1);
+        return new NmsBox(x1, y1, x2, y2, width * height);
+    }
+
+    private static int GetNmsCellSize(IReadOnlyList<DetectionResult> detections)
+    {
+        var totalArea = 0f;
+        var validCount = 0;
+        for (var i = 0; i < detections.Count; i++)
+        {
+            var width = Math.Max(0f, detections[i].Width);
+            var height = Math.Max(0f, detections[i].Height);
+            var area = width * height;
+            if (area <= 0f)
+            {
+                continue;
+            }
+
+            totalArea += area;
+            validCount++;
+        }
+
+        if (validCount == 0)
+        {
+            return 32;
+        }
+
+        var meanSideLength = MathF.Sqrt(totalArea / validCount);
+        return Math.Clamp((int)MathF.Round(meanSideLength), 16, 256);
+    }
+
+    private static int QuantizeToCell(float coordinate, int cellSize)
+    {
+        return (int)MathF.Floor(coordinate / cellSize);
+    }
+
+    private static long BuildSpatialKey(int cellX, int cellY)
+    {
+        return ((long)cellX << 32) | (uint)cellY;
     }
 
     /// <summary>
@@ -1409,20 +1537,21 @@ public class DeepLearningOperator : OperatorBase
     /// </summary>
     private float CalculateIoU(DetectionResult a, DetectionResult b)
     {
-        float x1 = Math.Max(a.X, b.X);
-        float y1 = Math.Max(a.Y, b.Y);
-        float x2 = Math.Min(a.X + a.Width, b.X + b.Width);
-        float y2 = Math.Min(a.Y + a.Height, b.Y + b.Height);
+        return CalculateIoU(ToNmsBox(a), ToNmsBox(b));
+    }
 
-        if (x2 < x1 || y2 < y1)
-            return 0;
+    private static float CalculateIoU(in NmsBox a, in NmsBox b)
+    {
+        var intersectionWidth = MathF.Min(a.X2, b.X2) - MathF.Max(a.X1, b.X1);
+        var intersectionHeight = MathF.Min(a.Y2, b.Y2) - MathF.Max(a.Y1, b.Y1);
+        if (intersectionWidth <= 0f || intersectionHeight <= 0f)
+        {
+            return 0f;
+        }
 
-        float intersection = (x2 - x1) * (y2 - y1);
-        float areaA = a.Width * a.Height;
-        float areaB = b.Width * b.Height;
-        float union = areaA + areaB - intersection;
-
-        return union > 0 ? intersection / union : 0;
+        var intersection = intersectionWidth * intersectionHeight;
+        var union = a.Area + b.Area - intersection;
+        return union > 0f ? intersection / union : 0f;
     }
 
     /// <summary>
