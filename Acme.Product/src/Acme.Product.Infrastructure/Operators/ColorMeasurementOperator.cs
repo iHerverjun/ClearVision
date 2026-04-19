@@ -112,8 +112,9 @@ public class ColorMeasurementOperator : OperatorBase
         output["MeasurementMode"] = measurementMode;
         output["StatusCode"] = "OK";
         output["StatusMessage"] = "Success";
-        output["Confidence"] = 1.0;
-        output["UncertaintyPx"] = 0.0;
+        var measurementUncertainty = TryReadMeasurementUncertainty(output);
+        output["Confidence"] = MeasurementStatisticsHelper.ComputeConfidenceFromUncertainty(measurementUncertainty);
+        output["UncertaintyPx"] = measurementUncertainty;
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, output)));
     }
@@ -186,13 +187,10 @@ public class ColorMeasurementOperator : OperatorBase
 
     private Dictionary<string, object> MeasureLabDeltaE(Operator @operator, Dictionary<string, object>? inputs, Mat roiMat)
     {
-        using var lab = new Mat();
-        Cv2.CvtColor(roiMat, lab, ColorConversionCodes.BGR2Lab);
-        var labMean = Cv2.Mean(lab);
-
-        var lValue = labMean.Val0 * (100.0 / 255.0);
-        var aValue = labMean.Val1 - 128.0;
-        var bValue = labMean.Val2 - 128.0;
+        var labStats = ComputeLabStatistics(roiMat);
+        var lValue = labStats.Mean.L;
+        var aValue = labStats.Mean.A;
+        var bValue = labStats.Mean.B;
 
         var refL = GetDoubleParam(@operator, "RefL", lValue);
         var refA = GetDoubleParam(@operator, "RefA", aValue);
@@ -208,16 +206,27 @@ public class ColorMeasurementOperator : OperatorBase
         var deltaE = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase)
             ? ColorDifference.DeltaE76(labValue, referenceValue)
             : ColorDifference.DeltaE00(labValue, referenceValue);
+        var deltaESamples = ComputeDeltaESamples(roiMat, referenceValue, deltaEMethod);
+        var deltaEMean = deltaESamples.Count > 0 ? deltaESamples.Average() : deltaE;
+        var deltaEStdDev = deltaESamples.Count > 0
+            ? MeasurementStatisticsHelper.ComputePopulationStdDev(deltaESamples, deltaEMean)
+            : 0.0;
+        var deltaEStdError = MeasurementStatisticsHelper.ComputeStandardError(deltaEStdDev, deltaESamples.Count);
 
         return new Dictionary<string, object>
         {
             { "LabMean", new Dictionary<string, object> { { "L", lValue }, { "A", aValue }, { "B", bValue } } },
+            { "LabStdDev", new Dictionary<string, object> { { "L", labStats.StdDev.L }, { "A", labStats.StdDev.A }, { "B", labStats.StdDev.B } } },
             { "ReferenceLab", new Dictionary<string, object> { { "L", refL }, { "A", refA }, { "B", refB } } },
             { "DeltaE", deltaE },
+            { "DeltaEStdDev", deltaEStdDev },
+            { "DeltaEStdError", deltaEStdError },
+            { "SampleCount", labStats.SampleCount },
             { "HueMean", double.NaN },
             { "SaturationMean", double.NaN },
             { "ValueMean", double.NaN },
-            { "HueValid", false }
+            { "HueValid", false },
+            { "MeasurementUncertainty", deltaEStdError }
         };
     }
 
@@ -230,7 +239,7 @@ public class ColorMeasurementOperator : OperatorBase
         var saturationMean = mean.Val1 * (100.0 / 255.0);
         var valueMean = mean.Val2 * (100.0 / 255.0);
 
-        var hueAngles = new List<double>(hsv.Rows * hsv.Cols);
+        var hueAnglesDegrees = new List<double>(hsv.Rows * hsv.Cols);
         for (var y = 0; y < hsv.Rows; y++)
         {
             for (var x = 0; x < hsv.Cols; x++)
@@ -241,11 +250,11 @@ public class ColorMeasurementOperator : OperatorBase
                     continue;
                 }
 
-                hueAngles.Add(pixel.Item0 * 2.0 * Math.PI / 180.0);
+                hueAnglesDegrees.Add(pixel.Item0 * 2.0);
             }
         }
 
-        if (hueAngles.Count == 0)
+        if (hueAnglesDegrees.Count == 0)
         {
             return new Dictionary<string, object>
             {
@@ -253,29 +262,32 @@ public class ColorMeasurementOperator : OperatorBase
                 { "ReferenceLab", new Dictionary<string, object>() },
                 { "DeltaE", double.NaN },
                 { "HueMean", double.NaN },
+                { "HueCircularStdDeg", double.NaN },
+                { "HueStdErrorDeg", double.NaN },
                 { "SaturationMean", saturationMean },
                 { "ValueMean", valueMean },
-                { "HueValid", false }
+                { "HueValid", false },
+                { "SampleCount", 0 },
+                { "MeasurementUncertainty", double.NaN }
             };
         }
 
-        var sinSum = hueAngles.Sum(Math.Sin);
-        var cosSum = hueAngles.Sum(Math.Cos);
-        var meanAngle = Math.Atan2(sinSum / hueAngles.Count, cosSum / hueAngles.Count);
-        if (meanAngle < 0)
-        {
-            meanAngle += 2 * Math.PI;
-        }
+        var (hueMean, hueStdDev) = MeasurementStatisticsHelper.ComputeCircularStatisticsDegrees(hueAnglesDegrees);
+        var hueStdError = MeasurementStatisticsHelper.ComputeStandardError(hueStdDev, hueAnglesDegrees.Count);
 
         return new Dictionary<string, object>
         {
             { "LabMean", new Dictionary<string, object>() },
             { "ReferenceLab", new Dictionary<string, object>() },
             { "DeltaE", double.NaN },
-            { "HueMean", meanAngle * 180.0 / Math.PI },
+            { "HueMean", hueMean },
+            { "HueCircularStdDeg", hueStdDev },
+            { "HueStdErrorDeg", hueStdError },
             { "SaturationMean", saturationMean },
             { "ValueMean", valueMean },
-            { "HueValid", true }
+            { "HueValid", true },
+            { "SampleCount", hueAnglesDegrees.Count },
+            { "MeasurementUncertainty", hueStdError }
         };
     }
 
@@ -347,4 +359,71 @@ public class ColorMeasurementOperator : OperatorBase
             _ => double.TryParse(raw.ToString(), out value)
         };
     }
+
+    private static double TryReadMeasurementUncertainty(IReadOnlyDictionary<string, object> output)
+    {
+        if (output.TryGetValue("MeasurementUncertainty", out var raw) &&
+            raw != null &&
+            double.TryParse(raw.ToString(), out var parsed) &&
+            double.IsFinite(parsed))
+        {
+            return parsed;
+        }
+
+        return double.NaN;
+    }
+
+    private static LabStatistics ComputeLabStatistics(Mat roiMat)
+    {
+        var indexer = roiMat.GetGenericIndexer<Vec3b>();
+        var lValues = new List<double>(roiMat.Rows * roiMat.Cols);
+        var aValues = new List<double>(roiMat.Rows * roiMat.Cols);
+        var bValues = new List<double>(roiMat.Rows * roiMat.Cols);
+
+        for (var y = 0; y < roiMat.Rows; y++)
+        {
+            for (var x = 0; x < roiMat.Cols; x++)
+            {
+                var pixel = indexer[y, x];
+                var lab = CieLabConverter.BgrToLab(pixel.Item0, pixel.Item1, pixel.Item2);
+                lValues.Add(lab.L);
+                aValues.Add(lab.A);
+                bValues.Add(lab.B);
+            }
+        }
+
+        var mean = new CieLab(
+            lValues.Count > 0 ? lValues.Average() : 0.0,
+            aValues.Count > 0 ? aValues.Average() : 0.0,
+            bValues.Count > 0 ? bValues.Average() : 0.0);
+        var stdDev = new CieLab(
+            MeasurementStatisticsHelper.ComputePopulationStdDev(lValues, mean.L),
+            MeasurementStatisticsHelper.ComputePopulationStdDev(aValues, mean.A),
+            MeasurementStatisticsHelper.ComputePopulationStdDev(bValues, mean.B));
+
+        return new LabStatistics(mean, stdDev, lValues.Count);
+    }
+
+    private static List<double> ComputeDeltaESamples(Mat roiMat, CieLab reference, string deltaEMethod)
+    {
+        var deltaESamples = new List<double>(roiMat.Rows * roiMat.Cols);
+        var indexer = roiMat.GetGenericIndexer<Vec3b>();
+        var useCie76 = deltaEMethod.Equals("CIE76", StringComparison.OrdinalIgnoreCase);
+
+        for (var y = 0; y < roiMat.Rows; y++)
+        {
+            for (var x = 0; x < roiMat.Cols; x++)
+            {
+                var pixel = indexer[y, x];
+                var lab = CieLabConverter.BgrToLab(pixel.Item0, pixel.Item1, pixel.Item2);
+                deltaESamples.Add(useCie76
+                    ? ColorDifference.DeltaE76(lab, reference)
+                    : ColorDifference.DeltaE00(lab, reference));
+            }
+        }
+
+        return deltaESamples;
+    }
+
+    private readonly record struct LabStatistics(CieLab Mean, CieLab StdDev, int SampleCount);
 }

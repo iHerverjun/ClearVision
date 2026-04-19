@@ -91,9 +91,16 @@ public class SharpnessEvaluationOperator : OperatorBase
             "SMD" => ComputeSmd(roiGray),
             _ => ComputeLaplacianVariance(roiGray)
         };
+        var tileScores = ComputeTileScores(roiGray, method);
+        var tileStdDev = tileScores.Count > 0
+            ? MeasurementStatisticsHelper.ComputePopulationStdDev(tileScores, tileScores.Average())
+            : 0.0;
+        var tileStdError = MeasurementStatisticsHelper.ComputeStandardError(tileStdDev, tileScores.Count);
 
         var decisionReady = DefaultThresholds.ContainsKey(method);
         var isSharp = score >= thresholdUsed;
+        var marginToThreshold = score - thresholdUsed;
+        var normalizedScore = thresholdUsed > 1e-9 ? score / thresholdUsed : double.NaN;
 
         var resultImage = src.Clone();
         Cv2.Rectangle(resultImage, roi, new Scalar(0, 255, 255), 1);
@@ -108,10 +115,15 @@ public class SharpnessEvaluationOperator : OperatorBase
             { "ThresholdMode", thresholdMode },
             { "ThresholdUsed", thresholdUsed },
             { "DecisionReady", decisionReady },
+            { "NormalizedScore", normalizedScore },
+            { "MarginToThreshold", marginToThreshold },
+            { "TileCount", tileScores.Count },
+            { "ScoreStdDev", tileStdDev },
+            { "ScoreStdError", tileStdError },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", MeasurementStatisticsHelper.ComputeConfidenceFromUncertainty(tileStdError) },
+            { "UncertaintyPx", tileStdError }
         });
 
         return Task.FromResult(OperatorExecutionOutput.Success(output));
@@ -231,5 +243,41 @@ public class SharpnessEvaluationOperator : OperatorBase
         }
 
         return sum / Math.Max(1, gray.Rows * gray.Cols);
+    }
+
+    private static List<double> ComputeTileScores(Mat gray, string method)
+    {
+        var tilesX = Math.Clamp(gray.Cols / 32, 1, 4);
+        var tilesY = Math.Clamp(gray.Rows / 32, 1, 4);
+        var tileScores = new List<double>(tilesX * tilesY);
+
+        for (var tileY = 0; tileY < tilesY; tileY++)
+        {
+            var y0 = tileY * gray.Rows / tilesY;
+            var y1 = (tileY + 1) * gray.Rows / tilesY;
+            for (var tileX = 0; tileX < tilesX; tileX++)
+            {
+                var x0 = tileX * gray.Cols / tilesX;
+                var x1 = (tileX + 1) * gray.Cols / tilesX;
+                var rect = new Rect(x0, y0, Math.Max(1, x1 - x0), Math.Max(1, y1 - y0));
+
+                using var tile = new Mat(gray, rect);
+                var score = method switch
+                {
+                    "Laplacian" => ComputeLaplacianVariance(tile),
+                    "Brenner" => ComputeBrenner(tile),
+                    "Tenengrad" => ComputeTenengrad(tile),
+                    "SMD" => ComputeSmd(tile),
+                    _ => ComputeLaplacianVariance(tile)
+                };
+
+                if (double.IsFinite(score))
+                {
+                    tileScores.Add(score);
+                }
+            }
+        }
+
+        return tileScores;
     }
 }

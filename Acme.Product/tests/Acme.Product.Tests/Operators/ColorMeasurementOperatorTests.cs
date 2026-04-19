@@ -1,6 +1,7 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.ValueObjects;
+using Acme.Product.Infrastructure.ImageProcessing;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ public class ColorMeasurementOperatorTests
     public async Task ExecuteAsync_LabDeltaEMode_ShouldReturnDeltaEAndLabMean()
     {
         var sut = CreateSut();
+        var referenceLab = CieLabConverter.BgrToLab(20, 40, 180);
         var op = CreateOperator(new Dictionary<string, object>
         {
             ["MeasurementMode"] = "LabDeltaE",
@@ -34,16 +36,24 @@ public class ColorMeasurementOperatorTests
         var inputs = TestHelpers.CreateImageInputs(image);
         inputs["ReferenceColor"] = new Dictionary<string, object>
         {
-            ["L"] = 0.0,
-            ["A"] = 0.0,
-            ["B"] = 0.0
+            ["L"] = referenceLab.L,
+            ["A"] = referenceLab.A,
+            ["B"] = referenceLab.B
         };
 
         var result = await sut.ExecuteAsync(op, inputs);
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
         result.OutputData.Should().ContainKey("LabMean");
-        Convert.ToDouble(result.OutputData!["DeltaE"]).Should().BeGreaterThan(0.0);
+        var expectedLab = CieLabConverter.BgrToLab(30, 30, 200);
+        var expectedDeltaE = ColorDifference.DeltaE00(expectedLab, referenceLab);
+        var labMean = result.OutputData!["LabMean"].Should().BeOfType<Dictionary<string, object>>().Subject;
+        Convert.ToDouble(labMean["L"]).Should().BeApproximately(expectedLab.L, 1e-6);
+        Convert.ToDouble(labMean["A"]).Should().BeApproximately(expectedLab.A, 1e-6);
+        Convert.ToDouble(labMean["B"]).Should().BeApproximately(expectedLab.B, 1e-6);
+        Convert.ToDouble(result.OutputData["DeltaE"]).Should().BeApproximately(expectedDeltaE, 1e-6);
+        Convert.ToDouble(result.OutputData["DeltaEStdDev"]).Should().BeApproximately(0.0, 1e-9);
+        Convert.ToDouble(result.OutputData["DeltaEStdError"]).Should().BeApproximately(0.0, 1e-9);
         result.OutputData["MeasurementMode"].Should().Be("LabDeltaE");
     }
 
@@ -64,6 +74,8 @@ public class ColorMeasurementOperatorTests
         result.OutputData["HueValid"].Should().Be(true);
         var hueMean = Convert.ToDouble(result.OutputData["HueMean"]);
         (hueMean < 20.0 || hueMean > 340.0).Should().BeTrue();
+        Convert.ToDouble(result.OutputData["HueCircularStdDeg"]).Should().BeLessThan(5.0);
+        Convert.ToDouble(result.OutputData["UncertaintyPx"]).Should().BeLessThan(1.0);
         double.IsNaN(Convert.ToDouble(result.OutputData["DeltaE"])).Should().BeTrue();
     }
 
@@ -101,15 +113,17 @@ public class ColorMeasurementOperatorTests
 
     private static ImageWrapper CreateHueWrapImage()
     {
-        var mat = new Mat(60, 60, MatType.CV_8UC3);
-        for (var y = 0; y < mat.Rows; y++)
+        using var hsv = new Mat(60, 60, MatType.CV_8UC3);
+        for (var y = 0; y < hsv.Rows; y++)
         {
-            for (var x = 0; x < mat.Cols; x++)
+            for (var x = 0; x < hsv.Cols; x++)
             {
-                mat.Set(y, x, x < 30 ? new Vec3b(0, 0, 255) : new Vec3b(10, 10, 255));
+                hsv.Set(y, x, x < 30 ? new Vec3b(1, 255, 255) : new Vec3b(179, 255, 255));
             }
         }
 
+        var mat = new Mat();
+        Cv2.CvtColor(hsv, mat, ColorConversionCodes.HSV2BGR);
         return new ImageWrapper(mat);
     }
 }

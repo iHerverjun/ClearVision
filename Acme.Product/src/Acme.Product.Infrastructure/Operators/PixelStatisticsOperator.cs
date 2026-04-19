@@ -106,8 +106,8 @@ public class PixelStatisticsOperator : OperatorBase
 
             output["StatusCode"] = "OK";
             output["StatusMessage"] = "Success";
-            output["Confidence"] = 1.0;
-            output["UncertaintyPx"] = 0.0;
+            output["Confidence"] = MeasurementStatisticsHelper.ComputeConfidenceFromUncertainty(aggregateStats.StdError);
+            output["UncertaintyPx"] = aggregateStats.StdError;
 
             return Task.FromResult(OperatorExecutionOutput.Success(output));
         }
@@ -286,7 +286,7 @@ public class PixelStatisticsOperator : OperatorBase
     {
         if (values.Count == 0)
         {
-            return new StatisticsSummary(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
+            return new StatisticsSummary(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
         }
 
         var min = double.PositiveInfinity;
@@ -310,13 +310,21 @@ public class PixelStatisticsOperator : OperatorBase
         var mean = sum / values.Count;
         var variance = Math.Max(0.0, (sumSquares / values.Count) - (mean * mean));
         var stdDev = Math.Sqrt(variance);
+        var median = MeasurementStatisticsHelper.ComputeMedian(values);
+        var medianAbsoluteDeviation = MeasurementStatisticsHelper.ComputeMedianAbsoluteDeviation(values, median);
+        var stdError = MeasurementStatisticsHelper.ComputeStandardError(stdDev, values.Count);
 
-        values.Sort();
-        var median = values.Count % 2 == 1
-            ? values[values.Count / 2]
-            : (values[(values.Count / 2) - 1] + values[values.Count / 2]) / 2.0;
-
-        return new StatisticsSummary(mean, stdDev, min, max, median, nonZeroCount, values.Count);
+        return new StatisticsSummary(
+            mean,
+            stdDev,
+            min,
+            max,
+            median,
+            max - min,
+            medianAbsoluteDeviation,
+            stdError,
+            nonZeroCount,
+            values.Count);
     }
 
     private static Dictionary<string, object> CreateStatisticsDictionary(StatisticsSummary stats)
@@ -328,6 +336,9 @@ public class PixelStatisticsOperator : OperatorBase
             { "Min", stats.Min },
             { "Max", stats.Max },
             { "Median", stats.Median },
+            { "Range", stats.Range },
+            { "MedianAbsoluteDeviation", stats.MedianAbsoluteDeviation },
+            { "StdError", stats.StdError },
             { "NonZeroCount", stats.NonZeroCount },
             { "SampleCount", stats.SampleCount }
         };
@@ -347,6 +358,9 @@ public class PixelStatisticsOperator : OperatorBase
         double Min,
         double Max,
         double Median,
+        double Range,
+        double MedianAbsoluteDeviation,
+        double StdError,
         int NonZeroCount,
         int SampleCount);
 }

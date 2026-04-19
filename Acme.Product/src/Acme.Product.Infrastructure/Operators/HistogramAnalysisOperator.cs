@@ -89,6 +89,8 @@ public class HistogramAnalysisOperator : OperatorBase
         var peakBinIndex = modeBinIndex;
         var medianBinIndex = ComputeMedianBin(values, total);
         var valleyBinIndex = TryFindValleyBetweenDominantPeaks(values, out var valleyIndex) ? valleyIndex : -1;
+        var binWidth = 256.0 / binCount;
+        var quantizationUncertainty = binWidth / Math.Sqrt(12.0);
 
         var output = new Dictionary<string, object>
         {
@@ -102,10 +104,14 @@ public class HistogramAnalysisOperator : OperatorBase
             { "MedianBinIndex", medianBinIndex },
             { "PeakBinIndex", peakBinIndex },
             { "ValleyBinIndex", valleyBinIndex },
+            { "BinWidth", binWidth },
+            { "HistogramMass", total },
+            { "ModeCount", values[modeBinIndex] },
+            { "SampleCount", roi.Width * roi.Height },
             { "StatusCode", "OK" },
             { "StatusMessage", "Success" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", MeasurementStatisticsHelper.ComputeConfidenceFromUncertainty(quantizationUncertainty) },
+            { "UncertaintyPx", quantizationUncertainty }
         };
 
         var chart = DrawHistogram(values, 512, 220);
