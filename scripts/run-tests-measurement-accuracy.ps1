@@ -27,13 +27,13 @@ $testClasses = @(
     "WidthMeasurementOperatorTests",
     "GapMeasurementOperatorTests",
     "CircleMeasurementOperatorTests",
-    "CameraCalibrationOperatorTests",
-    "PixelToWorldTransformOperatorTests",
+    "ContourMeasurementOperatorTests",
     "ColorMeasurementOperatorTests",
     "HistogramAnalysisOperatorTests",
     "GeometricFittingOperatorTests",
     "GeometricToleranceOperatorTests",
-    "Week11_TextureColorFlowIntegrationTests"
+    "SharpnessEvaluationOperatorTests",
+    "PixelStatisticsOperatorTests"
 )
 
 Write-Host "[measurement-accuracy] Selected test classes: $($testClasses -join ', ')"
