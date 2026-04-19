@@ -85,12 +85,24 @@ public class GeometricToleranceOperator : OperatorBase
             return Task.FromResult(OperatorExecutionOutput.Failure(error ?? "Unsupported tolerance evaluation"));
         }
 
+        var uncertaintyPx = ComputeUncertaintyPx(
+            toleranceType,
+            evaluationMode,
+            zoneSize,
+            nominalX,
+            nominalY,
+            featureObj,
+            datumAObj,
+            inputs);
+        var acceptanceLimit = GetAcceptanceLimit(toleranceType, evaluationMode, zoneSize);
+
         var output = new Dictionary<string, object>
         {
             { "Tolerance", zoneSize },
             { "ZoneDeviation", evaluation.ZoneDeviation },
             { "AngularDeviationDeg", evaluation.AngularDeviationDeg },
             { "LinearBand", evaluation.LinearBand },
+            { "ToleranceMargin", acceptanceLimit - evaluation.ZoneDeviation },
             { "ToleranceType", toleranceType },
             { "EvaluationMode", evaluationMode },
             { "MeasurementModel", MeasurementModel },
@@ -98,8 +110,8 @@ public class GeometricToleranceOperator : OperatorBase
             { "Result", evaluation.ResultText },
             { "StatusCode", evaluation.Accepted ? "OK" : "OutOfTolerance" },
             { "StatusMessage", evaluation.Accepted ? "Success" : "Out of tolerance" },
-            { "Confidence", 1.0 },
-            { "UncertaintyPx", 0.0 }
+            { "Confidence", ComputeConfidence(acceptanceLimit, evaluation.ZoneDeviation, uncertaintyPx) },
+            { "UncertaintyPx", uncertaintyPx }
         };
 
         if (TryGetInputImage(inputs, "Image", out var imageWrapper) && imageWrapper != null)
@@ -371,6 +383,220 @@ public class GeometricToleranceOperator : OperatorBase
     private static double Dot(Position a, Position b)
     {
         return (a.X * b.X) + (a.Y * b.Y);
+    }
+
+    private static double GetAcceptanceLimit(string toleranceType, string evaluationMode, double zoneSize)
+    {
+        return toleranceType switch
+        {
+            "Position" when evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase) => zoneSize / 2.0,
+            "Position" => zoneSize / 2.0,
+            "Concentricity" => zoneSize / 2.0,
+            _ => zoneSize
+        };
+    }
+
+    private static double ComputeUncertaintyPx(
+        string toleranceType,
+        string evaluationMode,
+        double zoneSize,
+        double nominalX,
+        double nominalY,
+        object featureObj,
+        object datumAObj,
+        Dictionary<string, object> inputs)
+    {
+        switch (toleranceType)
+        {
+            case "Parallelism":
+                if (!TryParseLine(featureObj, out var featureLine) || !TryParseLine(datumAObj, out var datumLine))
+                {
+                    return double.NaN;
+                }
+
+                var featureSigma = ResolveLineSigmaPx(featureObj, featureLine);
+                var datumSigma = ResolveLineSigmaPx(datumAObj, datumLine);
+                return MeasurementGeometryHelper.PropagateCustomCoordinateUncertainty(
+                    new[]
+                    {
+                        (double)featureLine.StartX, featureLine.StartY, featureLine.EndX, featureLine.EndY,
+                        (double)datumLine.StartX, datumLine.StartY, datumLine.EndX, datumLine.EndY
+                    },
+                    new[]
+                    {
+                        featureSigma, featureSigma, featureSigma, featureSigma,
+                        datumSigma, datumSigma, datumSigma, datumSigma
+                    },
+                    values =>
+                    {
+                        var candidateFeature = new LineData((float)values[0], (float)values[1], (float)values[2], (float)values[3]);
+                        var candidateDatum = new LineData((float)values[4], (float)values[5], (float)values[6], (float)values[7]);
+                        var distanceStart = MeasurementGeometryHelper.DistancePointToInfiniteLine(candidateFeature.StartX, candidateFeature.StartY, candidateDatum);
+                        var distanceEnd = MeasurementGeometryHelper.DistancePointToInfiniteLine(candidateFeature.EndX, candidateFeature.EndY, candidateDatum);
+                        return Math.Abs(distanceStart - distanceEnd);
+                    });
+
+            case "Perpendicularity":
+                if (!TryParseLine(featureObj, out featureLine) || !TryParseLine(datumAObj, out datumLine))
+                {
+                    return double.NaN;
+                }
+
+                featureSigma = ResolveLineSigmaPx(featureObj, featureLine);
+                datumSigma = ResolveLineSigmaPx(datumAObj, datumLine);
+                return MeasurementGeometryHelper.PropagateCustomCoordinateUncertainty(
+                    new[]
+                    {
+                        (double)featureLine.StartX, featureLine.StartY, featureLine.EndX, featureLine.EndY,
+                        (double)datumLine.StartX, datumLine.StartY, datumLine.EndX, datumLine.EndY
+                    },
+                    new[]
+                    {
+                        featureSigma, featureSigma, featureSigma, featureSigma,
+                        datumSigma, datumSigma, datumSigma, datumSigma
+                    },
+                    values =>
+                    {
+                        var candidateFeature = new LineData((float)values[0], (float)values[1], (float)values[2], (float)values[3]);
+                        var candidateDatum = new LineData((float)values[4], (float)values[5], (float)values[6], (float)values[7]);
+                        var datumDirection = new Position(candidateDatum.EndX - candidateDatum.StartX, candidateDatum.EndY - candidateDatum.StartY);
+                        var axisNorm = Math.Sqrt((datumDirection.X * datumDirection.X) + (datumDirection.Y * datumDirection.Y));
+                        if (axisNorm < 1e-9)
+                        {
+                            return double.NaN;
+                        }
+
+                        var unitAxisX = datumDirection.X / axisNorm;
+                        var unitAxisY = datumDirection.Y / axisNorm;
+                        var projectionStart = ((candidateFeature.StartX - candidateDatum.StartX) * unitAxisX) + ((candidateFeature.StartY - candidateDatum.StartY) * unitAxisY);
+                        var projectionEnd = ((candidateFeature.EndX - candidateDatum.StartX) * unitAxisX) + ((candidateFeature.EndY - candidateDatum.StartY) * unitAxisY);
+                        return Math.Abs(projectionEnd - projectionStart);
+                    });
+
+            case "Position":
+                if (!TryResolveCenter(featureObj, out var featureCenter) || !TryParseLine(datumAObj, out datumLine))
+                {
+                    return double.NaN;
+                }
+
+                if (!inputs.TryGetValue("DatumB", out var datumBObj) || datumBObj == null || !TryParseLine(datumBObj, out var datumBLine))
+                {
+                    return double.NaN;
+                }
+
+                var pointSigma = ResolvePointSigmaPx(featureObj, featureCenter);
+                var datumASigma = ResolveLineSigmaPx(datumAObj, datumLine);
+                var datumBSigma = ResolveLineSigmaPx(datumBObj, datumBLine);
+                return MeasurementGeometryHelper.PropagateCustomCoordinateUncertainty(
+                    new[]
+                    {
+                        featureCenter.X, featureCenter.Y,
+                        (double)datumLine.StartX, datumLine.StartY, datumLine.EndX, datumLine.EndY,
+                        (double)datumBLine.StartX, datumBLine.StartY, datumBLine.EndX, datumBLine.EndY
+                    },
+                    new[]
+                    {
+                        pointSigma, pointSigma,
+                        datumASigma, datumASigma, datumASigma, datumASigma,
+                        datumBSigma, datumBSigma, datumBSigma, datumBSigma
+                    },
+                    values =>
+                    {
+                        var candidateFeatureCenter = new Position(values[0], values[1]);
+                        var candidateDatumA = new LineData((float)values[2], (float)values[3], (float)values[4], (float)values[5]);
+                        var candidateDatumB = new LineData((float)values[6], (float)values[7], (float)values[8], (float)values[9]);
+                        if (!MeasurementGeometryHelper.TryGetInfiniteLineIntersection(candidateDatumA, candidateDatumB, out var origin))
+                        {
+                            return double.NaN;
+                        }
+
+                        if (!TryCreateDatumFrame(origin, candidateDatumA, candidateDatumB, out var frame, out _))
+                        {
+                            return double.NaN;
+                        }
+
+                        var actual = ProjectToFrame(candidateFeatureCenter, frame);
+                        var deltaX = actual.X - nominalX;
+                        var deltaY = actual.Y - nominalY;
+                        return evaluationMode.Equals("RectangularZone", StringComparison.OrdinalIgnoreCase)
+                            ? Math.Max(Math.Abs(deltaX), Math.Abs(deltaY))
+                            : Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+                    });
+
+            case "Concentricity":
+                if (!TryParseCircle(featureObj, out var featureCircle) || !TryParseCircle(datumAObj, out var datumCircle))
+                {
+                    return double.NaN;
+                }
+
+                var featureCircleSigma = ResolveCircleSigmaPx(featureObj, featureCircle);
+                var datumCircleSigma = ResolveCircleSigmaPx(datumAObj, datumCircle);
+                return MeasurementGeometryHelper.PropagatePointPointDistanceUncertainty(
+                    new Position(featureCircle.CenterX, featureCircle.CenterY),
+                    featureCircleSigma,
+                    new Position(datumCircle.CenterX, datumCircle.CenterY),
+                    datumCircleSigma);
+            default:
+                return double.NaN;
+        }
+    }
+
+    private static double ResolvePointSigmaPx(object geometry, Position point)
+    {
+        return TryResolveExplicitUncertaintyPx(geometry, out var uncertaintyPx)
+            ? uncertaintyPx
+            : MeasurementGeometryHelper.EstimatePointSigma(point);
+    }
+
+    private static double ResolveLineSigmaPx(object geometry, LineData line)
+    {
+        return TryResolveExplicitUncertaintyPx(geometry, out var uncertaintyPx)
+            ? uncertaintyPx
+            : MeasurementGeometryHelper.EstimateLineSigma(line);
+    }
+
+    private static double ResolveCircleSigmaPx(object geometry, CircleSpec circle)
+    {
+        return TryResolveExplicitUncertaintyPx(geometry, out var uncertaintyPx)
+            ? uncertaintyPx
+            : MeasurementGeometryHelper.EstimateCircleSigma(circle.CenterX, circle.CenterY, circle.Radius);
+    }
+
+    private static bool TryResolveExplicitUncertaintyPx(object? geometry, out double uncertaintyPx)
+    {
+        uncertaintyPx = 0.0;
+        if (geometry is IDictionary<string, object> dict &&
+            TryGetDouble(dict, "UncertaintyPx", out var typedValue))
+        {
+            uncertaintyPx = typedValue;
+            return true;
+        }
+
+        if (geometry is IDictionary legacy)
+        {
+            var normalized = legacy.Cast<DictionaryEntry>()
+                .Where(entry => entry.Key != null && entry.Value != null)
+                .ToDictionary(entry => entry.Key!.ToString() ?? string.Empty, entry => entry.Value!, StringComparer.OrdinalIgnoreCase);
+            return TryResolveExplicitUncertaintyPx(normalized, out uncertaintyPx);
+        }
+
+        return false;
+    }
+
+    private static double ComputeConfidence(double acceptanceLimit, double deviation, double uncertaintyPx)
+    {
+        if (!double.IsFinite(uncertaintyPx))
+        {
+            return 0.0;
+        }
+
+        var margin = acceptanceLimit - deviation;
+        if (margin >= 0.0)
+        {
+            return Math.Clamp(0.5 + (margin / Math.Max(acceptanceLimit + uncertaintyPx, 1e-6)), 0.0, 1.0);
+        }
+
+        return Math.Clamp(1.0 / (1.0 + Math.Abs(margin) + uncertaintyPx), 0.0, 1.0);
     }
 
     private static void DrawOverlay(Mat image, object featureObj, object datumAObj, object? datumBObj, ToleranceEvaluation evaluation)

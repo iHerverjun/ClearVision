@@ -80,6 +80,46 @@ internal static class IndustrialMeasurementSceneFactory
         return DownsampleToColor(hiRes, width, height);
     }
 
+    public static ImageWrapper CreateFilledRotatedRectangleImage(
+        int width,
+        int height,
+        Point2d center,
+        Size2d size,
+        double angleDeg,
+        int supersample = 8)
+    {
+        var safeScale = Math.Max(2, supersample);
+        using var hiRes = new Mat(height * safeScale, width * safeScale, MatType.CV_8UC1, Scalar.Black);
+        var rotatedRect = new RotatedRect(
+            new Point2f((float)(center.X * safeScale), (float)(center.Y * safeScale)),
+            new Size2f((float)(size.Width * safeScale), (float)(size.Height * safeScale)),
+            (float)angleDeg);
+        var vertices = Array.ConvertAll(
+            rotatedRect.Points(),
+            point => new Point((int)Math.Round(point.X), (int)Math.Round(point.Y)));
+
+        Cv2.FillConvexPoly(hiRes, vertices, Scalar.White, LineTypes.AntiAlias);
+        return DownsampleToColor(hiRes, width, height);
+    }
+
+    public static ImageWrapper CreateFilledEllipseImage(
+        int width,
+        int height,
+        Point2d center,
+        Size2d size,
+        double angleDeg,
+        int supersample = 8)
+    {
+        var safeScale = Math.Max(2, supersample);
+        using var hiRes = new Mat(height * safeScale, width * safeScale, MatType.CV_8UC1, Scalar.Black);
+        var rotatedRect = new RotatedRect(
+            new Point2f((float)(center.X * safeScale), (float)(center.Y * safeScale)),
+            new Size2f((float)(size.Width * safeScale), (float)(size.Height * safeScale)),
+            (float)angleDeg);
+        Cv2.Ellipse(hiRes, rotatedRect, Scalar.White, -1, LineTypes.AntiAlias);
+        return DownsampleToColor(hiRes, width, height);
+    }
+
     public static double DistancePointToLine(Point2d point, Point2d lineStart, Point2d lineEnd)
     {
         var a = lineEnd.Y - lineStart.Y;

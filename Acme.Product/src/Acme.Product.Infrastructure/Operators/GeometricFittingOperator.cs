@@ -26,12 +26,14 @@ namespace Acme.Product.Infrastructure.Operators;
 [OperatorParam("Threshold", "Binary Threshold", "double", DefaultValue = 127.0, Min = 0.0, Max = 255.0)]
 [OperatorParam("MinArea", "Min Contour Area", "int", DefaultValue = 100, Min = 0)]
 [OperatorParam("MinPoints", "Min Points", "int", DefaultValue = 5, Min = 3, Max = 10000)]
-[OperatorParam("ContourSelection", "Contour Selection", "enum", DefaultValue = "LargestContour", Options = new[] { "LargestContour|Largest Contour", "BestResidual|Best Residual" })]
+[OperatorParam("ContourSelection", "Contour Selection", "enum", DefaultValue = "BestResidual", Options = new[] { "LargestContour|Largest Contour", "BestResidual|Best Residual" })]
 [OperatorParam("RobustMethod", "Robust Method", "enum", DefaultValue = "LeastSquares", Options = new[] { "LeastSquares|LeastSquares", "Ransac|Ransac" })]
 [OperatorParam("RansacIterations", "Ransac Iterations", "int", DefaultValue = 200, Min = 10, Max = 5000)]
 [OperatorParam("RansacInlierThreshold", "Ransac Inlier Threshold", "double", DefaultValue = 2.0, Min = 0.1, Max = 100.0)]
 public class GeometricFittingOperator : OperatorBase
 {
+    private const int ContourUpscale = 4;
+
     public override OperatorType OperatorType => OperatorType.GeometricFitting;
 
     public GeometricFittingOperator(ILogger<GeometricFittingOperator> logger) : base(logger)
@@ -52,7 +54,7 @@ public class GeometricFittingOperator : OperatorBase
         var threshold = GetDoubleParam(@operator, "Threshold", 127.0, min: 0, max: 255);
         var minArea = GetIntParam(@operator, "MinArea", 100, min: 0);
         var minPoints = GetIntParam(@operator, "MinPoints", 5, min: 3, max: 10000);
-        var contourSelection = GetStringParam(@operator, "ContourSelection", "LargestContour");
+        var contourSelection = GetStringParam(@operator, "ContourSelection", "BestResidual");
         var robustMethod = GetStringParam(@operator, "RobustMethod", "LeastSquares");
         var ransacIterations = GetIntParam(@operator, "RansacIterations", 200, min: 10, max: 5000);
         var ransacInlierThreshold = GetDoubleParam(@operator, "RansacInlierThreshold", 2.0, min: 0.1, max: 100.0);
@@ -76,21 +78,10 @@ public class GeometricFittingOperator : OperatorBase
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         }
 
-        using var binary = new Mat();
-        Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
-
-        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-        var validContours = contours.Where(c => Cv2.ContourArea(c) >= minArea).ToList();
-        var selectedContours = SelectContours(validContours, contourSelection, fitType);
-        if (validContours.Count == 0)
+        if (!TryExtractContourPoints(gray, threshold, minArea, contourSelection, fitType, out var validContours, out var selectedContours, out var allPoints))
         {
             return Task.FromResult(OperatorExecutionOutput.Failure("[NoFeature] No valid contour found."));
         }
-
-        var allPoints = selectedContours
-            .SelectMany(c => c)
-            .Select(p => new Point2f(p.X, p.Y))
-            .ToArray();
 
         if (allPoints.Length < minPoints)
         {
@@ -146,6 +137,21 @@ public class GeometricFittingOperator : OperatorBase
             { "ContourCount", validContours.Count },
             { "SelectedContourCount", selectedContours.Count }
         };
+
+        var uncertaintyPx = ComputeModelUncertaintyPx(fitResult, allPoints.Length);
+        var confidence = MeasurementStatisticsHelper.ComputeConfidenceFromUncertainty(uncertaintyPx);
+        fitResult["UncertaintyPx"] = uncertaintyPx;
+        fitResult["Confidence"] = confidence;
+        additionalData["UncertaintyPx"] = uncertaintyPx;
+        additionalData["Confidence"] = confidence;
+        if (fitResult.TryGetValue("ResidualMean", out var residualMean))
+        {
+            additionalData["ResidualMean"] = residualMean;
+        }
+        if (fitResult.TryGetValue("ResidualMax", out var residualMax))
+        {
+            additionalData["ResidualMax"] = residualMax;
+        }
 
         return Task.FromResult(OperatorExecutionOutput.Success(CreateImageOutput(resultImage, additionalData)));
     }
@@ -423,6 +429,76 @@ public class GeometricFittingOperator : OperatorBase
         var created = new Dictionary<string, object>();
         fitResult["Geometry"] = created;
         return created;
+    }
+
+    private static bool TryExtractContourPoints(
+        Mat gray,
+        double threshold,
+        int minArea,
+        string contourSelection,
+        string fitType,
+        out List<Point[]> validContours,
+        out List<Point[]> selectedContours,
+        out Point2f[] allPoints)
+    {
+        validContours = new List<Point[]>();
+        selectedContours = new List<Point[]>();
+        allPoints = Array.Empty<Point2f>();
+
+        using var upsampled = new Mat();
+        Cv2.Resize(
+            gray,
+            upsampled,
+            new Size(gray.Width * ContourUpscale, gray.Height * ContourUpscale),
+            0,
+            0,
+            InterpolationFlags.Cubic);
+
+        using var binary = new Mat();
+        Cv2.Threshold(upsampled, binary, threshold, 255, ThresholdTypes.Binary);
+        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxNone);
+
+        var scaledMinArea = Math.Max(1, minArea * ContourUpscale * ContourUpscale);
+        validContours = contours.Where(contour => Cv2.ContourArea(contour) >= scaledMinArea).ToList();
+        if (validContours.Count == 0)
+        {
+            return false;
+        }
+
+        selectedContours = SelectContours(validContours, contourSelection, fitType);
+        allPoints = selectedContours
+            .SelectMany(contour => contour)
+            .Select(point => new Point2f(point.X / (float)ContourUpscale, point.Y / (float)ContourUpscale))
+            .ToArray();
+        selectedContours = selectedContours
+            .Select(contour => contour
+                .Select(point => new Point(
+                    (int)Math.Round(point.X / (double)ContourUpscale),
+                    (int)Math.Round(point.Y / (double)ContourUpscale)))
+                .ToArray())
+            .ToList();
+        validContours = validContours
+            .Select(contour => contour
+                .Select(point => new Point(
+                    (int)Math.Round(point.X / (double)ContourUpscale),
+                    (int)Math.Round(point.Y / (double)ContourUpscale)))
+                .ToArray())
+            .ToList();
+
+        return allPoints.Length > 0;
+    }
+
+    private static double ComputeModelUncertaintyPx(Dictionary<string, object> fitResult, int pointCount)
+    {
+        var quantizationFloor = 0.5 / ContourUpscale;
+        if (!fitResult.TryGetValue("ResidualMean", out var residualObj) ||
+            !double.TryParse(residualObj?.ToString(), out var residualMean) ||
+            !double.IsFinite(residualMean))
+        {
+            return quantizationFloor;
+        }
+
+        return Math.Max(quantizationFloor, residualMean / Math.Sqrt(Math.Max(pointCount, 1)));
     }
 
     private static bool TryEstimateLineModelRansac(
@@ -984,7 +1060,7 @@ public class GeometricFittingOperator : OperatorBase
             return ValidationResult.Invalid($"FitType must be one of: {string.Join(", ", validTypes)}");
         }
 
-        var contourSelection = GetStringParam(@operator, "ContourSelection", "LargestContour");
+        var contourSelection = GetStringParam(@operator, "ContourSelection", "BestResidual");
         var validSelections = new[] { "LargestContour", "BestResidual" };
         if (!validSelections.Contains(contourSelection, StringComparer.OrdinalIgnoreCase))
         {

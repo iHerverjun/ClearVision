@@ -87,6 +87,84 @@ public class GeometricToleranceOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_Parallelism_WithSubpixelDeviation_ShouldReturnAnalyticZoneDeviation()
+    {
+        var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("ToleranceType", "Parallelism", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ZoneSize", 0.10, "double"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["FeaturePrimary"] = new Dictionary<string, object>
+            {
+                ["StartX"] = 10.25,
+                ["StartY"] = 30.10,
+                ["EndX"] = 180.25,
+                ["EndY"] = 30.18,
+                ["UncertaintyPx"] = 0.05
+            },
+            ["DatumA"] = new Dictionary<string, object>
+            {
+                ["StartX"] = 20.0,
+                ["StartY"] = 80.0,
+                ["EndX"] = 170.0,
+                ["EndY"] = 80.0,
+                ["UncertaintyPx"] = 0.05
+            }
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["Accepted"].Should().Be(true);
+        Convert.ToDouble(result.OutputData["ZoneDeviation"]).Should().BeApproximately(0.08, 1e-6);
+        Convert.ToDouble(result.OutputData["ToleranceMargin"]).Should().BeApproximately(0.02, 1e-6);
+        Convert.ToDouble(result.OutputData["UncertaintyPx"]).Should().BeGreaterThan(0.0).And.BeLessThan(0.2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Position_WithSubpixelDatumFrame_ShouldReturnAnalyticDeviation()
+    {
+        var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);
+        op.AddParameter(TestHelpers.CreateParameter("ToleranceType", "Position", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("ZoneSize", 0.02, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("EvaluationMode", "CircularZone", "string"));
+        op.AddParameter(TestHelpers.CreateParameter("NominalX", 10.0, "double"));
+        op.AddParameter(TestHelpers.CreateParameter("NominalY", 5.0, "double"));
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["FeaturePrimary"] = new Dictionary<string, object>
+            {
+                ["X"] = 10.003,
+                ["Y"] = 5.004,
+                ["UncertaintyPx"] = 0.05
+            },
+            ["DatumA"] = new Dictionary<string, object>
+            {
+                ["StartX"] = 0.0,
+                ["StartY"] = 0.0,
+                ["EndX"] = 20.0,
+                ["EndY"] = 0.0,
+                ["UncertaintyPx"] = 0.05
+            },
+            ["DatumB"] = new Dictionary<string, object>
+            {
+                ["StartX"] = 0.0,
+                ["StartY"] = 0.0,
+                ["EndX"] = 0.0,
+                ["EndY"] = 20.0,
+                ["UncertaintyPx"] = 0.05
+            }
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["Accepted"].Should().Be(true);
+        Convert.ToDouble(result.OutputData["ZoneDeviation"]).Should().BeApproximately(0.005, 1e-6);
+        Convert.ToDouble(result.OutputData["ToleranceMargin"]).Should().BeApproximately(0.005, 1e-6);
+        Convert.ToDouble(result.OutputData["UncertaintyPx"]).Should().BeGreaterThan(0.0);
+        Convert.ToDouble(result.OutputData["Confidence"]).Should().BeGreaterThan(0.5);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_Parallelism_WithDegenerateLine_ShouldFail()
     {
         var op = new Operator("gtol", OperatorType.GeometricTolerance, 0, 0);
