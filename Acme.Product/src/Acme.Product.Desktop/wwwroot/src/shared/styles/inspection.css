@@ -226,7 +226,7 @@
 
 .counters-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
     gap: 8px;
 }
 
@@ -265,6 +265,7 @@
 
 .counter-ok .counter-value { color: #10b981; }
 .counter-ng .counter-value { color: #e11d48; }
+.counter-error .counter-value { color: #f97316; }
 .counter-yield .counter-value { color: #f59e0b; }
 .counter-total .counter-value { color: var(--text-color); }
 
@@ -461,6 +462,7 @@
 }
 .result-ok .result-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
 .result-ng .result-badge { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+.result-error .result-badge { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.2); }
 
 .result-time {
     font-size: 11px;
@@ -656,6 +658,7 @@
 [data-theme="light"] .counter-total .counter-value { color: #334155; }
 [data-theme="light"] .counter-ok .counter-value { color: #10b981; }
 [data-theme="light"] .counter-ng .counter-value { color: #ef4444; }
+[data-theme="light"] .counter-error .counter-value { color: #f97316; }
 
 /* Timing stats — Clean Box */
 [data-theme="light"] .timing-stats {

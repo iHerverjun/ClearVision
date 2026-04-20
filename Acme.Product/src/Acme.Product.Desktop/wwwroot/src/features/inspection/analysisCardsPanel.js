@@ -283,6 +283,7 @@ function renderDiagnosticCardHtml(card, fallbackStatus, options = {}) {
     const compact = Boolean(options.compact);
     const status = String(card?.status || fallbackStatus || 'OK').toUpperCase();
     const statusClass = status === 'NG' || status === 'ERROR' ? 'ng' : 'ok';
+    const badgeText = status === 'ERROR' ? 'ERROR' : (status === 'OK' ? 'OK' : 'NG');
     const icon = card?.icon || ICONS.note;
     const fields = Array.isArray(card?.fields)
         ? (compact ? card.fields.slice(0, 4) : card.fields)
@@ -305,7 +306,7 @@ function renderDiagnosticCardHtml(card, fallbackStatus, options = {}) {
             <div class="ac-card-header">
                 <span class="ac-card-icon">${icon}</span>
                 <span class="ac-card-title">${escapeHtml(card?.title || '诊断卡片')}</span>
-                <span class="ac-diagnostic-badge ${statusClass}">${status === 'OK' ? 'OK' : 'NG'}</span>
+                <span class="ac-diagnostic-badge ${statusClass}">${badgeText}</span>
             </div>
             <div class="ac-card-body">
                 ${message}
@@ -528,8 +529,8 @@ class AnalysisCardsPanel {
             const icon = MEASUREMENT_ICON_MAP[this._normalizeLookupKey(field?.key)]
                 || MEASUREMENT_ICON_MAP[this._normalizeLookupKey(field?.label)]
                 || ICONS.ruler;
-            const fieldStatus = field?.status || cardStatus;
-            const isNG = fieldStatus === 'NG' || fieldStatus === 'Error';
+            const fieldStatus = String(field?.status || cardStatus || 'OK').toUpperCase();
+            const isNG = fieldStatus === 'NG' || fieldStatus === 'ERROR';
             const statusBadge = isNG
                 ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
                 : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
@@ -572,7 +573,7 @@ class AnalysisCardsPanel {
             ? (confidence > 1 ? confidence : confidence * 100)
             : null;
         const displayText = textField?.value ?? '--';
-        const isNG = cardStatus === 'NG' || cardStatus === 'Error';
+        const isNG = ['NG', 'ERROR'].includes(String(cardStatus || 'OK').toUpperCase());
         const statusBadge = isNG
             ? `<span class="ac-badge ac-badge-ng" title="NG">${ICONS.cross}</span>`
             : `<span class="ac-badge ac-badge-ok" title="OK">${ICONS.check}</span>`;
@@ -652,7 +653,8 @@ class AnalysisCardsPanel {
     }
 
     _toCardStatusClass(status) {
-        return status === 'NG' || status === 'Error' ? 'ng' : 'ok';
+        const normalized = String(status || '').trim().toUpperCase();
+        return normalized === 'NG' || normalized === 'ERROR' ? 'ng' : 'ok';
     }
 
     _normalizeLookupKey(value) {

@@ -4,6 +4,7 @@
 // 生命周期：IHostedService（Singleton）
 // 作者：架构修复方案 v2
 
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -626,13 +627,13 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             // 判定状态
             var judgmentEvaluation = flowResult.IsSuccess
                 ? DetermineStatusFromFlowOutput(outputData)
-                : (
-                    Status: InspectionStatus.Error,
-                    JudgmentSource: "FlowExecution",
-                    StatusReason: string.IsNullOrWhiteSpace(flowResult.ErrorMessage)
+                : new InspectionJudgmentEvaluation(
+                    InspectionStatus.Error,
+                    "FlowExecution",
+                    string.IsNullOrWhiteSpace(flowResult.ErrorMessage)
                         ? "FlowExecutionFailed"
                         : $"FlowExecutionFailed:{flowResult.ErrorMessage}",
-                    MissingJudgmentSignal: false);
+                    false);
             SetJudgmentDiagnostics(outputData, judgmentEvaluation);
 
             var status = judgmentEvaluation.Status;
@@ -893,105 +894,18 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
         return false;
     }
 
-    private static (InspectionStatus Status, string JudgmentSource, string StatusReason, bool MissingJudgmentSignal)
-        DetermineStatusFromFlowOutput(Dictionary<string, object>? outputData)
+    private static InspectionJudgmentEvaluation DetermineStatusFromFlowOutput(Dictionary<string, object>? outputData)
     {
-        if (outputData == null || outputData.Count == 0)
-        {
-            return (InspectionStatus.Error, "None", "MissingJudgmentSignal", true);
-        }
-
-        if (outputData.TryGetValue("JudgmentResult", out var judgmentResult))
-        {
-            if (judgmentResult is not string judgment)
-            {
-                return BuildInvalidTypeResult("JudgmentResult", "string", judgmentResult);
-            }
-
-            return judgment.Equals("OK", StringComparison.OrdinalIgnoreCase)
-                ? (InspectionStatus.OK, "JudgmentResult", "DerivedFromJudgmentResult", false)
-                : (InspectionStatus.NG, "JudgmentResult", "DerivedFromJudgmentResult", false);
-        }
-
-        if (outputData.TryGetValue("IsOk", out var isOk))
-        {
-            if (isOk is not bool isOkBool)
-            {
-                return BuildInvalidTypeResult("IsOk", "bool", isOk);
-            }
-
-            return isOkBool
-                ? (InspectionStatus.OK, "IsOk", "DerivedFromIsOk", false)
-                : (InspectionStatus.NG, "IsOk", "DerivedFromIsOk", false);
-        }
-
-        if (outputData.TryGetValue("Result", out var resultVal))
-        {
-            if (resultVal is not bool resultBool)
-            {
-                return BuildInvalidTypeResult("Result", "bool", resultVal);
-            }
-
-            return resultBool
-                ? (InspectionStatus.OK, "Result", "DerivedFromResult", false)
-                : (InspectionStatus.NG, "Result", "DerivedFromResult", false);
-        }
-
-        if (outputData.TryGetValue("ConditionResult", out var conditionVal))
-        {
-            if (conditionVal is not bool conditionBool)
-            {
-                return BuildInvalidTypeResult("ConditionResult", "bool", conditionVal);
-            }
-
-            return conditionBool
-                ? (InspectionStatus.OK, "ConditionResult", "DerivedFromConditionResult", false)
-                : (InspectionStatus.NG, "ConditionResult", "DerivedFromConditionResult", false);
-        }
-
-        if (outputData.TryGetValue("DefectCount", out var dc))
-        {
-            if (dc is not int defectCount)
-            {
-                return BuildInvalidTypeResult("DefectCount", "int", dc);
-            }
-
-            return defectCount > 0
-                ? (InspectionStatus.NG, "DefectCount", "DerivedFromDefectCount", false)
-                : (InspectionStatus.OK, "DefectCount", "DerivedFromDefectCount", false);
-        }
-
-        return (InspectionStatus.Error, "None", "MissingJudgmentSignal", true);
-    }
-
-    private static (
-        InspectionStatus Status,
-        string JudgmentSource,
-        string StatusReason,
-        bool MissingJudgmentSignal) BuildInvalidTypeResult(
-        string fieldName,
-        string expectedType,
-        object? actualValue)
-    {
-        return (
-            InspectionStatus.Error,
-            fieldName,
-            $"InvalidJudgmentType:{fieldName}:Expected={expectedType}:Actual={DescribeType(actualValue)}",
-            false);
+        return InspectionJudgmentResolver.DetermineStatusFromFlowOutput(outputData);
     }
 
     private static void SetJudgmentDiagnostics(
         Dictionary<string, object> outputData,
-        (InspectionStatus Status, string JudgmentSource, string StatusReason, bool MissingJudgmentSignal) evaluation)
+        InspectionJudgmentEvaluation evaluation)
     {
         outputData["MissingJudgmentSignal"] = evaluation.MissingJudgmentSignal;
         outputData["JudgmentSource"] = evaluation.JudgmentSource;
         outputData["StatusReason"] = evaluation.StatusReason;
-    }
-
-    private static string DescribeType(object? value)
-    {
-        return value?.GetType().Name ?? "null";
     }
 
     private async Task CacheResultImageAsync(InspectionResult result)

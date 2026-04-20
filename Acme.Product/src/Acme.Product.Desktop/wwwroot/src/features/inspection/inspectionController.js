@@ -227,19 +227,20 @@ class InspectionController {
      */
     handleResultEvent(data) {
         const result = this.normalizeResultPayload({
-            id: data.resultId,
-            projectId: data.projectId,
-            imageId: data.imageId,
-            status: data.status,
-            defects: data.defects || [],
-            defectCount: data.defectCount,
-            processingTimeMs: data.processingTimeMs,
-            timestamp: data.timestamp,
-            outputData: data.outputData,
-            outputDataJson: data.outputDataJson,
-            analysisData: data.analysisData,
-            analysisDataJson: data.analysisDataJson,
-            outputImageBase64: data.outputImageBase64
+            id: data.resultId ?? data.ResultId ?? data.id ?? data.Id,
+            projectId: data.projectId ?? data.ProjectId,
+            imageId: data.imageId ?? data.ImageId,
+            status: data.status ?? data.Status,
+            errorMessage: data.errorMessage ?? data.ErrorMessage,
+            defects: data.defects ?? data.Defects ?? [],
+            defectCount: data.defectCount ?? data.DefectCount,
+            processingTimeMs: data.processingTimeMs ?? data.ProcessingTimeMs,
+            timestamp: data.timestamp ?? data.Timestamp,
+            outputData: data.outputData ?? data.OutputData,
+            outputDataJson: data.outputDataJson ?? data.OutputDataJson,
+            analysisData: data.analysisData ?? data.AnalysisData,
+            analysisDataJson: data.analysisDataJson ?? data.AnalysisDataJson,
+            outputImageBase64: data.outputImageBase64 ?? data.OutputImageBase64
         });
 
         setLastResult(result);
@@ -714,6 +715,12 @@ class InspectionController {
     normalizeResultPayload(result) {
         const normalized = { ...(result || {}) };
 
+        normalized.id = normalized.id ?? normalized.Id;
+        normalized.projectId = normalized.projectId ?? normalized.ProjectId ?? this.projectId ?? null;
+        normalized.status = this.normalizeInspectionStatus(normalized.status ?? normalized.Status);
+        normalized.confidenceScore = normalized.confidenceScore ?? normalized.ConfidenceScore;
+        normalized.errorMessage = normalized.errorMessage ?? normalized.ErrorMessage;
+
         const outputData = this.parseJsonField(
             this.readFirstDefined(normalized.outputData, normalized.OutputData),
             normalized.outputDataJson || normalized.OutputDataJson,
@@ -762,6 +769,23 @@ class InspectionController {
         normalized.imageId = normalized.imageId || normalized.ImageId;
 
         return normalized;
+    }
+
+    normalizeInspectionStatus(status) {
+        const normalized = String(status || '').trim().toUpperCase();
+        if (normalized === 'OK') {
+            return 'OK';
+        }
+
+        if (normalized === 'NG') {
+            return 'NG';
+        }
+
+        if (normalized === 'ERROR') {
+            return 'Error';
+        }
+
+        return status || 'Unknown';
     }
 
     parseJsonField(directValue, serializedValue, fieldName) {

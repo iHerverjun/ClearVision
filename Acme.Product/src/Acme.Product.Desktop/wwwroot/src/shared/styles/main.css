@@ -987,7 +987,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 }
 
 .kpi-cards {
-    grid-template-columns: repeat(5, 1fr); /* Accommodate 5 items */
+    grid-template-columns: repeat(6, 1fr); /* Accommodate 6 items */
 }
 
 .kpi-card,
@@ -1022,6 +1022,7 @@ body.property-sidebar-resizing .sidebar-resizer::before {
 .kpi-value.total, .stat-value.stat-total { color: var(--text-color); }
 .kpi-value.ok, .stat-value.stat-ok { color: #10b981; }
 .kpi-value.ng, .stat-value.stat-ng { color: #ef4444; }
+.kpi-value.error { color: #f97316; }
 .kpi-value.yield, .stat-value.stat-rate { color: var(--cinnabar); }
 .kpi-value.time { color: #8b5cf6; }
 

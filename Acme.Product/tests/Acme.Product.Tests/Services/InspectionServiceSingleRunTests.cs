@@ -218,6 +218,204 @@ public class InspectionServiceSingleRunTests
         result.ErrorMessage.Should().Contain("InvalidJudgmentType:IsOk");
     }
 
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenWrappedResultContainsIsMatch_ShouldTreatAsOk()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("client-flow");
+
+        flowExecution
+            .ExecuteFlowAsync(Arg.Any<OperatorFlow>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowExecutionResult
+            {
+                IsSuccess = true,
+                ExecutionTimeMs = 15,
+                OutputData = new Dictionary<string, object>
+                {
+                    ["Result"] = new Dictionary<string, object>
+                    {
+                        ["IsMatch"] = true,
+                        ["Message"] = "Sequence matched."
+                    }
+                }
+            }));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, new byte[] { 7, 8, 9 }, explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.OK);
+        result.ErrorMessage.Should().BeNull();
+
+        using var doc = JsonDocument.Parse(result.OutputDataJson ?? "{}");
+        doc.RootElement.GetProperty("JudgmentSource").GetString().Should().Be("Result.IsMatch");
+        doc.RootElement.GetProperty("MissingJudgmentSignal").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenDataWrapperContainsIsAnomaly_ShouldTreatAsNg()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("client-flow");
+
+        flowExecution
+            .ExecuteFlowAsync(Arg.Any<OperatorFlow>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new FlowExecutionResult
+            {
+                IsSuccess = true,
+                ExecutionTimeMs = 16,
+                OutputData = new Dictionary<string, object>
+                {
+                    ["Result"] = "informational-text",
+                    ["Data"] = new Dictionary<string, object>
+                    {
+                        ["IsAnomaly"] = true
+                    }
+                }
+            }));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, new byte[] { 1, 3, 5 }, explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.NG);
+
+        using var doc = JsonDocument.Parse(result.OutputDataJson ?? "{}");
+        doc.RootElement.GetProperty("JudgmentSource").GetString().Should().Be("Data.IsAnomaly");
+        doc.RootElement.GetProperty("MissingJudgmentSignal").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenFlowExecutionThrows_ShouldReturnPersistedErrorResult()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("client-flow");
+
+        flowExecution
+            .ExecuteFlowAsync(Arg.Any<OperatorFlow>(), Arg.Any<Dictionary<string, object>?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<FlowExecutionResult>(new InvalidOperationException("flow exploded")));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, new byte[] { 2, 4, 6 }, explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.Error);
+        result.ErrorMessage.Should().Be("flow exploded");
+        await resultRepository.Received(1).AddAsync(Arg.Is<InspectionResult>(item =>
+            item.Status == InspectionStatus.Error &&
+            item.ErrorMessage == "flow exploded"));
+    }
+
+    [Fact]
+    public async Task ExecuteSingleAsync_WhenCameraAcquisitionThrows_ShouldReturnPersistedErrorResult()
+    {
+        var projectId = Guid.NewGuid();
+        var flowExecution = Substitute.For<IFlowExecutionService>();
+        var resultRepository = Substitute.For<IInspectionResultRepository>();
+        var projectRepository = Substitute.For<IProjectRepository>();
+        var imageAcquisition = Substitute.For<IImageAcquisitionService>();
+        var configurationService = Substitute.For<IConfigurationService>();
+        var coordinator = Substitute.For<IInspectionRuntimeCoordinator>();
+        var worker = Substitute.For<IInspectionWorker>();
+        var flowStorage = Substitute.For<IProjectFlowStorage>();
+        var explicitFlow = CreateFlow("camera-flow");
+
+        imageAcquisition
+            .AcquireFromCameraAsync("camera-1", Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ImageDto>(new InvalidOperationException("camera offline")));
+        resultRepository
+            .AddAsync(Arg.Any<InspectionResult>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<InspectionResult>()));
+
+        var service = new InspectionService(
+            resultRepository,
+            projectRepository,
+            flowExecution,
+            imageAcquisition,
+            configurationService,
+            coordinator,
+            worker,
+            Substitute.For<IImageCacheRepository>(),
+            new AnalysisDataBuilder(),
+            flowStorage,
+            NullLogger<InspectionService>.Instance);
+
+        var result = await service.ExecuteSingleAsync(projectId, "camera-1", explicitFlow);
+
+        result.Status.Should().Be(InspectionStatus.Error);
+        result.ErrorMessage.Should().Contain("camera offline");
+        await resultRepository.Received(1).AddAsync(Arg.Is<InspectionResult>(item =>
+            item.Status == InspectionStatus.Error &&
+            item.ErrorMessage != null &&
+            item.ErrorMessage.Contains("camera offline", StringComparison.Ordinal)));
+    }
+
     private static OperatorFlow CreateFlow(string operatorName)
     {
         var flow = new OperatorFlow("test-flow");

@@ -111,7 +111,7 @@
     grid-column: 1 / -1;  /* 跨越整行 */
     grid-row: 1;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 10px;
 }
 
@@ -147,6 +147,9 @@
 }
 .kpi-value.ng {
     color: var(--error-cinnabar);
+}
+.kpi-value.error {
+    color: #f97316;
 }
 .kpi-value.yield {
     color: var(--gold-accent);
@@ -643,7 +646,7 @@
     }
 
     .kpi-cards {
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(6, 1fr);
     }
 }
 

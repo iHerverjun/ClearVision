@@ -779,12 +779,14 @@ class ResultPanel {
         const kpiTotal = document.getElementById('kpi-total');
         const kpiOk = document.getElementById('kpi-ok');
         const kpiNg = document.getElementById('kpi-ng');
+        const kpiError = document.getElementById('kpi-error');
         const kpiYield = document.getElementById('kpi-yield');
         const kpiAvgTime = document.getElementById('kpi-avg-time');
         
         if (kpiTotal) kpiTotal.textContent = total;
         if (kpiOk) kpiOk.textContent = ok;
         if (kpiNg) kpiNg.textContent = ng;
+        if (kpiError) kpiError.textContent = error;
         if (kpiYield) kpiYield.textContent = `${yieldRate}%`;
         if (kpiAvgTime) kpiAvgTime.textContent = `${avgTime}ms`;
     }

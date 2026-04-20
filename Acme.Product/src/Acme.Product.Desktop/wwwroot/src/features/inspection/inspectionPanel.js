@@ -16,6 +16,7 @@ const [getStats, setStats, subscribeStats] = createSignal({
     total: 0,
     ok: 0,
     ng: 0,
+    error: 0,
     yield: 0
 });
 
@@ -56,6 +57,7 @@ class InspectionPanel {
         this._materialTimeoutDeadline = null;
         this._lastProtectionReason = '';
         this._lastProtectionMessage = '';
+        this.projectId = getCurrentProject()?.id || null;
 
         // 初始化 UI 和分析卡片面板
         this.initialize();
@@ -139,6 +141,17 @@ class InspectionPanel {
         }
 
         this.analysisCardsPanel.setFlowContext(this.getActiveFlowDefinition());
+    }
+
+    setProjectContext(projectId) {
+        const normalizedProjectId = projectId || null;
+        if (this.projectId === normalizedProjectId) {
+            return false;
+        }
+
+        this.projectId = normalizedProjectId;
+        this.reset();
+        return true;
     }
 
     updateProtectionNotice(message = '', tone = 'info') {
@@ -298,6 +311,15 @@ class InspectionPanel {
     handleInspectionResult(result) {
         this.clearProtectionWatchdog();
 
+        const resultProjectId = result?.projectId || result?.ProjectId || null;
+        if (this.projectId && resultProjectId && this.projectId !== resultProjectId) {
+            console.warn('[InspectionPanel] Ignore stale inspection result from another project.', {
+                activeProjectId: this.projectId,
+                resultProjectId
+            });
+            return;
+        }
+
         const analysisPayload = this.getAnalysisPayload(result);
         if (this.analysisCardsPanel) {
             this.syncAnalysisFlowContext();
@@ -316,7 +338,8 @@ class InspectionPanel {
         const newStats = {
             total: stats.total + 1,
             ok: stats.ok + (result.status === 'OK' ? 1 : 0),
-            ng: stats.ng + (result.status !== 'OK' && result.status !== 'Error' ? 1 : 0)
+            ng: stats.ng + (result.status !== 'OK' && result.status !== 'Error' ? 1 : 0),
+            error: stats.error + (result.status === 'Error' ? 1 : 0)
         };
         newStats.yield = newStats.total > 0 ? ((newStats.ok / newStats.total) * 100).toFixed(1) : 0;
         setStats(newStats);
@@ -450,6 +473,10 @@ class InspectionPanel {
                         <div class="counter-item counter-total">
                             <span class="counter-value" id="counter-total">0</span>
                             <span class="counter-label">总计</span>
+                        </div>
+                        <div class="counter-item counter-error">
+                            <span class="counter-value" id="counter-error">0</span>
+                            <span class="counter-label">ERROR</span>
                         </div>
                         <div class="counter-item counter-yield">
                             <span class="counter-value" id="counter-yield">0%</span>
@@ -718,11 +745,13 @@ class InspectionPanel {
         const okEl = this.container.querySelector('#counter-ok');
         const ngEl = this.container.querySelector('#counter-ng');
         const totalEl = this.container.querySelector('#counter-total');
+        const errorEl = this.container.querySelector('#counter-error');
         const yieldEl = this.container.querySelector('#counter-yield');
         
         if (okEl) okEl.textContent = stats.ok;
         if (ngEl) ngEl.textContent = stats.ng;
         if (totalEl) totalEl.textContent = stats.total;
+        if (errorEl) errorEl.textContent = stats.error;
         if (yieldEl) yieldEl.textContent = `${stats.yield}%`;
         
         // 更新耗时（移至右侧面板，使用 document.getElementById 全局查找）
@@ -794,7 +823,7 @@ class InspectionPanel {
             const textPreview = this.extractTextPreview(result.analysisData);
             
             return `
-            <div class="recent-result-item ${result.status === 'OK' ? 'result-ok' : 'result-ng'}" data-id="${result.id}">
+            <div class="recent-result-item ${result.status === 'OK' ? 'result-ok' : (result.status === 'Error' ? 'result-error' : 'result-ng')}" data-id="${result.id}">
                 <div class="result-thumb">
                     ${result.imageData 
                         ? `<img src="data:image/png;base64,${result.imageData}" alt="检测结果">`
@@ -828,7 +857,7 @@ class InspectionPanel {
      * 重置统计
      */
     reset() {
-        setStats({ total: 0, ok: 0, ng: 0, yield: 0 });
+        setStats({ total: 0, ok: 0, ng: 0, error: 0, yield: 0 });
         setTimingStats({ avg: 0, min: Infinity, max: 0, history: [] });
         setRecentResults([]);
         this.updateCounters();
@@ -885,6 +914,7 @@ class InspectionPanel {
      * 刷新显示
      */
     refresh() {
+        this.setProjectContext(getCurrentProject()?.id || null);
         this.updateCounters();
         this.renderRecentResults();
         this.tryAutoRunIfNeeded();

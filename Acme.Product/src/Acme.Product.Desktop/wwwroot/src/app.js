@@ -163,12 +163,14 @@ function syncActiveNavButton(view) {
 async function handleProjectChange(project) {
     if (!project?.id) {
         inspectionController.setProject(null);
+        inspectionPanel?.setProjectContext?.(null);
         resultPanel?.setProjectContext?.(null);
         resultPanel?.clear?.();
         return;
     }
 
     inspectionController.setProject(project.id);
+    inspectionPanel?.setProjectContext?.(project.id);
 
     if (project.flow && window.flowCanvas) {
         console.log('[App] 当前工程已切换，加载流程数据:', project.flow);
@@ -340,6 +342,7 @@ async function ensureInspectionPanelReady() {
 
     if (inspectionPanel) {
         inspectionPanel.refresh();
+        inspectionPanel.setProjectContext(getCurrentProject()?.id || null);
         return inspectionPanel;
     }
 
@@ -352,6 +355,7 @@ async function ensureInspectionPanelReady() {
 
     inspectionPanel = new InspectionPanel('inspection-control-panel');
     window.inspectionPanel = inspectionPanel;
+    inspectionPanel.setProjectContext(getCurrentProject()?.id || null);
     console.log('[App] 检测控制面板初始化完成');
     return inspectionPanel;
 }
@@ -599,6 +603,61 @@ function buildResultDefects(result) {
     }));
 }
 
+function normalizeInspectionStatus(status) {
+    const normalized = String(status || '').trim().toUpperCase();
+    if (normalized === 'OK') {
+        return 'OK';
+    }
+
+    if (normalized === 'NG') {
+        return 'NG';
+    }
+
+    if (normalized === 'ERROR') {
+        return 'Error';
+    }
+
+    return status || 'Unknown';
+}
+
+function normalizeInspectionResultRecord(result, fallbackProjectId = null) {
+    if (!result || typeof result !== 'object') {
+        return null;
+    }
+
+    const normalized = { ...result };
+    normalized.id = normalized.id ?? normalized.Id;
+    normalized.projectId = normalized.projectId ?? normalized.ProjectId ?? fallbackProjectId ?? null;
+    normalized.status = normalizeInspectionStatus(normalized.status ?? normalized.Status);
+    normalized.defects = buildResultDefects(normalized);
+    normalized.defectCount = normalized.defectCount
+        ?? normalized.DefectCount
+        ?? normalized.defects.length;
+    normalized.processingTime = normalized.processingTime
+        ?? normalized.processingTimeMs
+        ?? normalized.ProcessingTimeMs
+        ?? normalized.executionTimeMs
+        ?? normalized.ExecutionTimeMs
+        ?? null;
+    normalized.processingTimeMs = normalized.processingTimeMs ?? normalized.processingTime;
+    normalized.timestamp = normalized.timestamp
+        ?? normalized.Timestamp
+        ?? normalized.inspectionTime
+        ?? normalized.InspectionTime
+        ?? new Date().toISOString();
+    normalized.confidenceScore = normalized.confidenceScore ?? normalized.ConfidenceScore;
+    normalized.imageId = normalized.imageId || normalized.ImageId;
+    normalized.imageData = getInlineResultImageBase64(normalized);
+    normalized.outputImage = normalized.outputImage || normalized.OutputImage || null;
+    normalized.outputImageBase64 = normalized.outputImageBase64 || normalized.OutputImageBase64 || null;
+    normalized.resultImageBase64 = normalized.resultImageBase64 || normalized.ResultImageBase64 || null;
+    normalized.outputData = normalizeOutputData(normalized);
+    normalized.analysisData = normalizeAnalysisData(normalized);
+    normalized.errorMessage = normalized.errorMessage ?? normalized.ErrorMessage ?? '';
+
+    return normalized;
+}
+
 /**
  * 初始化算子库面板
  */
@@ -716,6 +775,21 @@ function initializeNodePreviewExperience() {
 function initializeInspectionController() {
     // 设置检测完成回调（调用方法注册回调，而非覆盖方法）
     inspectionController.onInspectionCompleted((result) => {
+        const currentProjectId = getCurrentProject()?.id || null;
+        const normalizedResult = normalizeInspectionResultRecord(result, currentProjectId);
+        if (!normalizedResult) {
+            return;
+        }
+
+        if (normalizedResult.projectId && normalizedResult.projectId !== currentProjectId) {
+            console.warn('[App] Ignore stale inspection result from another project.', {
+                activeProjectId: currentProjectId,
+                resultProjectId: normalizedResult.projectId
+            });
+            return;
+        }
+
+        result = normalizedResult;
         console.log('[App] 检测完成:', result);
 
         // 【关键修复】保存最新的检测结果，以便切换视图时显示
@@ -739,18 +813,21 @@ function initializeInspectionController() {
             console.log('[App] 检测完成但不在检测视图，已保存结果');
         }
 
-        const currentProject = getCurrentProject();
         const appendResultToPanel = (panel) => {
             if (!panel) {
                 return;
             }
 
             const normalizedDefects = buildResultDefects(result);
-            panel.setProjectContext(currentProject?.id || null);
+            panel.setProjectContext(currentProjectId);
             panel.addResult({
+                id: result.id,
+                projectId: result.projectId,
                 status: result.status,
                 defects: normalizedDefects,
-                processingTime: result.processingTimeMs,
+                defectCount: result.defectCount,
+                processingTime: result.processingTime ?? result.processingTimeMs,
+                processingTimeMs: result.processingTimeMs,
                 timestamp: result.timestamp || result.inspectionTime || new Date().toISOString(),
                 confidenceScore: result.confidenceScore,
                 imageId: result.imageId || result.ImageId,
@@ -759,10 +836,11 @@ function initializeInspectionController() {
                 outputImageBase64: result.outputImageBase64 || result.OutputImageBase64 || null,
                 resultImageBase64: result.resultImageBase64 || result.ResultImageBase64 || null,
                 outputData: normalizeOutputData(result),
-                analysisData: normalizeAnalysisData(result)
+                analysisData: normalizeAnalysisData(result),
+                errorMessage: result.errorMessage
             });
 
-            if (currentProject?.id && typeof panel.loadServerAnalytics === 'function') {
+            if (currentProjectId && typeof panel.loadServerAnalytics === 'function') {
                 setTimeout(() => {
                     panel.loadServerAnalytics().catch(error => {
                         console.warn('[App] 刷新结果页服务端分析失败:', error);
@@ -918,22 +996,9 @@ async function loadInspectionHistory({
         }
 
         if (Array.isArray(results) && resultPanel) {
-            const normalizedResults = results.map(result => ({
-                id: result.id || result.Id,
-                status: result.status,
-                defects: buildResultDefects(result),
-                defectCount: result.defectCount ?? result.DefectCount ?? result.defects?.length ?? result.Defects?.length ?? 0,
-                processingTime: result.processingTimeMs ?? result.ProcessingTimeMs ?? result.processingTime ?? result.executionTimeMs,
-                timestamp: result.timestamp || result.Timestamp || result.inspectionTime || result.InspectionTime,
-                confidenceScore: result.confidenceScore ?? result.ConfidenceScore,
-                imageData: getInlineResultImageBase64(result),
-                outputImage: result.outputImage || result.OutputImage || null,
-                outputImageBase64: result.outputImageBase64 || result.OutputImageBase64 || null,
-                resultImageBase64: result.resultImageBase64 || result.ResultImageBase64 || null,
-                imageId: result.imageId || result.ImageId,
-                outputData: normalizeOutputData(result),
-                analysisData: normalizeAnalysisData(result)
-            }));
+            const normalizedResults = results
+                .map(result => normalizeInspectionResultRecord(result, project.id))
+                .filter(Boolean);
 
             resultPanel.loadResults(normalizedResults, {
                 totalCount,
@@ -1436,6 +1501,7 @@ async function loadProject(projectId) {
         
         // 设置检测控制器和结果页上下文
         inspectionController.setProject(projectId);
+        inspectionPanel?.setProjectContext?.(projectId);
         if (resultPanel) {
             resultPanel.setProjectContext(projectId);
             resultPanel.clear();
@@ -1474,6 +1540,7 @@ async function createProject(name, description = '', preserveCanvas = false) {
         
         // 设置检测控制器和结果页上下文
         inspectionController.setProject(project.id);
+        inspectionPanel?.setProjectContext?.(project.id);
         if (resultPanel) {
             resultPanel.setProjectContext(project.id);
             resultPanel.clear();
