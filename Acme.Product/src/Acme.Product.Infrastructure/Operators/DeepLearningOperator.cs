@@ -302,7 +302,7 @@ public class DeepLearningOperator : OperatorBase
         {
             const string labelSource = "the active labels";
             return OperatorExecutionOutput.Failure(
-                $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model."));
+                $"Failed to resolve TargetClasses [{string.Join(", ", unresolvedTargetClasses)}] against {labelSource}. Set LabelsPath or place labels.txt next to the model.");
         }
 
         targetClasses = ParseTargetClasses(targetClassesStr, labels);
@@ -368,7 +368,7 @@ public class DeepLearningOperator : OperatorBase
 
         // 输出原始图像（不带任何绘制），供下游节点重新绘制
         var originalImage = src.Clone();
-        
+
         var additionalData = new Dictionary<string, object>
         {
             { "DetectionMode", detectionMode },

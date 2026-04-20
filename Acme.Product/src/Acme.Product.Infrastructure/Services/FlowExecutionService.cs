@@ -12,6 +12,7 @@ using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
 using Acme.Product.Core.Operators;
 using Acme.Product.Core.Services;
+using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Logging;
 using Acme.Product.Infrastructure.Operators;
 using Microsoft.Extensions.Logging;
