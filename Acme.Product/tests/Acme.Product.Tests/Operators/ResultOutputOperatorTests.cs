@@ -131,6 +131,20 @@ public class ResultOutputOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ByDefault_ShouldNotWriteTempFile()
+    {
+        var op = new Operator("test", OperatorType.ResultOutput, 0, 0);
+
+        var result = await _operator.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Text"] = "OCR result text"
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotContainKey("FilePath");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithDetectionDiagnostics_ShouldNormalizeDetectionListForJsonOutput()
     {
         var op = new Operator("test", OperatorType.ResultOutput, 0, 0);

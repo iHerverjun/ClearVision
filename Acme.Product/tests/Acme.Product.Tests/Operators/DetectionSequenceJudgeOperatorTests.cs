@@ -101,6 +101,52 @@ public class DetectionSequenceJudgeOperatorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithAllowMissing_ShouldMatchSubsequence()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_Brown,Wire_Black,Wire_Blue",
+            allowMissing: true);
+        var detections = CreateDetections(
+            ("Wire_Brown", 0.98f, 10f),
+            ("Wire_Blue", 0.94f, 30f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["MissingLabels"].Should().BeEquivalentTo(new[] { "Wire_Black" });
+        result.OutputData["Message"].Should().BeOfType<string>()
+            .Which.Should().NotContain("Missing labels");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithAllowDuplicate_ShouldIgnoreExtraRepeatedLabel()
+    {
+        var op = CreateOperator(
+            expectedLabels: "Wire_Brown,Wire_Black,Wire_Blue",
+            allowDuplicate: true);
+        var detections = CreateDetections(
+            ("Wire_Brown", 0.98f, 10f),
+            ("Wire_Black", 0.95f, 30f),
+            ("Wire_Black", 0.91f, 35f),
+            ("Wire_Blue", 0.94f, 50f));
+
+        var result = await _sut.ExecuteAsync(op, new Dictionary<string, object>
+        {
+            ["Detections"] = new DetectionList(detections)
+        });
+
+        result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.OutputData!["IsMatch"].Should().Be(true);
+        result.OutputData["DuplicateLabels"].Should().BeEquivalentTo(new[] { "Wire_Black" });
+        result.OutputData["Message"].Should().BeOfType<string>()
+            .Which.Should().NotContain("Duplicate labels");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithLowConfidenceFilter_ShouldFailWhenCountDropsBelowExpectation()
     {
         var op = CreateOperator(
@@ -382,7 +428,9 @@ public class DetectionSequenceJudgeOperatorTests
         string groupingMode = "SingleRow",
         string expectedSlots = "",
         double rowTolerance = 0.0,
-        double slotTolerance = 0.0)
+        double slotTolerance = 0.0,
+        bool allowMissing = false,
+        bool allowDuplicate = false)
     {
         var op = new Operator("judge", OperatorType.DetectionSequenceJudge, 0, 0);
         op.AddParameter(TestHelpers.CreateParameter("ExpectedLabels", expectedLabels, "string"));
@@ -390,8 +438,8 @@ public class DetectionSequenceJudgeOperatorTests
         op.AddParameter(TestHelpers.CreateParameter("Direction", direction, "string"));
         op.AddParameter(TestHelpers.CreateParameter("ExpectedCount", 0, "int"));
         op.AddParameter(TestHelpers.CreateParameter("MinConfidence", minConfidence, "double"));
-        op.AddParameter(TestHelpers.CreateParameter("AllowMissing", false, "bool"));
-        op.AddParameter(TestHelpers.CreateParameter("AllowDuplicate", false, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("AllowMissing", allowMissing, "bool"));
+        op.AddParameter(TestHelpers.CreateParameter("AllowDuplicate", allowDuplicate, "bool"));
         op.AddParameter(TestHelpers.CreateParameter("GroupingMode", groupingMode, "string"));
         op.AddParameter(TestHelpers.CreateParameter("ExpectedSlots", expectedSlots, "string"));
         op.AddParameter(TestHelpers.CreateParameter("RowTolerance", rowTolerance, "double"));

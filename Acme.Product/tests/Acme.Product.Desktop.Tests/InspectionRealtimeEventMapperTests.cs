@@ -21,6 +21,7 @@ public class InspectionRealtimeEventMapperTests
         var analysisData = GetProperty(payloadJson.RootElement, "analysisData");
 
         GetProperty(payloadJson.RootElement, "status").GetString().Should().Be("OK");
+        GetProperty(payloadJson.RootElement, "errorMessage").GetString().Should().Be("missing signal");
         GetProperty(payloadJson.RootElement, "imageId").GetGuid().Should().NotBeEmpty();
         GetProperty(analysisData, "version").GetInt32().Should().Be(1);
         GetProperty(analysisData, "cards").GetArrayLength().Should().Be(1);
@@ -40,6 +41,7 @@ public class InspectionRealtimeEventMapperTests
         SetProperty(evt, nameof(InspectionResultEvent.Status), "OK");
         SetProperty(evt, nameof(InspectionResultEvent.DefectCount), 0);
         SetProperty(evt, nameof(InspectionResultEvent.ProcessingTimeMs), 18L);
+        SetProperty(evt, nameof(InspectionResultEvent.ErrorMessage), "missing signal");
         SetProperty(evt, nameof(InspectionResultEvent.OutputData), new Dictionary<string, object> { ["Text"] = "ABC123" });
 
         var analysisDataProperty = typeof(InspectionResultEvent).GetProperty(

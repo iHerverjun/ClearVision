@@ -106,7 +106,7 @@ public class ResultAnalysisServiceIntegrationTests
             CreateResultWithDefects(projectId, new[] { 0.55, 0.45 }),
         };
 
-        _resultRepository.GetByProjectIdAsync(projectId, 0, 1000)
+        _resultRepository.GetByTimeRangeAsync(projectId, Arg.Any<DateTime>(), Arg.Any<DateTime>())
             .Returns(results);
 
         // Act
@@ -176,6 +176,31 @@ public class ResultAnalysisServiceIntegrationTests
         csv.Should().Contain("OK");
         csv.Should().Contain("NG");
         csv.Should().Contain(DefectType.Scratch.ToString());
+    }
+
+    [Fact]
+    public async Task ExportToCsvAsync_ShouldEscapeUnsafeFields()
+    {
+        var projectId = Guid.NewGuid();
+        var result = new InspectionResult(projectId);
+        result.SetResult(InspectionStatus.Error, 42, 0.5, "=cmd,\"bad\"\nnext");
+        result.AddDefect(new Defect(
+            result.Id,
+            DefectType.Other,
+            1,
+            2,
+            3,
+            4,
+            0.75,
+            "+SUM(1,2)"));
+
+        _resultRepository.GetByTimeRangeAsync(projectId, Arg.Any<DateTime>(), Arg.Any<DateTime>())
+            .Returns(new List<InspectionResult> { result });
+
+        var csv = await _analysisService.ExportToCsvAsync(projectId);
+
+        csv.Should().Contain("\"'=cmd,\"\"bad\"\"\nnext\"");
+        csv.Should().Contain("\"'+SUM(1,2)\"");
     }
 
     [Fact]

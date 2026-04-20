@@ -1,5 +1,6 @@
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.Operators;
 using Acme.Product.Infrastructure.Operators;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;

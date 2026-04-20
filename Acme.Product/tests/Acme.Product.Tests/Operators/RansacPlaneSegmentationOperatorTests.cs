@@ -1,6 +1,7 @@
 using System.Numerics;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
+using Acme.Product.Core.Operators;
 using Acme.Product.Core.ValueObjects;
 using Acme.Product.Infrastructure.Operators;
 using Acme.Product.Infrastructure.PointCloud;

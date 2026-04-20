@@ -268,6 +268,59 @@ public class FlowExecutionServiceTests
     }
 
     [Fact]
+    public async Task ExecuteFlowAsync_WhenResultOutputFeedsSideEffect_ShouldReturnResultOutputPayload()
+    {
+        var thresholdExecutor = Substitute.For<IOperatorExecutor>();
+        thresholdExecutor.OperatorType.Returns(OperatorType.Thresholding);
+        thresholdExecutor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var op = callInfo.Arg<Operator>();
+                return Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
+                {
+                    ["Source"] = op.Name
+                }));
+            });
+
+        var resultOutputExecutor = Substitute.For<IOperatorExecutor>();
+        resultOutputExecutor.OperatorType.Returns(OperatorType.ResultOutput);
+        resultOutputExecutor.ExecuteAsync(
+                Arg.Any<Operator>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(OperatorExecutionOutput.Success(new Dictionary<string, object>
+            {
+                ["Source"] = "result-output",
+                ["JudgmentResult"] = "OK"
+            })));
+
+        using var sut = new FlowExecutionService(
+            new[] { thresholdExecutor, resultOutputExecutor },
+            _logger,
+            _variableContext);
+
+        var flow = new OperatorFlow("ResultOutputContractFlow");
+        var detector = CreateOperatorWithPorts("Detector", OperatorType.Thresholding);
+        var resultOutput = CreateOperatorWithPorts("FinalResult", OperatorType.ResultOutput);
+        var sideEffect = CreateOperatorWithPorts("Notify", OperatorType.Thresholding);
+        flow.AddOperator(detector);
+        flow.AddOperator(resultOutput);
+        flow.AddOperator(sideEffect);
+        flow.AddConnection(CreateConnection(detector, resultOutput));
+        flow.AddConnection(CreateConnection(resultOutput, sideEffect));
+
+        var result = await sut.ExecuteFlowAsync(flow);
+
+        result.IsSuccess.Should().BeTrue();
+        result.OutputData.Should().NotBeNull();
+        result.OutputData!["Source"].Should().Be("result-output");
+        result.OutputData["JudgmentResult"].Should().Be("OK");
+    }
+
+    [Fact]
     public void PrepareOperatorInputs_LargeGraph_ShouldPreserveSemantics_AndHitIndexLookups()
     {
         // Arrange: build a large graph with many unrelated nodes/connections.
@@ -437,6 +490,7 @@ public class FlowExecutionServiceTests
     {
         slowReadyTcs.TrySetResult(true);
         await releaseFailuresTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
         return OperatorExecutionOutput.Failure("secondary boom");
     }
 

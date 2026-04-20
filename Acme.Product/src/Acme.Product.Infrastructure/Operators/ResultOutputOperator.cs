@@ -35,7 +35,7 @@ namespace Acme.Product.Infrastructure.Operators;
 [OutputPort("Data", "数据", PortDataType.Any)]
 [OutputPort("FilePath", "文件路径", PortDataType.String)]
 [OperatorParam("Format", "输出格式", "enum", DefaultValue = "JSON", Options = new[] { "JSON|JSON", "CSV|CSV", "Text|Text" })]
-[OperatorParam("SaveToFile", "保存到文件", "bool", DefaultValue = true)]
+[OperatorParam("SaveToFile", "保存到文件", "bool", DefaultValue = false)]
 public class ResultOutputOperator : OperatorBase
 {
     public override OperatorType OperatorType => OperatorType.ResultOutput;
@@ -48,7 +48,7 @@ public class ResultOutputOperator : OperatorBase
         CancellationToken cancellationToken)
     {
         var format = GetStringParam(@operator, "Format", "JSON");
-        var saveToFile = GetBoolParam(@operator, "SaveToFile", true);
+        var saveToFile = GetBoolParam(@operator, "SaveToFile", false);
 
         var output = new Dictionary<string, object>();
 
@@ -223,6 +223,11 @@ public class ResultOutputOperator : OperatorBase
 
     private static string EscapeCsv(string value)
     {
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@')
+        {
+            value = "'" + value;
+        }
+
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
         {
             return $"\"{value.Replace("\"", "\"\"")}\"";
@@ -243,7 +248,7 @@ public class ResultOutputOperator : OperatorBase
         var directory = Path.Combine(Path.GetTempPath(), "Acme.Product", "result-output", DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
         Directory.CreateDirectory(directory);
 
-        var filePath = Path.Combine(directory, $"result_{DateTime.UtcNow:HHmmssfff}{extension}");
+        var filePath = Path.Combine(directory, $"result_{DateTime.UtcNow:HHmmssfff}_{Guid.NewGuid():N}{extension}");
         File.WriteAllText(filePath, formattedText, Encoding.UTF8);
         return filePath;
     }

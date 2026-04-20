@@ -57,6 +57,7 @@ public static class InspectionRealtimeEventMapper
                         status = result.Status,
                         defectCount = result.DefectCount,
                         processingTimeMs = result.ProcessingTimeMs,
+                        errorMessage = result.ErrorMessage,
                         outputImageBase64 = result.OutputImageBase64,
                         outputData = result.OutputData,
                         analysisData = result.AnalysisData,

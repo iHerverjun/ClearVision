@@ -27,7 +27,18 @@ public static class InspectionJudgmentResolver
 
     public static InspectionJudgmentEvaluation DetermineStatusFromFlowOutput(Dictionary<string, object>? outputData)
     {
-        return DetermineStatusFromFlowOutput(outputData, sourcePrefix: null, depth: 0);
+        if (outputData == null)
+        {
+            return DetermineStatusFromFlowOutput(null, sourcePrefix: null, depth: 0);
+        }
+
+        var normalizedOutput = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in outputData)
+        {
+            normalizedOutput[key] = value;
+        }
+
+        return DetermineStatusFromFlowOutput(normalizedOutput, sourcePrefix: null, depth: 0);
     }
 
     private static InspectionJudgmentEvaluation DetermineStatusFromFlowOutput(
@@ -262,13 +273,40 @@ public static class InspectionJudgmentResolver
             case long l when l >= int.MinValue && l <= int.MaxValue:
                 intValue = (int)l;
                 return true;
+            case double d when IsWholeNumberInIntRange(d):
+                intValue = (int)d;
+                return true;
+            case float f when IsWholeNumberInIntRange(f):
+                intValue = (int)f;
+                return true;
+            case decimal m when m >= int.MinValue && m <= int.MaxValue && decimal.Truncate(m) == m:
+                intValue = (int)m;
+                return true;
+            case string s when int.TryParse(s, out var parsedString):
+                intValue = parsedString;
+                return true;
             case JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetInt32(out var parsed):
                 intValue = parsed;
+                return true;
+            case JsonElement { ValueKind: JsonValueKind.Number } element when element.TryGetDouble(out var parsedDouble) && IsWholeNumberInIntRange(parsedDouble):
+                intValue = (int)parsedDouble;
+                return true;
+            case JsonElement { ValueKind: JsonValueKind.String } element when int.TryParse(element.GetString(), out var parsedStringElement):
+                intValue = parsedStringElement;
                 return true;
             default:
                 intValue = 0;
                 return false;
         }
+    }
+
+    private static bool IsWholeNumberInIntRange(double value)
+    {
+        return !double.IsNaN(value) &&
+               !double.IsInfinity(value) &&
+               value >= int.MinValue &&
+               value <= int.MaxValue &&
+               Math.Truncate(value) == value;
     }
 
     private static bool TryParseExactJudgmentKeyword(string value, out InspectionStatus status)

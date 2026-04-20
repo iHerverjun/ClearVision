@@ -385,9 +385,8 @@ class ResultPanel {
 
         const trendPromise = commonParams.startTime && commonParams.endTime
             ? httpClient.get(`/analysis/trend/${projectId}`, {
+                ...commonParams,
                 interval: this.timeRange === 'today' ? 'Hour' : 'Day',
-                startTime: commonParams.startTime,
-                endTime: commonParams.endTime
             }).catch(error => {
                 console.warn('[ResultPanel] 获取趋势分析失败:', error);
                 return null;
@@ -1160,7 +1159,24 @@ class ResultPanel {
             r.defects?.[0]?.confidenceScore ? (r.defects[0].confidenceScore * 100).toFixed(1) + '%' : ''
         ]);
         
-        return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        return [this.toCsvRow(headers), ...rows.map(row => this.toCsvRow(row))].join('\n');
+    }
+
+    toCsvRow(fields) {
+        return fields.map(value => this.escapeCsvField(value)).join(',');
+    }
+
+    escapeCsvField(value) {
+        let text = value === null || value === undefined ? '' : String(value);
+        if (/^[=+\-@]/.test(text)) {
+            text = `'${text}`;
+        }
+
+        if (/[",\r\n]/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+
+        return text;
     }
     
     /**
@@ -1180,28 +1196,28 @@ class ResultPanel {
             || [];
 
         const lines = [
-            'Section,Key,Value',
-            `Summary,ProjectId,${report?.projectId || report?.ProjectId || this.projectId || ''}`,
-            `Summary,GeneratedAt,${report?.generatedAt || report?.GeneratedAt || ''}`,
-            `Summary,StartTime,${period.startTime || period.StartTime || ''}`,
-            `Summary,EndTime,${period.endTime || period.EndTime || ''}`,
-            `Summary,TotalCount,${summary.totalCount ?? summary.TotalCount ?? 0}`,
-            `Summary,OKCount,${summary.okCount ?? summary.OKCount ?? 0}`,
-            `Summary,NGCount,${summary.ngCount ?? summary.NGCount ?? 0}`,
-            `Summary,ErrorCount,${summary.errorCount ?? summary.ErrorCount ?? 0}`,
-            `Summary,AverageProcessingTimeMs,${summary.averageProcessingTimeMs ?? summary.AverageProcessingTimeMs ?? 0}`
+            this.toCsvRow(['Section', 'Key', 'Value']),
+            this.toCsvRow(['Summary', 'ProjectId', report?.projectId || report?.ProjectId || this.projectId || '']),
+            this.toCsvRow(['Summary', 'GeneratedAt', report?.generatedAt || report?.GeneratedAt || '']),
+            this.toCsvRow(['Summary', 'StartTime', period.startTime || period.StartTime || '']),
+            this.toCsvRow(['Summary', 'EndTime', period.endTime || period.EndTime || '']),
+            this.toCsvRow(['Summary', 'TotalCount', summary.totalCount ?? summary.TotalCount ?? 0]),
+            this.toCsvRow(['Summary', 'OKCount', summary.okCount ?? summary.OKCount ?? 0]),
+            this.toCsvRow(['Summary', 'NGCount', summary.ngCount ?? summary.NGCount ?? 0]),
+            this.toCsvRow(['Summary', 'ErrorCount', summary.errorCount ?? summary.ErrorCount ?? 0]),
+            this.toCsvRow(['Summary', 'AverageProcessingTimeMs', summary.averageProcessingTimeMs ?? summary.AverageProcessingTimeMs ?? 0])
         ];
 
         defectItems.forEach(item => {
-            lines.push(`DefectDistribution,${item.defectType || item.DefectType || '未知'},${item.count ?? item.Count ?? 0}`);
+            lines.push(this.toCsvRow(['DefectDistribution', item.defectType || item.DefectType || '未知', item.count ?? item.Count ?? 0]));
         });
 
         trendItems.forEach(point => {
-            lines.push(`Trend,${point.timestamp || point.Timestamp || ''},${point.totalCount ?? point.TotalCount ?? 0}`);
+            lines.push(this.toCsvRow(['Trend', point.timestamp || point.Timestamp || '', point.totalCount ?? point.TotalCount ?? 0]));
         });
 
         recommendations.forEach((recommendation, index) => {
-            lines.push(`Recommendation,${index + 1},"${String(recommendation).replace(/"/g, '""')}"`);
+            lines.push(this.toCsvRow(['Recommendation', index + 1, recommendation]));
         });
 
         return lines.join('\n');

@@ -52,6 +52,32 @@ public class InspectionJudgmentResolverTests
     }
 
     [Fact]
+    public void DetermineStatusFromFlowOutput_WhenTopLevelSignalUsesCamelCase_ShouldReturnOk()
+    {
+        var evaluation = InspectionJudgmentResolver.DetermineStatusFromFlowOutput(new Dictionary<string, object>
+        {
+            ["isOk"] = true
+        });
+
+        evaluation.Status.Should().Be(InspectionStatus.OK);
+        evaluation.JudgmentSource.Should().Be("IsOk");
+        evaluation.StatusReason.Should().Be("DerivedFromIsOk");
+    }
+
+    [Fact]
+    public void DetermineStatusFromFlowOutput_WhenDefectCountIsWholeNumberDouble_ShouldReturnOk()
+    {
+        var evaluation = InspectionJudgmentResolver.DetermineStatusFromFlowOutput(new Dictionary<string, object>
+        {
+            ["DefectCount"] = 0.0d
+        });
+
+        evaluation.Status.Should().Be(InspectionStatus.OK);
+        evaluation.JudgmentSource.Should().Be("DefectCount");
+        evaluation.StatusReason.Should().Be("DerivedFromDefectCount");
+    }
+
+    [Fact]
     public void DetermineStatusFromFlowOutput_WhenNoJudgmentSignalExists_ShouldFailClosed()
     {
         var evaluation = InspectionJudgmentResolver.DetermineStatusFromFlowOutput(new Dictionary<string, object>

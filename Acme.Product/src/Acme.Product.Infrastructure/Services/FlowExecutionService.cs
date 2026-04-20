@@ -208,10 +208,10 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             // 记录流程执行完成日志
             _logger.LogFlowExecution(flow.Id, executionOrder.Count, stopwatch.ElapsedMilliseconds, result.IsSuccess);
 
-            // 获取最后一个算子的输出作为流程输出
-            if (executionOrder.Any() && operatorOutputs.ContainsKey(executionOrder.Last().Id))
+            var flowOutputOperator = ResolveFlowOutputOperator(executionOrder, operatorOutputs);
+            if (flowOutputOperator != null)
             {
-                result.OutputData = ConvertImageWrappersToBytes(operatorOutputs[executionOrder.Last().Id]);
+                result.OutputData = ConvertImageWrappersToBytes(operatorOutputs[flowOutputOperator.Id]);
             }
 
             status.IsExecuting = false;
@@ -756,6 +756,32 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
             }
         }
         return result;
+    }
+
+    private static Operator? ResolveFlowOutputOperator(
+        IReadOnlyList<Operator> executionOrder,
+        ConcurrentDictionary<Guid, Dictionary<string, object>> operatorOutputs)
+    {
+        if (executionOrder.Count == 0)
+        {
+            return null;
+        }
+
+        var resultOutput = executionOrder.LastOrDefault(op =>
+            op.Type == OperatorType.ResultOutput && operatorOutputs.ContainsKey(op.Id));
+        if (resultOutput != null)
+        {
+            return resultOutput;
+        }
+
+        var resultJudgment = executionOrder.LastOrDefault(op =>
+            op.Type == OperatorType.ResultJudgment && operatorOutputs.ContainsKey(op.Id));
+        if (resultJudgment != null)
+        {
+            return resultJudgment;
+        }
+
+        return executionOrder.LastOrDefault(op => operatorOutputs.ContainsKey(op.Id));
     }
 
     private static bool TryNormalizeOutputValue(object? value, out object? normalized, int depth = 0)
@@ -1351,10 +1377,10 @@ public class FlowExecutionService : IFlowExecutionService, IDisposable
                 result.IsSuccess = result.OperatorResults.All(r => r.IsSuccess);
             }
 
-            // 获取最后一个算子的输出作为流程输出
-            if (executionOrder.Any() && operatorOutputs.ContainsKey(executionOrder.Last().Id))
+            var flowOutputOperator = ResolveFlowOutputOperator(executionOrder, operatorOutputs);
+            if (flowOutputOperator != null)
             {
-                result.OutputData = ConvertImageWrappersToBytes(operatorOutputs[executionOrder.Last().Id]);
+                result.OutputData = ConvertImageWrappersToBytes(operatorOutputs[flowOutputOperator.Id]);
             }
 
             status.IsExecuting = false;

@@ -464,6 +464,7 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     Status = result.Status.ToString(),
                     DefectCount = result.Defects.Count,
                     ProcessingTimeMs = result.ProcessingTimeMs,
+                    ErrorMessage = result.ErrorMessage,
                     OutputImageBase64 = result.OutputImage != null ? Convert.ToBase64String(result.OutputImage) : null,
                     OutputData = outputPayload,
                     AnalysisData = analysisPayload
@@ -495,8 +496,16 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
                     consecutiveNgCount = 0;
                 }
 
-                currentIntervalMs = 500;
-                cycleSucceeded = true;
+                if (result.Status == InspectionStatus.Error)
+                {
+                    _metrics.RecordInspectionFailed(result.ErrorMessage ?? InspectionStatus.Error.ToString());
+                    currentIntervalMs = Math.Min(currentIntervalMs * 2, maxIntervalMs);
+                }
+                else
+                {
+                    currentIntervalMs = 500;
+                    cycleSucceeded = true;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -685,11 +694,24 @@ public class InspectionWorker : IHostedService, IInspectionWorker, IAsyncDisposa
             await CacheResultImageAsync(result);
             return result;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            result.MarkAsError(ex.Message);
-            throw;
+            result.SetResult(InspectionStatus.Error, stopwatch.ElapsedMilliseconds, null, ex.Message);
+            result.SetTraceability(ComputeFlowVersionHash(flow), null, sessionId);
+
+            var outputData = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["StatusReason"] = $"CycleExecutionException:{ex.Message}",
+                ["ErrorMessage"] = ex.Message
+            };
+            AnalysisPayloadSerialization.TrySetOutputDataJson(result, outputData, _logger);
+
+            return result;
         }
     }
 

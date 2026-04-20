@@ -2,6 +2,7 @@
 // 时间间隔枚举
 // 作者：蘅芜君
 
+using System.Globalization;
 using Acme.Product.Application.DTOs;
 using Acme.Product.Core.Entities;
 using Acme.Product.Core.Enums;
@@ -239,19 +240,81 @@ public class ResultAnalysisService : IResultAnalysisService
         var results = await _resultRepository.GetByTimeRangeAsync(projectId, startTime ?? DateTime.MinValue, endTime ?? DateTime.MaxValue, status, defectType);
         
         var csv = new System.Text.StringBuilder();
-        csv.AppendLine("检测ID,工程ID,检测时间,状态,处理时间(ms),置信度,缺陷数量,错误信息");
+        csv.AppendLine(ToCsvRow("检测ID", "工程ID", "检测时间", "状态", "处理时间(ms)", "置信度", "缺陷数量", "错误信息", "缺陷类型", "X", "Y", "Width", "Height", "缺陷置信度", "缺陷描述"));
 
         foreach (var result in results)
         {
-            csv.AppendLine($"{result.Id},{result.ProjectId},{result.InspectionTime:yyyy-MM-dd HH:mm:ss},{result.Status},{result.ProcessingTimeMs},{result.ConfidenceScore:F4},{result.Defects.Count},{result.ErrorMessage}");
+            csv.AppendLine(ToCsvRow(
+                result.Id,
+                result.ProjectId,
+                result.InspectionTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                result.Status,
+                result.ProcessingTimeMs,
+                result.ConfidenceScore?.ToString("F4", CultureInfo.InvariantCulture),
+                result.Defects.Count,
+                result.ErrorMessage,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
             
             foreach (var defect in result.Defects)
             {
-                csv.AppendLine($",,,,,,,{defect.Type},{defect.X:F2},{defect.Y:F2},{defect.Width:F2},{defect.Height:F2},{defect.ConfidenceScore:F4},{defect.Description}");
+                csv.AppendLine(ToCsvRow(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    defect.Type,
+                    defect.X.ToString("F2", CultureInfo.InvariantCulture),
+                    defect.Y.ToString("F2", CultureInfo.InvariantCulture),
+                    defect.Width.ToString("F2", CultureInfo.InvariantCulture),
+                    defect.Height.ToString("F2", CultureInfo.InvariantCulture),
+                    defect.ConfidenceScore.ToString("F4", CultureInfo.InvariantCulture),
+                    defect.Description));
             }
         }
 
         return csv.ToString();
+    }
+
+    private static string ToCsvRow(params object?[] fields)
+    {
+        return string.Join(",", fields.Select(FormatCsvField));
+    }
+
+    private static string FormatCsvField(object? value)
+    {
+        var text = value switch
+        {
+            null => string.Empty,
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+
+        if (text.Length > 0 && IsFormulaPrefix(text[0]))
+        {
+            text = "'" + text;
+        }
+
+        if (text.Contains(',') || text.Contains('"') || text.Contains('\r') || text.Contains('\n'))
+        {
+            return $"\"{text.Replace("\"", "\"\"")}\"";
+        }
+
+        return text;
+    }
+
+    private static bool IsFormulaPrefix(char value)
+    {
+        return value is '=' or '+' or '-' or '@';
     }
 
     /// <inheritdoc />

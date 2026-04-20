@@ -319,13 +319,13 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
             reasons.Add($"Duplicate labels: {string.Join(", ", duplicateLabels)}.");
         }
 
-        if (expectedCount > 0 && orderedDetections.Count != expectedCount)
+        if (expectedCount > 0 && IsCountMismatch(orderedDetections.Count, expectedCount, allowMissing, allowDuplicate))
         {
             reasons.Add($"Expected {expectedCount} detections but got {orderedDetections.Count}.");
         }
 
         if (expectedLabels.Count > 0 &&
-            !expectedLabels.SequenceEqual(actualOrder, StringComparer.OrdinalIgnoreCase))
+            !MatchesExpectedOrder(expectedLabels, actualOrder, allowMissing, allowDuplicate))
         {
             reasons.Add($"Order mismatch. Actual: {FormatLabels(actualOrder)}.");
         }
@@ -790,6 +790,71 @@ public sealed class DetectionSequenceJudgeOperator : OperatorBase
         }
 
         return missing;
+    }
+
+    private static bool IsCountMismatch(int actualCount, int expectedCount, bool allowMissing, bool allowDuplicate)
+    {
+        return (actualCount < expectedCount && !allowMissing) ||
+               (actualCount > expectedCount && !allowDuplicate);
+    }
+
+    private static bool MatchesExpectedOrder(
+        IReadOnlyList<string> expectedLabels,
+        IReadOnlyList<string> actualOrder,
+        bool allowMissing,
+        bool allowDuplicate)
+    {
+        if (!allowMissing && !allowDuplicate)
+        {
+            return expectedLabels.SequenceEqual(actualOrder, StringComparer.OrdinalIgnoreCase);
+        }
+
+        var expectedIndex = 0;
+        foreach (var actualLabel in actualOrder)
+        {
+            if (allowDuplicate && ContainsLabel(expectedLabels, actualLabel, expectedIndex))
+            {
+                continue;
+            }
+
+            var matched = false;
+            while (expectedIndex < expectedLabels.Count)
+            {
+                if (string.Equals(expectedLabels[expectedIndex], actualLabel, StringComparison.OrdinalIgnoreCase))
+                {
+                    matched = true;
+                    expectedIndex++;
+                    break;
+                }
+
+                if (!allowMissing)
+                {
+                    return false;
+                }
+
+                expectedIndex++;
+            }
+
+            if (!matched)
+            {
+                return false;
+            }
+        }
+
+        return allowMissing || expectedIndex >= expectedLabels.Count;
+    }
+
+    private static bool ContainsLabel(IReadOnlyList<string> labels, string label, int endExclusive)
+    {
+        for (var i = 0; i < Math.Min(endExclusive, labels.Count); i++)
+        {
+            if (string.Equals(labels[i], label, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static DetectionResult CloneDetection(DetectionResult detection)

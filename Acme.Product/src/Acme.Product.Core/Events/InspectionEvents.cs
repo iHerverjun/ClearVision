@@ -31,6 +31,7 @@ public record InspectionResultEvent : IInspectionEvent
     public required string Status { get; init; }  // OK, NG, Error
     public required int DefectCount { get; init; }
     public required long ProcessingTimeMs { get; init; }
+    public string? ErrorMessage { get; init; }
     public string? OutputImageBase64 { get; init; }
     public Dictionary<string, object>? OutputData { get; init; }
     public Dictionary<string, object>? AnalysisData { get; init; }
