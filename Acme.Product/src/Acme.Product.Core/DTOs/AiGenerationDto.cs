@@ -71,6 +71,7 @@ public class AiFlowGenerationResult
     public const string FailureTypeUserCancelled = "user_cancelled";
     public const string FailureTypeTimeout = "timeout";
     public const string FailureTypeSystemError = "system_error";
+    public const string FailureTypeManualRetryRequired = "manual_retry_required";
 
     /// <summary>
     /// 是否生成成功
@@ -161,6 +162,7 @@ public class AiFlowGenerationResult
     /// <summary>
     /// 可选：本次发送给模型的调试追踪信息（开发态或显式开启时返回）
     /// </summary>
+    public AiManualRetryInfo? ManualRetry { get; set; }
     public object? PromptTrace { get; set; }
 }
 
@@ -181,6 +183,17 @@ public class AiAttemptDiagnostic
     public string Summary { get; set; } = string.Empty;
     public string OutputSummary { get; set; } = string.Empty;
     public List<AiValidationDiagnostic> Issues { get; set; } = new();
+}
+
+public class AiManualRetryInfo
+{
+    public bool Required { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public string Draft { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public string RepairTarget { get; set; } = string.Empty;
+    public string LastOutputSummary { get; set; } = string.Empty;
+    public List<AiAttemptDiagnostic> Diagnostics { get; set; } = new();
 }
 
 /// <summary>

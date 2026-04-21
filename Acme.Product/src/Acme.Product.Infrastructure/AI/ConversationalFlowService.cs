@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Acme.Product.Core.DTOs;
+using Acme.Product.Core.Services;
 
 namespace Acme.Product.Infrastructure.AI;
 
@@ -21,6 +22,25 @@ public sealed class ConversationTurn
     public string Role { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+    public ConversationTurnPayload? Payload { get; set; }
+}
+
+public sealed class ConversationTurnPayload
+{
+    public string Kind { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? Reply { get; set; }
+    public string? Reasoning { get; set; }
+    public List<string> Progress { get; set; } = new();
+    public ConversationTurnFailurePayload? Failure { get; set; }
+    public AiManualRetryInfo? ManualRetry { get; set; }
+}
+
+public sealed class ConversationTurnFailurePayload
+{
+    public string Summary { get; set; } = string.Empty;
+    public AiFailureSummary? FailureSummary { get; set; }
+    public List<AiAttemptDiagnostic> Diagnostics { get; set; } = new();
 }
 
 public sealed class ConversationSession
@@ -59,7 +79,8 @@ public interface IConversationalFlowService
         string sessionId,
         string assistantMessage,
         string? latestFlowJson,
-        string? latestCanvasFlowJson = null);
+        string? latestCanvasFlowJson = null,
+        ConversationTurnPayload? payload = null);
     IReadOnlyList<ConversationSessionSummary> ListSessions();
     ConversationSession? GetSession(string sessionId);
     bool TryBackfillCanvasFlowJson(string sessionId, string canvasFlowJson);
@@ -335,7 +356,8 @@ public class ConversationalFlowService : IConversationalFlowService
         string sessionId,
         string assistantMessage,
         string? latestFlowJson,
-        string? latestCanvasFlowJson = null)
+        string? latestCanvasFlowJson = null,
+        ConversationTurnPayload? payload = null)
     {
         if (!_sessions.TryGetValue(sessionId, out var session))
             return;
@@ -354,7 +376,8 @@ public class ConversationalFlowService : IConversationalFlowService
             {
                 Role = "assistant",
                 Message = assistantMessage,
-                TimestampUtc = DateTime.UtcNow
+                TimestampUtc = DateTime.UtcNow,
+                Payload = CloneTurnPayload(payload)
             });
 
             TrimHistory(session);
@@ -573,11 +596,106 @@ public class ConversationalFlowService : IConversationalFlowService
                     {
                         Role = turn.Role,
                         Message = turn.Message,
-                        TimestampUtc = turn.TimestampUtc
+                        TimestampUtc = turn.TimestampUtc,
+                        Payload = CloneTurnPayload(turn.Payload)
                     })
                     .ToList()
             };
         }
+    }
+
+    private static ConversationTurnPayload? CloneTurnPayload(ConversationTurnPayload? payload)
+    {
+        if (payload == null)
+            return null;
+
+        return new ConversationTurnPayload
+        {
+            Kind = payload.Kind,
+            Status = payload.Status,
+            Reply = payload.Reply,
+            Reasoning = payload.Reasoning,
+            Progress = payload.Progress?.Where(item => !string.IsNullOrWhiteSpace(item)).ToList() ?? new List<string>(),
+            Failure = CloneTurnFailurePayload(payload.Failure),
+            ManualRetry = CloneManualRetry(payload.ManualRetry)
+        };
+    }
+
+    private static ConversationTurnFailurePayload? CloneTurnFailurePayload(ConversationTurnFailurePayload? failure)
+    {
+        if (failure == null)
+            return null;
+
+        return new ConversationTurnFailurePayload
+        {
+            Summary = failure.Summary ?? string.Empty,
+            FailureSummary = CloneFailureSummary(failure.FailureSummary),
+            Diagnostics = failure.Diagnostics?.Select(CloneAttemptDiagnostic).ToList() ?? new List<AiAttemptDiagnostic>()
+        };
+    }
+
+    private static AiManualRetryInfo? CloneManualRetry(AiManualRetryInfo? manualRetry)
+    {
+        if (manualRetry == null)
+            return null;
+
+        return new AiManualRetryInfo
+        {
+            Required = manualRetry.Required,
+            Stage = manualRetry.Stage,
+            Draft = manualRetry.Draft,
+            Summary = manualRetry.Summary,
+            RepairTarget = manualRetry.RepairTarget,
+            LastOutputSummary = manualRetry.LastOutputSummary,
+            Diagnostics = manualRetry.Diagnostics?.Select(CloneAttemptDiagnostic).ToList() ?? new List<AiAttemptDiagnostic>()
+        };
+    }
+
+    private static AiFailureSummary? CloneFailureSummary(AiFailureSummary? summary)
+    {
+        if (summary == null)
+            return null;
+
+        return new AiFailureSummary
+        {
+            Category = summary.Category,
+            Code = summary.Code,
+            Message = summary.Message,
+            RepairTarget = summary.RepairTarget,
+            RetryCount = summary.RetryCount,
+            LastOutputSummary = summary.LastOutputSummary
+        };
+    }
+
+    private static AiAttemptDiagnostic CloneAttemptDiagnostic(AiAttemptDiagnostic diagnostic)
+    {
+        return new AiAttemptDiagnostic
+        {
+            AttemptNumber = diagnostic.AttemptNumber,
+            Stage = diagnostic.Stage,
+            Summary = diagnostic.Summary,
+            OutputSummary = diagnostic.OutputSummary,
+            Issues = diagnostic.Issues?.Select(CloneValidationDiagnostic).ToList() ?? new List<AiValidationDiagnostic>()
+        };
+    }
+
+    private static AiValidationDiagnostic CloneValidationDiagnostic(AiValidationDiagnostic diagnostic)
+    {
+        return new AiValidationDiagnostic
+        {
+            Severity = diagnostic.Severity,
+            Code = diagnostic.Code,
+            Category = diagnostic.Category,
+            Message = diagnostic.Message,
+            RelatedFields = diagnostic.RelatedFields?.ToList() ?? new List<string>(),
+            OperatorId = diagnostic.OperatorId,
+            ParameterName = diagnostic.ParameterName,
+            SourceTempId = diagnostic.SourceTempId,
+            SourcePortName = diagnostic.SourcePortName,
+            TargetTempId = diagnostic.TargetTempId,
+            TargetPortName = diagnostic.TargetPortName,
+            RepairHint = diagnostic.RepairHint
+        };
     }
 
     private static void NormalizeSession(ConversationSession session)
@@ -591,7 +709,8 @@ public class ConversationalFlowService : IConversationalFlowService
             {
                 Role = turn.Role,
                 Message = turn.Message ?? string.Empty,
-                TimestampUtc = turn.TimestampUtc == default ? DateTime.UtcNow : turn.TimestampUtc
+                TimestampUtc = turn.TimestampUtc == default ? DateTime.UtcNow : turn.TimestampUtc,
+                Payload = CloneTurnPayload(turn.Payload)
             })
             .ToList();
 

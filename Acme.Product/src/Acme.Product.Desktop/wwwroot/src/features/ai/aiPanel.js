@@ -47,6 +47,8 @@ export class AiPanel {
         this.pendingParameterConfirmedValueSignature = '';
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
+        this.activeAssistantTurn = null;
+        this.pendingManualRetry = null;
         
         // 绑定方法
         this._handleGenerate = this._handleGenerate.bind(this);
@@ -95,13 +97,14 @@ export class AiPanel {
         this._resetPendingDraftState();
         this._resetCurrentResultSyncState();
         this.pendingParameterFilePickContext = null;
+        this.pendingManualRetry = null;
+        this.activeAssistantTurn = null;
         this._clearResultPane();
         this._renderAttachments();
+        this._renderManualRetryBanner();
         this._renderQueuedHintBanner();
         const container = this.container.querySelector('#ai-chat-container');
         if (container) container.innerHTML = '';
-        const progress = this.container.querySelector('#ai-progress-container');
-        if (progress) progress.innerHTML = '<div class="ai-empty-state" style="text-align:center;color:#999;font-size:14px;margin-top:40px;">等待输入指令...</div>';
         this._addMessage('ai', '您好！我是您的视觉工程助手。已开始新对话。');
     }
 
@@ -213,6 +216,7 @@ export class AiPanel {
                             </button>
                         </div>
                         <div class="ai-attachments" id="ai-attachments"></div>
+                        <div class="ai-manual-retry-banner" id="ai-manual-retry-banner"></div>
                         <div class="ai-followup-hint-banner" id="ai-followup-hint-banner"></div>
                         <div class="ai-quick-examples">
                             <div class="examples-header" id="examples-toggle">
@@ -227,35 +231,9 @@ export class AiPanel {
                         </div>
                     </div>
                 </aside>
-                
-                <section class="ai-pane-center">
-                    <div class="ai-pane-header">
-                        <span class="pane-icon ai-badge">AI</span>
-                        <span class="pane-title">工作流生成进度</span>
-                    </div>
-                    <div class="ai-progress-container" id="ai-progress-container">
-                        <div class="ai-empty-state">等待输入指令...</div>
-                    </div>
-                </section>
-                
-                <aside class="ai-pane-reasoning" id="ai-reasoning-pane">
-                    <div class="reasoning-card design-idea">
-                        <div class="card-title">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6A4.997 4.997 0 017 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/></svg>
-                            设计思路
-                        </div>
-                        <div class="ai-explanation" id="ai-result-reasoning">--</div>
-                    </div>
-                    <div class="reasoning-card logic-deduction">
-                        <div class="card-title">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-                            逻辑推演
-                        </div>
-                        <div class="ai-explanation logic-json" id="ai-result-thinking"></div>
-                    </div>
-                </aside>
 
                 <aside class="ai-pane-right" id="ai-result-pane">
+                    <div class="ai-result-status-note" id="ai-result-status-note"></div>
                     <div class="ai-results-scroll" id="ai-results-scroll">
                         <div class="result-card overview">
                             <div class="card-title">方案概览</div>
@@ -410,15 +388,11 @@ export class AiPanel {
 
         this.lastUserPrompt = String(userMessage || normalizedDescription).trim();
         this._setGeneratingState(true);
-        this._clearResultPane();
         this.activeGenerateRequestId = requestId;
         this.activeGenerateSessionId = this.sessionId;
         this.isCancellingGenerate = false;
-
-        const reasoningEl = this.container.querySelector('#ai-result-reasoning');
-        const thinkingEl = this.container.querySelector('#ai-result-thinking');
-        if (reasoningEl) reasoningEl.innerHTML = '';
-        if (thinkingEl) thinkingEl.innerHTML = '';
+        this.pendingManualRetry = null;
+        this._renderManualRetryBanner();
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
 
@@ -431,12 +405,17 @@ export class AiPanel {
         }
 
         this._addMessage('user', userMessage || normalizedDescription);
-        const thinkingId = `thinking-${Date.now()}`;
-        this._addThinkingChain(thinkingId);
+        this._startAssistantTurn();
 
         const currentFlowPayload = existingFlowJson ?? this._getCurrentFlowJson();
         const resolvedMode = this._resolveGenerateRequestMode(explicitMode);
         const flowPayload = resolvedMode === 'new' ? null : currentFlowPayload;
+
+        if (this.currentResult?.flow) {
+            this._setResultStatusNote('正在生成新一轮方案，右侧暂时保留上一版可应用结果。', 'info');
+        } else {
+            this._setResultStatusNote('', '');
+        }
 
         try {
             this._updateProgress('正在连接 AI 助手...');
@@ -599,11 +578,6 @@ export class AiPanel {
     }
     
     _updateProgress(data) {
-        // Clear streaming placeholder when real text is streaming
-        if (data === "收到 AI 响应，正在解析 JSON 数据...") {
-             return;
-        }
-
         if (typeof data !== 'string') {
             const payload = data?.payload || data || {};
             if (!this._shouldHandleGenerateRealtimePayload(payload)) {
@@ -613,58 +587,12 @@ export class AiPanel {
 
         const msg = typeof data === 'string' ? data : (data.payload?.message || data.message);
         const phase = typeof data === 'string' ? '' : (data.payload?.phase || data.phase || '');
-        const container = this.container.querySelector('#ai-progress-stepper');
-        if (msg && container) {
-            const step = document.createElement('div');
-            step.className = 'stepper-item active';
-            step.innerHTML = `
-                <div class="stepper-icon">
-                    <svg class="check-icon" viewBox="0 0 24 24" width="14" height="14" fill="white" style="display:none;"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                    <div class="dot-icon"></div>
-                </div>
-                <div class="stepper-content">
-                    <div class="stepper-title">${msg}</div>
-                    <div class="stepper-bar-container"><div class="stepper-bar-progress"></div></div>
-                </div>
-            `;
-            const prevStep = container.querySelector('.stepper-item.active');
-            if (prevStep) {
-                prevStep.classList.remove('active');
-                prevStep.classList.add('completed');
-                prevStep.querySelector('.check-icon').style.display = 'block';
-                prevStep.querySelector('.dot-icon').style.display = 'none';
-                const bar = prevStep.querySelector('.stepper-bar-container');
-                if(bar) bar.style.display = 'none';
-            }
-            container.appendChild(step);
-            const progressWrapper = this.container.querySelector('#ai-progress-container');
-            if(progressWrapper) progressWrapper.scrollTop = progressWrapper.scrollHeight;
-            
-            // 流式提示：根据phase在右侧面板显示动态占位
-            this._showPhaseHint(msg, phase);
+        if (msg) {
+            this._appendAssistantProgressStep(msg, phase);
         }
     }
     
-    _showPhaseHint(msg, phase) {
-        const reasoning = this.container.querySelector('#ai-result-reasoning');
-        const thinking = this.container.querySelector('#ai-result-thinking');
-        const summary = this.container.querySelector('#ai-result-summary');
-        
-        // 显示动态流式提示 (Only if not already populated with real text)
-        const shimmerHtml = `<span class="streaming-hint"><span class="shimmer-text">${msg}</span></span>`;
-        
-        if (phase === 'connecting' || msg.includes('连接')) {
-            if(reasoning && !reasoning.textContent) reasoning.innerHTML = shimmerHtml;
-            if(summary && !summary.textContent) summary.innerHTML = shimmerHtml;
-        } else if (msg.includes('分析') || msg.includes('提示词') || msg.includes('构建')) {
-            if(reasoning && !reasoning.textContent) reasoning.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在设计方案思路...</span></span>`;
-            if(thinking && !thinking.textContent) thinking.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在组织逻辑推演...</span></span>`;
-        } else if (msg.includes('生成') || msg.includes('模型')) {
-            if(summary && !summary.textContent) summary.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">方案生成中...</span></span>`;
-            // Keep reasoning shimmer if text hasn't streamed yet
-            if(thinking && !thinking.textContent) thinking.innerHTML = `<span class="streaming-hint"><span class="shimmer-text">正在组织逻辑推演...</span></span>`;
-        }
-    }
+    _showPhaseHint() {}
     
     _handleStreamChunk(data) {
         const payload = data.payload || data;
@@ -694,18 +622,16 @@ export class AiPanel {
     _flushStreamBuffer() {
         this._streamFlushPending = false;
         const thinkingText = this._streamBuffer?.thinking || '';
-        const reasoningText = this._streamBuffer?.content || '';
+        const replyText = this._streamBuffer?.content || '';
 
         this._streamBuffer.thinking = '';
         this._streamBuffer.content = '';
 
         if (thinkingText) {
-            const thinkingEl = this.container.querySelector('#ai-result-thinking');
-            this._appendStreamText(thinkingEl, thinkingText);
+            this._appendAssistantStreamText('reasoning', thinkingText);
         }
-        if (reasoningText) {
-            const reasoningEl = this.container.querySelector('#ai-result-reasoning');
-            this._appendStreamText(reasoningEl, reasoningText);
+        if (replyText) {
+            this._appendAssistantStreamText('reply', replyText);
         }
 
         if ((this._streamBuffer.thinking || this._streamBuffer.content) && !this._streamFlushPending) {
@@ -714,18 +640,7 @@ export class AiPanel {
         }
     }
 
-    _appendStreamText(targetEl, text) {
-        if (!targetEl || !text) return;
-
-        const shouldFollowBottom = this._isNearBottom(targetEl);
-        if (targetEl.querySelector('.streaming-hint')) {
-            targetEl.innerHTML = '';
-        }
-        targetEl.textContent += text;
-        if (shouldFollowBottom) {
-            targetEl.scrollTop = targetEl.scrollHeight;
-        }
-    }
+    _appendStreamText() {}
 
     _isNearBottom(targetEl, threshold = 24) {
         if (!targetEl) return false;
@@ -761,47 +676,51 @@ export class AiPanel {
         this._setGeneratingState(false);
         this.sessionId = payload.sessionId || this.sessionId;
         this._saveSessionId(this.sessionId);
-        
-        const container = this.container.querySelector('#ai-progress-stepper');
-        if (container) {
-            const activeStep = container.querySelector('.stepper-item.active');
-            if (activeStep) {
-                activeStep.classList.remove('active', 'completed', 'failed', 'cancelled');
-                activeStep.classList.add(payload.success ? 'completed' : (isCancelled ? 'cancelled' : 'failed'));
-                const icon = activeStep.querySelector('.check-icon');
-                if (icon) {
-                    if (payload.success) {
-                        icon.innerHTML = '<path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>';
-                    } else if (isCancelled) {
-                        icon.innerHTML = '<path d="M7 7h10v10H7z"/>';
-                    } else {
-                        icon.innerHTML = '<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>';
-                    }
-                    icon.style.display = 'block';
-                }
-                const dot = activeStep.querySelector('.dot-icon');
-                if (dot) dot.style.display = 'none';
-                activeStep.querySelector('.stepper-title').innerHTML = payload.success ? '生成成功' : (isCancelled ? '已取消' : '生成失败');
-                const bar = activeStep.querySelector('.stepper-bar-container');
-                if(bar) bar.style.display = 'none';
-            }
-        }
+        const activeTurn = this.activeAssistantTurn
+            || this._startAssistantTurn({ activate: false, statusText: '处理中', statusTone: 'streaming' });
 
         if (isCancelled) {
             this._clearActiveRequestState();
-            this._addMessage('system', '已取消本次生成。');
+            this._setAssistantTurnStatus(activeTurn, '已取消', 'cancelled');
+            this._setResultStatusNote('', '');
+            this.activeAssistantTurn = null;
             return;
         }
 
         if (!payload.success) {
             this._clearActiveRequestState();
-            this._addMessage('system', `❌ 生成失败: ${payload.failureSummary || payload.errorMessage || '未知错误'}`);
+            const manualRetry = payload.manualRetry || payload.ManualRetry || null;
+            if (manualRetry?.required) {
+                this.pendingManualRetry = {
+                    ...manualRetry,
+                    originalMessage: this.lastUserPrompt
+                };
+                this._setAssistantTurnStatus(activeTurn, '待手动确认', 'warning');
+                this._renderAssistantFailure(activeTurn, payload);
+                this._appendManualRetryDraftToInput(this.pendingManualRetry);
+                this._renderManualRetryBanner();
+            } else {
+                this.pendingManualRetry = null;
+                this._renderManualRetryBanner();
+                this._setAssistantTurnStatus(activeTurn, '生成失败', 'failed');
+                this._renderAssistantFailure(activeTurn, payload);
+            }
+
+            if (this.currentResult?.flow) {
+                this._setResultStatusNote('本轮修改失败，右侧仍显示上一版可应用方案。', 'warning');
+            } else {
+                this._setResultStatusNote('', '');
+            }
+
+            this.activeAssistantTurn = null;
             return;
         }
 
         this._clearActiveRequestState();
         this._setCurrentResult(payload);
         this._resetPendingDraftState();
+        this.pendingManualRetry = null;
+        this._renderManualRetryBanner();
         this._rebuildPendingOperatorBindings({
             pending: payload?.pendingParameters ?? payload?.PendingParameters,
             flow: payload?.flow ?? payload?.Flow ?? null,
@@ -815,7 +734,13 @@ export class AiPanel {
                 turnCount: 0
             });
         }
-        this._displayResult(payload);
+        this._setAssistantTurnStatus(activeTurn, '生成成功', 'success');
+        this._setResultStatusNote('', '');
+        this._displayResult(payload, {
+            appendChatMessage: false,
+            assistantTurn: activeTurn
+        });
+        this.activeAssistantTurn = null;
     }
 
     _handleCancelResult(data) {
@@ -837,6 +762,13 @@ export class AiPanel {
     _handleFirewallBlocked(data) {
         this._setGeneratingState(false);
         this._clearActiveRequestState();
+        if (this.activeAssistantTurn) {
+            this._setAssistantTurnStatus(this.activeAssistantTurn, '连接受阻', 'failed');
+            this._renderAssistantFailure(this.activeAssistantTurn, {
+                errorMessage: data?.payload?.message || '网络连接被拦截'
+            });
+            this.activeAssistantTurn = null;
+        }
         const chatContainer = this.container.querySelector('#ai-chat-container');
         const alert = document.createElement('div');
         alert.className = 'firewall-alert';
@@ -854,24 +786,41 @@ export class AiPanel {
     _handleError(msg) {
         this._setGeneratingState(false);
         this._clearActiveRequestState();
+        if (this.activeAssistantTurn) {
+            this._setAssistantTurnStatus(this.activeAssistantTurn, '系统错误', 'failed');
+            this._renderAssistantFailure(this.activeAssistantTurn, {
+                errorMessage: `系统错误: ${msg}`
+            });
+            if (this.currentResult?.flow) {
+                this._setResultStatusNote('本轮修改失败，右侧仍显示上一版可应用方案。', 'warning');
+            }
+            this.activeAssistantTurn = null;
+            return;
+        }
         this._addMessage('system', `❌ 系统错误: ${msg}`);
     }
     
     _displayResult(data, options = {}) {
-        const { appendChatMessage = true } = options;
-        // Stream chunk UI handles the text printing in real-time,
-        // but if there wasn't a stream (fallback), we ensure it sits here
-        const reasoningEl = this.container.querySelector('#ai-result-reasoning');
-        if (reasoningEl && !reasoningEl.textContent.trim()) {
-            this._typewriterEffect(reasoningEl, data.aiExplanation || '暂无详细思路。');
-        }
+        const {
+            appendChatMessage = false,
+            assistantTurn = this.activeAssistantTurn
+        } = options;
 
-        const thinkingEl = this.container.querySelector('#ai-result-thinking');
-        if (thinkingEl && !thinkingEl.textContent.trim()) {
-            if (data.reasoning && data.reasoning.trim()) {
-                this._typewriterEffect(thinkingEl, data.reasoning, 8);
-            } else {
-                thinkingEl.textContent = '';
+        if (assistantTurn) {
+            if (!assistantTurn.replyBody?.textContent?.trim()) {
+                this._setAssistantSectionText(
+                    assistantTurn,
+                    'reply',
+                    data.aiExplanation || data.AiExplanation || '已生成工程方案。'
+                );
+            }
+
+            if (!assistantTurn.reasoningBody?.textContent?.trim()) {
+                this._setAssistantSectionText(
+                    assistantTurn,
+                    'reasoning',
+                    data.reasoning || data.Reasoning || ''
+                );
             }
         }
 
@@ -2591,12 +2540,249 @@ export class AiPanel {
         return msg;
     }
     
-    _addThinkingChain(id) {
-        const container = this.container.querySelector('#ai-progress-container');
-        if (container) container.innerHTML = `<div class="stepper-wrapper" id="ai-progress-stepper"></div>`;
+    _startAssistantTurn({ activate = true, statusText = '生成中', statusTone = 'streaming', openReasoning = true, openReply = true } = {}) {
+        const container = this.container.querySelector('#ai-chat-container');
+        if (!container) return null;
+
+        const msg = document.createElement('div');
+        msg.className = 'ai-message ai ai-message-rich';
+        msg.innerHTML = `
+            <div class="ai-assistant-card" data-turn-tone="${this._escapeHtml(statusTone)}">
+                <div class="ai-assistant-card-header">
+                    <div class="ai-assistant-card-title">AI 工作流助手</div>
+                    <div class="ai-assistant-status is-${this._escapeHtml(statusTone)}">${this._escapeHtml(statusText)}</div>
+                </div>
+                <section class="ai-assistant-progress-panel" hidden>
+                    <div class="ai-assistant-panel-label">生成进度</div>
+                    <div class="ai-assistant-progress-list"></div>
+                </section>
+                <details class="ai-assistant-section ai-assistant-reasoning-section" ${openReasoning ? 'open' : ''} hidden>
+                    <summary>逻辑推演</summary>
+                    <div class="ai-assistant-section-body ai-assistant-reasoning-body"></div>
+                </details>
+                <details class="ai-assistant-section ai-assistant-reply-section" ${openReply ? 'open' : ''} hidden>
+                    <summary>回复</summary>
+                    <div class="ai-assistant-section-body ai-assistant-reply-body"></div>
+                </details>
+                <section class="ai-assistant-section ai-assistant-failure-section" hidden>
+                    <div class="ai-assistant-panel-label">失败诊断</div>
+                    <div class="ai-assistant-section-body ai-assistant-failure-body"></div>
+                </section>
+            </div>
+        `;
+
+        container.appendChild(msg);
+        const turn = {
+            root: msg,
+            card: msg.querySelector('.ai-assistant-card'),
+            statusEl: msg.querySelector('.ai-assistant-status'),
+            progressPanelEl: msg.querySelector('.ai-assistant-progress-panel'),
+            progressListEl: msg.querySelector('.ai-assistant-progress-list'),
+            reasoningSection: msg.querySelector('.ai-assistant-reasoning-section'),
+            reasoningBody: msg.querySelector('.ai-assistant-reasoning-body'),
+            replySection: msg.querySelector('.ai-assistant-reply-section'),
+            replyBody: msg.querySelector('.ai-assistant-reply-body'),
+            failureSection: msg.querySelector('.ai-assistant-failure-section'),
+            failureBody: msg.querySelector('.ai-assistant-failure-body')
+        };
+
+        if (activate) {
+            this.activeAssistantTurn = turn;
+        }
+
+        this._scrollToBottom();
+        return turn;
     }
     
     _updateThinkingStep(chainId, stepId, text) {}
+
+    _setAssistantTurnStatus(turn, statusText, tone = 'streaming') {
+        if (!turn?.statusEl || !turn?.card) return;
+        turn.statusEl.textContent = statusText;
+        turn.statusEl.className = `ai-assistant-status is-${tone}`;
+        turn.card.dataset.turnTone = tone;
+    }
+
+    _appendAssistantProgressStep(message, phase = '') {
+        const turn = this.activeAssistantTurn;
+        if (!turn?.progressListEl || !message) return;
+        if (turn.progressPanelEl) {
+            turn.progressPanelEl.hidden = false;
+        }
+
+        const item = document.createElement('div');
+        item.className = 'ai-assistant-progress-item';
+        item.innerHTML = `
+            <span class="ai-assistant-progress-dot"></span>
+            <div class="ai-assistant-progress-copy">
+                <div class="ai-assistant-progress-text">${this._escapeHtml(String(message))}</div>
+                ${phase ? `<div class="ai-assistant-progress-phase">${this._escapeHtml(String(phase))}</div>` : ''}
+            </div>
+        `;
+        turn.progressListEl.appendChild(item);
+        this._scrollToBottom();
+    }
+
+    _appendAssistantStreamText(field, text) {
+        const turn = this.activeAssistantTurn;
+        if (!turn || !text) return;
+
+        const body = field === 'reasoning' ? turn.reasoningBody : turn.replyBody;
+        const section = field === 'reasoning' ? turn.reasoningSection : turn.replySection;
+        if (!body || !section) return;
+
+        section.hidden = false;
+        const shouldFollowBottom = this._isNearBottom(body);
+        body.textContent += text;
+        if (shouldFollowBottom) {
+            body.scrollTop = body.scrollHeight;
+        }
+        this._scrollToBottom();
+    }
+
+    _setAssistantSectionText(turn, field, text, { keepExisting = false } = {}) {
+        if (!turn) return;
+        const body = field === 'reasoning' ? turn.reasoningBody : turn.replyBody;
+        const section = field === 'reasoning' ? turn.reasoningSection : turn.replySection;
+        if (!body || !section) return;
+
+        const value = String(text || '').trim();
+        if (!value) {
+            section.hidden = true;
+            body.textContent = '';
+            return;
+        }
+
+        section.hidden = false;
+        body.textContent = keepExisting && body.textContent ? `${body.textContent}${value}` : value;
+    }
+
+    _renderAssistantFailure(turn, payload = {}) {
+        if (!turn?.failureSection || !turn?.failureBody) return;
+
+        const failurePayload = payload.failure || payload.Failure || null;
+        const failureSummary = failurePayload?.failureSummary
+            || failurePayload?.FailureSummary
+            || payload.failureSummary
+            || payload.FailureSummary
+            || null;
+        const diagnostics = Array.isArray(failurePayload?.diagnostics)
+            ? failurePayload.diagnostics
+            : (Array.isArray(failurePayload?.Diagnostics)
+                ? failurePayload.Diagnostics
+                : (Array.isArray(payload.lastAttemptDiagnostics)
+                    ? payload.lastAttemptDiagnostics
+                    : (Array.isArray(payload.LastAttemptDiagnostics) ? payload.LastAttemptDiagnostics : [])));
+        const manualRetry = payload.manualRetry || payload.ManualRetry || null;
+        const summaryText = failurePayload?.summary
+            || failurePayload?.Summary
+            || failureSummary?.message
+            || payload.failureSummary
+            || payload.errorMessage
+            || payload.message
+            || '生成失败';
+        const repairTarget = failureSummary?.repairTarget || manualRetry?.repairTarget || '';
+        const lastOutputSummary = failureSummary?.lastOutputSummary || manualRetry?.lastOutputSummary || '';
+        const issueLines = diagnostics
+            .flatMap(item => Array.isArray(item?.issues) ? item.issues : (Array.isArray(item?.Issues) ? item.Issues : []))
+            .slice(0, 6);
+
+        turn.failureSection.hidden = false;
+        turn.failureBody.innerHTML = `
+            <div class="ai-assistant-failure-summary">${this._escapeHtml(String(summaryText))}</div>
+            ${repairTarget ? `<div class="ai-assistant-failure-meta"><span>关键修复</span>${this._escapeHtml(String(repairTarget))}</div>` : ''}
+            ${lastOutputSummary ? `<div class="ai-assistant-failure-meta"><span>上一轮输出摘要</span>${this._escapeHtml(String(lastOutputSummary))}</div>` : ''}
+            ${issueLines.length > 0 ? `
+                <div class="ai-assistant-failure-list">
+                    ${issueLines.map(issue => `
+                        <div class="ai-assistant-failure-item">
+                            <div class="ai-assistant-failure-item-title">${this._escapeHtml(`[${issue?.category || issue?.Category || '--'}/${issue?.code || issue?.Code || '--'}] ${issue?.message || issue?.Message || ''}`)}</div>
+                            ${(issue?.repairHint || issue?.RepairHint) ? `<div class="ai-assistant-failure-item-hint">${this._escapeHtml(String(issue?.repairHint || issue?.RepairHint || ''))}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        `;
+        this._scrollToBottom();
+    }
+
+    _resolveAssistantStatusPresentation(payload = {}) {
+        const status = String(payload?.status ?? payload?.Status ?? '').trim().toLowerCase();
+        const manualRetry = payload?.manualRetry ?? payload?.ManualRetry ?? payload?.manual_retry ?? null;
+
+        if (manualRetry?.required || status === 'manual_retry_required') {
+            return { text: '待手动确认', tone: 'warning' };
+        }
+
+        switch (status) {
+            case 'completed':
+            case 'success':
+                return { text: '生成成功', tone: 'success' };
+            case 'cancelled':
+            case 'canceled':
+            case 'user_cancelled':
+            case 'user_canceled':
+                return { text: '已取消', tone: 'cancelled' };
+            case 'timed_out':
+            case 'timeout':
+                return { text: '请求超时', tone: 'failed' };
+            case 'system_error':
+                return { text: '系统错误', tone: 'failed' };
+            case 'failed':
+                return { text: '生成失败', tone: 'failed' };
+            default:
+                return { text: '已完成', tone: 'neutral' };
+        }
+    }
+
+    _renderAssistantTurnFromPayload(turnData = {}) {
+        const payload = turnData?.payload ?? turnData?.Payload ?? null;
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        const presentation = this._resolveAssistantStatusPresentation(payload);
+        const turn = this._startAssistantTurn({
+            activate: false,
+            statusText: presentation.text,
+            statusTone: presentation.tone,
+            openReasoning: false,
+            openReply: false
+        });
+        if (!turn) return null;
+
+        const progressItems = Array.isArray(payload.progress)
+            ? payload.progress
+            : (Array.isArray(payload.Progress) ? payload.Progress : []);
+        progressItems
+            .map(item => String(item || '').trim())
+            .filter(Boolean)
+            .forEach(item => {
+                if (turn.progressPanelEl) {
+                    turn.progressPanelEl.hidden = false;
+                }
+                const node = document.createElement('div');
+                node.className = 'ai-assistant-progress-item';
+                node.innerHTML = `
+                    <span class="ai-assistant-progress-dot"></span>
+                    <div class="ai-assistant-progress-copy">
+                        <div class="ai-assistant-progress-text">${this._escapeHtml(item)}</div>
+                    </div>
+                `;
+                turn.progressListEl?.appendChild(node);
+            });
+
+        const reply = String(payload.reply ?? payload.Reply ?? turnData?.message ?? turnData?.Message ?? '').trim();
+        const reasoning = String(payload.reasoning ?? payload.Reasoning ?? '').trim();
+        this._setAssistantSectionText(turn, 'reply', reply);
+        this._setAssistantSectionText(turn, 'reasoning', reasoning);
+
+        if (payload.failure || payload.Failure || payload.manualRetry || payload.ManualRetry) {
+            this._renderAssistantFailure(turn, payload);
+        }
+
+        return turn;
+    }
     
     _setGeneratingState(busy) {
         this.isGenerating = busy;
@@ -2810,6 +2996,57 @@ export class AiPanel {
         return div.innerHTML;
     }
 
+    _setResultStatusNote(text = '', tone = '') {
+        const note = this.container?.querySelector('#ai-result-status-note');
+        if (!note) return;
+
+        const normalizedText = String(text || '').trim();
+        note.className = 'ai-result-status-note';
+        if (!normalizedText) {
+            note.textContent = '';
+            note.hidden = true;
+            return;
+        }
+
+        note.hidden = false;
+        if (tone) {
+            note.classList.add(`is-${tone}`);
+        }
+        note.textContent = normalizedText;
+    }
+
+    _renderManualRetryBanner() {
+        const container = this.container?.querySelector('#ai-manual-retry-banner');
+        if (!container) return;
+
+        const manualRetry = this.pendingManualRetry;
+        const draft = String(manualRetry?.draft ?? manualRetry?.Draft ?? '').trim();
+        if (!draft) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const summary = String(manualRetry?.summary ?? manualRetry?.Summary ?? '').trim();
+        const preview = draft.length > 180 ? `${draft.slice(0, 180)}...` : draft;
+        container.innerHTML = `
+            <div class="ai-manual-retry-card">
+                <div class="ai-manual-retry-copy">
+                    <div class="ai-manual-retry-title">已生成纠错草稿，需手动确认后发送</div>
+                    <div class="ai-manual-retry-desc">系统不会自动重试。请先检查输入框中的纠错内容，再手动点击发送。</div>
+                    ${summary ? `<div class="ai-manual-retry-summary">${this._escapeHtml(summary)}</div>` : ''}
+                    <div class="ai-manual-retry-preview">${this._escapeHtml(preview)}</div>
+                </div>
+                <button class="ai-manual-retry-action" type="button" id="ai-btn-reapply-manual-retry">重新填入</button>
+            </div>
+        `;
+
+        const actionButton = container.querySelector('#ai-btn-reapply-manual-retry');
+        if (actionButton) {
+            actionButton.disabled = this.isGenerating;
+            actionButton.addEventListener('click', () => this._appendManualRetryDraftToInput(this.pendingManualRetry));
+        }
+    }
+
     _renderQueuedHintBanner() {
         const container = this.container?.querySelector('#ai-followup-hint-banner');
         if (!container) return;
@@ -2886,6 +3123,60 @@ export class AiPanel {
         input.style.height = `${input.scrollHeight}px`;
     }
 
+    _appendManualRetryDraftToInput(manualRetry) {
+        const input = this.container?.querySelector('#ai-input');
+        if (!input || !manualRetry) return;
+
+        const nextValue = this._buildManualRetryInputText(manualRetry);
+        if (!nextValue) return;
+
+        input.value = nextValue;
+        input.focus();
+        input.style.height = 'auto';
+        input.style.height = `${input.scrollHeight}px`;
+    }
+
+    _buildManualRetryInputText(manualRetry) {
+        const draft = String(manualRetry?.draft ?? manualRetry?.Draft ?? '').trim();
+        const originalMessage = String(manualRetry?.originalMessage || this.lastUserPrompt || '').trim();
+        if (!draft && !originalMessage) return '';
+
+        const cleanedDraft = this._stripEmbeddedOriginalFromManualRetryDraft(draft, originalMessage);
+        const parts = [];
+        if (originalMessage) {
+            parts.push(originalMessage);
+        }
+        if (cleanedDraft) {
+            parts.push(cleanedDraft);
+        }
+        return parts.join('\n\n').trim();
+    }
+
+    _stripEmbeddedOriginalFromManualRetryDraft(draft, originalMessage) {
+        const normalizedDraft = String(draft || '').trim();
+        if (!normalizedDraft) return '';
+        if (!originalMessage) return normalizedDraft;
+
+        const anchor = '本轮需求原话：';
+        const startIndex = normalizedDraft.indexOf(anchor);
+        if (startIndex < 0 || !normalizedDraft.includes(originalMessage)) {
+            return normalizedDraft;
+        }
+
+        const afterAnchor = normalizedDraft.slice(startIndex + anchor.length);
+        const markerMatches = ['优先修复：', '诊断信息：', '上一轮输出摘要：', '请尽量保留已经正确的算子、连线和参数']
+            .map(marker => afterAnchor.indexOf(marker))
+            .filter(index => index >= 0);
+        if (markerMatches.length === 0) {
+            return normalizedDraft.replace(anchor, '').replace(originalMessage, '').trim();
+        }
+
+        const nextMarkerIndex = Math.min(...markerMatches);
+        const before = normalizedDraft.slice(0, startIndex).trim();
+        const after = afterAnchor.slice(nextMarkerIndex).trim();
+        return [before, after].filter(Boolean).join('\n\n').trim();
+    }
+
     _createGenerateRequestId() {
         const randomPart = Math.random().toString(36).slice(2, 8);
         return `gen-${Date.now()}-${randomPart}`;
@@ -2931,26 +3222,25 @@ export class AiPanel {
     }
     
     _clearResultPane() {
-        const e1 = this.container.querySelector('#ai-result-reasoning'); if(e1) e1.textContent = '';
-        const e2 = this.container.querySelector('#ai-result-thinking'); if(e2) e2.textContent = '';
-        const e3 = this.container.querySelector('#ai-result-summary'); if(e3) e3.textContent = '';
-        const e4 = this.container.querySelector('#ai-result-ops'); if(e4) e4.innerHTML = '';
-        const e5 = this.container.querySelector('#ai-result-followups');
-        if (e5) {
-            e5.classList.add('is-empty');
-            e5.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数或缺失资源。</div>';
+        const summary = this.container.querySelector('#ai-result-summary');
+        if (summary) summary.textContent = '--';
+        const ops = this.container.querySelector('#ai-result-ops');
+        if (ops) ops.innerHTML = '';
+        const followups = this.container.querySelector('#ai-result-followups');
+        if (followups) {
+            followups.classList.add('is-empty');
+            followups.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数或缺失资源。</div>';
         }
-        const e6 = this.container.querySelector('#ai-result-parameter-editor');
-        if (e6) {
-            e6.classList.add('is-empty');
-            e6.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数，暂无需补录。</div>';
+        const editor = this.container.querySelector('#ai-result-parameter-editor');
+        if (editor) {
+            editor.classList.add('is-empty');
+            editor.innerHTML = '<div class="ai-followup-empty">当前没有待确认参数，暂无需补录。</div>';
         }
-        const e7Card = this.container.querySelector('#ai-result-prompt-trace-card');
-        const e7 = this.container.querySelector('#ai-result-prompt-trace');
-        if (e7Card) e7Card.hidden = true;
-        if (e7) e7.innerHTML = '';
-        const progress = this.container.querySelector('#ai-progress-container');
-        if(progress) progress.innerHTML = '';
+        const promptTraceCard = this.container.querySelector('#ai-result-prompt-trace-card');
+        const promptTrace = this.container.querySelector('#ai-result-prompt-trace');
+        if (promptTraceCard) promptTraceCard.hidden = true;
+        if (promptTrace) promptTrace.innerHTML = '';
+        this._setResultStatusNote('', '');
         this._streamBuffer = { thinking: '', content: '' };
         this._streamFlushPending = false;
     }
@@ -3116,8 +3406,11 @@ export class AiPanel {
         this._resetPendingDraftState();
         this._resetCurrentResultSyncState();
         this.pendingParameterFilePickContext = null;
+        this.pendingManualRetry = null;
+        this.activeAssistantTurn = null;
         this._clearActiveRequestState();
         this._clearResultPane();
+        this._renderManualRetryBanner();
         this._renderQueuedHintBanner();
 
         const chatContainer = this.container.querySelector('#ai-chat-container');
@@ -3129,14 +3422,23 @@ export class AiPanel {
         const normalizedHistory = rawHistory
             .map(turn => ({
                 role: String(turn?.role ?? turn?.Role ?? '').trim().toLowerCase(),
-                message: String(turn?.message ?? turn?.Message ?? '')
+                message: String(turn?.message ?? turn?.Message ?? ''),
+                payload: turn?.payload ?? turn?.Payload ?? null
             }))
-            .filter(turn => turn.message.trim().length > 0);
+            .filter(turn => turn.message.trim().length > 0 || turn.payload);
 
         if (normalizedHistory.length === 0) {
             this._addMessage('ai', '已恢复历史会话（当前没有可展示的消息）。');
         } else {
             normalizedHistory.forEach(turn => {
+                if (turn.role === 'assistant' || turn.role === 'ai') {
+                    const rendered = this._renderAssistantTurnFromPayload(turn);
+                    if (!rendered) {
+                        this._addMessage('ai', turn.message);
+                    }
+                    return;
+                }
+
                 const role = turn.role === 'user' ? 'user' : 'ai';
                 this._addMessage(role, turn.message);
             });

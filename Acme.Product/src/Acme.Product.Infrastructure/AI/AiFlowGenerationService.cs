@@ -84,13 +84,23 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         CancellationToken cancellationToken = default,
         Action<GenerateFlowAttachmentReport>? onAttachmentReport = null)
     {
+        var progressMessages = new List<string>();
+        void ReportProgress(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            progressMessages.Add(message);
+            onProgress?.Invoke(message);
+        }
+
         // 推送：构建提示词
-        onProgress?.Invoke("正在分析需求并构建提示词...");
+        ReportProgress("正在分析需求并构建提示词...");
         var conversationContext = _conversationalFlowService.PrepareContext(request);
         var templatePriority = await BuildTemplatePriorityContextAsync(request, cancellationToken);
         if (templatePriority.IsTemplateFirst)
         {
-            onProgress?.Invoke("检测到线序高频场景，已切换模板优先生成模式...");
+            ReportProgress("检测到线序高频场景，已切换模板优先生成模式...");
         }
 
         var systemPrompt = _promptBuilder.BuildSystemPrompt(request.Description);
@@ -149,7 +159,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             activeSendablePaths = Array.Empty<string>();
             promptTraceAttachmentReport = BuildFallbackAttachmentReport(attachmentSelection.Report, "model_not_support_image");
             onAttachmentReport?.Invoke(promptTraceAttachmentReport);
-            onProgress?.Invoke("当前模型不支持图片输入，已自动切换为文本模式（附件仅用于元信息）。");
+            ReportProgress("当前模型不支持图片输入，已自动切换为文本模式（附件仅用于元信息）。");
         }
         if (promptTrace != null)
             promptTrace.AttachmentReport = promptTraceAttachmentReport;
@@ -167,23 +177,12 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             {
                 _logger.LogInformation("Calling AI API, attempt {Attempt}", attempt + 1);
 
-                // 推送：正在调用 AI（带重试次数）
                 if (attempt > 0)
-                    onProgress?.Invoke($"AI 响应未通过校验或出错，正在重试（第 {attempt}/{options.MaxRetries} 次重试）...");
+                    ReportProgress($"上一轮请求未完成，正在重试（第 {attempt}/{options.MaxRetries} 次）...");
                 else
-                    onProgress?.Invoke("正在请求 AI 模型生成方案...");
+                    ReportProgress("正在请求 AI 模型生成方案...");
 
-                // 构建完整的上下文消息
                 var messages = new List<ChatMessage> { currentUserMessage };
-                if (attempt > 0)
-                {
-                    if (!string.IsNullOrWhiteSpace(lastRawResponse))
-                    {
-                        messages.Add(new ChatMessage("assistant", TrimRetryOutput(lastRawResponse)));
-                    }
-
-                    messages.Add(new ChatMessage("user", BuildRetryMessage(userMessage, lastValidation!, lastRawResponse)));
-                }
 
                 // 调用 API（使用流式接口）
                 var completionResult = await _aiOrchestrator.StreamCompleteAsync(
@@ -206,7 +205,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                 }
 
                 // 推送：解析结果
-                onProgress?.Invoke("收到 AI 响应，正在解析 JSON 数据...");
+                ReportProgress("收到 AI 响应，正在解析 JSON 数据...");
                 // 解析 AI 输出的 JSON
                 generatedFlow = ParseAiResponse(rawResponse);
                 if (generatedFlow == null)
@@ -223,12 +222,19 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                         "parse",
                         lastValidation,
                         lastRawResponse);
-                    retryCount++;
-                    continue;
+                    return CreateManualRetryResult(
+                        stage: "parse",
+                        conversationContext.SessionId,
+                        request.Description,
+                        lastValidation,
+                        lastAttemptDiagnostics,
+                        lastRawResponse,
+                        promptTrace,
+                        progressMessages);
                 }
 
                 // 推送：校验结果
-                onProgress?.Invoke("正在校验生成的算子和参数有效性...");
+                ReportProgress("正在校验生成的算子和参数有效性...");
                 // 校验
                 lastValidation = _validator.Validate(generatedFlow);
                 lastAttemptDiagnostics = BuildAttemptDiagnostics(
@@ -242,7 +248,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     var (flowDto, actualOperatorIdMap) = ConvertToFlowDto(generatedFlow, request.Description);
                     _layoutService.ApplyLayout(flowDto);
 
-                    onProgress?.Invoke("正在进行 Dry-Run 沙箱安全校验与分支覆盖率统计...");
+                    ReportProgress("正在进行 Dry-Run 沙箱安全校验与分支覆盖率统计...");
 
                     // S6-003: 转换并在虚拟沙箱中运行以收集覆盖率
                     object? dryRunReport = null;
@@ -272,12 +278,22 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     var pendingParameters = BuildPendingParameters(generatedFlow, actualOperatorIdMap);
                     var missingResources = BuildMissingResources(generatedFlow, templatePriority);
                     generatedFlow.PendingParameters = pendingParameters;
+                    var assistantReply = BuildAssistantReply(generatedFlow, flowDto, recommendedTemplate);
+                    var assistantPayload = new ConversationTurnPayload
+                    {
+                        Kind = "assistant_result",
+                        Status = AiFlowGenerationResult.CompletionStatusCompleted,
+                        Reply = assistantReply,
+                        Reasoning = completionResult.Reasoning,
+                        Progress = progressMessages.ToList()
+                    };
 
                     _conversationalFlowService.RecordAssistantResponse(
                         conversationContext.SessionId,
-                        generatedFlow.Explanation,
+                        assistantReply,
                         JsonSerializer.Serialize(generatedFlow, _jsonOptions),
-                        JsonSerializer.Serialize(flowDto, _jsonOptions));
+                        JsonSerializer.Serialize(flowDto, _jsonOptions),
+                        assistantPayload);
 
                     return new AiFlowGenerationResult
                     {
@@ -300,7 +316,15 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
                 _logger.LogWarning("AI 生成内容校验失败，错误：{Errors}",
                     string.Join("; ", lastValidation.Errors));
-                retryCount++;
+                return CreateManualRetryResult(
+                    stage: "validation",
+                    conversationContext.SessionId,
+                    request.Description,
+                    lastValidation,
+                    lastAttemptDiagnostics,
+                    lastRawResponse,
+                    promptTrace,
+                    progressMessages);
             }
             catch (OperationCanceledException)
             {
@@ -333,23 +357,30 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     "AI 生成被中断。WasUserCancelled={WasUserCancelled}, SessionId={SessionId}",
                     wasUserCancelled,
                     conversationContext.SessionId);
+                var failureSummary = BuildFailureSummary(
+                    cancelledValidation,
+                    retryCount,
+                    errorMessage,
+                    lastRawResponse,
+                    fallbackCode: wasUserCancelled ? "user_cancelled" : "generation_timeout",
+                    fallbackCategory: "execution");
                 RecordFailureResponse(
                     conversationContext.SessionId,
                     errorMessage,
-                    lastRawResponse);
+                    lastRawResponse,
+                    BuildFailureTurnPayload(
+                        status: completionStatus,
+                        summaryText: errorMessage,
+                        failureSummary: failureSummary,
+                        diagnostics: lastAttemptDiagnostics,
+                        progressMessages: progressMessages));
                 return new AiFlowGenerationResult
                 {
                     Success = false,
                     ErrorMessage = errorMessage,
                     CompletionStatus = completionStatus,
                     FailureType = failureType,
-                    FailureSummary = BuildFailureSummary(
-                        cancelledValidation,
-                        retryCount,
-                        errorMessage,
-                        lastRawResponse,
-                        fallbackCode: wasUserCancelled ? "user_cancelled" : "generation_timeout",
-                        fallbackCategory: "execution"),
+                    FailureSummary = failureSummary,
                     LastAttemptDiagnostics = lastAttemptDiagnostics,
                     PromptTrace = promptTrace
                 };
@@ -371,7 +402,7 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     onAttachmentReport?.Invoke(promptTraceAttachmentReport);
                     if (promptTrace != null)
                         promptTrace.AttachmentReport = promptTraceAttachmentReport;
-                    onProgress?.Invoke("图片附件暂不被当前模型/接口支持，已自动改为文本模式重试...");
+                    ReportProgress("图片附件暂不被当前模型/接口支持，已自动改为文本模式重试...");
                     retryCount++;
                     attempt--;
                     continue;
@@ -390,23 +421,31 @@ public class AiFlowGenerationService : IAiFlowGenerationService
                     "execution",
                     failureValidation,
                     lastRawResponse);
+                var errorMessage = $"AI service call failed: {ex.Message}";
+                var failureSummary = BuildFailureSummary(
+                    failureValidation,
+                    retryCount,
+                    errorMessage,
+                    lastRawResponse,
+                    fallbackCode: "service_call_failed",
+                    fallbackCategory: "execution");
                 RecordFailureResponse(
                     conversationContext.SessionId,
-                    $"AI service call failed: {ex.Message}",
-                    lastRawResponse);
+                    errorMessage,
+                    lastRawResponse,
+                    BuildFailureTurnPayload(
+                        status: AiFlowGenerationResult.CompletionStatusFailed,
+                        summaryText: errorMessage,
+                        failureSummary: failureSummary,
+                        diagnostics: lastAttemptDiagnostics,
+                        progressMessages: progressMessages));
                 return new AiFlowGenerationResult
                 {
                     Success = false,
-                    ErrorMessage = $"AI service call failed: {ex.Message}",
+                    ErrorMessage = errorMessage,
                     CompletionStatus = AiFlowGenerationResult.CompletionStatusFailed,
                     FailureType = AiFlowGenerationResult.FailureTypeSystemError,
-                    FailureSummary = BuildFailureSummary(
-                        failureValidation,
-                        retryCount,
-                        $"AI service call failed: {ex.Message}",
-                        lastRawResponse,
-                        fallbackCode: "service_call_failed",
-                        fallbackCategory: "execution"),
+                    FailureSummary = failureSummary,
                     LastAttemptDiagnostics = lastAttemptDiagnostics,
                     PromptTrace = promptTrace
                 };
@@ -415,20 +454,30 @@ public class AiFlowGenerationService : IAiFlowGenerationService
 
         // 所有重试均失败
         var finalErrorMessage = BuildFinalValidationErrorMessage(lastValidation, retryCount);
-        RecordFailureResponse(conversationContext.SessionId, finalErrorMessage, lastRawResponse);
+        var finalFailureSummary = BuildFailureSummary(
+            lastValidation,
+            retryCount,
+            finalErrorMessage,
+            lastRawResponse,
+            fallbackCode: "validation_failed",
+            fallbackCategory: "validation");
+        RecordFailureResponse(
+            conversationContext.SessionId,
+            finalErrorMessage,
+            lastRawResponse,
+            BuildFailureTurnPayload(
+                status: AiFlowGenerationResult.CompletionStatusFailed,
+                summaryText: finalErrorMessage,
+                failureSummary: finalFailureSummary,
+                diagnostics: lastAttemptDiagnostics,
+                progressMessages: progressMessages));
         return new AiFlowGenerationResult
         {
             Success = false,
             ErrorMessage = finalErrorMessage,
             RetryCount = retryCount,
             CompletionStatus = AiFlowGenerationResult.CompletionStatusFailed,
-            FailureSummary = BuildFailureSummary(
-                lastValidation,
-                retryCount,
-                finalErrorMessage,
-                lastRawResponse,
-                fallbackCode: "validation_failed",
-                fallbackCategory: "validation"),
+            FailureSummary = finalFailureSummary,
             LastAttemptDiagnostics = lastAttemptDiagnostics,
             PromptTrace = promptTrace
         };
@@ -1107,6 +1156,139 @@ public class AiFlowGenerationService : IAiFlowGenerationService
         return sb.ToString();
     }
 
+    private string BuildAssistantReply(
+        AiGeneratedFlowJson generatedFlow,
+        OperatorFlowDto flowDto,
+        AiRecommendedTemplateInfo? recommendedTemplate)
+    {
+        if (!string.IsNullOrWhiteSpace(generatedFlow.Explanation))
+        {
+            return generatedFlow.Explanation.Trim();
+        }
+
+        var operatorCount = flowDto.Operators?.Count ?? 0;
+        var connectionCount = flowDto.Connections?.Count ?? 0;
+        if (!string.IsNullOrWhiteSpace(recommendedTemplate?.TemplateName))
+        {
+            return $"工程方案已生成，包含 {operatorCount} 个算子、{connectionCount} 条连线，并优先沿用了模板「{recommendedTemplate.TemplateName}」。";
+        }
+
+        return $"工程方案已生成，包含 {operatorCount} 个算子、{connectionCount} 条连线。";
+    }
+
+    private AiFlowGenerationResult CreateManualRetryResult(
+        string stage,
+        string sessionId,
+        string originalMessage,
+        AiValidationResult validation,
+        List<AiAttemptDiagnostic> diagnostics,
+        string? lastRawResponse,
+        object? promptTrace,
+        IReadOnlyList<string> progressMessages)
+    {
+        var failureSummary = BuildFailureSummary(
+            validation,
+            retryCount: 0,
+            message: BuildManualRetrySummary(stage, validation),
+            lastRawResponse: lastRawResponse,
+            fallbackCode: stage == "parse" ? "invalid_json" : "validation_failed",
+            fallbackCategory: stage);
+        var manualRetry = new AiManualRetryInfo
+        {
+            Required = true,
+            Stage = stage,
+            Draft = BuildManualRetryDraft(originalMessage, validation, lastRawResponse),
+            Summary = diagnostics.FirstOrDefault()?.Summary ?? BuildAttemptSummary(validation),
+            RepairTarget = failureSummary.RepairTarget,
+            LastOutputSummary = failureSummary.LastOutputSummary,
+            Diagnostics = diagnostics.Select(CloneAttemptDiagnostic).ToList()
+        };
+        var persistedMessage = $"本轮生成未通过{(stage == "parse" ? "JSON 解析" : "结构校验")}，已生成纠错草稿，请确认后手动发送。";
+        RecordFailureResponse(
+            sessionId,
+            persistedMessage,
+            lastRawResponse,
+            BuildFailureTurnPayload(
+                status: AiFlowGenerationResult.FailureTypeManualRetryRequired,
+                summaryText: failureSummary.Message,
+                failureSummary: failureSummary,
+                diagnostics: diagnostics,
+                progressMessages: progressMessages,
+                manualRetry: manualRetry));
+
+        return new AiFlowGenerationResult
+        {
+            Success = false,
+            ErrorMessage = failureSummary.Message,
+            CompletionStatus = AiFlowGenerationResult.CompletionStatusFailed,
+            FailureType = AiFlowGenerationResult.FailureTypeManualRetryRequired,
+            FailureSummary = failureSummary,
+            LastAttemptDiagnostics = diagnostics,
+            ManualRetry = manualRetry,
+            SessionId = sessionId,
+            PromptTrace = promptTrace
+        };
+    }
+
+    private static string BuildManualRetrySummary(string stage, AiValidationResult validation)
+    {
+        var label = stage == "parse" ? "JSON 解析" : "结构校验";
+        if (validation.PrimaryError != null)
+        {
+            return $"AI 输出未通过{label}：[{validation.PrimaryError.Category}/{validation.PrimaryError.Code}] {validation.PrimaryError.Message}";
+        }
+
+        return $"AI 输出未通过{label}，请根据诊断信息修正后重试。";
+    }
+
+    private static string BuildManualRetryDraft(string originalMessage, AiValidationResult validation, string? lastRawResponse)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("请基于上一轮需求继续修正工作流 JSON，不要重建无关结构。");
+        sb.AppendLine("请只返回一个完整且可解析的 JSON 对象，不要附加 markdown、解释文本或代码块标记。");
+        sb.AppendLine();
+        sb.AppendLine("本轮需求原话：");
+        sb.AppendLine(originalMessage.Trim());
+
+        var repairTargets = BuildRepairTargets(validation);
+        if (repairTargets.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("优先修复：");
+            foreach (var target in repairTargets.Take(4))
+            {
+                sb.AppendLine($"- {target}");
+            }
+        }
+
+        if (validation.Diagnostics.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("诊断信息：");
+            foreach (var issue in validation.Diagnostics.Take(8))
+            {
+                var fieldText = issue.RelatedFields.Count > 0
+                    ? $"（字段：{string.Join("、", issue.RelatedFields)}）"
+                    : string.Empty;
+                var repairHint = string.IsNullOrWhiteSpace(issue.RepairHint)
+                    ? string.Empty
+                    : $"；修复建议：{issue.RepairHint}";
+                sb.AppendLine($"- [{issue.Category}/{issue.Code}] {issue.Message}{fieldText}{repairHint}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(lastRawResponse))
+        {
+            sb.AppendLine();
+            sb.AppendLine("上一轮输出摘要：");
+            sb.AppendLine(SummarizeLastOutput(lastRawResponse));
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("请尽量保留已经正确的算子、连线和参数，仅修正本轮报错涉及的部分。");
+        return sb.ToString().Trim();
+    }
+
     private static string BuildFinalValidationErrorMessage(AiValidationResult? validation, int retryCount)
     {
         if (validation?.PrimaryError != null)
@@ -1212,7 +1394,53 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             : trimmed[..maxLength] + "\n...<truncated>";
     }
 
-    private void RecordFailureResponse(string sessionId, string errorMessage, string? lastRawResponse)
+    private static ConversationTurnPayload BuildFailureTurnPayload(
+        string status,
+        string summaryText,
+        AiFailureSummary failureSummary,
+        IReadOnlyCollection<AiAttemptDiagnostic> diagnostics,
+        IReadOnlyList<string> progressMessages,
+        AiManualRetryInfo? manualRetry = null)
+    {
+        return new ConversationTurnPayload
+        {
+            Kind = "assistant_failure",
+            Status = status,
+            Progress = progressMessages.ToList(),
+            Failure = new ConversationTurnFailurePayload
+            {
+                Summary = summaryText,
+                FailureSummary = new AiFailureSummary
+                {
+                    Category = failureSummary.Category,
+                    Code = failureSummary.Code,
+                    Message = failureSummary.Message,
+                    RepairTarget = failureSummary.RepairTarget,
+                    RetryCount = failureSummary.RetryCount,
+                    LastOutputSummary = failureSummary.LastOutputSummary
+                },
+                Diagnostics = diagnostics.Select(CloneAttemptDiagnostic).ToList()
+            },
+            ManualRetry = manualRetry == null
+                ? null
+                : new AiManualRetryInfo
+                {
+                    Required = manualRetry.Required,
+                    Stage = manualRetry.Stage,
+                    Draft = manualRetry.Draft,
+                    Summary = manualRetry.Summary,
+                    RepairTarget = manualRetry.RepairTarget,
+                    LastOutputSummary = manualRetry.LastOutputSummary,
+                    Diagnostics = manualRetry.Diagnostics.Select(CloneAttemptDiagnostic).ToList()
+                }
+        };
+    }
+
+    private void RecordFailureResponse(
+        string sessionId,
+        string errorMessage,
+        string? lastRawResponse,
+        ConversationTurnPayload? payload = null)
     {
         if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(errorMessage))
             return;
@@ -1227,7 +1455,11 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             summary.AppendLine(TrimRetryOutput(lastRawResponse));
         }
 
-        _conversationalFlowService.RecordAssistantResponse(sessionId, summary.ToString().Trim(), null);
+        _conversationalFlowService.RecordAssistantResponse(
+            sessionId,
+            summary.ToString().Trim(),
+            null,
+            payload: payload);
     }
 
     private static string SummarizeLastOutput(string? lastRawResponse)
@@ -1294,6 +1526,18 @@ public class AiFlowGenerationService : IAiFlowGenerationService
             TargetTempId = source.TargetTempId,
             TargetPortName = source.TargetPortName,
             RepairHint = source.RepairHint
+        };
+    }
+
+    private static AiAttemptDiagnostic CloneAttemptDiagnostic(AiAttemptDiagnostic source)
+    {
+        return new AiAttemptDiagnostic
+        {
+            AttemptNumber = source.AttemptNumber,
+            Stage = source.Stage,
+            Summary = source.Summary,
+            OutputSummary = source.OutputSummary,
+            Issues = source.Issues?.Select(CloneDiagnostic).ToList() ?? new List<AiValidationDiagnostic>()
         };
     }
 

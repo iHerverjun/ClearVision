@@ -192,6 +192,75 @@ public class ConversationalFlowServiceTests : IDisposable
         second.SessionSummary.Should().NotContain("```");
     }
 
+    [Fact]
+    public void RecordAssistantResponse_ShouldPersistRichPayload()
+    {
+        var service = new ConversationalFlowService(_tempRoot);
+
+        var context = service.PrepareContext(new AiFlowGenerationRequest(
+            "修复 JSON 输出",
+            SessionId: "session-rich-payload"));
+
+        service.RecordAssistantResponse(
+            context.SessionId,
+            "本轮生成未通过结构校验，已生成纠错草稿，请确认后手动发送。",
+            null,
+            payload: new ConversationTurnPayload
+            {
+                Kind = "assistant_failure",
+                Status = AiFlowGenerationResult.FailureTypeManualRetryRequired,
+                Reply = "请确认后手动发送纠错草稿。",
+                Reasoning = "模型输出缺少 ResultOutput 参数。",
+                Progress = ["正在分析需求", "正在校验生成结果"],
+                Failure = new ConversationTurnFailurePayload
+                {
+                    Summary = "缺少关键参数",
+                    FailureSummary = new AiFailureSummary
+                    {
+                        Category = "validation",
+                        Code = "missing_parameter",
+                        Message = "缺少关键参数",
+                        RepairTarget = "补齐 ResultOutput 的输入参数",
+                        LastOutputSummary = "最近一次输出缺少 ResultOutput 参数"
+                    },
+                    Diagnostics =
+                    [
+                        new AiAttemptDiagnostic
+                        {
+                            AttemptNumber = 1,
+                            Stage = "validation",
+                            Summary = "缺少关键参数"
+                        }
+                    ]
+                },
+                ManualRetry = new AiManualRetryInfo
+                {
+                    Required = true,
+                    Stage = "validation",
+                    Draft = "请仅补齐缺失参数后返回 JSON。",
+                    Summary = "缺少关键参数",
+                    RepairTarget = "补齐 ResultOutput 的输入参数",
+                    LastOutputSummary = "最近一次输出缺少 ResultOutput 参数"
+                }
+            });
+
+        var reloadedService = new ConversationalFlowService(_tempRoot);
+        var session = reloadedService.GetSession(context.SessionId);
+
+        session.Should().NotBeNull();
+        var assistantTurn = session!.History.Last();
+        assistantTurn.Payload.Should().NotBeNull();
+        assistantTurn.Payload!.Kind.Should().Be("assistant_failure");
+        assistantTurn.Payload.Status.Should().Be(AiFlowGenerationResult.FailureTypeManualRetryRequired);
+        assistantTurn.Payload.Progress.Should().ContainInOrder("正在分析需求", "正在校验生成结果");
+        assistantTurn.Payload.Failure.Should().NotBeNull();
+        assistantTurn.Payload.Failure!.FailureSummary!.Code.Should().Be("missing_parameter");
+        assistantTurn.Payload.ManualRetry.Should().NotBeNull();
+        assistantTurn.Payload.ManualRetry!.Required.Should().BeTrue();
+        assistantTurn.Payload.ManualRetry.Stage.Should().Be("validation");
+        assistantTurn.Payload.ManualRetry.Draft.Should().Be("请仅补齐缺失参数后返回 JSON。");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))

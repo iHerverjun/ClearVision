@@ -408,4 +408,79 @@ public class GenerateFlowMessageHandlerTests
         root.GetProperty("requestId").GetString().Should().Be("req-cancel-1");
     }
 
+    [Fact(DisplayName = "GenerateFlowMessageHandler should serialize manual retry payload")]
+    public async Task HandleAsync_ShouldSerializeManualRetryPayload()
+    {
+        var generationService = Substitute.For<IAiFlowGenerationService>();
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<GenerateFlowMessageHandler>>();
+        var handler = new GenerateFlowMessageHandler(generationService, logger);
+
+        generationService.GenerateFlowAsync(
+                Arg.Any<AiFlowGenerationRequest>(),
+                Arg.Any<Action<string>>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.AiStreamChunk>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<Action<Acme.Product.Contracts.Messages.GenerateFlowAttachmentReport>>())
+            .Returns(Task.FromResult(new AiFlowGenerationResult
+            {
+                Success = false,
+                CompletionStatus = AiFlowGenerationResult.CompletionStatusFailed,
+                FailureType = AiFlowGenerationResult.FailureTypeManualRetryRequired,
+                FailureSummary = new AiFailureSummary
+                {
+                    Category = "validation",
+                    Code = "missing_parameter",
+                    Message = "缺少关键参数"
+                },
+                LastAttemptDiagnostics =
+                [
+                    new AiAttemptDiagnostic
+                    {
+                        AttemptNumber = 1,
+                        Stage = "validation",
+                        Summary = "缺少关键参数",
+                        Issues =
+                        [
+                            new AiValidationDiagnostic
+                            {
+                                Severity = AiValidationSeverity.Error,
+                                Code = "missing_parameter",
+                                Category = "validation",
+                                Message = "缺少关键参数"
+                            }
+                        ]
+                    }
+                ],
+                ManualRetry = new AiManualRetryInfo
+                {
+                    Required = true,
+                    Stage = "validation",
+                    Draft = "请仅补齐缺失参数后返回 JSON。",
+                    Summary = "缺少关键参数",
+                    RepairTarget = "补齐 ResultOutput 的输入参数",
+                    LastOutputSummary = "最近一次输出缺少 ResultOutput 参数",
+                    Diagnostics =
+                    [
+                        new AiAttemptDiagnostic
+                        {
+                            AttemptNumber = 1,
+                            Stage = "validation",
+                            Summary = "缺少关键参数"
+                        }
+                    ]
+                }
+            }));
+
+        var resultJson = await handler.HandleAsync("修复参数", requestId: "req-manual-retry-1");
+
+        using var doc = JsonDocument.Parse(resultJson);
+        var root = doc.RootElement;
+        root.GetProperty("success").GetBoolean().Should().BeFalse();
+        root.GetProperty("failureType").GetString().Should().Be(AiFlowGenerationResult.FailureTypeManualRetryRequired);
+        root.GetProperty("manualRetry").GetProperty("required").GetBoolean().Should().BeTrue();
+        root.GetProperty("manualRetry").GetProperty("stage").GetString().Should().Be("validation");
+        root.GetProperty("manualRetry").GetProperty("draft").GetString().Should().Be("请仅补齐缺失参数后返回 JSON。");
+        root.GetProperty("manualRetry").GetProperty("diagnostics").GetArrayLength().Should().Be(1);
+    }
+
 }

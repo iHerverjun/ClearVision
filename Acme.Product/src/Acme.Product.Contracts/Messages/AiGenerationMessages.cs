@@ -75,6 +75,7 @@ public record GenerateFlowResponse
     public GenerateFlowTemplateRecommendation? RecommendedTemplate { get; init; }
     public List<GenerateFlowPendingParameter> PendingParameters { get; init; } = new();
     public List<GenerateFlowMissingResource> MissingResources { get; init; } = new();
+    public GenerateFlowManualRetry? ManualRetry { get; init; }
     public object? PromptTrace { get; init; }
 }
 
@@ -128,6 +129,17 @@ public record GenerateFlowMissingResource
     public string ResourceType { get; init; } = string.Empty;
     public string ResourceKey { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
+}
+
+public record GenerateFlowManualRetry
+{
+    public bool Required { get; init; }
+    public string Stage { get; init; } = string.Empty;
+    public string Draft { get; init; } = string.Empty;
+    public string Summary { get; init; } = string.Empty;
+    public string RepairTarget { get; init; } = string.Empty;
+    public string LastOutputSummary { get; init; } = string.Empty;
+    public List<object> Diagnostics { get; init; } = new();
 }
 
 

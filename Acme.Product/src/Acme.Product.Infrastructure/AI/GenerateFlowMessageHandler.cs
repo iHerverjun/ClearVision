@@ -102,6 +102,7 @@ public class GenerateFlowMessageHandler
                 RecommendedTemplate = MapRecommendedTemplate(result.RecommendedTemplate),
                 PendingParameters = MapPendingParameters(result.PendingParameters),
                 MissingResources = MapMissingResources(result.MissingResources),
+                ManualRetry = MapManualRetry(result.ManualRetry),
                 PromptTrace = result.PromptTrace
             };
 
@@ -184,6 +185,7 @@ public class GenerateFlowMessageHandler
                 response.RecommendedTemplate,
                 response.PendingParameters,
                 response.MissingResources,
+                response.ManualRetry,
                 response.PromptTrace,
                 FailureType = failureType
             }, _jsonOptions);
@@ -258,5 +260,24 @@ public class GenerateFlowMessageHandler
             ResourceKey = item.ResourceKey,
             Description = item.Description
         }).ToList();
+    }
+
+    private static GenerateFlowManualRetry? MapManualRetry(AiManualRetryInfo? manualRetry)
+    {
+        if (manualRetry == null)
+        {
+            return null;
+        }
+
+        return new GenerateFlowManualRetry
+        {
+            Required = manualRetry.Required,
+            Stage = manualRetry.Stage,
+            Draft = manualRetry.Draft,
+            Summary = manualRetry.Summary,
+            RepairTarget = manualRetry.RepairTarget,
+            LastOutputSummary = manualRetry.LastOutputSummary,
+            Diagnostics = manualRetry.Diagnostics.Cast<object>().ToList()
+        };
     }
 }

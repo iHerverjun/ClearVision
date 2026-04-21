@@ -20,9 +20,11 @@
     animation: inkFadeIn var(--duration-normal) var(--ease-ink-smooth);
 }
 
-/* ---- Workspace 4-Column Grid ---- */
+/* ---- Workspace 2-Column Layout ---- */
 .ai-workspace {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
+    align-items: stretch;
     flex: 1;
     overflow: hidden;
     padding: var(--content-gap);
@@ -32,7 +34,6 @@
 
 /* ---- Shared Pane Styles ---- */
 .ai-pane-left,
-.ai-pane-center,
 .ai-pane-right {
     background: var(--glass-card);
     backdrop-filter: var(--glass-blur);
@@ -47,81 +48,14 @@
 }
 
 .ai-pane-left:hover,
-.ai-pane-center:hover,
 .ai-pane-right:hover {
     border-color: rgba(231, 76, 60, 0.15);
     box-shadow: var(--shadow-float), var(--neon-cinnabar), var(--shadow-inset);
 }
 
-/* Reasoning pane is a transparent wrapper with 2 cards inside */
-.ai-pane-reasoning {
-    display: flex;
-    flex-direction: column;
-    gap: var(--content-gap);
-    background: transparent;
-    border: none;
-    box-shadow: none;
-}
-
 /* ---- Column Sizes ---- */
-.ai-pane-left   { flex: 2.2; max-width: 360px; min-width: 280px; }
-.ai-pane-center { flex: 2.2; position: relative; }
-.ai-pane-reasoning { flex: 2.8; min-width: 280px; }
-.ai-pane-right  { flex: 1.6; min-width: 200px; }
-
-/* ---- Center pane cinnabar top accent ---- */
-.ai-pane-center::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--gradient-cinnabar);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    z-index: 2;
-}
-
-/* ---- Reasoning Cards ---- */
-.reasoning-card {
-    background: var(--glass-card);
-    backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-md), var(--shadow-inset);
-    padding: var(--card-padding);
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transition: all var(--duration-normal) var(--ease-ink);
-}
-
-.ai-pane-reasoning .reasoning-card:first-child {
-    flex: 1;
-}
-
-.ai-pane-reasoning .reasoning-card.logic-deduction {
-    flex: 1.8;
-}
-
-.reasoning-card:hover {
-    border-color: rgba(231, 76, 60, 0.15);
-    box-shadow: var(--shadow-float), var(--neon-cinnabar), var(--shadow-inset);
-}
-
-.reasoning-card .card-title {
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: #8b7355;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-}
-
-.reasoning-card .card-title svg {
-    color: var(--cinnabar);
-}
+.ai-pane-left { min-width: 0; }
+.ai-pane-right { min-width: 0; max-width: 460px; }
 
 /* ---- Pane Header (Co-Pilot / Progress) ---- */
 .ai-pane-header {
@@ -274,6 +208,235 @@
     background: rgba(231, 76, 60, 0.06);
     border-radius: var(--radius-full);
     border: 1px solid rgba(231, 76, 60, 0.1);
+}
+
+.ai-message-rich {
+    width: min(100%, 860px);
+    max-width: 100%;
+}
+
+.ai-assistant-card {
+    width: 100%;
+    border: 1px solid rgba(231, 76, 60, 0.14);
+    border-radius: var(--radius-xl);
+    background:
+        linear-gradient(180deg, rgba(231, 76, 60, 0.06) 0%, rgba(15, 36, 53, 0.12) 100%),
+        rgba(255, 255, 255, 0.02);
+    box-shadow: var(--shadow-md), var(--shadow-inset);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ai-assistant-card[data-turn-tone="success"] {
+    border-color: rgba(46, 204, 113, 0.22);
+}
+
+.ai-assistant-card[data-turn-tone="warning"] {
+    border-color: rgba(249, 214, 107, 0.24);
+}
+
+.ai-assistant-card[data-turn-tone="failed"],
+.ai-assistant-card[data-turn-tone="cancelled"] {
+    border-color: rgba(231, 76, 60, 0.2);
+}
+
+.ai-assistant-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ai-assistant-card-title,
+.ai-assistant-panel-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8b7355;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+.ai-assistant-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    line-height: 1;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--paper-dim);
+    background: rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+}
+
+.ai-assistant-status.is-streaming {
+    color: #ffd8cf;
+    border-color: rgba(231, 76, 60, 0.26);
+    background: rgba(231, 76, 60, 0.14);
+}
+
+.ai-assistant-status.is-success {
+    color: #d9ffea;
+    border-color: rgba(46, 204, 113, 0.32);
+    background: rgba(46, 204, 113, 0.15);
+}
+
+.ai-assistant-status.is-warning {
+    color: #fff2c7;
+    border-color: rgba(249, 214, 107, 0.34);
+    background: rgba(249, 214, 107, 0.14);
+}
+
+.ai-assistant-status.is-failed,
+.ai-assistant-status.is-cancelled {
+    color: #ffd5cf;
+    border-color: rgba(231, 76, 60, 0.28);
+    background: rgba(231, 76, 60, 0.12);
+}
+
+.ai-assistant-status.is-neutral {
+    color: var(--paper-dim);
+}
+
+.ai-assistant-progress-panel,
+.ai-assistant-section,
+.ai-assistant-failure-section {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+    background: rgba(15, 36, 53, 0.36);
+}
+
+.ai-assistant-progress-panel {
+    padding: 12px;
+}
+
+.ai-assistant-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.ai-assistant-progress-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.ai-assistant-progress-dot {
+    width: 9px;
+    height: 9px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--cinnabar);
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.12);
+    flex-shrink: 0;
+}
+
+.ai-assistant-progress-copy {
+    min-width: 0;
+}
+
+.ai-assistant-progress-text {
+    font-size: var(--font-size-sm);
+    color: var(--paper-white);
+    line-height: 1.55;
+}
+
+.ai-assistant-progress-phase {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--ink-gray);
+}
+
+.ai-assistant-section {
+    overflow: hidden;
+}
+
+.ai-assistant-section summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 12px 14px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--paper-white);
+    user-select: none;
+}
+
+.ai-assistant-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.ai-assistant-section-body {
+    padding: 0 14px 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+    color: var(--paper-dim);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.ai-assistant-failure-section {
+    padding: 12px 14px;
+}
+
+.ai-assistant-failure-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ai-assistant-failure-summary {
+    font-size: var(--font-size-sm);
+    color: #ffd5cf;
+    line-height: 1.6;
+}
+
+.ai-assistant-failure-meta {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--paper-dim);
+}
+
+.ai-assistant-failure-meta span {
+    color: #ffb7aa;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.ai-assistant-failure-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ai-assistant-failure-item {
+    border: 1px solid rgba(231, 76, 60, 0.14);
+    border-radius: var(--radius-md);
+    background: rgba(231, 76, 60, 0.08);
+    padding: 10px 12px;
+}
+
+.ai-assistant-failure-item-title {
+    color: var(--paper-white);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.ai-assistant-failure-item-hint {
+    margin-top: 6px;
+    color: var(--ink-gray);
+    font-size: 11px;
+    line-height: 1.55;
 }
 
 /* ---- Input Area (Bottom of Left Pane) ---- */
@@ -519,8 +682,61 @@
     margin-top: 8px;
 }
 
+.ai-manual-retry-banner,
 .ai-followup-hint-banner {
     margin-top: 8px;
+}
+
+.ai-manual-retry-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(249, 214, 107, 0.24);
+    background: rgba(249, 214, 107, 0.1);
+}
+
+.ai-manual-retry-copy {
+    min-width: 0;
+}
+
+.ai-manual-retry-title {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    color: #fff2c7;
+}
+
+.ai-manual-retry-desc,
+.ai-manual-retry-summary,
+.ai-manual-retry-preview {
+    margin-top: 4px;
+    color: var(--paper-dim);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.ai-manual-retry-summary {
+    color: var(--paper-white);
+}
+
+.ai-manual-retry-action {
+    border: 1px solid rgba(249, 214, 107, 0.26);
+    background: rgba(15, 36, 53, 0.22);
+    color: #fff2c7;
+    border-radius: var(--radius-full);
+    padding: 6px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-ink);
+    flex-shrink: 0;
+}
+
+.ai-manual-retry-action:hover {
+    border-color: rgba(249, 214, 107, 0.42);
+    background: rgba(15, 36, 53, 0.36);
 }
 
 .ai-followup-hint-card {
@@ -899,6 +1115,29 @@
     padding: var(--card-padding);
     min-height: 0;
     gap: var(--content-gap);
+}
+
+.ai-result-status-note {
+    display: none;
+    padding: 10px 12px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(45, 74, 94, 0.3);
+    color: var(--paper-dim);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+}
+
+.ai-result-status-note.is-info {
+    display: block;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ai-result-status-note.is-warning {
+    display: block;
+    border-color: rgba(249, 214, 107, 0.24);
+    background: rgba(249, 214, 107, 0.08);
+    color: #fff2c7;
 }
 
 .ai-results-scroll {
@@ -1504,6 +1743,42 @@
 .btn-apply-flow:active::after {
     width: 400px;
     height: 400px;
+}
+
+@media (max-width: 1180px) {
+    .ai-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ai-pane-right {
+        max-width: none;
+        min-height: 320px;
+    }
+}
+
+@media (max-width: 720px) {
+    .ai-workspace {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .ai-pane-header {
+        flex-wrap: wrap;
+        height: auto;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .ai-message {
+        max-width: 100%;
+    }
+
+    .ai-manual-retry-card,
+    .ai-followup-hint-card,
+    .ai-assistant-card-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 
 /* ---- Scrollbar (Digital Ink style) ---- */
