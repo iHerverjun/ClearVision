@@ -1198,3 +1198,26 @@
     background: #f1f5f9;
     border-color: #cbd5e1;
 }
+
+/* ---- Light Theme Overrides for Disabled Form Elements (Hotfix) ---- */
+[data-theme="light"] input:disabled,
+[data-theme="light"] select:disabled,
+[data-theme="light"] textarea:disabled,
+[data-theme="light"] .cv-input:disabled,
+[data-theme="light"] .cv-select:disabled,
+[data-theme="light"] .form-control:disabled {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+    box-shadow: none;
+    opacity: 0.8;
+}
+
+[data-theme="light"] button:disabled,
+[data-theme="light"] .cv-btn:disabled,
+[data-theme="light"] .btn:disabled {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+    opacity: 0.6;
+}

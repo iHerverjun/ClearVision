@@ -166,9 +166,6 @@ class InspectionPanel {
             const runtimeMessage = message || this._lastProtectionMessage || '待机中。启动连续运行后，这里会持续显示保护监控状态。';
             statusEl.textContent = runtimeMessage;
             statusEl.dataset.tone = tone;
-            statusEl.style.color = tone === 'warning'
-                ? '#b45309'
-                : (tone === 'error' ? '#b91c1c' : 'var(--text-secondary)');
         }
     }
 
@@ -451,10 +448,10 @@ class InspectionPanel {
                             <span>停止</span>
                         </button>
                     </div>
-                    <div style="margin-top:14px; padding:12px; border-radius:10px; background:#fff7ed; border:1px solid #fed7aa;">
-                        <div style="font-size:12px; font-weight:600; color:#9a3412; margin-bottom:6px;">运行保护说明</div>
-                        <div id="protection-summary" style="font-size:12px; line-height:1.5; color:#7c2d12;"></div>
-                        <div id="protection-status" style="margin-top:8px; font-size:12px; line-height:1.5; color:var(--text-secondary);"></div>
+                    <div class="inspection-protection-notice">
+                        <div class="inspection-protection-title">运行保护说明</div>
+                        <div id="protection-summary" class="inspection-protection-summary"></div>
+                        <div id="protection-status" class="inspection-protection-status" data-tone="info"></div>
                     </div>
                 </div>
 

@@ -247,3 +247,33 @@
 .roi-editor-readonly.hidden {
     display: none;
 }
+
+html[data-theme="dark"] .roi-editor-panel {
+    border-color: var(--theme-border);
+    background-color: var(--theme-surface-1);
+    background-image: linear-gradient(180deg, rgba(15, 36, 53, 0.92) 0%, rgba(8, 19, 29, 0.96) 100%);
+    box-shadow: var(--theme-shadow-soft);
+}
+
+html[data-theme="dark"] .roi-editor-header {
+    border-bottom-color: var(--theme-border);
+}
+
+html[data-theme="dark"] .roi-editor-title {
+    color: var(--paper-white);
+}
+
+html[data-theme="dark"] .roi-editor-subtitle {
+    color: var(--text-secondary);
+}
+
+html[data-theme="dark"] .roi-editor-stage {
+    background: linear-gradient(180deg, rgba(8, 19, 29, 0.94) 0%, rgba(11, 24, 36, 0.98) 100%);
+}
+
+html[data-theme="dark"] .roi-editor-empty,
+html[data-theme="dark"] .roi-editor-readonly {
+    color: var(--paper-dim);
+    background: rgba(8, 19, 29, 0.84);
+    backdrop-filter: blur(4px);
+}

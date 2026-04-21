@@ -470,6 +470,43 @@
     font-family: 'JetBrains Mono', monospace;
 }
 
+.inspection-protection-notice {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(245, 158, 11, 0.26);
+    background: rgba(66, 46, 18, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.inspection-protection-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fcd34d;
+    margin-bottom: 6px;
+}
+
+.inspection-protection-summary {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #fde68a;
+}
+
+.inspection-protection-status {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.inspection-protection-status[data-tone="warning"] {
+    color: #fbbf24;
+}
+
+.inspection-protection-status[data-tone="error"] {
+    color: #f87171;
+}
+
 /* ==========================================================================
    动画定义
    ========================================================================== */
@@ -512,6 +549,28 @@
 
 [data-theme="light"] .inspection-view-container {
     background: #f1f5f9; /* Clean slate background matching main workspace */
+}
+
+[data-theme="light"] .inspection-protection-notice {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    box-shadow: none;
+}
+
+[data-theme="light"] .inspection-protection-title {
+    color: #9a3412;
+}
+
+[data-theme="light"] .inspection-protection-summary {
+    color: #7c2d12;
+}
+
+[data-theme="light"] .inspection-protection-status[data-tone="warning"] {
+    color: #b45309;
+}
+
+[data-theme="light"] .inspection-protection-status[data-tone="error"] {
+    color: #b91c1c;
 }
 
 /* Panels — Clean Card Style */

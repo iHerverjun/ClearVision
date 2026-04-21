@@ -330,6 +330,14 @@ body.property-sidebar-resizing .sidebar-resizer::before {
     background-image: none;
 }
 
+html[data-theme="dark"] #flow-canvas {
+    background-color: var(--workspace-bg);
+    background-image:
+        radial-gradient(circle at 18% 12%, rgba(231, 76, 60, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 82% 18%, rgba(212, 175, 55, 0.05) 0%, transparent 24%),
+        linear-gradient(180deg, rgba(15, 36, 53, 0.94) 0%, rgba(8, 19, 29, 0.98) 100%);
+}
+
 /* Image Viewer Container */
 .image-viewer-container {
     flex: 1;

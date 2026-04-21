@@ -176,3 +176,74 @@
     font-style: italic;
 }
 
+html[data-theme="dark"] .property-panel {
+    background-color: var(--theme-surface-1);
+    background-image: linear-gradient(180deg, rgba(15, 36, 53, 0.96) 0%, rgba(8, 19, 29, 0.98) 100%);
+    color: var(--text-color);
+}
+
+html[data-theme="dark"] .property-header {
+    border-bottom-color: var(--theme-border);
+}
+
+html[data-theme="dark"] .property-icon {
+    background: rgba(231, 76, 60, 0.12);
+    border-color: rgba(231, 76, 60, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .property-header h4 {
+    color: var(--paper-white);
+}
+
+html[data-theme="dark"] .property-type,
+html[data-theme="dark"] .form-label {
+    color: var(--text-secondary);
+}
+
+html[data-theme="dark"] .form-input,
+html[data-theme="dark"] .form-select {
+    background: rgba(8, 19, 29, 0.72);
+    border-color: var(--theme-border);
+    color: var(--paper-white);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .form-input::placeholder,
+html[data-theme="dark"] .form-select::placeholder {
+    color: var(--text-muted);
+}
+
+html[data-theme="dark"] .form-input:focus,
+html[data-theme="dark"] .form-select:focus {
+    background: rgba(8, 19, 29, 0.92);
+    border-color: var(--cinnabar);
+    box-shadow:
+        0 0 0 3px rgba(231, 76, 60, 0.14),
+        0 10px 30px rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme="dark"] .btn-pick-file {
+    background: rgba(21, 35, 49, 0.92);
+    border-color: var(--theme-border);
+    color: var(--paper-dim);
+}
+
+html[data-theme="dark"] .btn-pick-file:hover {
+    background: rgba(36, 59, 77, 0.92);
+    color: var(--paper-white);
+}
+
+html[data-theme="dark"] .form-color {
+    border-color: var(--theme-border);
+    background: rgba(8, 19, 29, 0.64);
+}
+
+html[data-theme="dark"] .property-actions {
+    border-top-color: var(--theme-border);
+}
+
+html[data-theme="dark"] .form-description {
+    color: var(--text-muted);
+}
+
