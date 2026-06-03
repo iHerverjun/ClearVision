@@ -80,7 +80,7 @@ jobs:
         run: dotnet run --project scripts/OperatorDocGenerator/OperatorDocGenerator.csproj -- .
 
       - name: Upload Operator Catalog
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: operator-catalog
@@ -203,7 +203,7 @@ jobs:
           & "./scripts/run-tests-detection-performance.ps1" @parameters
 
       - name: Upload Detection Performance Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: detection-performance-report
@@ -213,7 +213,7 @@ jobs:
             ClearVision.Product/test_results/archive/detection_performance_failures/**
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -264,7 +264,7 @@ jobs:
             -DotNetTestArguments "-p:ClearVisionOperatorLibraryPackageVersion=$env:OPERATOR_PACKAGE_VERSION"
 
       - name: Upload OperatorLibrary Package Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: operator-library-package
@@ -285,7 +285,7 @@ jobs:
           --report artifacts/operator-performance-benchmark.md
 
       - name: Upload Operator Performance Benchmark
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: operator-performance-benchmark
@@ -313,7 +313,7 @@ jobs:
           npx playwright test
 
       - name: Upload UI Test Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-test-results
@@ -384,7 +384,7 @@ jobs:
             -Verbosity minimal
 
       - name: Upload Industrial Gate Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: operator-industrial-gate
@@ -459,7 +459,7 @@ jobs:
           Compress-Archive -Path "${{ env.PUBLISH_DIR }}/ClearVision-${{ steps.version.outputs.VERSION }}/*" -DestinationPath "${{ env.PUBLISH_DIR }}/ClearVision-${{ steps.version.outputs.VERSION }}-win-x64.zip" -Force
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ClearVision-Build-${{ steps.version.outputs.VERSION }}
           path: ${{ env.PUBLISH_DIR }}/ClearVision-${{ steps.version.outputs.VERSION }}-win-x64.zip
