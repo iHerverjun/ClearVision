@@ -478,7 +478,7 @@ jobs:
           path: ./artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: ./artifacts/**/*.zip
           generate_release_notes: true
